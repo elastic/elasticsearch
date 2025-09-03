@@ -7,8 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder implements BlockLoader.AggregateMetricDoubleBuilder {
 
@@ -51,22 +59,27 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+    public long estimatedBytes() {
+        return minBuilder.estimatedBytes() + maxBuilder.estimatedBytes() + sumBuilder.estimatedBytes() + countBuilder.estimatedBytes();
+    }
+
+    @Override
+    public AggregateMetricDoubleBlockBuilder copyFrom(Block b, int beginInclusive, int endExclusive) {
         Block minBlock;
         Block maxBlock;
         Block sumBlock;
         Block countBlock;
-        if (block.areAllValuesNull()) {
-            minBlock = block;
-            maxBlock = block;
-            sumBlock = block;
-            countBlock = block;
+        if (b.areAllValuesNull()) {
+            minBlock = b;
+            maxBlock = b;
+            sumBlock = b;
+            countBlock = b;
         } else {
-            CompositeBlock composite = (CompositeBlock) block;
-            minBlock = composite.getBlock(Metric.MIN.getIndex());
-            maxBlock = composite.getBlock(Metric.MAX.getIndex());
-            sumBlock = composite.getBlock(Metric.SUM.getIndex());
-            countBlock = composite.getBlock(Metric.COUNT.getIndex());
+            AggregateMetricDoubleBlock block = (AggregateMetricDoubleBlock) b;
+            minBlock = block.minBlock();
+            maxBlock = block.maxBlock();
+            sumBlock = block.sumBlock();
+            countBlock = block.countBlock();
         }
         minBuilder.copyFrom(minBlock, beginInclusive, endExclusive);
         maxBuilder.copyFrom(maxBlock, beginInclusive, endExclusive);
@@ -75,8 +88,37 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         return this;
     }
 
+    public AggregateMetricDoubleBlockBuilder copyFrom(AggregateMetricDoubleBlock block, int position) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+
+        if (block.minBlock().isNull(position)) {
+            min().appendNull();
+        } else {
+            min().appendDouble(block.minBlock().getDouble(position));
+        }
+        if (block.maxBlock().isNull(position)) {
+            max().appendNull();
+        } else {
+            max().appendDouble(block.maxBlock().getDouble(position));
+        }
+        if (block.sumBlock().isNull(position)) {
+            sum().appendNull();
+        } else {
+            sum().appendDouble(block.sumBlock().getDouble(position));
+        }
+        if (block.countBlock().isNull(position)) {
+            count().appendNull();
+        } else {
+            count().appendInt(block.countBlock().getInt(position));
+        }
+        return this;
+    }
+
     @Override
-    public AbstractBlockBuilder appendNull() {
+    public AggregateMetricDoubleBlockBuilder appendNull() {
         minBuilder.appendNull();
         maxBuilder.appendNull();
         sumBuilder.appendNull();
@@ -85,7 +127,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+    public AggregateMetricDoubleBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         minBuilder.mvOrdering(mvOrdering);
         maxBuilder.mvOrdering(mvOrdering);
         sumBuilder.mvOrdering(mvOrdering);
@@ -94,21 +136,24 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block build() {
-        Block[] blocks = new Block[4];
+    public AggregateMetricDoubleBlock build() {
+        DoubleBlock minBlock = null;
+        DoubleBlock maxBlock = null;
+        DoubleBlock sumBlock = null;
+        IntBlock countBlock = null;
         boolean success = false;
         try {
             finish();
-            blocks[Metric.MIN.getIndex()] = minBuilder.build();
-            blocks[Metric.MAX.getIndex()] = maxBuilder.build();
-            blocks[Metric.SUM.getIndex()] = sumBuilder.build();
-            blocks[Metric.COUNT.getIndex()] = countBuilder.build();
-            CompositeBlock block = new CompositeBlock(blocks);
+            minBlock = minBuilder.build();
+            maxBlock = maxBuilder.build();
+            sumBlock = sumBuilder.build();
+            countBlock = countBuilder.build();
+            AggregateMetricDoubleBlock block = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return block;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(blocks);
+                Releasables.closeExpectNoException(minBlock, maxBlock, sumBlock, countBlock);
             }
         }
     }
@@ -161,11 +206,45 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         }
     }
 
-    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) {
+    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
-            min = min.isNaN() ? null : min;
-            max = max.isNaN() ? null : max;
-            sum = sum.isNaN() ? null : sum;
+            min = (min == null || min.isNaN()) ? null : min;
+            max = (max == null || max.isNaN()) ? null : max;
+            sum = (sum == null || sum.isNaN()) ? null : sum;
+        }
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            GenericNamedWriteable.class,
+            "AggregateMetricDoubleLiteral",
+            AggregateMetricDoubleLiteral::new
+        );
+
+        @Override
+        public String getWriteableName() {
+            return "AggregateMetricDoubleLiteral";
+        }
+
+        public AggregateMetricDoubleLiteral(StreamInput input) throws IOException {
+            this(input.readOptionalDouble(), input.readOptionalDouble(), input.readOptionalDouble(), input.readOptionalInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalDouble(min);
+            out.writeOptionalDouble(max);
+            out.writeOptionalDouble(sum);
+            out.writeOptionalInt(count);
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
         }
     }
 }

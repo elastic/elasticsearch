@@ -60,7 +60,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -68,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -164,7 +164,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(request.getRolloverTarget(), request.indicesOptions());
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
         final String[] indicesToCheck;
-        if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
+        if (indexAbstraction != null && indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
             DataStream dataStream = (DataStream) indexAbstraction;
             boolean targetFailureStore = resolvedRolloverTarget.selector() != null
                 && resolvedRolloverTarget.selector().shouldIncludeFailures();
@@ -276,25 +276,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 AutoShardingResult rolloverAutoSharding = null;
                 final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
-                if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
+                // Failure stores currently don't support auto sharding yet.
+                if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM) && targetFailureStore == false) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
-                        .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
-
-                    Double indexWriteLoad = indexStats.map(
-                        stats -> Arrays.stream(stats.getShards())
-                            .filter(shardStats -> shardStats.getStats().indexing != null)
-                            // only take primaries into account as in stateful the replicas also index data
-                            .filter(shardStats -> shardStats.getShardRouting().primary())
-                            .map(shardStats -> shardStats.getStats().indexing.getTotal().getWriteLoad())
-                            .reduce(0.0, Double::sum)
-                    ).orElse(null);
-
-                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(projectState, dataStream, indexWriteLoad);
+                    IndexStats indexStats = statsResponse != null ? statsResponse.getIndex(dataStream.getWriteIndex().getName()) : null;
+                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(projectState, dataStream, indexStats);
                     logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
                     // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no
-                    // other "regular" conditions matching (we want to aggressively increse the number of shards) so we're adding the
+                    // other "regular" conditions matching (we want to aggressively increase the number of shards) so we're adding the
                     // automatic {@link OptimalShardCountCondition} to the rollover request conditions so it gets evaluated and triggers
                     // the rollover operation (having this condition met will also provide a useful paper trail as it'll get stored in
                     // the {@link org.elasticsearch.action.admin.indices.rollover.RolloverInfo#metConditions} )
@@ -517,22 +507,22 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var results = new ArrayList<String>(batchExecutionContext.taskContexts().size());
+            final var reasonBuilder = new StringBuilder("bulk rollover [");
+            final var resultsCollector = new Strings.BoundedDelimitedStringCollector(reasonBuilder, ",", 1024);
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    state = executeTask(state, results, taskContext, listener);
+                    state = executeTask(state, resultsCollector::appendItem, taskContext, listener);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder("bulk rollover [");
-                Strings.collectionToDelimitedStringWithLimit(results, ",", 1024, reason);
-                reason.append(']');
+                resultsCollector.finish();
+                reasonBuilder.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, reason.toString(), listener.reroute());
+                    state = allocationService.reroute(state, reasonBuilder.toString(), listener.reroute());
                 }
             } else {
                 listener.noRerouteNeeded();
@@ -542,7 +532,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         public ClusterState executeTask(
             ClusterState currentState,
-            ArrayList<String> results,
+            Consumer<String> resultsCollector,
             TaskContext<RolloverTask> rolloverTaskContext,
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
@@ -613,7 +603,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverTask.autoShardingResult(),
                     targetFailureStore
                 );
-                results.add(rolloverResult.sourceIndexName() + "->" + rolloverResult.rolloverIndexName());
+                resultsCollector.accept(rolloverResult.sourceIndexName() + "->" + rolloverResult.rolloverIndexName());
                 logger.trace("rollover result [{}]", rolloverResult);
 
                 final var rolloverIndexName = rolloverResult.rolloverIndexName();

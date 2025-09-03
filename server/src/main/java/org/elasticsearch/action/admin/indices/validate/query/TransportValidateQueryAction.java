@@ -176,7 +176,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ValidateQueryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ);
     }
 
     @Override

@@ -1,5 +1,0 @@
-org.elasticsearch.analysis.icu:
-  - files:
-      - relative_path: ""
-        relative_to: config
-        mode: read

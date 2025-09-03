@@ -22,7 +22,6 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
@@ -37,7 +36,6 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        Function<String, String> evaluatorName = s -> "ToUnsignedLongFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryUnsignedLong(
@@ -52,7 +50,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
 
         TestCaseSupplier.forUnaryBoolean(
             suppliers,
-            evaluatorName.apply("Boolean"),
+            evaluatorName("Boolean", "bool"),
             DataType.UNSIGNED_LONG,
             b -> b ? BigInteger.ONE : BigInteger.ZERO,
             List.of()
@@ -61,14 +59,14 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // datetimes
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Long"),
+            evaluatorName("Long", "lng"),
             TestCaseSupplier.dateCases(),
             DataType.UNSIGNED_LONG,
             instant -> BigInteger.valueOf(((Instant) instant).toEpochMilli()),
             List.of()
         );
         // random strings that don't look like an unsigned_long
-        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataType.UNSIGNED_LONG, bytesRef -> null, bytesRef -> {
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName("String", "in"), DataType.UNSIGNED_LONG, bytesRef -> null, bytesRef -> {
             // BigDecimal, used to parse unsigned_longs will throw NFEs with different messages depending on empty string, first
             // non-number character after a number-looking like prefix, or string starting with "e", maybe others -- safer to take
             // this shortcut here.
@@ -81,7 +79,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from doubles within unsigned_long's range
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName("Double", "dbl"),
             DataType.UNSIGNED_LONG,
             d -> BigDecimal.valueOf(d).toBigInteger(), // note: not: new BigDecimal(d).toBigInteger
             0d,
@@ -91,7 +89,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from doubles outside unsigned_long's range, negative
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName("Double", "dbl"),
             DataType.UNSIGNED_LONG,
             d -> null,
             Double.NEGATIVE_INFINITY,
@@ -104,7 +102,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from doubles outside Long's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName("Double", "dbl"),
             DataType.UNSIGNED_LONG,
             d -> null,
             UNSIGNED_LONG_MAX_AS_DOUBLE + 10e5,
@@ -118,7 +116,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from long within unsigned_long's range
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long"),
+            evaluatorName("Long", "lng"),
             DataType.UNSIGNED_LONG,
             BigInteger::valueOf,
             0L,
@@ -128,7 +126,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from long outside unsigned_long's range
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long"),
+            evaluatorName("Long", "lng"),
             DataType.UNSIGNED_LONG,
             unused -> null,
             Long.MIN_VALUE,
@@ -142,7 +140,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from int within unsigned_long's range
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName("Int", "i"),
             DataType.UNSIGNED_LONG,
             BigInteger::valueOf,
             0,
@@ -152,7 +150,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // from int outside unsigned_long's range
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName("Int", "i"),
             DataType.UNSIGNED_LONG,
             unused -> null,
             Integer.MIN_VALUE,
@@ -166,7 +164,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // strings of random unsigned_longs
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.ulongCases(BigInteger.ZERO, UNSIGNED_LONG_MAX, true)
                 .stream()
                 .map(
@@ -184,7 +182,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles within unsigned_long's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(0, UNSIGNED_LONG_MAX_AS_DOUBLE, true)
                 .stream()
                 .map(
@@ -202,7 +200,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside unsigned_long's range, negative
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, -1d, true)
                 .stream()
                 .map(
@@ -225,7 +223,7 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside Integer's range, positive
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(UNSIGNED_LONG_MAX_AS_DOUBLE + 10e5, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
@@ -247,6 +245,11 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        String read = "Attribute[channel=0]";
+        return "ToUnsignedLongFrom" + inner + "Evaluator[" + next + "=" + read + "]";
     }
 
     @Override

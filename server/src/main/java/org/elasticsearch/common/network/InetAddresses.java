@@ -19,183 +19,265 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 
 public class InetAddresses {
-    private static int IPV4_PART_COUNT = 4;
-    private static int IPV6_PART_COUNT = 8;
+    private static final int IPV4_PART_COUNT = 4;
+    private static final int IPV6_PART_COUNT = 8;
+    private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     public static boolean isInetAddress(String ipString) {
-        return ipStringToBytes(ipString) != null;
+        byte[] utf8Bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        return ipStringToBytes(utf8Bytes, 0, utf8Bytes.length, false) != null;
     }
 
     public static String getIpOrHost(String ipString) {
-        byte[] bytes = ipStringToBytes(ipString);
+        byte[] utf8Bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = ipStringToBytes(utf8Bytes, 0, utf8Bytes.length, false);
         if (bytes == null) { // is not InetAddress
             return ipString;
         }
         return NetworkAddress.format(bytesToInetAddress(bytes));
     }
 
-    private static byte[] ipStringToBytes(String ipString) {
+    /**
+     * Encodes the given {@link XContentString} in binary encoding, always using 16 bytes for both IPv4 and IPv6 addresses.
+     * This is how Lucene encodes IP addresses in {@link org.apache.lucene.document.InetAddressPoint}.
+     *
+     * @param ipString the IP address as a string
+     * @return a byte array containing the binary representation of the IP address
+     * @throws IllegalArgumentException if the argument is not a valid IP string literal
+     */
+    public static byte[] encodeAsIpv6(XContentString ipString) {
+        XContentString.UTF8Bytes uft8Bytes = ipString.bytes();
+        byte[] address = ipStringToBytes(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length(), true);
+        // The argument was malformed, i.e. not an IP string literal.
+        if (address == null) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString.string()));
+        }
+        return address;
+    }
+
+    /**
+     * Converts an IP address string to a byte array.
+     * <p>
+     * This method supports both IPv4 and IPv6 addresses, including dotted quad notation for IPv6.
+     *
+     * @param ipUtf8  the IP address as a byte array in UTF-8 encoding
+     * @param offset  the starting index in the byte array
+     * @param length  the length of the IP address string
+     * @param asIpv6  if true, always returns a 16-byte array (IPv6 format), otherwise returns a 4-byte array for IPv4
+     * @return a byte array representing the IP address, or null if the input is invalid
+     */
+    private static byte[] ipStringToBytes(byte[] ipUtf8, int offset, int length, boolean asIpv6) {
         // Make a first pass to categorize the characters in this string.
-        boolean hasColon = false;
+        int indexOfLastColon = -1;
         boolean hasDot = false;
-        int percentIndex = -1;
-        for (int i = 0; i < ipString.length(); i++) {
-            char c = ipString.charAt(i);
-            if (c == '.') {
+        for (int i = offset; i < offset + length; i++) {
+            byte c = ipUtf8[i];
+            if ((c & 0x80) != 0) {
+                return null;  // Only allow ASCII characters.
+            } else if (c == '.') {
                 hasDot = true;
             } else if (c == ':') {
                 if (hasDot) {
                     return null;  // Colons must not appear after dots.
                 }
-                hasColon = true;
+                indexOfLastColon = i;
             } else if (c == '%') {
-                percentIndex = i;
+                if (i == offset + length - 1) {
+                    return null;  // Filter out strings that end in % and have an empty scope ID.
+                }
+                length = i;
                 break; // Everything after a '%' is ignored (it's a Scope ID)
-            } else if (Character.digit(c, 16) == -1) {
-                return null;  // Everything else must be a decimal or hex digit.
             }
         }
 
         // Now decide which address family to parse.
-        if (hasColon) {
+        if (indexOfLastColon >= 0) {
             if (hasDot) {
-                ipString = convertDottedQuadToHex(ipString);
-                if (ipString == null) {
+                ipUtf8 = convertDottedQuadToHex(ipUtf8, offset, length, indexOfLastColon);
+                if (ipUtf8 == null) {
                     return null;
                 }
+                offset = 0;
+                length = ipUtf8.length;
             }
-            if (percentIndex == ipString.length() - 1) {
-                return null;  // Filter out strings that end in % and have an empty scope ID.
-            }
-            if (percentIndex != -1) {
-                ipString = ipString.substring(0, percentIndex);
-            }
-            return textToNumericFormatV6(ipString);
+            return textToNumericFormatV6(ipUtf8, offset, length);
         } else if (hasDot) {
-            return textToNumericFormatV4(ipString);
+            return textToNumericFormatV4(ipUtf8, offset, length, asIpv6);
         }
         return null;
     }
 
-    private static String convertDottedQuadToHex(String ipString) {
-        int lastColon = ipString.lastIndexOf(':');
-        String initialPart = ipString.substring(0, lastColon + 1);
-        String dottedQuad = ipString.substring(lastColon + 1);
-        byte[] quad = textToNumericFormatV4(dottedQuad);
+    private static byte[] convertDottedQuadToHex(byte[] ipUtf8, int offset, int length, int indexOfLastColon) {
+        int quadOffset = indexOfLastColon - offset + 1; // +1 to include the colon
+        assert quadOffset >= 0 : "Expected at least one colon in dotted quad IPv6 address";
+        byte[] quad = textToNumericFormatV4(ipUtf8, offset + quadOffset, length - quadOffset, false);
         if (quad == null) {
             return null;
         }
-        String penultimate = Integer.toHexString(((quad[0] & 0xff) << 8) | (quad[1] & 0xff));
-        String ultimate = Integer.toHexString(((quad[2] & 0xff) << 8) | (quad[3] & 0xff));
-        return initialPart + penultimate + ":" + ultimate;
+        // initialPart(quadOffset) + penultimate(4) + ":"(1) + ultimate(4)
+        byte[] result = new byte[quadOffset + 9];
+        System.arraycopy(ipUtf8, offset, result, 0, quadOffset);
+        appendHexBytes(result, quadOffset, quad[0], quad[1]); // penultimate part
+        result[quadOffset + 4] = ':';
+        appendHexBytes(result, quadOffset + 5, quad[2], quad[3]); // ultimate part
+        return result;
     }
 
-    private static byte[] textToNumericFormatV4(String ipString) {
-        byte[] bytes = new byte[IPV4_PART_COUNT];
-        byte octet = 0;
+    static void appendHexBytes(byte[] result, int offset, byte b1, byte b2) {
+        result[offset] = (byte) HEX_DIGITS[((b1 & 0xf0) >> 4)];
+        result[offset + 1] = (byte) HEX_DIGITS[(b1 & 0x0f)];
+        result[offset + 2] = (byte) HEX_DIGITS[((b2 & 0xf0) >> 4)];
+        result[offset + 3] = (byte) HEX_DIGITS[(b2 & 0x0f)];
+    }
+
+    private static byte[] textToNumericFormatV4(byte[] ipUtf8, int offset, int length, boolean asIpv6) {
+        byte[] bytes;
+        byte octet;
+        if (asIpv6) {
+            bytes = new byte[IPV6_PART_COUNT * 2];
+            System.arraycopy(CIDRUtils.IPV4_PREFIX, 0, bytes, 0, CIDRUtils.IPV4_PREFIX.length);
+            octet = (byte) CIDRUtils.IPV4_PREFIX.length;
+        } else {
+            bytes = new byte[IPV4_PART_COUNT];
+            octet = 0;
+        }
         byte digits = 0;
-        for (int i = 0; i < ipString.length(); i++) {
-            char c = ipString.charAt(i);
+        int current = 0;
+        for (int i = offset; i < offset + length; i++) {
+            byte c = ipUtf8[i];
             if (c == '.') {
-                octet++;
-                if (octet > 3 /* too many octets */ || digits == 0 /* empty octet */) {
+                if (octet >= bytes.length /* too many octets */
+                    || digits == 0 /* empty octet */
+                    || current > 255 /* octet is outside a byte range */) {
                     return null;
                 }
+                bytes[octet++] = (byte) current;
+                current = 0;
                 digits = 0;
             } else if (c >= '0' && c <= '9') {
-                digits++;
-                var next = bytes[octet] * 10 + (c - '0');
-                if (next > 255 /* octet is outside a byte range */ || (digits > 1 && bytes[octet] == 0) /* octet contains leading 0 */) {
+                if (digits != 0 && current == 0 /* octet contains leading 0 */) {
                     return null;
                 }
-                bytes[octet] = (byte) next;
+                current = current * 10 + (c - '0');
+                digits++;
             } else {
                 return null;
             }
         }
-        return octet != 3 ? null : bytes;
+        if (octet != bytes.length - 1 /* too many or too few octets */
+            || digits == 0 /* empty octet */
+            || current > 255 /* octet is outside a byte range */) {
+            return null;
+        }
+        bytes[octet] = (byte) current;
+        return bytes;
     }
 
-    private static byte[] textToNumericFormatV6(String ipString) {
-        // An address can have [2..8] colons, and N colons make N+1 parts.
-        String[] parts = ipString.split(":", IPV6_PART_COUNT + 2);
-        if (parts.length < 3 || parts.length > IPV6_PART_COUNT + 1) {
+    private static byte[] textToNumericFormatV6(byte[] ipUtf8, int offset, int length) {
+        if (length < 2) {
+            // IPv6 addresses must be at least 2 characters long (e.g., "::")
+            return null;
+        }
+        if (ipUtf8[offset] == ':' && ipUtf8[offset + 1] != ':') {
+            // Addresses can't start with a single colon
+            return null;
+        }
+        if (ipUtf8[offset + length - 1] == ':' && ipUtf8[offset + length - 2] != ':') {
+            // Addresses can't end with a single colon
             return null;
         }
 
-        // Disregarding the endpoints, find "::" with nothing in between.
-        // This indicates that a run of zeroes has been skipped.
-        int skipIndex = -1;
-        for (int i = 1; i < parts.length - 1; i++) {
-            if (parts[i].length() == 0) {
-                if (skipIndex >= 0) {
-                    return null;  // Can't have more than one ::
+        // An IPv6 address has 8 hextets (16-bit pieces), each represented by 1-4 hex digits
+        // Total size: 16 bytes (128 bits)
+        ByteBuffer bytes = ByteBuffer.allocate(IPV6_PART_COUNT * 2);
+
+        // Find position of :: abbreviation if present
+        int compressedHextetIndex = -1;
+        int hextetIndex = 0;
+        int currentHextetStart = 0;
+        int currentHextet = 0;
+        for (int i = offset; i < offset + length; i++) {
+            byte c = ipUtf8[i];
+            if (c == ':') {
+                if (currentHextetStart == i) {
+                    // Two colons in a row, indicating a compressed section
+                    if (compressedHextetIndex >= 0 && i != 1) {
+                        // We've already seen a ::, can't have another
+                        return null;
+                    }
+                    compressedHextetIndex = hextetIndex; // Mark the position of the compressed section
+                } else {
+                    if (putHextet(bytes, currentHextet) == false) {
+                        return null;
+                    }
+                    currentHextet = 0;
+                    hextetIndex++;
                 }
-                skipIndex = i;
+                currentHextetStart = i + 1;
+            } else if (c >= '0' && c <= '9') {
+                // Valid hex digit
+                currentHextet = currentHextet * 16 + (c - '0');
+            } else if (c >= 'a' && c <= 'f') {
+                // Valid hex digit in lowercase
+                currentHextet = currentHextet * 16 + (c - 'a' + 10);
+            } else if (c >= 'A' && c <= 'F') {
+                // Valid hex digit in uppercase
+                currentHextet = currentHextet * 16 + (c - 'A' + 10);
+            } else {
+                return null; // Invalid character
             }
+        }
+        // Handle the last hextet unless the IP address ends with ::
+        if (currentHextetStart < offset + length) {
+            if (putHextet(bytes, currentHextet) == false) {
+                return null;
+            }
+            hextetIndex++;
         }
 
-        int partsHi;  // Number of parts to copy from above/before the "::"
-        int partsLo;  // Number of parts to copy from below/after the "::"
-        if (skipIndex >= 0) {
-            // If we found a "::", then check if it also covers the endpoints.
-            partsHi = skipIndex;
-            partsLo = parts.length - skipIndex - 1;
-            if (parts[0].length() == 0 && --partsHi != 0) {
-                return null;  // ^: requires ^::
+        if (compressedHextetIndex >= 0) {
+            if (hextetIndex >= IPV6_PART_COUNT) {
+                return null; // Invalid, too many hextets
             }
-            if (parts[parts.length - 1].length() == 0 && --partsLo != 0) {
-                return null;  // :$ requires ::$
-            }
-        } else {
-            // Otherwise, allocate the entire address to partsHi. The endpoints
-            // could still be empty, but parseHextet() will check for that.
-            partsHi = parts.length;
-            partsLo = 0;
+            shiftHextetsRight(bytes, compressedHextetIndex, hextetIndex);
+        } else if (hextetIndex != IPV6_PART_COUNT) {
+            return null; // Invalid, not enough hextets
         }
 
-        // If we found a ::, then we must have skipped at least one part.
-        // Otherwise, we must have exactly the right number of parts.
-        int partsSkipped = IPV6_PART_COUNT - (partsHi + partsLo);
-        if ((skipIndex >= 0 ? partsSkipped >= 1 : partsSkipped == 0) == false) {
-            return null;
-        }
-
-        // Now parse the hextets into a byte array.
-        ByteBuffer rawBytes = ByteBuffer.allocate(2 * IPV6_PART_COUNT);
-        try {
-            for (int i = 0; i < partsHi; i++) {
-                rawBytes.putShort(parseHextet(parts[i]));
-            }
-            for (int i = 0; i < partsSkipped; i++) {
-                rawBytes.putShort((short) 0);
-            }
-            for (int i = partsLo; i > 0; i--) {
-                rawBytes.putShort(parseHextet(parts[parts.length - i]));
-            }
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-        return rawBytes.array();
+        return bytes.array();
     }
 
-    private static short parseHextet(String ipPart) {
-        // Note: we already verified that this string contains only hex digits.
-        int hextet = Integer.parseInt(ipPart, 16);
-        if (hextet > 0xffff) {
-            throw new NumberFormatException();
+    private static void shiftHextetsRight(ByteBuffer bytes, int start, int end) {
+        int shift = IPV6_PART_COUNT - end;
+        for (int hextetIndexToShift = end - 1; hextetIndexToShift >= start; hextetIndexToShift--) {
+            int bytesIndexBeforeShift = hextetIndexToShift * Short.BYTES;
+            short hextetToShift = bytes.getShort(bytesIndexBeforeShift);
+            bytes.putShort(bytesIndexBeforeShift, (short) 0);
+            bytes.putShort(bytesIndexBeforeShift + shift * Short.BYTES, hextetToShift);
         }
-        return (short) hextet;
+    }
+
+    private static boolean putHextet(ByteBuffer buf, int hextet) {
+        if (buf.remaining() < 2) {
+            return false;
+        }
+        if (hextet > 0xffff) {
+            return false;
+        }
+        buf.putShort((short) hextet);
+        return true;
     }
 
     /**
@@ -345,11 +427,30 @@ public class InetAddresses {
      * @throws IllegalArgumentException if the argument is not a valid IP string literal
      */
     public static InetAddress forString(String ipString) {
-        byte[] addr = ipStringToBytes(ipString);
+        byte[] utf8Bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        return forString(utf8Bytes, 0, utf8Bytes.length);
+    }
+
+    /**
+     * A variant of {@link #forString(String)} that accepts an {@link XContentString.UTF8Bytes} object,
+     * which utilizes a more efficient implementation for parsing the IP address.
+     */
+    public static InetAddress forString(XContentString.UTF8Bytes bytes) {
+        return forString(bytes.bytes(), bytes.offset(), bytes.length());
+    }
+
+    /**
+     * A variant of {@link #forString(String)} that accepts a byte array,
+     * which utilizes a more efficient implementation for parsing the IP address.
+     */
+    public static InetAddress forString(byte[] ipUtf8, int offset, int length) {
+        byte[] addr = ipStringToBytes(ipUtf8, offset, length, false);
 
         // The argument was malformed, i.e. not an IP string literal.
         if (addr == null) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "'%s' is not an IP string literal.", new String(ipUtf8, offset, length, StandardCharsets.UTF_8))
+            );
         }
 
         return bytesToInetAddress(addr);

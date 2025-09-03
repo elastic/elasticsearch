@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -767,6 +766,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             String status = (String) statusResponseMap.get("operation_mode");
             assertEquals("STOPPED", status);
         });
+        // Wait for cluster state to be published to all nodes.
+        waitForClusterUpdates();
 
         // Re-start ILM so that subsequent tests don't fail
         Request startILMRequest = new Request("POST", "_ilm/start");
@@ -1231,7 +1232,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        String historyIndexName = DataStream.getDefaultBackingIndexName("ilm-history-7", 1);
+        String historyIndexName = getDataStreamBackingIndexNames("ilm-history-7").getFirst();
         Response explainHistoryIndex = client().performRequest(new Request("GET", historyIndexName + "/_lifecycle/explain"));
         Map<String, Object> responseMap;
         try (InputStream is = explainHistoryIndex.getEntity().getContent()) {

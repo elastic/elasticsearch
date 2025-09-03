@@ -9,8 +9,8 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -69,7 +69,7 @@ public abstract class ScoreFunction {
 
     protected abstract int doHashCode();
 
-    protected ScoreFunction rewrite(IndexReader reader) throws IOException {
+    protected ScoreFunction rewrite(IndexSearcher searcher) throws IOException {
         return this;
     }
 }

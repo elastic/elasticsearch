@@ -189,13 +189,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
             preActionBranchingKey,
             checkNoWriteIndex,
             nextStepKey,
-            (index, clusterState) -> {
+            (index, project) -> {
                 if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
                     logger.error("[{}] action is not available in the current license", SearchableSnapshotAction.NAME);
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
                 }
 
-                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
+                IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -278,8 +278,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             skipGeneratingSnapshotKey,
             keyForSnapshotGeneration,
             waitForDataTierKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -379,8 +379,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             dataStreamCheckBranchingKey,
             swapAliasesKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

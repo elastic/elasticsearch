@@ -79,7 +79,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -104,7 +104,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -129,7 +129,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -152,7 +152,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   # We can't directly check that the embeddings are different since there isn't a "does not match" assertion in the
   # YAML test framework. Check that the start and end offsets change as expected as a proxy.
@@ -179,7 +179,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -202,7 +202,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -254,7 +254,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -283,7 +283,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -320,7 +320,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -367,7 +367,7 @@ setup:
         index: test-index
         id: doc_1
         body:
-          doc: { "sparse_field": [{"key": "value"}], "dense_field": [{"key": "value"}] }
+          doc: { "sparse_field": [ { "key": "value" } ], "dense_field": [ { "key": "value" } ] }
 
   - match: { error.type: "status_exception" }
   - match: { error.reason: "/Invalid\\ format\\ for\\ field\\ \\[(dense|sparse)_field\\].+/" }
@@ -415,7 +415,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -448,7 +448,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -509,7 +509,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -540,7 +540,7 @@ setup:
         body:
           fields: [ _inference_fields ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }

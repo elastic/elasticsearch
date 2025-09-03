@@ -17,10 +17,13 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
+
 import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -72,16 +75,49 @@ public class SelectorResolverTests extends ESTestCase {
         // === Corner Cases
         // Empty index name is not necessarily disallowed, but will be filtered out in the next steps of resolution
         assertThat(resolve(selectorsAllowed, "::data"), equalTo(new ResolvedExpression("", DATA)));
-        // Remote cluster syntax is respected, even if code higher up the call stack is likely to already have handled it already
-        assertThat(resolve(selectorsAllowed, "cluster:index::data"), equalTo(new ResolvedExpression("cluster:index", DATA)));
-        // CCS with an empty index name is not necessarily disallowed, though other code in the resolution logic will likely throw
-        assertThat(resolve(selectorsAllowed, "cluster:::data"), equalTo(new ResolvedExpression("cluster:", DATA)));
-        // Same for empty cluster and index names
+        assertThat(resolve(selectorsAllowed, "::failures"), equalTo(new ResolvedExpression("", FAILURES)));
+        // CCS with an empty index and cluster name is not necessarily disallowed, though other code in the resolution logic will likely
+        // throw
         assertThat(resolve(selectorsAllowed, ":::data"), equalTo(new ResolvedExpression(":", DATA)));
+        assertThat(resolve(selectorsAllowed, ":::failures"), equalTo(new ResolvedExpression(":", FAILURES)));
         // Any more prefix colon characters will trigger the multiple separators error logic
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::data"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::failures"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, ":::::failures"));
         // Suffix case is not supported because there is no component named with the empty string
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "index::"));
+
+        // remote cluster syntax is not allowed with :: selectors
+        final Set<String> remoteClusterExpressionsWithSelectors = Set.of(
+            "cluster:index::failures",
+            "cluster-*:index::failures",
+            "cluster-*:index-*::failures",
+            "cluster-*:*::failures",
+            "*:index-*::failures",
+            "*:*::failures",
+            "*:-test*,*::failures",
+            "cluster:::failures",
+            "failures:index::failures",
+            "data:index::failures",
+            "failures:failures::failures",
+            "data:data::failures",
+            "cluster:index::data",
+            "cluster-*:index::data",
+            "cluster-*:index-*::data",
+            "cluster-*:*::data",
+            "*:index-*::data",
+            "*:*::data",
+            "cluster:::data",
+            "failures:index::data",
+            "data:index::data",
+            "failures:failures::data",
+            "data:data::data",
+            "*:-test*,*::data"
+        );
+        for (String expression : remoteClusterExpressionsWithSelectors) {
+            var e = expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, expression));
+            assertThat(e.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
+        }
     }
 
     public void testResolveMatchAllToSelectors() {

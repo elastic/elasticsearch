@@ -28,6 +28,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import java.io.IOException;
 
 /**
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene60.Lucene60PointsFormat}
  * Allows reading metadata only from Lucene 6.0 point format
  **/
 public class Lucene60MetadataOnlyPointsFormat extends PointsFormat {

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
@@ -32,6 +35,8 @@ import java.util.TreeMap;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
+
+    private final Logger logger = LogManager.getLogger(TransportInferenceUsageAction.class);
 
     private final Client client;
 
@@ -55,7 +60,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY, false);
-        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
+        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(response -> {
             Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
             for (ModelConfigurations model : response.getEndpoints()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
@@ -66,7 +71,10 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 stat.add();
             }
             InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
-            delegate.onResponse(new XPackUsageFeatureResponse(usage));
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }, e -> {
+            logger.warn(Strings.format("Retrieving inference usage failed with error: %s", e.getMessage()), e);
+            listener.onResponse(new XPackUsageFeatureResponse(InferenceFeatureSetUsage.EMPTY));
         }));
     }
 }

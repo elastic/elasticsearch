@@ -8,24 +8,33 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 
 public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-    public ToStringFromAggregateMetricDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source, DriverContext driverContext) {
-        super(driverContext, field, source);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
+        ToStringFromAggregateMetricDoubleEvaluator.class
+    );
+
+    private final EvalOperator.ExpressionEvaluator field;
+
+    public ToStringFromAggregateMetricDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+        super(driverContext, source);
+        this.field = field;
     }
 
     @Override
-    protected String name() {
-        return "ToStringFromAggregateMetricDouble";
+    protected EvalOperator.ExpressionEvaluator next() {
+        return field;
     }
 
     @Override
@@ -33,13 +42,13 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         return evalBlock(v.asBlock());
     }
 
-    private static BytesRef evalValue(CompositeBlock compositeBlock, int index) {
-        return new BytesRef(aggregateMetricDoubleBlockToString(compositeBlock, index));
+    private static BytesRef evalValue(AggregateMetricDoubleBlock aggBlock, int index) {
+        return new BytesRef(aggregateMetricDoubleBlockToString(aggBlock, index));
     }
 
     @Override
     public Block evalBlock(Block b) {
-        CompositeBlock block = (CompositeBlock) b;
+        AggregateMetricDoubleBlock block = (AggregateMetricDoubleBlock) b;
         int positionCount = block.getPositionCount();
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
@@ -53,18 +62,33 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         }
     }
 
+    @Override
+    public String toString() {
+        return "ToStringFromAggregateMetricDoubleEvaluator[field=" + field + ']';
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(field);
+    }
+
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
         private final Source source;
         private final EvalOperator.ExpressionEvaluator.Factory field;
 
-        public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-            this.field = field;
+        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
             this.source = source;
+            this.field = field;
         }
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new ToStringFromAggregateMetricDoubleEvaluator(field.get(context), source, context);
+            return new ToStringFromAggregateMetricDoubleEvaluator(source, field.get(context), context);
         }
     }
 }

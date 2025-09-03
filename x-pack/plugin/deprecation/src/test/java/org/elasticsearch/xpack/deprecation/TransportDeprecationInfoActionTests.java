@@ -9,20 +9,15 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -62,7 +57,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         mapping.field("enabled", false);
         mapping.endObject().endObject();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(
                 IndexMetadata.builder("test")
                     .putMapping(Strings.toString(mapping))
@@ -72,8 +67,6 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             )
             .build();
 
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test", new TransportAddress(TransportAddress.META_ADDRESS, 9300));
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
@@ -84,7 +77,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         boolean ilmPolicyIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
-        when(clusterDeprecationChecker.check(any(), any())).thenReturn(clusterIssueFound ? List.of(foundIssue) : List.of());
+        when(clusterDeprecationChecker.check(any())).thenReturn(clusterIssueFound ? List.of(foundIssue) : List.of());
         List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
             if (indexIssueFound) {
                 return Map.of("test", List.of(foundIssue));
@@ -119,7 +112,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         precomputedData.setOncePluginIssues(Map.of());
         precomputedData.setOnceNodeSettingsIssues(nodeDeprecationIssues);
         DeprecationInfoAction.Response response = TransportDeprecationInfoAction.checkAndCreateResponse(
-            state,
+            project,
             resolver,
             request,
             List.of(),
@@ -184,7 +177,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .template(Template.builder().settings(inputSettings))
             .build();
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder("test").settings(inputSettings).numberOfShards(1).numberOfReplicas(0))
             .put(dataStreamIndexMetadata, true)
             .put(DataStream.builder("ds-test", List.of(dataStreamIndexMetadata.getIndex())).build())
@@ -197,37 +190,25 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
                 )
             )
             .componentTemplates(Map.of("my-component-template", componentTemplate))
-            .persistentSettings(inputSettings)
             .build();
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        AtomicReference<Settings> visibleClusterSettings = new AtomicReference<>();
         ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
-        when(clusterDeprecationChecker.check(any(), any())).thenAnswer(invocationOnMock -> {
-            ClusterState observedState = invocationOnMock.getArgument(0);
-            visibleClusterSettings.set(observedState.getMetadata().settings());
-            return List.of();
-        });
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleComponentTemplateSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleIndexTemplateSettings = new AtomicReference<>();
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
-        List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
-            for (String indexName : resolver.concreteIndexNames(cs, req)) {
-                visibleIndexSettings.set(cs.metadata().getProject().index(indexName).getSettings());
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (pr, req) -> {
+            for (String indexName : resolver.concreteIndexNames(pr, req)) {
+                visibleIndexSettings.set(pr.index(indexName).getSettings());
             }
             return Map.of();
-        }), createResourceChecker("data_streams", (cs, req) -> {
-            cs.metadata().getProject().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
+        }), createResourceChecker("data_streams", (pr, req) -> {
+            pr.dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
             return Map.of();
-        }), createResourceChecker("templates", (cs, req) -> {
-            cs.metadata()
-                .getProject()
-                .componentTemplates()
-                .values()
-                .forEach(template -> visibleComponentTemplateSettings.set(template.template().settings()));
-            cs.metadata().getProject().templatesV2().values().forEach(template -> {
+        }), createResourceChecker("templates", (pr, req) -> {
+            pr.componentTemplates().values().forEach(template -> visibleComponentTemplateSettings.set(template.template().settings()));
+            pr.templatesV2().values().forEach(template -> {
                 if (template.template() != null && template.template().settings() != null) {
                     visibleIndexTemplateSettings.set(template.template().settings());
                 }
@@ -240,7 +221,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         precomputedData.setOnceNodeSettingsIssues(List.of());
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         TransportDeprecationInfoAction.checkAndCreateResponse(
-            state,
+            project,
             resolver,
             request,
             List.of("some.deprecated.property", "some.other.*.deprecated.property"),
@@ -254,10 +235,6 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
 
         Settings expectedSettings = settingsBuilder.build();
-        Settings resultClusterSettings = visibleClusterSettings.get();
-        Assert.assertNotNull(resultClusterSettings);
-        Assert.assertEquals(expectedSettings, visibleClusterSettings.get());
-
         Settings resultIndexSettings = visibleIndexSettings.get();
         Assert.assertNotNull(resultIndexSettings);
         Assert.assertEquals("someValue3", resultIndexSettings.get("some.undeprecated.property"));
@@ -341,17 +318,17 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
 
     private static ResourceDeprecationChecker createResourceChecker(
         String name,
-        BiFunction<ClusterState, DeprecationInfoAction.Request, Map<String, List<DeprecationIssue>>> check
+        BiFunction<ProjectMetadata, DeprecationInfoAction.Request, Map<String, List<DeprecationIssue>>> check
     ) {
         return new ResourceDeprecationChecker() {
 
             @Override
             public Map<String, List<DeprecationIssue>> check(
-                ClusterState clusterState,
+                ProjectMetadata project,
                 DeprecationInfoAction.Request request,
                 TransportDeprecationInfoAction.PrecomputedData precomputedData
             ) {
-                return check.apply(clusterState, request);
+                return check.apply(project, request);
             }
 
             @Override

@@ -17,9 +17,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INDETERMINATE;
 
 /**
  * Keeps track of several health statuses per node that can be used in health.
@@ -31,6 +34,7 @@ public class HealthInfoCache implements ClusterStateListener {
     @Nullable
     private volatile DataStreamLifecycleHealthInfo dslHealthInfo = null;
     private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
+    private volatile FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
 
     private HealthInfoCache() {}
 
@@ -44,7 +48,8 @@ public class HealthInfoCache implements ClusterStateListener {
         String nodeId,
         @Nullable DiskHealthInfo diskHealthInfo,
         @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
-        @Nullable RepositoriesHealthInfo repositoriesHealthInfo
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo
     ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
@@ -54,6 +59,9 @@ public class HealthInfoCache implements ClusterStateListener {
         }
         if (repositoriesHealthInfo != null) {
             repositoriesInfoByNode.put(nodeId, repositoriesHealthInfo);
+        }
+        if (fileSettingsHealthInfo != null) {
+            this.fileSettingsHealthInfo = fileSettingsHealthInfo;
         }
     }
 
@@ -77,6 +85,7 @@ public class HealthInfoCache implements ClusterStateListener {
             diskInfoByNode = new ConcurrentHashMap<>();
             dslHealthInfo = null;
             repositoriesInfoByNode = new ConcurrentHashMap<>();
+            fileSettingsHealthInfo = INDETERMINATE;
         }
     }
 
@@ -86,6 +95,6 @@ public class HealthInfoCache implements ClusterStateListener {
      */
     public HealthInfo getHealthInfo() {
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode));
+        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode), fileSettingsHealthInfo);
     }
 }

@@ -45,6 +45,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyze
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -167,7 +168,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         // on marked-up
         // content using an "annotated_text" type field.
         String url = "https://en.wikipedia.org/wiki/Key_Word_in_Context";
-        String encodedUrl = URLEncoder.encode(url, "UTF-8");
+        String encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8);
         String annotatedWord = "[highlighting](" + encodedUrl + ")";
         String highlightedAnnotatedWord = "[highlighting]("
             + AnnotatedPassageFormatter.SEARCH_HIT_TYPE

@@ -5,7 +5,7 @@ mapped_pages:
 
 # polish_stop token filter [analysis-polish-stop]
 
-The `polish_stop` token filter filters out Polish stopwords (`_polish_`), and any other custom stopwords specified by the user. This filter only supports the predefined `_polish_` stopwords list. If you want to use a different predefined list, then use the [`stop` token filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) instead.
+The `polish_stop` token filter filters out Polish stopwords (`_polish_`), and any other custom stopwords specified by the user. This filter only supports the predefined `_polish_` stopwords list. If you want to use a different predefined list, then use the [`stop` token filter](/reference/text-analysis/analysis-stop-tokenfilter.md) instead.
 
 ```console
 PUT /polish_stop_example

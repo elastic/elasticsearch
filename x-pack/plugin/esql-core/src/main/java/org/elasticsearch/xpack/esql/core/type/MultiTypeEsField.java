@@ -33,8 +33,14 @@ public class MultiTypeEsField extends EsField {
 
     private final Map<String, Expression> indexToConversionExpressions;
 
-    public MultiTypeEsField(String name, DataType dataType, boolean aggregatable, Map<String, Expression> indexToConversionExpressions) {
-        super(name, dataType, Map.of(), aggregatable);
+    public MultiTypeEsField(
+        String name,
+        DataType dataType,
+        boolean aggregatable,
+        Map<String, Expression> indexToConversionExpressions,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
         this.indexToConversionExpressions = indexToConversionExpressions;
     }
 
@@ -43,7 +49,8 @@ public class MultiTypeEsField extends EsField {
             readCachedStringWithVersionCheck(in),
             DataType.readFrom(in),
             in.readBoolean(),
-            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class))
+            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
+            readTimeSeriesFieldType(in)
         );
     }
 
@@ -53,6 +60,7 @@ public class MultiTypeEsField extends EsField {
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {
@@ -86,7 +94,13 @@ public class MultiTypeEsField extends EsField {
                 indexToConversionExpressions.put(indexName, convertExpr);
             }
         }
-        return new MultiTypeEsField(invalidMappedField.getName(), resolvedDataType, false, indexToConversionExpressions);
+        return new MultiTypeEsField(
+            invalidMappedField.getName(),
+            resolvedDataType,
+            false,
+            indexToConversionExpressions,
+            invalidMappedField.getTimeSeriesFieldType()
+        );
     }
 
     @Override

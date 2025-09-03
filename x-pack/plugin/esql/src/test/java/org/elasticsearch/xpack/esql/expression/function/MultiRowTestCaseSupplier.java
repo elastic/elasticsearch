@@ -14,6 +14,10 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -26,6 +30,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedDataSupplier;
 
@@ -35,6 +40,31 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 public final class MultiRowTestCaseSupplier {
 
     private MultiRowTestCaseSupplier() {}
+
+    /**
+     * A {@link List} of the cases for the specified type without any limits.
+     */
+    public static List<TypedDataSupplier> unlimitedSuppliers(DataType type, int minRows, int maxRows) {
+        return switch (type) {
+            case DATETIME -> dateCases(minRows, maxRows);
+            case DATE_NANOS -> dateNanosCases(minRows, maxRows);
+            case INTEGER -> intCases(minRows, maxRows, Integer.MIN_VALUE, Integer.MAX_VALUE, true);
+            case LONG -> longCases(minRows, maxRows, Long.MIN_VALUE, Long.MAX_VALUE, true);
+            case UNSIGNED_LONG -> ulongCases(minRows, maxRows, BigInteger.ZERO, UNSIGNED_LONG_MAX, true);
+            case DOUBLE -> doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true);
+            case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
+            // If a type is missing here it's safe to them as you need them
+            default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
+        };
+    }
+
+    public static List<TypedDataSupplier> nullCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "null", DataType.NULL, () -> null);
+
+        return cases;
+    }
 
     public static List<TypedDataSupplier> intCases(int minRows, int maxRows, int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
@@ -427,6 +457,36 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> geohashCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return Geohash.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, Geohash.PRECISION));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohash>", DataType.GEOHASH, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geotileCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return GeoTileUtils.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geotile>", DataType.GEOTILE, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geohexCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return H3.geoToH3(point.getLat(), point.getLon(), ESTestCase.randomIntBetween(1, H3.MAX_H3_RES));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohex>", DataType.GEOHEX, gen);
+        return cases;
+    }
+
     public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -481,12 +541,19 @@ public final class MultiRowTestCaseSupplier {
         Supplier<T> valueSupplier
     ) {
         if (minRows <= 1 && maxRows >= 1) {
-            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true));
+            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of()));
         }
 
         if (maxRows > 1) {
             cases.add(
-                new TypedDataSupplier("<" + name + "s>", () -> randomList(Math.max(2, minRows), maxRows, valueSupplier), type, false, true)
+                new TypedDataSupplier(
+                    "<" + name + "s>",
+                    () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
+                    type,
+                    false,
+                    true,
+                    List.of()
+                )
             );
         }
     }

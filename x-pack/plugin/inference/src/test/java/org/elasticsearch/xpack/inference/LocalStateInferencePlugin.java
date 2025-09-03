@@ -13,9 +13,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 
 import java.nio.file.Path;
@@ -46,7 +48,8 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
             public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
                 return List.of(
                     TestSparseInferenceServiceExtension.TestInferenceService::new,
-                    TestDenseInferenceServiceExtension.TestInferenceService::new
+                    TestDenseInferenceServiceExtension.TestInferenceService::new,
+                    TestRerankingServiceExtension.TestInferenceService::new
                 );
             }
         };
@@ -64,8 +67,12 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
+    public Map<String, Highlighter> getHighlighters() {
+        return inferencePlugin.getHighlighters();
+    }
+
+    @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
     }
-
 }

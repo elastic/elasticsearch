@@ -65,7 +65,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         final DataStream dataStream = DataStream.builder(
             dataStreamName,
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
-        ).setIndexMode(IndexMode.TIME_SERIES).build();
+        ).setIndexMode(IndexMode.TIME_SERIES).setTimeProvider(now::toEpochMilli).build();
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
@@ -123,8 +123,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
-            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            String sourceIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration(),
+                now.toEpochMilli()
+            );
+            String newIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration() + 1,
+                now.toEpochMilli()
+            );
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
@@ -219,8 +227,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 false
             );
 
-            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            String sourceIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration(),
+                now.toEpochMilli()
+            );
+            String newIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration() + 1,
+                now.toEpochMilli()
+            );
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
@@ -308,8 +324,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 false
             );
 
-            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            String sourceIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration(),
+                now.toEpochMilli()
+            );
+            String newIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration() + 1,
+                now.toEpochMilli()
+            );
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
@@ -379,8 +403,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
-            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            String sourceIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration(),
+                now.toEpochMilli()
+            );
+            String newIndexName = DataStream.getDefaultBackingIndexName(
+                dataStream.getName(),
+                dataStream.getGeneration() + 1,
+                now.toEpochMilli()
+            );
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);

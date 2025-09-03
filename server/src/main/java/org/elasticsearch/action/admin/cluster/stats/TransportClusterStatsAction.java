@@ -57,10 +57,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -157,15 +158,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
         assert task instanceof CancellableTask;
         final var cancellableTask = (CancellableTask) task;
-        final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
         if (request.isRemoteStats() == false) {
+            final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
             final AdditionalStats additionalStats = new AdditionalStats();
             additionalStats.compute(cancellableTask, request, additionalStatsListener);
+            return additionalStatsListener;
         } else {
             // For remote stats request, we don't need to compute anything
-            additionalStatsListener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
-        return additionalStatsListener;
     }
 
     @Override
@@ -319,7 +320,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
-    public static class ClusterStatsNodeRequest extends TransportRequest {
+    public static class ClusterStatsNodeRequest extends AbstractTransportRequest {
 
         ClusterStatsNodeRequest() {}
 
@@ -493,10 +494,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         RemoteClusterStats makeRemoteClusterStats(String clusterAlias) {
             RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
             RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
-            var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            var compression = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return new RemoteClusterStats(
                 remoteConnectionInfo.getModeInfo().modeName(),
-                remoteConnection.isSkipUnavailable(),
+                remoteClusterService.isSkipUnavailable(clusterAlias),
                 compression.toString()
             );
         }

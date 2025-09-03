@@ -8,12 +8,13 @@
  */
 package org.elasticsearch.datastreams.options.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,6 +22,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -42,7 +48,7 @@ public class GetDataStreamOptionsAction {
 
     private GetDataStreamOptionsAction() {/* no instances */}
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
@@ -54,7 +60,6 @@ public class GetDataStreamOptionsAction {
                 IndicesOptions.GatekeeperOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(true).allowSelectors(false)
             )
             .build();
-        private boolean includeDefaults = false;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);
@@ -64,7 +69,6 @@ public class GetDataStreamOptionsAction {
         public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
             super(masterNodeTimeout);
             this.names = names;
-            this.includeDefaults = includeDefaults;
         }
 
         public String[] getNames() {
@@ -76,19 +80,24 @@ public class GetDataStreamOptionsAction {
             return null;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            this.includeDefaults = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(names);
-            indicesOptions.writeIndicesOptions(out);
-            out.writeBoolean(includeDefaults);
+            // This boolean was removed in 8.19
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_8_19) == false) {
+                in.readBoolean();
+            }
         }
 
         @Override
@@ -96,14 +105,12 @@ public class GetDataStreamOptionsAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names)
-                && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -116,10 +123,6 @@ public class GetDataStreamOptionsAction {
         @Override
         public IndicesOptions indicesOptions() {
             return indicesOptions;
-        }
-
-        public boolean includeDefaults() {
-            return includeDefaults;
         }
 
         public Request indicesOptions(IndicesOptions indicesOptions) {
@@ -137,11 +140,6 @@ public class GetDataStreamOptionsAction {
             this.names = indices;
             return this;
         }
-
-        public Request includeDefaults(boolean includeDefaults) {
-            this.includeDefaults = includeDefaults;
-            return this;
-        }
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
@@ -152,10 +150,11 @@ public class GetDataStreamOptionsAction {
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField OPTIONS_FIELD = new ParseField("options");
 
-            DataStreamEntry(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalWriteable(DataStreamOptions::read));
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
@@ -180,14 +179,15 @@ public class GetDataStreamOptionsAction {
             this.dataStreams = dataStreams;
         }
 
-        public Response(StreamInput in) throws IOException {
-            this(in.readCollectionAsList(DataStreamEntry::new));
-        }
-
         public List<DataStreamEntry> getDataStreams() {
             return dataStreams;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);

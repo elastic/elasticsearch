@@ -49,7 +49,7 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
                 searchRequest.requestCache(false);
             }
         }
-        return SubscribableListener.newSucceeded(null);
+        return SubscribableListener.nullSuccess();
     }
 
     // package private for test

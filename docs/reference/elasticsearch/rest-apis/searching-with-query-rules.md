@@ -16,16 +16,21 @@ $$$query-rules$$$
 * Personalized metadata about users (e.g. country, language, etc)
 * A particular topic
 * A referring site
-* etc.
 
-Query rules define a metadata key that will be used to match the metadata provided in the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) with the criteria specified in the rule.
+
+Query rules define a metadata key that will be used to match the metadata provided in the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) with the criteria specified in the rule.
 
 When a query rule matches the rule metadata according to its defined criteria, the query rule action is applied to the underlying `organic` query.
 
 For example, a query rule could be defined to match a user-entered query string of `pugs` and a country `us` and promote adoptable shelter dogs if the rule query met both criteria.
 
-Rules are defined using the [query rules API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-query_rules) and searched using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) or the [rule query](/reference/query-languages/query-dsl-rule-query.md).
+You can create and manage query rules using either:
+- [Query rules API]({{es-apis}}v9/group/endpoint-query_rules)
+- [Query Rules UI](docs-content://solutions/search/query-rules-ui.md)
 
+You can search with query rules using either:
+- [Retrievers syntax](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md)
+- [Query DSL syntax](/reference/query-languages/query-dsl/query-dsl-rule-query.md)
 
 ## Rule definition [query-rule-definition]
 
@@ -36,7 +41,7 @@ When defining a rule, consider the following:
 
 The type of rule we want to apply. We support the following rule types:
 
-* `pinned` will re-write the query into a [pinned query](/reference/query-languages/query-dsl-pinned-query.md), pinning specified results matching the query rule at the top of the returned result set.
+* `pinned` will re-write the query into a [pinned query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md), pinning specified results matching the query rule at the top of the returned result set.
 * `exclude` will exclude specified results from the returned result set.
 
 
@@ -68,13 +73,13 @@ The actions to take when the rule matches a query:
 Use `ids` when searching over a single index, and `docs` when searching over multiple indices. `ids` and `docs` cannot be combined in the same query.
 
 
-## Add query rules [add-query-rules]
+## Manage query rules [manage-query-rules]
 
 You can add query rules using the [Create or update query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-put-ruleset) call. This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
 
 The following command will create a query ruleset called `my-ruleset` with two query rules:
 
-* The first rule will generate a [Pinned Query](/reference/query-languages/query-dsl-pinned-query.md) pinning the [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md)s `id1` and `id2` when the `query_string` metadata value is a fuzzy match to either `puggles` or `pugs` *and* the user’s location is in the US.
+* The first rule will generate a [Pinned Query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md) pinning the [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md)s `id1` and `id2` when the `query_string` metadata value is a fuzzy match to either `puggles` or `pugs` *and* the user’s location is in the US.
 * The second rule will generate a query that excludes the [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` metadata value contains `beagles`.
 
 ```console
@@ -145,10 +150,12 @@ There is a limit of 100 rules per ruleset. This can be increased up to 1000 usin
 
 You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) call to retrieve the ruleset you just created, the [List query rulesets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-list-rulesets) call to retrieve a summary of all query rulesets, and the [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) call to delete a query ruleset.
 
+To manage rules using the Query Rules UI, refer to [Manage query rules](https://www.elastic.co/docs/solutions/search/query-rules-ui#manage-existing-rules).
+
 
 ## Search using query rules [rule-query-search]
 
-Once you have defined one or more query rulesets, you can search using these rulesets using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) or the [rule query](/reference/query-languages/query-dsl-rule-query.md). Retrievers are the recommended way to use rule queries, as they will work out of the box with other reranking retrievers such as [Reciprocal rank fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
+Once you have defined one or more query rulesets, you can search using these rulesets using the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) or the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md). Retrievers are the recommended way to use rule queries, as they will work out of the box with other reranking retrievers such as [Reciprocal rank fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
 
 Rulesets are evaluated in order, so rules in the first ruleset you specify will be applied before any subsequent rulesets.
 
@@ -180,13 +187,13 @@ GET /my-index-000001/_search
 
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits. Any other matches from the organic query will be returned below the pinned results.
 
-It’s possible to have multiple rules in a ruleset match a single [rule query](/reference/query-languages/query-dsl-rule-query.md). In this case, the rules are applied in the following order:
+It’s possible to have multiple rules in a ruleset match a single [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md). In this case, the rules are applied in the following order:
 
 * Where the matching rule appears in the ruleset
 * If multiple documents are specified in a single rule, in the order they are specified
 * If a document is matched by both a `pinned` rule and an `exclude` rule, the `exclude` rule will take precedence
 
-You can specify reranking retrievers such as [rrf](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever) or [text_similarity_reranker](/reference/elasticsearch/rest-apis/retrievers.md#text-similarity-reranker-retriever) in the rule query to apply query rules on already-reranked results. Here is an example:
+You can specify reranking retrievers such as [rrf](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md) or [text_similarity_reranker](/reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md) in the rule query to apply query rules on already-reranked results. Here is an example:
 
 ```console
 GET my-index-000001/_search

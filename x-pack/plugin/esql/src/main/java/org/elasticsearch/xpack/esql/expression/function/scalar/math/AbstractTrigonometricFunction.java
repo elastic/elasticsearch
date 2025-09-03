@@ -33,7 +33,7 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
     }
 
     /**
-     * Build an evaluator for this function given the evaluator for it's input.
+     * Build an evaluator for this function given the evaluator for it’s input.
      */
     protected abstract EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field);
 

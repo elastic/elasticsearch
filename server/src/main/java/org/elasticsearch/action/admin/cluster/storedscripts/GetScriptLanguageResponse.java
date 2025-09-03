@@ -28,7 +28,6 @@ public class GetScriptLanguageResponse extends ActionResponse implements ToXCont
     }
 
     GetScriptLanguageResponse(StreamInput in) throws IOException {
-        super(in);
         info = new ScriptLanguagesInfo(in);
     }
 

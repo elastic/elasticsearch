@@ -192,7 +192,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static void writeLineToPipeUnix(String pipeName, String line) throws IOException {
-        Files.write(PathUtils.get(pipeName), (line + '\n').getBytes(StandardCharsets.UTF_8), StandardOpenOption.WRITE);
+        Files.writeString(PathUtils.get(pipeName), line + '\n', StandardOpenOption.WRITE);
     }
 
     private static void writeLineToPipeWindows(String pipeName, Pointer handle, String line) throws IOException {

@@ -1,0 +1,223 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "normalize_for_stream_pipeline"
+        body:
+          processors:
+            - normalize_for_stream: {}
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "normalize_for_stream_pipeline"
+        ignore: 404
+
+---
+"Test attributes namespacing":
+  - do:
+      index:
+        index: normalize_for_stream_test
+        id: "nested_and_flat_attributes"
+        pipeline: "normalize_for_stream_pipeline"
+        body: {
+          "agent.name": "agentNameValue",
+          "agent": {
+            "type": "agentTypeValue",
+            "deep": {
+              "nested": "nestedValue",
+              "scalar-array": [
+                "arrayValue1",
+                "arrayValue2"
+              ],
+              "object-array": [
+                {
+                  "key1": "value1"
+                },
+                {
+                  "key2": "value2"
+                }
+              ]
+            },
+            "scalar-array": [
+              "arrayValue1",
+              "arrayValue2"
+            ]
+          },
+          "cloud.region": "cloudRegionValue",
+          "cloud": {
+            "service": {
+              "name": [
+                "nameArrayValue1",
+                "nameArrayValue2"
+              ]
+            },
+            "account.id": [
+              {
+                "key1": "value1"
+              },
+              {
+                "key2": "value2"
+              }
+            ],
+          },
+          "host.name": "hostNameValue",
+          "host": {
+            "type": "hostTypeValue"
+          },
+          "service.name": "serviceNameValue",
+          "service": {
+            "type": "serviceTypeValue",
+          }
+        }
+
+  - do:
+      get:
+        index: normalize_for_stream_test
+        id: "nested_and_flat_attributes"
+  - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
+  - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
+  - match: { _source.resource.attributes.cloud\.region: "cloudRegionValue" }
+  - match: { _source.resource.attributes.cloud\.service\.name: ["nameArrayValue1", "nameArrayValue2"] }
+  - match: { _source.resource.attributes.cloud\.service\.name.0: "nameArrayValue1" }
+  - match: { _source.resource.attributes.cloud\.service\.name.1: "nameArrayValue2" }
+  - match: { _source.resource.attributes.cloud\.account\.id: [{"key1" : "value1"}, {"key2" : "value2"}] }
+  - match: { _source.resource.attributes.cloud\.account\.id.0.key1: "value1" }
+  - match: { _source.resource.attributes.cloud\.account\.id.1.key2: "value2" }
+  - match: { _source.resource.attributes.host\.name: "hostNameValue" }
+  - match: { _source.resource.attributes.host\.type: "hostTypeValue" }
+  - match: { _source.resource.attributes.service\.name: "serviceNameValue" }
+  - match: { _source.attributes.agent\.scalar-array.0: "arrayValue1" }
+  - match: { _source.attributes.agent\.scalar-array.1: "arrayValue2" }
+  - match: { _source.attributes.agent\.deep\.nested: "nestedValue" }
+  - match: { _source.attributes.agent\.deep\.scalar-array.0: "arrayValue1" }
+  - match: { _source.attributes.agent\.deep\.scalar-array.1: "arrayValue2" }
+  - match: { _source.attributes.agent\.deep\.object-array.0.key1: "value1" }
+  - match: { _source.attributes.agent\.deep\.object-array.1.key2: "value2" }
+  - match: { _source.attributes.service\.type: "serviceTypeValue" }
+  - match: { _source.agent\.name: null }
+  - match: { _source.agent: null }
+  - match: { _source.agent.type: null }
+  - match: { _source.cloud\.region: null }
+  - match: { _source.cloud: null }
+  - match: { _source.host\.name: null }
+  - match: { _source.host: null }
+  - match: { _source.service\.name: null }
+  - match: { _source.service: null }
+
+---
+"Test rename special keys":
+  - do:
+      index:
+        index: normalize_for_stream_test
+        id: "rename_special_keys"
+        pipeline: "normalize_for_stream_pipeline"
+        body: {
+          "span": {
+            "id": "nestedSpanIdValue"
+          },
+          "span.id": "topLevelSpanIdValue",
+          "log.level": "topLevelLogLevelValue",
+          "trace": {
+            "id": "traceIdValue"
+          },
+          "trace.id": "topLevelTraceIdValue",
+          "message": "this is a message"
+        }
+
+  - do:
+      get:
+        index: normalize_for_stream_test
+        id: "rename_special_keys"
+  - match: { _source.span_id: "nestedSpanIdValue" }
+  - match: { _source.severity_text: "topLevelLogLevelValue" }
+  - match: { _source.trace_id: "traceIdValue" }
+  - match: { _source.body.text: "this is a message" }
+  - match: { _source.span: null }
+  - match: { _source.span\.id: null }
+  - match: { _source.log\.level: null }
+  - match: { _source.trace: null }
+  - match: { _source.trace\.id: null }
+  - match: { _source.message: null }
+
+---
+"Test valid OTel document":
+  - do:
+      index:
+        index: normalize_for_stream_test
+        id: "valid_otel_document"
+        pipeline: "normalize_for_stream_pipeline"
+        body: {
+          "resource": {
+            "attributes": {
+              "foo": "bar"
+            }
+          },
+          "scope": {
+            "foo": "bar"
+          },
+          "attributes": {
+            "foo": "bar"
+          },
+          "body": {
+            "text": "a string",
+            "structured": {}
+          },
+          "span_id": "spanIdValue",
+          "trace_id": "traceIdValue",
+          "severity_text": "severityTextValue",
+          "foo": "bar"
+        }
+
+  - do:
+      get:
+        index: normalize_for_stream_test
+        id: "valid_otel_document"
+  - match: { _source.resource.attributes.foo: "bar" }
+  - match: { _source.scope.foo: "bar" }
+  - match: { _source.attributes.foo: "bar" }
+  - match: { _source.body.text: "a string" }
+  - match: { _source.body.structured: {} }
+  - match: { _source.span_id: "spanIdValue" }
+  - match: { _source.trace_id: "traceIdValue" }
+  - match: { _source.severity_text: "severityTextValue" }
+  - match: { _source.foo: "bar" }
+
+---
+"Test invalid body field":
+  - do:
+      index:
+        index: normalize_for_stream_test
+        id: "invalid_body_field"
+        pipeline: "normalize_for_stream_pipeline"
+        body: {
+          "resource": {},
+          "scope": {
+            "foo": "bar"
+          },
+          "body": {
+            "text": 123,
+            "structured": {
+              "foo": "bar"
+            }
+          },
+          "span_id": "spanIdValue",
+          "trace_id": "traceIdValue",
+          "severity_text": "severityTextValue",
+          "foo": "bar"
+        }
+
+  - do:
+      get:
+        index: normalize_for_stream_test
+        id: "invalid_body_field"
+  - match: { _source.attributes.body\.text: 123 }
+  - match: { _source.attributes.body\.structured\.foo: "bar" }
+  - match: { _source.attributes.scope\.foo: "bar" }
+  - match: { _source.attributes.span_id: "spanIdValue" }
+  - match: { _source.attributes.trace_id: "traceIdValue" }
+  - match: { _source.attributes.severity_text: "severityTextValue" }
+  - match: { _source.attributes.foo: "bar" }
+  - match: { _source.body: null }
+  - match: { _source.scope: null }

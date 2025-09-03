@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -29,7 +30,9 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -45,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -101,7 +105,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     "es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current",
                     "the actual number of allocations",
                     "",
-                    () -> observeLong(AdaptiveAllocationsScaler::getNumberOfAllocations)
+                    this::observeAllocationCount
                 )
             );
             metrics.add(
@@ -175,30 +179,29 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             }
             return observations;
         }
+
+        Collection<LongWithAttributes> observeAllocationCount() {
+            return scalers.values().stream().map(scaler -> {
+                var value = scaler.getNumberOfAllocations();
+                var min = scaler.getMinNumberOfAllocations();
+                var scalesToZero = min == null || min == 0;
+
+                return new LongWithAttributes(
+                    value,
+                    Map.ofEntries(Map.entry("deployment_id", scaler.getDeploymentId()), Map.entry("scales_to_zero", scalesToZero))
+                );
+            }).toList();
+        }
     }
 
     /**
      * The time interval between the adaptive allocations triggers.
      */
-    private static final int DEFAULT_TIME_INTERVAL_SECONDS = 10;
-    /**
-     * The time that has to pass after scaling up, before scaling down is allowed.
-     * Note that the ML autoscaling has its own cooldown time to release the hardware.
-     */
-    private static final long SCALE_UP_COOLDOWN_TIME_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
-
-    /**
-     * The time interval without any requests that has to pass, before scaling down
-     * to zero allocations (in case min_allocations = 0). After this time interval
-     * without requests, the number of allocations is set to zero. When this time
-     * interval hasn't passed, the minimum number of allocations will always be
-     * larger than zero.
-     */
-    private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS = TimeValue.timeValueMinutes(15).getSeconds();
+    private static final long DEFAULT_TIME_INTERVAL_SECONDS = 10;
 
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScalerService.class);
 
-    private final int timeIntervalSeconds;
+    private final long timeIntervalSeconds;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
@@ -212,7 +215,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final Map<String, Long> lastScaleUpTimesMillis;
     private volatile Scheduler.Cancellable cancellable;
     private final AtomicBoolean busy;
-    private final long scaleToZeroAfterNoRequestsSeconds;
+    private final AtomicLong scaleToZeroAfterNoRequestsSeconds;
+    private final AtomicLong scaleUpCooldownTimeMillis;
     private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
     private final Map<String, String> lastWarningMessages = new ConcurrentHashMap<>();
 
@@ -222,9 +226,30 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         Client client,
         InferenceAuditor inferenceAuditor,
         MeterRegistry meterRegistry,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        Settings settings
     ) {
-        this(threadPool, clusterService, client, inferenceAuditor, meterRegistry, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+        this(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            isNlpEnabled,
+            DEFAULT_TIME_INTERVAL_SECONDS,
+            new AtomicLong(MachineLearning.SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME.get(settings).getSeconds()),
+            new AtomicLong(MachineLearning.SCALE_UP_COOLDOWN_TIME.get(settings).getMillis())
+        );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MachineLearning.SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
+                timeInterval -> this.scaleToZeroAfterNoRequestsSeconds.set(timeInterval.getSeconds())
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MachineLearning.SCALE_UP_COOLDOWN_TIME,
+                timeInterval -> this.scaleUpCooldownTimeMillis.set(timeInterval.getMillis())
+            );
     }
 
     // visible for testing
@@ -235,7 +260,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         InferenceAuditor inferenceAuditor,
         MeterRegistry meterRegistry,
         boolean isNlpEnabled,
-        int timeIntervalSeconds
+        long timeIntervalSeconds,
+        AtomicLong scaleToZeroAfterNoRequestsSeconds,
+        AtomicLong scaleUpCooldownTimeMillis
     ) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -244,6 +271,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.meterRegistry = meterRegistry;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
+        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
+        this.scaleUpCooldownTimeMillis = scaleUpCooldownTimeMillis;
 
         lastInferenceStatsByDeploymentAndNode = new HashMap<>();
         lastInferenceStatsTimestampMillis = null;
@@ -251,7 +280,6 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         scalers = new HashMap<>();
         metrics = new Metrics();
         busy = new AtomicBoolean(false);
-        scaleToZeroAfterNoRequestsSeconds = SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS;
     }
 
     public synchronized void start() {
@@ -298,7 +326,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     key -> new AdaptiveAllocationsScaler(
                         assignment.getDeploymentId(),
                         assignment.totalTargetAllocations(),
-                        scaleToZeroAfterNoRequestsSeconds
+                        scaleToZeroAfterNoRequestsSeconds::get
                     )
                 );
                 adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(
@@ -315,7 +343,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     private synchronized void startScheduling() {
         if (cancellable == null) {
-            logger.debug("Starting ML adaptive allocations scaler");
+            logger.debug("Starting ML adaptive allocations scaler at interval [{}].", timeIntervalSeconds);
             try {
                 cancellable = threadPool.scheduleWithFixedDelay(
                     this::trigger,
@@ -375,10 +403,15 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
         Map<String, Stats> recentStatsByDeployment = new HashMap<>();
         Map<String, Integer> numberOfAllocations = new HashMap<>();
+        Map<String, AssignmentState> assignmentStates = new HashMap<>();
+        // Check for recent scale ups in the deployment stats, because a different node may have
+        // caused a scale up when an inference request arrives and there were zero allocations.
+        Set<String> hasRecentObservedScaleUp = new HashSet<>();
 
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
             String deploymentId = assignmentStats.getDeploymentId();
             numberOfAllocations.put(deploymentId, assignmentStats.getNumberOfAllocations());
+            assignmentStates.put(deploymentId, assignmentStats.getState());
             Map<String, Stats> deploymentStats = lastInferenceStatsByDeploymentAndNode.computeIfAbsent(
                 deploymentId,
                 key -> new HashMap<>()
@@ -401,6 +434,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                         (key, value) -> value == null ? recentStats : value.add(recentStats)
                     );
                 }
+                if (nodeStats.getRoutingState() != null && nodeStats.getRoutingState().getState() == RoutingState.STARTING) {
+                    hasRecentObservedScaleUp.add(deploymentId);
+                }
+                if (nodeStats.getStartTime() != null && now < nodeStats.getStartTime().toEpochMilli() + scaleUpCooldownTimeMillis.get()) {
+                    hasRecentObservedScaleUp.add(deploymentId);
+                }
             }
         }
 
@@ -416,10 +455,21 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
                 Long lastScaleUpTimeMillis = lastScaleUpTimesMillis.get(deploymentId);
+                // hasRecentScaleUp indicates whether this service has recently scaled up the deployment.
+                // hasRecentObservedScaleUp indicates whether a deployment recently has started,
+                // potentially triggered by another node.
+                boolean hasRecentScaleUp = lastScaleUpTimeMillis != null && now < lastScaleUpTimeMillis + scaleUpCooldownTimeMillis.get();
                 if (newNumberOfAllocations < numberOfAllocations.get(deploymentId)
-                    && lastScaleUpTimeMillis != null
-                    && now < lastScaleUpTimeMillis + SCALE_UP_COOLDOWN_TIME_MILLIS) {
+                    && (hasRecentScaleUp || hasRecentObservedScaleUp.contains(deploymentId))) {
                     logger.debug("adaptive allocations scaler: skipping scaling down [{}] because of recent scaleup.", deploymentId);
+                    continue;
+                }
+                if (assignmentStates.get(deploymentId) != AssignmentState.STARTED) {
+                    logger.debug(
+                        "adaptive allocations scaler: skipping scaling [{}] because it is in [{}] state.",
+                        deploymentId,
+                        assignmentStates.get(deploymentId)
+                    );
                     continue;
                 }
                 if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {

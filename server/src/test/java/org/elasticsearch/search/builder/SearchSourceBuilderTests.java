@@ -1007,7 +1007,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort(SortBuilders.fieldSort("field")));
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
@@ -1023,10 +1023,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(
                 new TopHitsAggregationBuilder("terms").sort(
-                    SortBuilders.scriptSort(new Script("id"), ScriptSortBuilder.ScriptSortType.NUMBER)
+                    SortBuilders.scriptSort(new Script("id"), randomFrom(ScriptSortBuilder.ScriptSortType.values()))
                 )
             );
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
@@ -1047,7 +1047,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(randomFrom(SortOrder.values()))
             );
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();

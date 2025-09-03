@@ -1,2 +1,2 @@
-* [`CIDR_MATCH`](../../esql-functions-operators.md#esql-cidr_match)
-* [`IP_PREFIX`](../../esql-functions-operators.md#esql-ip_prefix)
+* [`CIDR_MATCH`](../../functions-operators/ip-functions.md#esql-cidr_match)
+* [`IP_PREFIX`](../../functions-operators/ip-functions.md#esql-ip_prefix)

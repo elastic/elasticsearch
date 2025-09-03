@@ -74,6 +74,11 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
     }
 
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
+
     public void testScriptAndPrecludedParameters() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -154,5 +159,9 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
+    }
+
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::doubleValue, ignoreMalformed, sourceKeepMode);
     }
 }

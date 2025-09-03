@@ -11,7 +11,7 @@ Updates the index settings to change which nodes are allowed to host the index s
 
 The allocate action is not allowed in the hot phase. The initial allocation for the index must be done manually or via [index templates](docs-content://manage-data/data-store/templates.md).
 
-You can configure this action to modify both the allocation rules and number of replicas, only the allocation rules, or only the number of replicas. For more information about how {{es}} uses replicas for scaling, see [Get ready for production](docs-content://deploy-manage/production-guidance/getting-ready-for-production-elasticsearch.md). See [Index-level shard allocation filtering](/reference/elasticsearch/index-settings/shard-allocation.md) for more information about controlling where {{es}} allocates shards of a particular index.
+You can configure this action to modify both the allocation rules and number of replicas, only the allocation rules, or only the number of replicas. For more information about how {{es}} uses replicas for scaling, see [Get ready for production](docs-content://deploy-manage/production-guidance/elasticsearch-in-production-environments.md). See [Index-level shard allocation filtering](/reference/elasticsearch/index-settings/shard-allocation.md) for more information about controlling where {{es}} allocates shards of a particular index.
 
 ## Options [ilm-allocate-options]
 

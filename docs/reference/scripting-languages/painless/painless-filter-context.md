@@ -1,11 +1,13 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-filter-context.html
+products:
+  - id: painless
 ---
 
 # Filter context [painless-filter-context]
 
-Use a Painless script as a [filter](/reference/query-languages/query-dsl-script-query.md) in a query to include and exclude documents.
+Use a Painless script as a [filter](/reference/query-languages/query-dsl/query-dsl-script-query.md) in a query to include and exclude documents.
 
 **Variables**
 

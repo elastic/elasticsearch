@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -327,7 +327,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                 SimpleValue obj = aggregations.get("total_filter_sum");
                 assertThat(obj.value(), closeTo(sumByMetric(filteredData, "metric_" + metric), obj.value() * 0.0001));
 
-                Global global = aggregations.get("everything");
+                SingleBucketAggregation global = aggregations.get("everything");
                 Sum allSum = global.getAggregations().get("all_sum");
                 assertThat(allSum.value(), closeTo(sumByMetric(data, "metric_" + metric), allSum.value() * 0.0001));
             }

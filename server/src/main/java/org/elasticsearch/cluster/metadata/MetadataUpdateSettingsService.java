@@ -219,7 +219,7 @@ public class MetadataUpdateSettingsService {
                     // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
                     // changed settings are applied when the shards are re-assigned.
                     routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentRoutingTable);
-                    for (Index index : openIndices) {
+                    for (Index index : new HashSet<>(openIndices)) {
                         // We only want to take on the expense of reopening all shards for an index if the setting is really changing
                         Settings existingSettings = currentProject.index(index).getSettings();
                         boolean needToReopenIndex = false;

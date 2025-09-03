@@ -11,7 +11,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -329,10 +328,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         TransportVersion transportVersion = getTransportVersionWithFallback(
             nodeVersionString,
             nodeDetails.get("transport_version"),
-            () -> TransportVersions.ZERO
+            () -> TransportVersion.zero()
         );
 
-        if (transportVersion.equals(TransportVersions.ZERO)) {
+        if (transportVersion.equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
             var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
@@ -393,6 +392,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
         final Set<String> excludedPrivileges = Set.of(
+            "read_failure_store",
+            "manage_failure_store",
             "cross_cluster_replication",
             "cross_cluster_replication_internal",
             "manage_data_stream_lifecycle"

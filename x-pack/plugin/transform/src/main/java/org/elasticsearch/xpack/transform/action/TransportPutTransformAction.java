@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -65,6 +66,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutTransformAction(
@@ -76,7 +78,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ClusterService clusterService,
         TransformServices transformServices,
         Client client,
-        TransformConfigAutoMigration transformConfigAutoMigration
+        TransformConfigAutoMigration transformConfigAutoMigration,
+        ProjectResolver projectResolver
     ) {
         super(
             PutTransformAction.NAME,
@@ -96,6 +99,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             : null;
         this.auditor = transformServices.auditor();
         this.transformConfigAutoMigration = transformConfigAutoMigration;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -183,7 +187,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
     @Override
     protected ClusterBlockException checkBlock(PutTransformAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {

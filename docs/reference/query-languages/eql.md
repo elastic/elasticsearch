@@ -19,7 +19,7 @@ Event Query Language (EQL) is a query language for event-based time series data,
 ## Advantages of EQL [eql-advantages]
 
 * **EQL lets you express relationships between events.**<br> Many query languages allow you to match single events. EQL lets you match a sequence of events across different event categories and time spans.
-* **EQL has a low learning curve.**<br> [EQL syntax](/reference/query-languages/eql-syntax.md) looks like other common query languages, such as SQL. EQL lets you write and read queries intuitively, which makes for quick, iterative searching.
+* **EQL has a low learning curve.**<br> [EQL syntax](/reference/query-languages/eql/eql-syntax.md) looks like other common query languages, such as SQL. EQL lets you write and read queries intuitively, which makes for quick, iterative searching.
 * **EQL is designed for security use cases.**<br> While you can use it for any event-based data, we created EQL for threat hunting. EQL not only supports indicator of compromise (IOC) searches but can describe activity that goes beyond IOCs.
 
 
@@ -27,7 +27,7 @@ Event Query Language (EQL) is a query language for event-based time series data,
 
 With the exception of sample queries, EQL searches require that the searched data stream or index  contains a *timestamp* field. By default, EQL uses the `@timestamp` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)).
 
-EQL searches also require an *event category* field, unless you use the [`any` keyword](/reference/query-languages/eql-syntax.md#eql-syntax-match-any-event-category) to search for  documents without an event category field. By default, EQL uses the ECS `event.category` field.
+EQL searches also require an *event category* field, unless you use the [`any` keyword](/reference/query-languages/eql/eql-syntax.md#eql-syntax-match-any-event-category) to search for  documents without an event category field. By default, EQL uses the ECS `event.category` field.
 
 To use a different timestamp or event category field, see [Specify a timestamp or event category field](#specify-a-timestamp-or-event-category-field).
 
@@ -39,7 +39,7 @@ While no schema is required to use EQL, we recommend using the [ECS](ecs://refer
 
 ## Run an EQL search [run-an-eql-search]
 
-Use the [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) to run a [basic EQL query](/reference/query-languages/eql-syntax.md#eql-basic-syntax).
+Use the [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) to run a [basic EQL query](/reference/query-languages/eql/eql-syntax.md#eql-basic-syntax).
 
 ```console
 GET /my-data-stream/_eql/search
@@ -120,7 +120,7 @@ GET /my-data-stream/_eql/search
 
 ## Search for a sequence of events [eql-search-sequence]
 
-Use EQL’s [sequence syntax](/reference/query-languages/eql-syntax.md#eql-sequences) to search for a series of ordered events. List the event items in ascending chronological order, with the most recent event listed last:
+Use EQL’s [sequence syntax](/reference/query-languages/eql/eql-syntax.md#eql-sequences) to search for a series of ordered events. List the event items in ascending chronological order, with the most recent event listed last:
 
 ```console
 GET /my-data-stream/_eql/search
@@ -189,7 +189,7 @@ The response’s `hits.sequences` property contains the 10 most recent matching 
 }
 ```
 
-Use [`with maxspan`](/reference/query-languages/eql-syntax.md#eql-with-maxspan-keywords) to constrain matching sequences to a timespan:
+Use [`with maxspan`](/reference/query-languages/eql/eql-syntax.md#eql-with-maxspan-keywords) to constrain matching sequences to a timespan:
 
 ```console
 GET /my-data-stream/_eql/search
@@ -202,7 +202,7 @@ GET /my-data-stream/_eql/search
 }
 ```
 
-Use `!` to match [missing events](/reference/query-languages/eql-syntax.md#eql-missing-events): events in a sequence that do not meet a condition within a given timespan:
+Use `!` to match [missing events](/reference/query-languages/eql/eql-syntax.md#eql-missing-events): events in a sequence that do not meet a condition within a given timespan:
 
 ```console
 GET /my-data-stream/_eql/search
@@ -277,7 +277,7 @@ Missing events are indicated in the response as `missing": true`:
 }
 ```
 
-Use the [`by` keyword](/reference/query-languages/eql-syntax.md#eql-by-keyword) to match events that share the same field values:
+Use the [`by` keyword](/reference/query-languages/eql/eql-syntax.md#eql-by-keyword) to match events that share the same field values:
 
 ```console
 GET /my-data-stream/_eql/search
@@ -321,7 +321,7 @@ The `hits.sequences.join_keys` property contains the shared field values.
 }
 ```
 
-Use the [`until` keyword](/reference/query-languages/eql-syntax.md#eql-until-keyword) to specify an expiration event for sequences. Matching sequences must end before this event.
+Use the [`until` keyword](/reference/query-languages/eql/eql-syntax.md#eql-until-keyword) to specify an expiration event for sequences. Matching sequences must end before this event.
 
 ```console
 GET /my-data-stream/_eql/search
@@ -338,7 +338,7 @@ GET /my-data-stream/_eql/search
 
 ## Sample chronologically unordered events [eql-search-sample]
 
-Use EQL’s [sample syntax](/reference/query-languages/eql-syntax.md#eql-samples) to search for events that match one or more join keys and a set of filters. Samples are similar to sequences, but do not return events in chronological order. In fact, sample queries can run on data without a timestamp. Sample queries can be useful to find correlations in events that don’t always occur in the same sequence, or that occur across long time spans.
+Use EQL’s [sample syntax](/reference/query-languages/eql/eql-syntax.md#eql-samples) to search for events that match one or more join keys and a set of filters. Samples are similar to sequences, but do not return events in chronological order. In fact, sample queries can run on data without a timestamp. Sample queries can be useful to find correlations in events that don’t always occur in the same sequence, or that occur across long time spans.
 
 ::::{dropdown} Click to show the sample data used in the examples below
 ```console
@@ -554,7 +554,7 @@ POST /my-index-000003/_bulk?refresh
 ::::
 
 
-A sample query specifies at least one join key, using the [`by` keyword](/reference/query-languages/eql-syntax.md#eql-by-keyword), and up to five filters:
+A sample query specifies at least one join key, using the [`by` keyword](/reference/query-languages/eql/eql-syntax.md#eql-by-keyword), and up to five filters:
 
 ```console
 GET /my-index*/_eql/search

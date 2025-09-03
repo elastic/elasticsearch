@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
 import java.util.ArrayList;
@@ -42,13 +42,13 @@ import static org.elasticsearch.core.Strings.format;
  * Reserved cluster state can only be modified by using the {@link ReservedClusterStateService}. Updating
  * the reserved cluster state through REST APIs is not permitted.
  */
-public abstract class ReservedStateUpdateTask<S> implements ClusterStateTaskListener {
+public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>> implements ClusterStateTaskListener {
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTask.class);
 
     private final String namespace;
     private final ReservedStateChunk stateChunk;
     private final ReservedStateVersionCheck versionCheck;
-    private final Map<String, ReservedClusterStateHandler<S, ?>> handlers;
+    private final Map<String, T> handlers;
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
@@ -57,7 +57,7 @@ public abstract class ReservedStateUpdateTask<S> implements ClusterStateTaskList
         String namespace,
         ReservedStateChunk stateChunk,
         ReservedStateVersionCheck versionCheck,
-        Map<String, ReservedClusterStateHandler<S, ?>> handlers,
+        Map<String, T> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
@@ -82,13 +82,15 @@ public abstract class ReservedStateUpdateTask<S> implements ClusterStateTaskList
 
     protected abstract Optional<ProjectId> projectId();
 
-    protected abstract ClusterState execute(ClusterState state);
+    protected abstract TransformState transform(T handler, Object state, TransformState transformState) throws Exception;
+
+    abstract ClusterState execute(ClusterState currentState);
 
     /**
      * Produces a new state {@code S} with the reserved state info in {@code reservedStateMap}
      * @return A tuple of the new state and new reserved state metadata, or {@code null} if no changes are required.
      */
-    final Tuple<S, ReservedStateMetadata> execute(S state, Map<String, ReservedStateMetadata> reservedStateMap) {
+    final Tuple<ClusterState, ReservedStateMetadata> execute(ClusterState state, Map<String, ReservedStateMetadata> reservedStateMap) {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
         ReservedStateMetadata reservedStateMetadata = reservedStateMap.get(namespace);
@@ -102,14 +104,10 @@ public abstract class ReservedStateUpdateTask<S> implements ClusterStateTaskList
 
         // Transform the cluster state first
         for (var handlerName : orderedHandlers) {
-            ReservedClusterStateHandler<S, ?> handler = handlers.get(handlerName);
+            T handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
-                TransformState<S> transformState = ReservedClusterStateService.transform(
-                    handler,
-                    reservedState.get(handlerName),
-                    new TransformState<>(state, existingKeys)
-                );
+                TransformState transformState = transform(handler, reservedState.get(handlerName), new TransformState(state, existingKeys));
                 state = transformState.state();
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {

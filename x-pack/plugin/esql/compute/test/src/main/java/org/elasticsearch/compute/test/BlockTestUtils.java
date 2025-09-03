@@ -8,22 +8,30 @@
 package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
@@ -31,7 +39,9 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -48,7 +58,17 @@ public class BlockTestUtils {
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
-            case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDouble(),
+                randomDouble(),
+                randomDouble(),
+                randomNonNegativeInt()
+            );
+            case DOC -> new BlockUtils.Doc(
+                randomIntBetween(0, 255), // Shard ID should be small and non-negative.
+                randomInt(),
+                between(0, Integer.MAX_VALUE)
+            );
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
@@ -184,6 +204,14 @@ public class BlockTestUtils {
                 return;
             }
         }
+        if (builder instanceof AggregateMetricDoubleBlockBuilder b
+            && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
+            b.min().appendDouble(aggMetric.min());
+            b.max().appendDouble(aggMetric.max());
+            b.sum().appendDouble(aggMetric.sum());
+            b.count().appendInt(aggMetric.count());
+            return;
+        }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
@@ -233,7 +261,7 @@ public class BlockTestUtils {
     public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
         Block[] blockCopies = new Block[page.getBlockCount()];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+            blockCopies[i] = page.getBlock(i).deepCopy(blockFactory);
         }
         return new Page(blockCopies);
     }
@@ -260,11 +288,87 @@ public class BlockTestUtils {
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
+                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
+                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                                b.minBlock().getDouble(i),
+                                b.maxBlock().getDouble(i),
+                                b.sumBlock().getDouble(i),
+                                b.countBlock().getInt(i)
+                            );
+                        i += 1;
+                        yield literal;
+
+                    }
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Convert all of the {@link Block}s in a page that contain {@link BytesRef}s into
+     * {@link OrdinalBytesRefBlock}s.
+     */
+    public static Page convertBytesRefsToOrdinals(Page page) {
+        Block[] blocks = new Block[page.getBlockCount()];
+        try {
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                Block block = page.getBlock(b);
+                if (block.elementType() != ElementType.BYTES_REF) {
+                    blocks[b] = block;
+                    continue;
+                }
+                Map<BytesRef, Integer> dedupe = new HashMap<>();
+                BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+                try (
+                    IntBlock.Builder ordinals = block.blockFactory().newIntBlockBuilder(block.getPositionCount());
+                    BytesRefVector.Builder bytes = block.blockFactory().newBytesRefVectorBuilder(block.getPositionCount())
+                ) {
+                    BytesRef scratch = new BytesRef();
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        int first = block.getFirstValueIndex(p);
+                        int count = block.getValueCount(p);
+                        if (count == 0) {
+                            ordinals.appendNull();
+                            continue;
+                        }
+                        if (count == 1) {
+                            BytesRef v = bytesRefBlock.getBytesRef(first, scratch);
+                            ordinals.appendInt(dedupe(dedupe, bytes, v));
+                            continue;
+                        }
+                        int end = first + count;
+                        ordinals.beginPositionEntry();
+                        for (int i = first; i < end; i++) {
+                            BytesRef v = bytesRefBlock.getBytesRef(i, scratch);
+                            ordinals.appendInt(dedupe(dedupe, bytes, v));
+                        }
+                        ordinals.endPositionEntry();
+                    }
+                    blocks[b] = new OrdinalBytesRefBlock(ordinals.build(), bytes.build());
+                    bytesRefBlock.decRef();
+                }
+            }
+            Page p = new Page(blocks);
+            Arrays.fill(blocks, null);
+            return p;
+        } finally {
+            Releasables.close(blocks);
+        }
+    }
+
+    private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {
+        Integer current = dedupe.get(v);
+        if (current != null) {
+            return current;
+        }
+        bytes.appendBytesRef(v);
+        int o = dedupe.size();
+        dedupe.put(v, o);
+        return o;
     }
 }

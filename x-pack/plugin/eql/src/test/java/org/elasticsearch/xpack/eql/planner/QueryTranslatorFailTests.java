@@ -261,6 +261,17 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("1:2: A sequence requires a minimum of 2 queries, found [1]", s);
     }
 
+    public void testSequenceWithTooLittleQueriesWithUntil() throws Exception {
+        String s = errorParsing("sequence [any where true] until [any where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]", s);
+        plan("sequence [any where true] [any where true] until [any where true]");
+    }
+
+    public void testSequenceWithOnlyMissingEventsAndUntil() throws Exception {
+        String s = errorParsing("sequence with maxspan=1h ![process where true] until [process where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]", s);
+    }
+
     public void testSequenceWithIncorrectOption() throws Exception {
         EqlClientException e = expectThrows(EqlClientException.class, () -> plan("sequence [any where true] with repeat=123"));
         String msg = e.getMessage();

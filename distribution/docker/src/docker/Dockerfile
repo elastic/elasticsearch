@@ -22,7 +22,7 @@
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
-ARG BASE_TAG=9.5
+ARG BASE_TAG=9.6
 <% } %>
 
 ################################################################################
@@ -174,7 +174,7 @@ RUN groupadd -g 1000 elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 <% } %>
 
-ENV ELASTIC_CONTAINER true
+ENV ELASTIC_CONTAINER=true
 
 WORKDIR /usr/share/elasticsearch
 
@@ -183,8 +183,8 @@ COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearc
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
-ENV SHELL /bin/bash
+ENV PATH=/usr/share/elasticsearch/bin:\$PATH
+ENV SHELL=/bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. Sync the user and group permissions of /etc/passwd
@@ -242,7 +242,7 @@ LABEL name="Elasticsearch" \\
   description="You know, for search."
 <% } %>
 
-RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 <% if (docker_base == 'iron_bank') { %>
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
@@ -266,7 +266,6 @@ USER 1000:0
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
 <% } %>
-
 ################################################################################
 # End of multi-stage Dockerfile
 ################################################################################

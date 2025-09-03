@@ -10,12 +10,12 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.util.List;
 import java.util.Map;
@@ -77,7 +77,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
                 equalTo((long) searchPhase.size())
             );
         } finally {
-            fetchPhase.forEach(TransportMessage::decRef);
+            fetchPhase.forEach(RefCounted::decRef);
         }
     }
 

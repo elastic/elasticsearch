@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -68,8 +68,8 @@ public class ChangePointOperator implements Operator {
         this.sourceColumn = sourceColumn;
 
         finished = false;
-        inputPages = new LinkedList<>();
-        outputPages = new LinkedList<>();
+        inputPages = new ArrayDeque<>();
+        outputPages = new ArrayDeque<>();
         warnings = null;
     }
 

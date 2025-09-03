@@ -16,8 +16,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.FixForMultiProject;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.ClosedWatchServiceException;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -25,12 +26,13 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -55,6 +57,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     private static final Logger logger = LogManager.getLogger(AbstractFileWatchingService.class);
     private static final int REGISTER_RETRY_COUNT = 5;
+    private static final int ACCESS_DENIED_RETRY_COUNT = 5;
     private final Path settingsDir;
     private final Map<Path, FileUpdateState> fileUpdateState = new HashMap<>();
     private WatchService watchService; // null;
@@ -62,8 +65,9 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     private WatchKey settingsDirWatchKey;
     private WatchKey configDirWatchKey;
 
+    @SuppressWarnings("this-escape")
     public AbstractFileWatchingService(Path settingsDir) {
-        if (Files.exists(settingsDir) && Files.isDirectory(settingsDir) == false) {
+        if (filesExists(settingsDir) && filesIsDirectory(settingsDir) == false) {
             throw new IllegalArgumentException("settingsDir should be a directory");
         }
         this.settingsDir = settingsDir;
@@ -113,22 +117,33 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         return watcherThread != null;
     }
 
-    private static FileUpdateState readFileUpdateState(Path path) throws IOException {
-        BasicFileAttributes attr;
-        try {
-            attr = Files.readAttributes(path, BasicFileAttributes.class);
-        } catch (NoSuchFileException e) {
-            // file doesn't exist anymore
-            return null;
-        }
-
-        return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
+    // package private for testing
+    FileUpdateState readFileUpdateState(Path path) throws IOException, InterruptedException {
+        int retryCount = 0;
+        do {
+            try {
+                BasicFileAttributes attr = filesReadAttributes(path, BasicFileAttributes.class);
+                return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
+            } catch (NoSuchFileException e) {
+                // file doesn't exist anymore
+                return null;
+            } catch (AccessDeniedException e) {
+                // This can happen on Windows when a symlink is deleted for a path while path.toRealPath() is called. In most cases the
+                // symlink is recreated, so retry
+                if (retryCount == ACCESS_DENIED_RETRY_COUNT - 1) {
+                    throw e;
+                }
+                logger.debug("Could not read file state [{}] attempt [{}]", path, retryCount);
+                Thread.sleep(retryDelayMillis(retryCount));
+                retryCount++;
+            }
+        } while (true);
     }
 
     // platform independent way to tell if a file changed
     // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
     @FixForMultiProject // what do we do when a file is removed?
-    final boolean fileChanged(Path path) throws IOException {
+    final boolean fileChanged(Path path) throws IOException, InterruptedException {
         FileUpdateState newFileState = readFileUpdateState(path);
         if (newFileState == null) {
             fileUpdateState.remove(path);
@@ -141,7 +156,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     protected final synchronized void startWatcher() {
-        if (Files.exists(settingsDir.getParent()) == false) {
+        if (filesExists(settingsDir.getParent()) == false) {
             logger.warn("File watcher for [{}] cannot start because parent directory does not exist", settingsDir);
             return;
         }
@@ -155,7 +170,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
          */
         try {
             this.watchService = settingsDir.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDir)) {
+            if (filesExists(settingsDir)) {
                 settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDir);
             } else {
                 logger.debug("watched directory [{}] not found, will watch for its creation...", settingsDir);
@@ -188,8 +203,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
-            if (Files.exists(settingsDir)) {
-                try (Stream<Path> files = Files.list(settingsDir)) {
+            if (filesExists(settingsDir)) {
+                try (Stream<Path> files = filesList(settingsDir)) {
                     var f = files.iterator();
                     if (f.hasNext() == false) {
                         // no files in directory
@@ -237,18 +252,20 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 key.reset();
 
                 if (key == settingsDirWatchKey) {
-                    // there may be multiple events for the same file - we only want to re-read once
-                    Set<Path> processedFiles = new HashSet<>();
-                    for (WatchEvent<?> e : events) {
-                        Path fullFile = settingsDir.resolve(e.context().toString());
-                        if (processedFiles.add(fullFile)) {
-                            if (fileChanged(fullFile)) {
-                                process(fullFile);
-                            }
+                    Set<Path> changedPaths = events.stream()
+                        .map(event -> settingsDir.resolve(event.context().toString()))
+                        .collect(Collectors.toSet());
+                    for (var changedPath : changedPaths) {
+                        // If a symlinked dir changed in the settings dir, it could be linked to other symlinks, so reprocess all files
+                        if (filesIsDirectory(changedPath) && filesIsSymbolicLink(changedPath)) {
+                            reprocessAllChangedFilesInSettingsDir();
+                            break;
+                        } else if (fileChanged(changedPath)) {
+                            process(changedPath);
                         }
                     }
                 } else if (key == configDirWatchKey) {
-                    if (Files.exists(settingsDir)) {
+                    if (filesExists(settingsDir)) {
                         // We re-register the settings directory watch key, because we don't know
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
@@ -257,14 +274,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                         settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDir);
 
                         // re-read the settings directory, and ping for any changes
-                        try (Stream<Path> files = Files.list(settingsDir)) {
-                            for (var f = files.iterator(); f.hasNext();) {
-                                Path file = f.next();
-                                if (fileChanged(file)) {
-                                    process(file);
-                                }
-                            }
-                        }
+                        reprocessAllChangedFilesInSettingsDir();
                     } else if (settingsDirWatchKey != null) {
                         settingsDirWatchKey.cancel();
                     }
@@ -276,6 +286,17 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             logger.info("shutting down watcher thread");
         } catch (Exception e) {
             logger.error("shutting down watcher thread with exception", e);
+        }
+    }
+
+    private void reprocessAllChangedFilesInSettingsDir() throws IOException, InterruptedException {
+        try (Stream<Path> files = filesList(settingsDir)) {
+            for (var f = files.iterator(); f.hasNext();) {
+                Path file = f.next();
+                if (fileChanged(file)) {
+                    process(file);
+                }
+            }
         }
     }
 
@@ -370,4 +391,21 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * class to determine if a file has been changed.
      */
     private record FileUpdateState(long timestamp, String path, Object fileKey) {}
+
+    // the following methods are a workaround to ensure exclusive access for files
+    // required by child watchers; this is required because we only check the caller's module
+    // not the entire stack
+    protected abstract boolean filesExists(Path path);
+
+    protected abstract boolean filesIsDirectory(Path path);
+
+    protected abstract boolean filesIsSymbolicLink(Path path);
+
+    protected abstract <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException;
+
+    protected abstract Stream<Path> filesList(Path dir) throws IOException;
+
+    protected abstract Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException;
+
+    protected abstract InputStream filesNewInputStream(Path path) throws IOException;
 }

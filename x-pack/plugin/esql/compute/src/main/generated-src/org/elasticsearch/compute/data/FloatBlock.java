@@ -7,15 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores float values.
@@ -40,6 +40,19 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     @Override
     FloatBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default FloatBlock deepCopy(BlockFactory blockFactory) {
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     FloatBlock keepMask(BooleanVector mask);
 
@@ -48,17 +61,6 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
 
     @Override
     FloatBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "FloatBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "FloatBlock", FloatBlock::readFrom);
-
-    private static FloatBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static FloatBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

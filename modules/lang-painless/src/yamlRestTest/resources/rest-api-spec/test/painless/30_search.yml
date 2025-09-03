@@ -482,3 +482,118 @@
                         }]
     - match: { error.root_cause.0.type: "illegal_argument_exception" }
     - match: { error.root_cause.0.reason: "script score function must not produce negative scores, but got: [-9.0]"}
+
+---
+
+"Script Sort + _score":
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "test": "a", "num1": 1.0, "type" : "first" }
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { "test": "b", "num1": 2.0, "type" : "first" }
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { "test": "c", "num1": 3.0, "type" : "first" }
+  - do:
+      index:
+        index: test
+        id: "4"
+        body: { "test": "d", "num1": 4.0, "type" : "second" }
+  - do:
+      index:
+        index: test
+        id: "5"
+        body: { "test": "e", "num1": 5.0, "type" : "second" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: [
+            {
+              _script: {
+                script: {
+                  lang: "painless",
+                  source: "doc['num1'].value + _score"
+                },
+                type: "number"
+              }
+            }
+          ]
+
+  - match: { hits.total: 5 }
+  - match: { hits.hits.0.sort.0: 2.0 }
+  - match: { hits.hits.1.sort.0: 3.0 }
+  - match: { hits.hits.2.sort.0: 4.0 }
+  - match: { hits.hits.3.sort.0: 5.0 }
+  - match: { hits.hits.4.sort.0: 6.0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: [
+            {
+              _script: {
+                script: {
+                  lang: "painless",
+                  source: "doc['test.keyword'].value + '-' + _score"
+                },
+                type: "string"
+              }
+            }
+          ]
+
+  - match: { hits.total: 5 }
+  - match: { hits.hits.0.sort.0: "a-1.0" }
+  - match: { hits.hits.1.sort.0: "b-1.0" }
+  - match: { hits.hits.2.sort.0: "c-1.0" }
+  - match: { hits.hits.3.sort.0: "d-1.0" }
+  - match: { hits.hits.4.sort.0: "e-1.0" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggs:
+            test:
+              terms:
+                field: type.keyword
+              aggs:
+                top_hits:
+                  top_hits:
+                    sort: [
+                      {
+                        _script: {
+                          script: {
+                            lang: "painless",
+                            source: "doc['test.keyword'].value + '-' + _score"
+                          },
+                          type: "string"
+                        }
+                      },
+                      "_score"
+                    ]
+                    size: 1
+
+  - match: { hits.total: 5 }
+  - match: { aggregations.test.buckets.0.key: "first" }
+  - match: { aggregations.test.buckets.0.top_hits.hits.total: 3 }
+  - match: { aggregations.test.buckets.0.top_hits.hits.hits.0.sort.0: "a-1.0" }
+  - match: { aggregations.test.buckets.0.top_hits.hits.hits.0.sort.1: 1.0 }
+  - match: { aggregations.test.buckets.1.key: "second" }
+  - match: { aggregations.test.buckets.1.top_hits.hits.total: 2 }
+  - match: { aggregations.test.buckets.1.top_hits.hits.hits.0.sort.0: "d-1.0" }
+  - match: { aggregations.test.buckets.1.top_hits.hits.hits.0.sort.1: 1.0 }

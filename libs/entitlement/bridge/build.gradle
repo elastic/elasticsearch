@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'elasticsearch.publish'
 
 tasks.named('jar').configure {
   // guarding for intellij

@@ -34,7 +34,7 @@ For the most up-to-date API details, refer to [Search APIs](https://www.elastic.
 ::::
 
 
-You can use RRF as part of a [search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) to combine and rank documents using separate sets of top documents (result sets) from a combination of [child retrievers](/reference/elasticsearch/rest-apis/retrievers.md) using an [RRF retriever](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever). A minimum of **two** child retrievers is required for ranking.
+You can use RRF as part of a [search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) to combine and rank documents using separate sets of top documents (result sets) from a combination of [child retrievers](/reference/elasticsearch/rest-apis/retrievers.md) using an [RRF retriever](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md). A minimum of **two** child retrievers is required for ranking.
 
 An RRF retriever is an optional object defined as part of a search request’s [retriever parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-retriever). The RRF retriever object contains the following parameters:
 
@@ -103,18 +103,18 @@ Note that if `k` from a knn search is larger than `rank_window_size`, the result
 
 The `rrf` retriever supports:
 
-* [aggregations](/reference/data-analysis/aggregations/index.md)
+* [aggregations](/reference/aggregations/index.md)
 * [from](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-from-param)
 * [suggesters](/reference/elasticsearch/rest-apis/search-suggesters.md)
 * [highlighting](/reference/elasticsearch/rest-apis/highlighting.md)
 * [collapse](/reference/elasticsearch/rest-apis/collapse-search-results.md)
-* [profiling](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html#profiling-queries)
+* [profiling](/reference/elasticsearch/rest-apis/search-profile.md)
 
 The `rrf` retriever does not currently support:
 
 * [scroll](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-scroll-query-param)
 * [sort](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
-* [rescore](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore)
+* [rescore](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore)
 
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
 
@@ -539,7 +539,7 @@ In addition to individual query scoring details, we can make use of the `explain
 6. the `value` heres specifies the `rank` of this document for the second (`knn`) query
 
 
-In addition to the above, explain in RRF also supports [named queries](/reference/query-languages/query-dsl-bool-query.md#named-queries) using the `_name` parameter. Using named queries allows for easier and more intuitive understanding of the RRF score computation, especially when dealing with multiple queries. So, we would now have:
+In addition to the above, explain in RRF also supports [named queries](/reference/query-languages/query-dsl/query-dsl-bool-query.md#named-queries) using the `_name` parameter. Using named queries allows for easier and more intuitive understanding of the RRF score computation, especially when dealing with multiple queries. So, we would now have:
 
 ```js
 GET example-index/_search
@@ -758,7 +758,7 @@ Highlighting on vector fields, using either the `knn` retriever or a `knn` query
 ::::
 
 
-A more specific example of highlighting in RRF can also be found in the [retrievers examples](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-highlighting-retriever-results) page.
+A more specific example of highlighting in RRF can also be found in the [retrievers examples](retrievers/retrievers-examples.md#retrievers-examples-highlighting-retriever-results) page.
 
 
 ## Inner hits in RRF [_inner_hits_in_rrf]

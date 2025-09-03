@@ -31,9 +31,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * It is used by the ReservedClusterStateService to add/update or remove autoscaling policies. Typical usage
  * for this action is in the context of file based settings.
  */
-public class ReservedAutoscalingPolicyAction
-    implements
-        ReservedClusterStateHandler<ClusterState, List<PutAutoscalingPolicyAction.Request>> {
+public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHandler<List<PutAutoscalingPolicyAction.Request>> {
     public static final String NAME = "autoscaling";
 
     private final AutoscalingCalculateCapacityService.Holder policyValidatorHolder;
@@ -61,8 +59,7 @@ public class ReservedAutoscalingPolicyAction
     }
 
     @Override
-    public TransformState<ClusterState> transform(List<PutAutoscalingPolicyAction.Request> source, TransformState<ClusterState> prevState)
-        throws Exception {
+    public TransformState transform(List<PutAutoscalingPolicyAction.Request> source, TransformState prevState) throws Exception {
         var requests = prepare(source);
         ClusterState state = prevState.state();
 
@@ -79,7 +76,7 @@ public class ReservedAutoscalingPolicyAction
             state = TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(state, repositoryToDelete);
         }
 
-        return new TransformState<>(state, entities);
+        return new TransformState(state, entities);
 
     }
 

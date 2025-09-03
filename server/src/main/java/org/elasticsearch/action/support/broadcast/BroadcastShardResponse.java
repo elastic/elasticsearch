@@ -21,7 +21,6 @@ public abstract class BroadcastShardResponse extends TransportResponse {
     ShardId shardId;
 
     protected BroadcastShardResponse(StreamInput in) throws IOException {
-        super(in);
         shardId = new ShardId(in);
     }
 

@@ -30,9 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyParserTests extends ESTestCase {
 
     public static String TEST_ABSOLUTE_PATH_TO_FILE;
@@ -81,10 +81,13 @@ public class PolicyParserTests extends ESTestCase {
         }
     }
 
-    public void testGetEntitlementTypeName() {
-        assertEquals("create_class_loader", PolicyParser.getEntitlementTypeName(CreateClassLoaderEntitlement.class));
+    public void testBuildEntitlementNameFromClass() {
+        assertEquals("create_class_loader", PolicyParser.buildEntitlementNameFromClass(CreateClassLoaderEntitlement.class));
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> PolicyParser.getEntitlementTypeName(TestWrongEntitlementName.class));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> PolicyParser.buildEntitlementNameFromClass(TestWrongEntitlementName.class)
+        );
         assertThat(
             ex.getMessage(),
             equalTo("TestWrongEntitlementName is not a valid Entitlement class name. A valid class name must end with 'Entitlement'")
@@ -291,6 +294,98 @@ public class PolicyParserTests extends ESTestCase {
             List.of(new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())))
         );
         assertEquals(expected, parsedPolicy);
+    }
+
+    public void testVersionedPolicyParsing() throws IOException {
+        var versionedPolicy = new ByteArrayInputStream("""
+            versions:
+              - x
+            policy:
+              entitlement-module-name:
+                - load_native_libraries
+              entitlement-module-name-2:
+                - set_https_connection_properties
+            """.getBytes(StandardCharsets.UTF_8));
+
+        var policyParser = new PolicyParser(versionedPolicy, "test-policy.yaml", true);
+        var parsedPolicy = policyParser.parseVersionedPolicy();
+
+        Policy expectedPolicy = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("entitlement-module-name-2", List.of(new SetHttpsConnectionPropertiesEntitlement()))
+            )
+        );
+        assertEquals(expectedPolicy, parsedPolicy.policy());
+        assertThat(parsedPolicy.versions(), contains("x"));
+    }
+
+    public void testVersionedPolicyParsingMultipleVersions() throws IOException {
+        var versionedPolicy = new ByteArrayInputStream("""
+            versions:
+              - x
+              - y
+            policy:
+              entitlement-module-name:
+                - load_native_libraries
+              entitlement-module-name-2:
+                - set_https_connection_properties
+            """.getBytes(StandardCharsets.UTF_8));
+
+        var policyParser = new PolicyParser(versionedPolicy, "test-policy.yaml", true);
+        var parsedPolicy = policyParser.parseVersionedPolicy();
+
+        Policy expectedPolicy = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("entitlement-module-name-2", List.of(new SetHttpsConnectionPropertiesEntitlement()))
+            )
+        );
+        assertEquals(expectedPolicy, parsedPolicy.policy());
+        assertThat(parsedPolicy.versions(), contains("x", "y"));
+    }
+
+    public void testVersionedPolicyParsingAnyFieldOrder() throws IOException {
+        var versionedPolicy = new ByteArrayInputStream("""
+            policy:
+              entitlement-module-name:
+                - load_native_libraries
+              entitlement-module-name-2:
+                - set_https_connection_properties
+            versions:
+              - x
+              - y
+            """.getBytes(StandardCharsets.UTF_8));
+
+        var policyParser = new PolicyParser(versionedPolicy, "test-policy.yaml", true);
+        var parsedPolicy = policyParser.parseVersionedPolicy();
+
+        Policy expectedPolicy = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("entitlement-module-name-2", List.of(new SetHttpsConnectionPropertiesEntitlement()))
+            )
+        );
+        assertEquals(expectedPolicy, parsedPolicy.policy());
+        assertThat(parsedPolicy.versions(), contains("x", "y"));
+    }
+
+    public void testVersionedPolicyParsingEmptyPolicy() throws IOException {
+        var versionedPolicy = new ByteArrayInputStream("""
+            versions:
+              - x
+              - y
+            """.getBytes(StandardCharsets.UTF_8));
+
+        var policyParser = new PolicyParser(versionedPolicy, "test-policy.yaml", true);
+        var parsedPolicy = policyParser.parseVersionedPolicy();
+
+        Policy expectedPolicy = new Policy("test-policy.yaml", List.of());
+        assertEquals(expectedPolicy, parsedPolicy.policy());
+        assertThat(parsedPolicy.versions(), contains("x", "y"));
     }
 
     public void testMultipleConstructorsAnnotated() throws IOException {

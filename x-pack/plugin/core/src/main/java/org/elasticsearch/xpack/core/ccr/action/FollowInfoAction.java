@@ -99,7 +99,6 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             followInfos = in.readCollectionAsList(FollowerInfo::new);
         }
 

@@ -1,8 +1,8 @@
 {
   "nodes.stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-stats.html",
-      "description":"Returns statistical information about nodes in the cluster."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats",
+      "description":"Get node statistics"
     },
     "stability":"stable",
     "visibility":"public",

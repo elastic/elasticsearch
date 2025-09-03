@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,6 +54,10 @@ public class HttpSettings {
 
     public int connectionTimeout() {
         return connectionTimeout;
+    }
+
+    public Duration connectionTimeoutDuration() {
+        return Duration.ofMillis(connectionTimeout);
     }
 
     private void setMaxResponseSize(ByteSizeValue maxResponseSize) {

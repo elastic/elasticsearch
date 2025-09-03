@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
+import org.elasticsearch.common.ssl.EmptyKeyConfig;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -44,7 +47,6 @@ import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -148,7 +151,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -199,7 +202,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -243,7 +246,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -305,7 +308,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -373,7 +376,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -439,7 +442,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -606,7 +609,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -743,7 +746,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             authzService,
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -881,7 +884,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             authzService,
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -940,7 +943,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -969,7 +972,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeCrossClusterAccessRealm
         );
         when(connection.getTransportVersion()).thenReturn(version);
@@ -1039,7 +1042,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mock(AuthenticationService.class),
             authzService,
-            mock(SSLService.class),
+            mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
@@ -1107,9 +1110,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         if (randomBoolean()) {
             builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
         }
-        final SSLService sslService = mock(SSLService.class);
 
-        when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
+        final SslProfile defaultProfile = mock(SslProfile.class);
+        when(defaultProfile.configuration()).thenReturn(
             new SslConfiguration(
                 "xpack.security.transport.ssl",
                 randomBoolean(),
@@ -1118,11 +1121,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.REQUIRED,
                 List.of("TLS_AES_256_GCM_SHA384"),
-                List.of("TLSv1.3")
+                List.of("TLSv1.3"),
+                randomLongBetween(1, 100000)
             )
         );
-
-        when(sslService.getSSLConfiguration("xpack.security.remote_cluster_server.ssl.")).thenReturn(
+        final SslProfile remoteProfile = mock(SslProfile.class);
+        when(remoteProfile.configuration()).thenReturn(
             new SslConfiguration(
                 "xpack.security.remote_cluster_server.ssl",
                 randomBoolean(),
@@ -1131,11 +1135,17 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.NONE,
                 List.of(Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_256_GCM_SHA384" : "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
-                List.of("TLSv1.2")
+                List.of("TLSv1.2"),
+                randomLongBetween(1, 100000)
             )
         );
+
+        final SSLService sslService = mock(SSLService.class);
+        when(sslService.profile("xpack.security.transport.ssl.")).thenReturn(defaultProfile);
+
+        when(sslService.profile("xpack.security.remote_cluster_server.ssl.")).thenReturn(remoteProfile);
         doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
-            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
+            .profile("xpack.security.remote_cluster_client.ssl.");
 
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
@@ -1170,9 +1180,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         if (randomBoolean()) {
             builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
         }
-        final SSLService sslService = mock(SSLService.class);
 
-        when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
+        final SslProfile profile = mock(SslProfile.class);
+        when(profile.configuration()).thenReturn(
             new SslConfiguration(
                 "xpack.security.transport.ssl",
                 randomBoolean(),
@@ -1181,14 +1191,19 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.REQUIRED,
                 List.of("TLS_AES_256_GCM_SHA384"),
-                List.of("TLSv1.3")
+                List.of("TLSv1.3"),
+                randomLongBetween(1, 100000)
             )
         );
+
+        final SSLService sslService = mock(SSLService.class);
+        when(sslService.profile("xpack.security.transport.ssl.")).thenReturn(profile);
+
         doThrow(new AssertionError("profile filters should not be configured for remote cluster server when the port is disabled")).when(
             sslService
-        ).getSSLConfiguration("xpack.security.remote_cluster_server.ssl.");
+        ).profile("xpack.security.remote_cluster_server.ssl.");
         doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
-            .getSSLConfiguration("xpack.security.remote_cluster_client.ssl.");
+            .profile("xpack.security.remote_cluster_client.ssl.");
 
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
@@ -1208,6 +1223,26 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), contains("default"));
         assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
+    }
+
+    private static SSLService mockSslService() {
+        final SslConfiguration defaultConfiguration = new SslConfiguration(
+            "",
+            false,
+            DefaultJdkTrustConfig.DEFAULT_INSTANCE,
+            EmptyKeyConfig.INSTANCE,
+            SslVerificationMode.FULL,
+            SslClientAuthenticationMode.NONE,
+            List.of("TLS_AES_256_GCM_SHA384"),
+            List.of("TLSv1.3"),
+            randomLongBetween(1, 100000)
+        );
+        final SslProfile defaultProfile = mock(SslProfile.class);
+        when(defaultProfile.configuration()).thenReturn(defaultConfiguration);
+        final SSLService sslService = mock(SSLService.class);
+        when(sslService.profile("xpack.security.transport.ssl")).thenReturn(defaultProfile);
+        when(sslService.profile("xpack.security.transport.ssl.")).thenReturn(defaultProfile);
+        return sslService;
     }
 
     private String[] randomRoles() {

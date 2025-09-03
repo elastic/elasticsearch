@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.UnrecoverableKeyException;
 import java.util.List;
@@ -84,7 +83,7 @@ final class SslFileUtil {
         return innerAccessControlFailure(fileType, paths, cause, basePath);
     }
 
-    static SslConfigException accessControlFailure(String fileType, List<Path> paths, AccessControlException cause, Path basePath) {
+    static SslConfigException accessControlFailure(String fileType, List<Path> paths, SecurityException cause, Path basePath) {
         return innerAccessControlFailure(fileType, paths, cause, basePath);
     }
 

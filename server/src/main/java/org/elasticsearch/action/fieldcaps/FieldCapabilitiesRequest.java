@@ -10,18 +10,25 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.BoostingQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,9 +40,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+    private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -44,6 +53,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
+    /**
+     * Controls whether the field caps response should always include the list of indices
+     * where a field is defined. This flag is only used locally on the coordinating node,
+     * and does not need to be serialized as the indices information is already carried
+     * in the response if required.
+     */
+    private transient boolean includeIndices = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -66,6 +82,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+            clusterAlias = in.readOptionalString();
+        } else {
+            clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }
     }
 
@@ -90,6 +112,14 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         this.mergeResults = mergeResults;
     }
 
+    void clusterAlias(String clusterAlias) {
+        this.clusterAlias = clusterAlias;
+    }
+
+    String clusterAlias() {
+        return clusterAlias;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -107,6 +137,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+            out.writeOptionalString(clusterAlias);
         }
     }
 
@@ -181,6 +215,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return this;
     }
 
+    public FieldCapabilitiesRequest includeIndices(boolean includeIndices) {
+        this.includeIndices = includeIndices;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -203,6 +242,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     public boolean includeUnmapped() {
         return includeUnmapped;
+    }
+
+    public boolean includeIndices() {
+        return includeIndices;
     }
 
     public boolean includeEmptyFields() {
@@ -247,7 +290,51 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (fields == null || fields.length == 0) {
             validationException = ValidateActions.addValidationError("no fields specified", validationException);
         }
+
+        // Band-aid fix for https://github.com/elastic/elasticsearch/issues/116106.
+        // Semantic queries are high-recall queries, making them poor filters and effectively the same as an exists query when used in that
+        // context.
+        if (containsSemanticQuery(indexFilter)) {
+            validationException = ValidateActions.addValidationError(
+                "index filter cannot contain semantic queries. Use an exists query instead.",
+                validationException
+            );
+        }
+
         return validationException;
+    }
+
+    /**
+     * Recursively checks if a query builder contains any semantic queries
+     */
+    private static boolean containsSemanticQuery(QueryBuilder queryBuilder) {
+        boolean containsSemanticQuery = false;
+
+        if (queryBuilder == null) {
+            return containsSemanticQuery;
+        }
+
+        if ("semantic".equals(queryBuilder.getWriteableName())) {
+            containsSemanticQuery = true;
+        } else if (queryBuilder instanceof BoolQueryBuilder boolQuery) {
+            containsSemanticQuery = boolQuery.must().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
+                || boolQuery.mustNot().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
+                || boolQuery.should().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
+                || boolQuery.filter().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery);
+        } else if (queryBuilder instanceof DisMaxQueryBuilder disMaxQuery) {
+            containsSemanticQuery = disMaxQuery.innerQueries().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery);
+        } else if (queryBuilder instanceof NestedQueryBuilder nestedQuery) {
+            containsSemanticQuery = containsSemanticQuery(nestedQuery.query());
+        } else if (queryBuilder instanceof BoostingQueryBuilder boostingQuery) {
+            containsSemanticQuery = containsSemanticQuery(boostingQuery.positiveQuery())
+                || containsSemanticQuery(boostingQuery.negativeQuery());
+        } else if (queryBuilder instanceof ConstantScoreQueryBuilder constantScoreQuery) {
+            containsSemanticQuery = containsSemanticQuery(constantScoreQuery.innerQuery());
+        } else if (queryBuilder instanceof FunctionScoreQueryBuilder functionScoreQuery) {
+            containsSemanticQuery = containsSemanticQuery(functionScoreQuery.query());
+        }
+
+        return containsSemanticQuery;
     }
 
     @Override

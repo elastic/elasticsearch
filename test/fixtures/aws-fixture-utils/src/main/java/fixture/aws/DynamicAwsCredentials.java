@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Allows dynamic creation of access-key/session-token credentials for accessing AWS services such as S3. Typically there's one service
@@ -21,12 +22,55 @@ import java.util.Set;
  * fixture uses {@link #isAuthorized} to validate the credentials it receives corresponds with some previously-generated credentials.
  */
 public class DynamicAwsCredentials {
+
+    /**
+     * Extra validation that requests are signed using the correct region. Lazy so it can be randomly generated after initialization, since
+     * randomness is not available in static context.
+     */
+    private final Supplier<String> expectedRegionSupplier;
+
+    /**
+     * Extra validation that requests are directed to the correct service.
+     */
+    private final String expectedServiceName;
+
+    /**
+     * The set of access keys for each session token registered with {@link #addValidCredentials}. It's this way round because the session
+     * token is a separate header so it's easier to extract.
+     */
     private final Map<String, Set<String>> validCredentialsMap = ConcurrentCollections.newConcurrentMap();
+
+    /**
+     * @param expectedRegion The region to use for validating the authorization header, or {@code *} to skip this validation.
+     * @param expectedServiceName The service name that should appear in the authorization header.
+     */
+    public DynamicAwsCredentials(String expectedRegion, String expectedServiceName) {
+        this(() -> expectedRegion, expectedServiceName);
+    }
+
+    /**
+     * @param expectedRegionSupplier Supplies the region to use for validating the authorization header, or {@code *} to skip this
+     *                               validation.
+     * @param expectedServiceName The service name that should appear in the authorization header.
+     */
+    public DynamicAwsCredentials(Supplier<String> expectedRegionSupplier, String expectedServiceName) {
+        this.expectedRegionSupplier = expectedRegionSupplier;
+        this.expectedServiceName = expectedServiceName;
+    }
 
     public boolean isAuthorized(String authorizationHeader, String sessionTokenHeader) {
         return authorizationHeader != null
             && sessionTokenHeader != null
-            && validCredentialsMap.getOrDefault(sessionTokenHeader, Set.of()).stream().anyMatch(authorizationHeader::contains);
+            && validCredentialsMap.getOrDefault(sessionTokenHeader, Set.of())
+                .stream()
+                .anyMatch(
+                    validAccessKey -> AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHeader(
+                        validAccessKey,
+                        expectedRegionSupplier.get(),
+                        expectedServiceName,
+                        authorizationHeader
+                    )
+                );
     }
 
     public void addValidCredentials(String accessKey, String sessionToken) {

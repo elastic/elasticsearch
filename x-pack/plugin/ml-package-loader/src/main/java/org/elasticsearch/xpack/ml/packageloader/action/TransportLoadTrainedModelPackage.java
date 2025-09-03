@@ -151,7 +151,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
         ModelDownloadTask inProgress = null;
         for (var task : tasks) {
-            if (description.equals(task.getDescription()) && task instanceof ModelDownloadTask downloadTask) {
+            if (task instanceof ModelDownloadTask downloadTask && (description.equals(downloadTask.getDescription()))) {
                 inProgress = downloadTask;
                 break;
             }

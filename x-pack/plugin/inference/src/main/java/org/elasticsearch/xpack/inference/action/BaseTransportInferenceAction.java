@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -39,16 +40,15 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
@@ -57,10 +57,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.modelAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.routingAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.routingAttributes;
 
 /**
  * Base class for transport actions that handle inference requests.
@@ -144,6 +145,19 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 recordRequestDurationMetrics(unparsedModel, timer, e);
                 listener.onFailure(e);
                 return;
+            }
+
+            // TODO: this is a temporary solution for passing around the product use case.
+            // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
+            var context = request.getContext();
+            if (Objects.nonNull(context)) {
+                var headerNotPresentInThreadContext = Objects.isNull(
+                    threadPool.getThreadContext().getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER)
+                );
+                if (headerNotPresentInThreadContext) {
+                    threadPool.getThreadContext()
+                        .putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
+                }
             }
 
             var service = serviceRegistry.getService(serviceName).get();
@@ -261,15 +275,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private void recordRequestDurationMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
-        try {
-            Map<String, Object> metricAttributes = new HashMap<>();
-            metricAttributes.putAll(modelAttributes(model));
-            metricAttributes.putAll(responseAttributes(unwrapCause(t)));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAttributes(model));
+        metricAttributes.putAll(responseAttributes(unwrapCause(t)));
 
-            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
-        } catch (Exception e) {
-            log.atDebug().withThrowable(e).log("Failed to record metrics with an unparsed model, dropping metrics");
-        }
+        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
     }
 
     private void inferOnServiceWithMetrics(
@@ -289,8 +299,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 );
                 inferenceResults.publisher().subscribe(taskProcessor);
 
-                var instrumentedStream = new PublisherWithMetrics(timer, model, request, localNodeId);
-                taskProcessor.subscribe(instrumentedStream);
+                var instrumentedStream = publisherWithMetrics(timer, model, request, localNodeId, taskProcessor);
 
                 var streamErrorHandler = streamErrorHandler(instrumentedStream);
 
@@ -305,14 +314,59 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }));
     }
 
-    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Processor<T, T> upstream) {
+    private <T> Flow.Publisher<T> publisherWithMetrics(
+        InferenceTimer timer,
+        Model model,
+        Request request,
+        String localNodeId,
+        Flow.Processor<T, T> upstream
+    ) {
+        return downstream -> {
+            upstream.subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    downstream.onSubscribe(new Flow.Subscription() {
+                        @Override
+                        public void request(long n) {
+                            subscription.request(n);
+                        }
+
+                        @Override
+                        public void cancel() {
+                            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
+                            subscription.cancel();
+                        }
+                    });
+                }
+
+                @Override
+                public void onNext(T item) {
+                    downstream.onNext(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    recordRequestDurationMetrics(model, timer, request, localNodeId, throwable);
+                    downstream.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    recordRequestDurationMetrics(model, timer, request, localNodeId, null);
+                    downstream.onComplete();
+                }
+            });
+        };
+    }
+
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Publisher<T> upstream) {
         return upstream;
     }
 
     private void recordRequestCountMetrics(Model model, Request request, String localNodeId) {
         Map<String, Object> requestCountAttributes = new HashMap<>();
         requestCountAttributes.putAll(modelAttributes(model));
-        requestCountAttributes.putAll(routingAttributes(request, localNodeId));
+        requestCountAttributes.putAll(routingAttributes(request.hasBeenRerouted(), localNodeId));
 
         inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
     }
@@ -324,16 +378,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         String localNodeId,
         @Nullable Throwable t
     ) {
-        try {
-            Map<String, Object> metricAttributes = new HashMap<>();
-            metricAttributes.putAll(modelAttributes(model));
-            metricAttributes.putAll(routingAttributes(request, localNodeId));
-            metricAttributes.putAll(responseAttributes(unwrapCause(t)));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAndResponseAttributes(model, unwrapCause(t)));
+        metricAttributes.putAll(routingAttributes(request.hasBeenRerouted(), localNodeId));
 
-            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
-        } catch (Exception e) {
-            log.atDebug().withThrowable(e).log("Failed to record metrics with a parsed model, dropping metrics");
-        }
+        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {
@@ -366,7 +415,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
-        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
     private static ElasticsearchStatusException requestModelTaskTypeMismatchException(TaskType requested, TaskType expected) {
@@ -376,44 +425,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             requested,
             expected
         );
-    }
-
-    private class PublisherWithMetrics extends DelegatingProcessor<InferenceServiceResults.Result, InferenceServiceResults.Result> {
-
-        private final InferenceTimer timer;
-        private final Model model;
-        private final Request request;
-        private final String localNodeId;
-
-        private PublisherWithMetrics(InferenceTimer timer, Model model, Request request, String localNodeId) {
-            this.timer = timer;
-            this.model = model;
-            this.request = request;
-            this.localNodeId = localNodeId;
-        }
-
-        @Override
-        protected void next(InferenceServiceResults.Result item) {
-            downstream().onNext(item);
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, throwable);
-            super.onError(throwable);
-        }
-
-        @Override
-        protected void onCancel() {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
-            super.onCancel();
-        }
-
-        @Override
-        public void onComplete() {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
-            super.onComplete();
-        }
     }
 
     private record NodeRoutingDecision(boolean currentNodeShouldHandleRequest, DiscoveryNode targetNode) {

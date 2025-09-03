@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -44,16 +45,32 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
             isEmpty = true;
         }
 
-        void collect(final Object value) {
+        void collectOnce(final Object value) {
+            assert isEmpty;
             Objects.requireNonNull(value);
-            if (isEmpty) {
-                this.value = value;
-                this.isEmpty = false;
-                return;
+            this.value = value;
+            this.isEmpty = false;
+        }
+
+        /**
+         * This is an expensive check, that slows down downsampling significantly.
+         * Given that index is sorted by tsid as primary key, this shouldn't really happen.
+         */
+        boolean validate(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
+            for (int i = 0; i < buffer.size(); i++) {
+                int docId = buffer.get(i);
+                if (docValues.advanceExact(docId)) {
+                    int docValueCount = docValues.docValueCount();
+                    for (int j = 0; j < docValueCount; j++) {
+                        var value = docValues.nextValue();
+                        if (value.equals(this.value) == false) {
+                            assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
+                        }
+                    }
+                }
             }
-            if (value.equals(this.value) == false) {
-                throw new IllegalArgumentException("Dimension value changed without tsid change [" + value + "] != [" + this.value + "]");
-            }
+
+            return true;
         }
     }
 
@@ -68,13 +85,24 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, int docId) throws IOException {
-        if (docValues.advanceExact(docId) == false) {
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        if (dimension.isEmpty == false) {
+            assert dimension.validate(docValues, docIdBuffer);
             return;
         }
-        int docValueCount = docValues.docValueCount();
-        for (int i = 0; i < docValueCount; i++) {
-            this.dimension.collect(docValues.nextValue());
+
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            int docValueCount = docValues.docValueCount();
+            for (int j = 0; j < docValueCount; j++) {
+                this.dimension.collectOnce(docValues.nextValue());
+            }
+            // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
+            // same.
+            return;
         }
     }
 

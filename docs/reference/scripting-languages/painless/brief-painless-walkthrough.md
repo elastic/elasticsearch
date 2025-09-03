@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-walkthrough.html
+products:
+  - id: painless
 ---
 
 # A brief painless walkthrough [painless-walkthrough]
@@ -305,5 +307,5 @@ POST hockey/_update_by_query
 }
 ```
 
-Note: all of the `_update_by_query` examples above could really do with a `query` to limit the data that they pull back. While you **could** use a [script query](/reference/query-languages/query-dsl-script-query.md) it wouldn’t be as efficient as using any other query because script queries aren’t able to use the inverted index to limit the documents that they have to check.
+Note: all of the `_update_by_query` examples above could really do with a `query` to limit the data that they pull back. While you **could** use a [script query](/reference/query-languages/query-dsl/query-dsl-script-query.md) it wouldn’t be as efficient as using any other query because script queries aren’t able to use the inverted index to limit the documents that they have to check.
 

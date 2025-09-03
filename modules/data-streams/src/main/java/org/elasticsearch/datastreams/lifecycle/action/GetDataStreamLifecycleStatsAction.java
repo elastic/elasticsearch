@@ -67,7 +67,6 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.runDuration = in.readOptionalVLong();
             this.timeBetweenStarts = in.readOptionalVLong();
             this.dataStreamStats = in.readCollectionAsImmutableList(DataStreamStats::read);

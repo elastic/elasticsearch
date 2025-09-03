@@ -22,12 +22,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -46,12 +43,10 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -207,7 +202,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var masterName = internalCluster().getMasterName();
         final var masterTransportService = MockTransportService.getInstance(masterName);
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(snapshotStatusUpdateBarrier);
                 safeAwait(snapshotStatusUpdateBarrier);
@@ -405,7 +400,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var updateSnapshotStatusBarrier = new CyclicBarrier(2);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(updateSnapshotStatusBarrier);
                 safeAwait(updateSnapshotStatusBarrier);
@@ -455,7 +450,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> putShutdownForRemovalMetadata(
                 clusterService,
                 primaryNode,
@@ -480,7 +475,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     )
     public void testSnapshotShutdownProgressTracker() throws Exception {
         final var repoName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 10);
+        final int numShards = randomIntBetween(1, 9);
         createRepository(repoName, "mock");
 
         // Create another index on another node which will be blocked (remain in state INIT) throughout.
@@ -540,12 +535,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
+        // At least one shard reached the MockRepository's blocking code when waitForBlock was called. However, there's no guarantee that
+        // the other shards got that far before the shutdown flag was put in place, in which case the other shards may be paused instead.
         mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "SnapshotShutdownProgressTracker running number of snapshots",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Number shard snapshots running [" + numShards + "].*"
+                ".+Number shard snapshots running \\[[1-" + numShards + "]].+"
             )
         );
 
@@ -557,7 +554,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final CountDownLatch snapshotStatusUpdateLatch = new CountDownLatch(1);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(snapshotStatusUpdateLatch);
                 try {
@@ -657,41 +654,6 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         resetMockLog();
     }
 
-    private static SubscribableListener<Void> createSnapshotPausedListener(
-        ClusterService clusterService,
-        String repoName,
-        String indexName,
-        int numShards
-    ) {
-        return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
-            final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
-            if (entriesForRepo.isEmpty()) {
-                // it's (just about) possible for the data node to apply the initial snapshot state, start on the first shard snapshot, and
-                // hit the IO block, before the master even applies this cluster state, in which case we simply retry:
-                return false;
-            }
-            assertThat(entriesForRepo, hasSize(1));
-            final var shardSnapshotStatuses = entriesForRepo.iterator()
-                .next()
-                .shards()
-                .entrySet()
-                .stream()
-                .flatMap(e -> e.getKey().getIndexName().equals(indexName) ? Stream.of(e.getValue()) : Stream.of())
-                .toList();
-            assertThat(shardSnapshotStatuses, hasSize(numShards));
-            for (var shardStatus : shardSnapshotStatuses) {
-                assertThat(
-                    shardStatus.state(),
-                    oneOf(SnapshotsInProgress.ShardState.INIT, SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL)
-                );
-                if (shardStatus.state() == SnapshotsInProgress.ShardState.INIT) {
-                    return false;
-                }
-            }
-            return true;
-        });
-    }
-
     private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {
         ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var indexRoutingTable = state.routingTable().index(indexName);
@@ -702,99 +664,5 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             assertThat(indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED), empty());
             return false;
         });
-    }
-
-    private static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
-        safeAwait((ActionListener<Void> listener) -> putShutdownForRemovalMetadata(clusterService, nodeName, listener));
-    }
-
-    private static void flushMasterQueue(ClusterService clusterService, ActionListener<Void> listener) {
-        clusterService.submitUnbatchedStateUpdateTask("flush queue", new ClusterStateUpdateTask(Priority.LANGUID) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-        });
-    }
-
-    private static void putShutdownForRemovalMetadata(ClusterService clusterService, String nodeName, ActionListener<Void> listener) {
-        // not testing REPLACE just because it requires us to specify the replacement node
-        final var shutdownType = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
-        final var shutdownMetadata = SingleNodeShutdownMetadata.builder()
-            .setType(shutdownType)
-            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
-            .setReason("test");
-        switch (shutdownType) {
-            case SIGTERM -> shutdownMetadata.setGracePeriod(TimeValue.timeValueSeconds(60));
-        }
-        SubscribableListener
-
-            .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
-            .<Void>andThen(l -> flushMasterQueue(clusterService, l))
-            .addListener(listener);
-    }
-
-    private static void putShutdownMetadata(
-        ClusterService clusterService,
-        SingleNodeShutdownMetadata.Builder shutdownMetadataBuilder,
-        String nodeName,
-        ActionListener<Void> listener
-    ) {
-        clusterService.submitUnbatchedStateUpdateTask("mark node for removal", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final var node = currentState.nodes().resolveNode(nodeName);
-                return currentState.copyAndUpdateMetadata(
-                    mdb -> mdb.putCustom(
-                        NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(
-                            Map.of(
-                                node.getId(),
-                                shutdownMetadataBuilder.setNodeId(node.getId()).setNodeEphemeralId(node.getEphemeralId()).build()
-                            )
-                        )
-                    )
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-        });
-    }
-
-    private static void clearShutdownMetadata(ClusterService clusterService) {
-        safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return currentState.copyAndUpdateMetadata(mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-        }));
     }
 }

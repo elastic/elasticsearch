@@ -29,12 +29,18 @@ public class DeprecatedIndexPredicate {
      * @param metadata the cluster metadata
      * @param filterToBlockedStatus if true, only indices that are write blocked will be returned,
      *                              if false, only those without a block are returned
+     * @param includeSystem if true, all indices including system will be returned,
+     *                              if false, only non-system indices are returned
      * @return a predicate that returns true for indices that need to be reindexed
      */
-    public static Predicate<Index> getReindexRequiredPredicate(ProjectMetadata metadata, boolean filterToBlockedStatus) {
+    public static Predicate<Index> getReindexRequiredPredicate(
+        ProjectMetadata metadata,
+        boolean filterToBlockedStatus,
+        boolean includeSystem
+    ) {
         return index -> {
             IndexMetadata indexMetadata = metadata.index(index);
-            return reindexRequired(indexMetadata, filterToBlockedStatus);
+            return reindexRequired(indexMetadata, filterToBlockedStatus, includeSystem);
         };
     }
 
@@ -45,11 +51,13 @@ public class DeprecatedIndexPredicate {
      * @param indexMetadata the index metadata
      * @param filterToBlockedStatus if true, only indices that are write blocked will be returned,
      *                              if false, only those without a block are returned
+     * @param includeSystem if true, all indices including system will be returned,
+     *                              if false, only non-system indices are returned
      * @return a predicate that returns true for indices that need to be reindexed
      */
-    public static boolean reindexRequired(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {
+    public static boolean reindexRequired(IndexMetadata indexMetadata, boolean filterToBlockedStatus, boolean includeSystem) {
         return creationVersionBeforeMinimumWritableVersion(indexMetadata)
-            && isNotSystem(indexMetadata)
+            && (includeSystem || isNotSystem(indexMetadata))
             && isNotSearchableSnapshot(indexMetadata)
             && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
     }

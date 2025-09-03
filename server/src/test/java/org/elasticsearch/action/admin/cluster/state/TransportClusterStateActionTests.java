@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -33,6 +34,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -168,6 +170,13 @@ public class TransportClusterStateActionTests extends ESTestCase {
                 assertThat(routingTable, notNullValue());
                 assertThat(routingTable.indicesRouting().keySet(), containsInAnyOrder(expectedIndices));
             }
+            if (request.customs()) {
+                ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(response.getState());
+                assertThat(projectStateRegistry.size(), equalTo(numberOfProjects));
+                Settings projectSettings = projectStateRegistry.getProjectSettings(projectId);
+                assertThat(projectSettings, notNullValue());
+                assertThat(projectSettings.keySet(), contains("setting_1"));
+            }
         }
     }
 
@@ -193,6 +202,13 @@ public class TransportClusterStateActionTests extends ESTestCase {
         } else {
             assertThat(routingTables.get(projectId).indicesRouting(), anEmptyMap());
         }
+        if (request.customs()) {
+            ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(response.getState());
+            assertThat(projectStateRegistry.size(), equalTo(1));
+            Settings projectSettings = projectStateRegistry.getProjectSettings(projectId);
+            assertThat(projectSettings, notNullValue());
+            assertThat(projectSettings.keySet(), contains("setting_1"));
+        }
     }
 
     private ClusterStateResponse executeAction(ProjectResolver projectResolver, ClusterStateRequest request, ClusterState state)
@@ -203,10 +219,11 @@ public class TransportClusterStateActionTests extends ESTestCase {
             threadPool,
             new ActionFilters(Set.of()),
             indexResolver,
-            projectResolver
+            projectResolver,
+            new NoOpClient(threadPool)
         );
         final PlainActionFuture<ClusterStateResponse> future = new PlainActionFuture<>();
-        action.masterOperation(task, request, state, future);
+        action.localClusterStateOperation(task, request, state, future);
         return future.get();
     }
 
@@ -230,7 +247,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         request.nodes(randomBoolean());
         request.routingTable(randomBoolean());
         request.blocks(randomBoolean());
-        request.customs(randomBoolean());
+        request.customs(true);
         return request;
     }
 
@@ -239,9 +256,14 @@ public class TransportClusterStateActionTests extends ESTestCase {
         Arrays.stream(projects).forEach(metadataBuilder::put);
         final var metadata = metadataBuilder.build();
 
-        return ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)))
-            .metadata(metadata)
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)));
+        ProjectStateRegistry.Builder psBuilder = ProjectStateRegistry.builder();
+        for (ProjectMetadata.Builder project : projects) {
+            psBuilder.putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+        }
+        return csBuilder.metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .putCustom(ProjectStateRegistry.TYPE, psBuilder.build())
             .build();
     }
 

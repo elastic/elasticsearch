@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
@@ -16,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -34,7 +36,7 @@ import static java.util.Collections.emptyMap;
  */
 public final class AttributeMap<E> implements Map<Attribute, E> {
 
-    static class AttributeWrapper {
+    private static class AttributeWrapper {
 
         private final Attribute attr;
 
@@ -165,8 +167,12 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         delegate = other;
     }
 
-    public AttributeMap() {
-        delegate = new LinkedHashMap<>();
+    private AttributeMap() {
+        this(new LinkedHashMap<>());
+    }
+
+    private AttributeMap(int expectedSize) {
+        this(Maps.newLinkedHashMapWithExpectedSize(expectedSize));
     }
 
     public AttributeMap(Attribute key, E value) {
@@ -175,21 +181,19 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public AttributeMap<E> combine(AttributeMap<E> other) {
-        AttributeMap<E> combine = new AttributeMap<>();
+        AttributeMap<E> combine = new AttributeMap<>(this.size() + other.size());
         combine.addAll(this);
         combine.addAll(other);
-
         return combine;
     }
 
     public AttributeMap<E> subtract(AttributeMap<E> other) {
-        AttributeMap<E> diff = new AttributeMap<>();
+        AttributeMap<E> diff = new AttributeMap<>(this.size());
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
             if (other.delegate.containsKey(entry.getKey()) == false) {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
-
         return diff;
     }
 
@@ -197,7 +201,7 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         AttributeMap<E> smaller = (other.size() > size() ? this : other);
         AttributeMap<E> larger = (smaller == this ? other : this);
 
-        AttributeMap<E> intersect = new AttributeMap<>();
+        AttributeMap<E> intersect = new AttributeMap<>(smaller.size());
         for (Entry<AttributeWrapper, E> entry : smaller.delegate.entrySet()) {
             if (larger.delegate.containsKey(entry.getKey())) {
                 intersect.delegate.put(entry.getKey(), entry.getValue());
@@ -220,12 +224,22 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         return true;
     }
 
-    public void add(Attribute key, E value) {
-        put(key, value);
+    private E add(Attribute key, E value) {
+        return delegate.put(new AttributeWrapper(key), value);
     }
 
-    public void addAll(AttributeMap<E> other) {
-        putAll(other);
+    private void addAll(AttributeMap<E> other) {
+        for (Entry<? extends Attribute, ? extends E> entry : other.entrySet()) {
+            add(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private E addIfAbsent(Attribute key, Function<? super Attribute, ? extends E> mappingFunction) {
+        return delegate.computeIfAbsent(new AttributeWrapper(key), k -> mappingFunction.apply(k.attr));
+    }
+
+    private E delete(Object key) {
+        return key instanceof NamedExpression ne ? delegate.remove(new AttributeWrapper(ne.toAttribute())) : null;
     }
 
     public Set<String> attributeNames() {
@@ -249,7 +263,7 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public boolean containsKey(Object key) {
-        return key instanceof NamedExpression ne ? delegate.containsKey(new AttributeWrapper(ne.toAttribute())) : false;
+        return key instanceof NamedExpression ne && delegate.containsKey(new AttributeWrapper(ne.toAttribute()));
     }
 
     @Override
@@ -293,24 +307,22 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public E put(Attribute key, E value) {
-        return delegate.put(new AttributeWrapper(key), value);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void putAll(Map<? extends Attribute, ? extends E> m) {
-        for (Entry<? extends Attribute, ? extends E> entry : m.entrySet()) {
-            put(entry.getKey(), entry.getValue());
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public E remove(Object key) {
-        return key instanceof NamedExpression ne ? delegate.remove(new AttributeWrapper(ne.toAttribute())) : null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void clear() {
-        delegate.clear();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -376,27 +388,55 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         return delegate.toString();
     }
 
-    public static <E> Builder<E> builder() {
-        return new Builder<>();
+    public static <E> AttributeMap<E> of(Attribute key, E value) {
+        final AttributeMap<E> map = new AttributeMap<>();
+        map.add(key, value);
+        return map;
     }
 
-    public static <E> Builder<E> builder(AttributeMap<E> map) {
-        return new Builder<E>().putAll(map);
+    public static <E> Builder<E> builder() {
+        return new Builder<>(new AttributeMap<>());
+    }
+
+    public static <E> Builder<E> builder(int expectedSize) {
+        return new Builder<>(new AttributeMap<>(expectedSize));
     }
 
     public static class Builder<E> {
-        private AttributeMap<E> map = new AttributeMap<>();
 
-        private Builder() {}
+        private final AttributeMap<E> map;
 
-        public Builder<E> put(Attribute attr, E value) {
-            map.add(attr, value);
-            return this;
+        private Builder(AttributeMap<E> map) {
+            this.map = map;
+        }
+
+        public E put(Attribute attr, E value) {
+            return map.add(attr, value);
         }
 
         public Builder<E> putAll(AttributeMap<E> m) {
             map.addAll(m);
             return this;
+        }
+
+        public E computeIfAbsent(Attribute key, Function<? super Attribute, ? extends E> mappingFunction) {
+            return map.addIfAbsent(key, mappingFunction);
+        }
+
+        public E remove(Object o) {
+            return map.delete(o);
+        }
+
+        public Set<Attribute> keySet() {
+            return map.keySet();
+        }
+
+        public boolean containsKey(Object key) {
+            return map.containsKey(key);
+        }
+
+        public boolean isEmpty() {
+            return map.isEmpty();
         }
 
         public AttributeMap<E> build() {

@@ -170,7 +170,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
-        ClusterState remoteState = createRemoteClusterStateWithDataStream("logs-foobar");
+        ClusterState remoteState = createRemoteClusterStateWithDataStream("logs-foobar", false, true);
 
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
@@ -2562,23 +2562,53 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     private static ClusterState createRemoteClusterStateWithDataStream(String dataStreamName) {
-        return createRemoteClusterStateWithDataStream(dataStreamName, false);
+        return createRemoteClusterStateWithDataStream(dataStreamName, false, false);
     }
 
-    private static ClusterState createRemoteClusterStateWithDataStream(String dataStreamName, boolean system) {
+    private static ClusterState createRemoteClusterStateWithDataStream(String dataStreamName, boolean system, boolean withFailures) {
+        long currentTimeMillis = System.currentTimeMillis();
+
         Settings.Builder indexSettings = settings(IndexVersion.current());
         indexSettings.put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
         indexSettings.put("index.hidden", true);
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, currentTimeMillis))
             .settings(indexSettings)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .system(system)
             .build();
-        DataStream dataStream = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex())).setSystem(system).build();
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));
+
+        IndexMetadata failureIndexMetadata = null;
+        DataStream.DataStreamIndices failureStore = null;
+        if (withFailures) {
+            Settings.Builder failureIndexSettings = settings(IndexVersion.current());
+            failureIndexSettings.put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
+            failureIndexSettings.put("index.hidden", true);
+
+            String defaultFailureStoreName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, currentTimeMillis);
+            failureIndexMetadata = IndexMetadata.builder(defaultFailureStoreName)
+                .settings(failureIndexSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .system(system)
+                .build();
+
+            failureStore = DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndexMetadata.getIndex())).build();
+        }
+
+        var dataStreamBuilder = DataStream.builder(dataStreamName, List.of(indexMetadata.getIndex())).setSystem(system);
+        if (withFailures) {
+            dataStreamBuilder.setFailureIndices(failureStore);
+        }
+        DataStream dataStream = dataStreamBuilder.build();
+
+        var mdBuilder = Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L);
+        if (withFailures) {
+            mdBuilder.put(failureIndexMetadata, true);
+        }
+
+        var routingTableBuilder = RoutingTable.builder();
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId(indexMetadata.getIndex(), 0),
@@ -2587,7 +2617,22 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ShardRoutingState.INITIALIZING
         ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
-        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        routingTableBuilder.add(indexRoutingTable);
+
+        if (withFailures) {
+            ShardRouting failureShardRouting = TestShardRouting.newShardRouting(
+                new ShardId(failureIndexMetadata.getIndex(), 0),
+                "1",
+                true,
+                ShardRoutingState.INITIALIZING
+            ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+            IndexRoutingTable failureIndexRoutingTable = IndexRoutingTable.builder(failureIndexMetadata.getIndex())
+                .addShard(failureShardRouting)
+                .build();
+            routingTableBuilder.add(failureIndexRoutingTable);
+        }
+
+        return ClusterState.builder(new ClusterName("remote")).metadata(mdBuilder).routingTable(routingTableBuilder.build()).build();
     }
 
 }

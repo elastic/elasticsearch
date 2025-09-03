@@ -152,7 +152,10 @@ public class RestShardsActionTests extends ESTestCase {
                             randomBoolean(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
-                            randomNonNegativeLong()
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomDoubleBetween(0.0, 1.0, true),
+                            randomDoubleBetween(0.0, 1.0, true)
                         )
                     )
                 );

@@ -29,6 +29,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -180,6 +182,16 @@ public abstract class Plugin implements Closeable {
          * The project resolver for the cluster. This should be used to determine the active project against which a request should execute
          */
         ProjectResolver projectResolver();
+
+        /**
+         * Provider for additional SlowLog fields
+         */
+        SlowLogFieldProvider slowLogFieldProvider();
+
+        /**
+         * Provider for indexing pressure
+         */
+        IndexingPressure indexingPressure();
     }
 
     /**

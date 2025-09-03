@@ -6,6 +6,6 @@ org.elasticsearch.ingest.geoip:
         mode: read
 com.maxmind.db:
   - files:
-      - relative_path: "ingest-geoip/"
-        relative_to: "config"
-        mode: "read_write"
+      - relative_path: "ingest-geoip"
+        relative_to: config
+        mode: read

@@ -196,7 +196,7 @@ public class RegisteredPolicySnapshots implements Metadata.ProjectCustom {
          *                     If the request is from SLM it will contain a key "policy" with an SLM policy name as the value.
          * @param snapshotId the snapshotId to potentially add to the registered set
          */
-        void maybeAdd(Map<String, Object> userMetadata, SnapshotId snapshotId) {
+        void addIfSnapshotIsSLMInitiated(Map<String, Object> userMetadata, SnapshotId snapshotId) {
             final String policy = getPolicyFromMetadata(userMetadata);
             if (policy != null) {
                 snapshots.add(new PolicySnapshot(policy, snapshotId));

@@ -54,7 +54,6 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     private final boolean isRunning;
 
     public SqlQueryResponse(StreamInput in) throws IOException {
-        super(in);
         cursor = in.readString();
         if (in.readBoolean()) {
             // We might have rows without columns and we might have columns without rows

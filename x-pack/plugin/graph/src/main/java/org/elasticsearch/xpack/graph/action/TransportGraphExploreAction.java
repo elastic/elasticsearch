@@ -40,8 +40,8 @@ import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
@@ -337,7 +337,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                     ArrayList<Connection> newConnections = new ArrayList<Connection>();
                     ArrayList<Vertex> newVertices = new ArrayList<Vertex>();
-                    Sampler sample = searchResponse.getAggregations().get("sample");
+                    SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
 
                     // We think of the total scores as the energy-level pouring
                     // out of all the last hop's connections.
@@ -365,7 +365,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 private void addAndScoreNewVertices(
                     Hop lastHop,
                     Hop currentHop,
-                    Sampler sample,
+                    SingleBucketAggregation sample,
                     double totalSignalOutput,
                     ArrayList<Connection> newConnections,
                     ArrayList<Vertex> newVertices
@@ -500,7 +500,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // we can do something server-side here
 
                 // Helper method - compute the total signal of all scores in the search results
-                private double getExpandTotalSignalStrength(Hop lastHop, Hop currentHop, Sampler sample) {
+                private double getExpandTotalSignalStrength(Hop lastHop, Hop currentHop, SingleBucketAggregation sample) {
                     double totalSignalOutput = 0;
                     for (int j = 0; j < lastHop.getNumberVertexRequests(); j++) {
                         VertexRequest lastVr = lastHop.getVertexRequest(j);
@@ -686,7 +686,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
-                        Sampler sample = searchResponse.getAggregations().get("sample");
+                        SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
 
                         // Determine the total scores for all interesting terms
                         double totalSignalStrength = getInitialTotalSignalStrength(rootHop, sample);
@@ -724,7 +724,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
 
                     // Helper method - Provides a total signal strength for all terms connected to the initial query
-                    private double getInitialTotalSignalStrength(Hop rootHop, Sampler sample) {
+                    private double getInitialTotalSignalStrength(Hop rootHop, SingleBucketAggregation sample) {
                         double totalSignalStrength = 0;
                         for (int i = 0; i < rootHop.getNumberVertexRequests(); i++) {
                             if (request.useSignificance()) {

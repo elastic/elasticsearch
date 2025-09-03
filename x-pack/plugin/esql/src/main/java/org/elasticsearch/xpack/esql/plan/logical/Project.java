@@ -10,9 +10,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
@@ -23,7 +25,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@code Project} is a {@code Plan} with one child. In {@code SELECT x FROM y}, the "SELECT" statement is a Project.
+ * A {@code Project} is a {@code Plan} with one child. In {@code FROM idx | KEEP x, y}, the {@code KEEP} statement is a Project.
  */
 public class Project extends UnaryPlan implements SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
@@ -33,6 +35,20 @@ public class Project extends UnaryPlan implements SortAgnostic {
     public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child);
         this.projections = projections;
+        assert validateProjections(projections);
+    }
+
+    private boolean validateProjections(List<? extends NamedExpression> projections) {
+        for (NamedExpression ne : projections) {
+            if (ne instanceof Alias as) {
+                if (as.child() instanceof Attribute == false) {
+                    return false;
+                }
+            } else if (ne instanceof Attribute == false && ne instanceof UnresolvedNamedExpression == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Project(StreamInput in) throws IOException {

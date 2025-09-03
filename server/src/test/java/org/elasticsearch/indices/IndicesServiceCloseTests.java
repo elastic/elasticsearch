@@ -77,7 +77,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
         Node node = new MockNode(
             settings,
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class),
-            true
+            true,
+            () -> {}
         );
         node.start();
         return node;

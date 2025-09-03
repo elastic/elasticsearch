@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -23,13 +27,15 @@ import static java.util.Collections.emptyList;
 public class PreAnalyzer {
 
     public static class PreAnalysis {
-        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList());
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, emptyList(), emptyList(), emptyList());
 
-        public final List<TableInfo> indices;
+        public final IndexMode indexMode;
+        public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
-        public final List<TableInfo> lookupIndices;
+        public final List<IndexPattern> lookupIndices;
 
-        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches, List<TableInfo> lookupIndices) {
+        public PreAnalysis(IndexMode indexMode, List<IndexPattern> indices, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
+            this.indexMode = indexMode;
             this.indices = indices;
             this.enriches = enriches;
             this.lookupIndices = lookupIndices;
@@ -45,19 +51,29 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-        List<TableInfo> indices = new ArrayList<>();
-        List<Enrich> unresolvedEnriches = new ArrayList<>();
-        List<TableInfo> lookupIndices = new ArrayList<>();
+        Set<IndexPattern> indices = new HashSet<>();
 
+        List<Enrich> unresolvedEnriches = new ArrayList<>();
+        List<IndexPattern> lookupIndices = new ArrayList<>();
+
+        Holder<IndexMode> indexMode = new Holder<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
-            List<TableInfo> list = p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices;
-            list.add(new TableInfo(p.indexPattern()));
+            if (p.indexMode() == IndexMode.LOOKUP) {
+                lookupIndices.add(p.indexPattern());
+            } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
+                indexMode.set(p.indexMode());
+                indices.add(p.indexPattern());
+            } else {
+                throw new IllegalStateException("index mode is already set");
+            }
         });
+
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indices, unresolvedEnriches, lookupIndices);
+        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, lookupIndices);
     }
+
 }

@@ -7,7 +7,7 @@ mapped_pages:
 # Rank features field type [rank-features]
 
 
-A `rank_features` field can index numeric feature vectors, so that they can later be used to boost documents in queries with a [`rank_feature`](/reference/query-languages/query-dsl-rank-feature-query.md) query.
+A `rank_features` field can index numeric feature vectors, so that they can later be used to boost documents in queries with a [`rank_feature`](/reference/query-languages/query-dsl/query-dsl-rank-feature-query.md) query.
 
 It is analogous to the [`rank_feature`](/reference/elasticsearch/mapping-reference/rank-feature.md) data type but is better suited when the list of features is sparse so that it wouldn’t be reasonable to add one field to the mappings for each of them.
 
@@ -93,12 +93,12 @@ GET my-index-000001/_search
 
 
 ::::{note}
-`rank_features` fields do not support sorting or aggregating and may only be queried using [`rank_feature`](/reference/query-languages/query-dsl-rank-feature-query.md) or [`term`](/reference/query-languages/query-dsl-term-query.md) queries.
+`rank_features` fields do not support sorting or aggregating and may only be queried using [`rank_feature`](/reference/query-languages/query-dsl/query-dsl-rank-feature-query.md) or [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) queries.
 ::::
 
 
 ::::{note}
-[`term`](/reference/query-languages/query-dsl-term-query.md) queries on `rank_features` fields are scored by multiplying the matched stored feature value by the provided `boost`.
+[`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) queries on `rank_features` fields are scored by multiplying the matched stored feature value by the provided `boost`.
 ::::
 
 
@@ -107,5 +107,5 @@ GET my-index-000001/_search
 ::::
 
 
-Rank features that correlate negatively with the score should set `positive_score_impact` to `false` (defaults to `true`). This will be used by the [`rank_feature`](/reference/query-languages/query-dsl-rank-feature-query.md) query to modify the scoring formula in such a way that the score decreases with the value of the feature instead of increasing.
+Rank features that correlate negatively with the score should set `positive_score_impact` to `false` (defaults to `true`). This will be used by the [`rank_feature`](/reference/query-languages/query-dsl/query-dsl-rank-feature-query.md) query to modify the scoring formula in such a way that the score decreases with the value of the feature instead of increasing.
 

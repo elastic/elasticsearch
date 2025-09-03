@@ -13,9 +13,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -43,6 +45,7 @@ import java.util.stream.StreamSupport;
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataTiersUsageTransportAction(
@@ -50,10 +53,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_TIERS.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -69,11 +74,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 NodesDataTiersUsageTransportAction.TYPE,
                 new NodesDataTiersUsageTransportAction.NodesRequest(),
                 listener.delegateFailureAndWrap((delegate, response) -> {
+                    final var projectState = projectResolver.getProjectState(state);
                     // Generate tier specific stats for the nodes and indices
                     delegate.onResponse(
                         new XPackUsageFeatureResponse(
                             new DataTiersFeatureSetUsage(
-                                aggregateStats(response.getNodes(), getIndicesGroupedByTier(state, response.getNodes()))
+                                aggregateStats(response.getNodes(), getIndicesGroupedByTier(projectState, response.getNodes()))
                             )
                         )
                     );
@@ -82,16 +88,16 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     // Visible for testing
-    static Map<String, Set<String>> getIndicesGroupedByTier(ClusterState state, List<NodeDataTiersUsage> nodes) {
+    static Map<String, Set<String>> getIndicesGroupedByTier(ProjectState state, List<NodeDataTiersUsage> nodes) {
         Set<String> indices = nodes.stream()
-            .map(nodeResponse -> state.getRoutingNodes().node(nodeResponse.getNode().getId()))
+            .map(nodeResponse -> state.cluster().getRoutingNodes().node(nodeResponse.getNode().getId()))
             .filter(Objects::nonNull)
             .flatMap(node -> StreamSupport.stream(node.spliterator(), false))
             .map(ShardRouting::getIndexName)
             .collect(Collectors.toSet());
         Map<String, Set<String>> indicesByTierPreference = new HashMap<>();
         for (String indexName : indices) {
-            IndexMetadata indexMetadata = state.metadata().getProject().index(indexName);
+            IndexMetadata indexMetadata = state.metadata().index(indexName);
             // If the index was deleted in the meantime, skip
             if (indexMetadata == null) {
                 continue;

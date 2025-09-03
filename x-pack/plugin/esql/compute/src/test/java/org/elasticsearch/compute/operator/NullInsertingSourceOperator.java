@@ -24,7 +24,9 @@ import java.util.Arrays;
 import static org.elasticsearch.test.ESTestCase.between;
 
 /**
- * Inserts nulls into blocks
+ * Inserts "null rows" between incoming rows. By default, a "null row" contains
+ * {@code null} in every {@link Block}. Override {@link #appendNull} to customize
+ * how "null rows" are built.
  */
 public class NullInsertingSourceOperator extends MappingSourceOperator {
     final BlockFactory blockFactory;
@@ -58,6 +60,9 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         return result;
     }
 
+    /**
+     * Called on a "null row" to insert values.
+     */
     protected void appendNull(ElementType elementType, Block.Builder builder, int blockId) {
         builder.appendNull();
     }

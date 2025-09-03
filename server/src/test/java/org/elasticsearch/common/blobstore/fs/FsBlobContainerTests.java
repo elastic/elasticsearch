@@ -237,7 +237,7 @@ public class FsBlobContainerTests extends ESTestCase {
             expectedValue.set(newValue);
         }
 
-        container.writeBlob(randomPurpose(), key, new BytesArray(new byte[17]), false);
+        container.writeBlob(randomPurpose(), key, new BytesArray(new byte[33]), false);
         assertThat(
             safeAwaitFailure(
                 OptionalBytesReference.class,
@@ -375,6 +375,31 @@ public class FsBlobContainerTests extends ESTestCase {
         for (String blob : container.listBlobs(randomPurpose()).keySet()) {
             assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
         }
+    }
+
+    public void testCopy() throws Exception {
+        // without this, on CI the test sometimes fails with
+        // java.nio.file.ProviderMismatchException: mismatch, expected: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$1,
+        // got: class org.elasticsearch.common.blobstore.fs.FsBlobContainerTests$MockFileSystemProvider
+        // and I haven't figured out why yet.
+        restoreFileSystem();
+        final var path = PathUtils.get(createTempDir().toString());
+        final var store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false);
+        final var sourcePath = BlobPath.EMPTY.add("source");
+        final var sourceContainer = store.blobContainer(sourcePath);
+        final var destinationPath = BlobPath.EMPTY.add("destination");
+        final var destinationContainer = store.blobContainer(destinationPath);
+
+        final var sourceBlobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+        sourceContainer.writeBlob(randomPurpose(), sourceBlobName, contents, true);
+        destinationContainer.copyBlob(randomPurpose(), sourceContainer, sourceBlobName, blobName, contents.length());
+
+        var sourceContents = Streams.readFully(sourceContainer.readBlob(randomPurpose(), sourceBlobName));
+        var targetContents = Streams.readFully(destinationContainer.readBlob(randomPurpose(), blobName));
+        assertEquals(sourceContents, targetContents);
+        assertEquals(contents, targetContents);
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

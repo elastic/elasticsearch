@@ -196,10 +196,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             ).getMessage(),
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that it contains these bits:
-                containsString("No shard was specified in the request"),
-                containsString("specify the target shard in the request"),
-                containsString("https://www.elastic.co/guide/en/elasticsearch/reference"),
-                containsString("cluster-allocation-explain.html")
+                containsString("There are no unassigned shards in this cluster."),
+                containsString("Specify an assigned shard in the request body"),
+                containsString("https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain")
             )
         );
     }

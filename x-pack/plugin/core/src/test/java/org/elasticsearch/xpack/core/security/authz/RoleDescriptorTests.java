@@ -578,7 +578,7 @@ public class RoleDescriptorTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
-        final Cache.CacheStats beforeStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats beforeStats = fieldPermissionsCache.getCacheStats();
 
         final String json = """
             {
@@ -604,7 +604,7 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
 
         final int numberOfFieldSecurityBlocks = 2;
-        final Cache.CacheStats betweenStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats betweenStats = fieldPermissionsCache.getCacheStats();
         assertThat(betweenStats.getMisses(), equalTo(beforeStats.getMisses() + numberOfFieldSecurityBlocks));
         assertThat(betweenStats.getHits(), equalTo(beforeStats.getHits()));
 
@@ -613,7 +613,7 @@ public class RoleDescriptorTests extends ESTestCase {
             RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
         }
 
-        final Cache.CacheStats afterStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats afterStats = fieldPermissionsCache.getCacheStats();
         assertThat(afterStats.getMisses(), equalTo(betweenStats.getMisses()));
         assertThat(afterStats.getHits(), equalTo(beforeStats.getHits() + numberOfFieldSecurityBlocks * iterations));
     }
@@ -651,7 +651,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -702,7 +702,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeRemoteCluster
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -753,7 +753,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeWorkflowsRestriction
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -848,7 +848,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(SECURITY_ROLE_DESCRIPTION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeRoleDescription
         );
         final BytesStreamOutput output = new BytesStreamOutput();

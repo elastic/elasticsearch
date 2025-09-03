@@ -18,9 +18,12 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -45,6 +48,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Executor executor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteInferenceEndpointAction(
@@ -53,7 +57,8 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteInferenceEndpointAction.NAME,
@@ -68,6 +73,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -86,17 +92,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
-        if (modelRegistry.containsDefaultConfigId(request.getInferenceEndpointId())) {
-            masterListener.onFailure(
-                new ElasticsearchStatusException(
-                    "[{}] is a reserved inference endpoint. Cannot delete a reserved inference endpoint.",
-                    RestStatus.BAD_REQUEST,
-                    request.getInferenceEndpointId()
-                )
-            );
-            return;
-        }
-
         SubscribableListener.<UnparsedModel>newForked(modelConfigListener -> {
             // Get the model from the registry
 
@@ -118,12 +113,54 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 if (errorString != null) {
                     listener.onFailure(new ElasticsearchStatusException(errorString, RestStatus.CONFLICT));
                     return;
+                } else if (isInferenceIdReserved(request.getInferenceEndpointId())) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Strings.format(
+                                "[%s] is a reserved inference endpoint. Use the force=true query parameter "
+                                    + "to delete the inference endpoint.",
+                                request.getInferenceEndpointId()
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
                 }
             }
 
             var service = serviceRegistry.getService(unparsedModel.service());
+            Model model;
             if (service.isPresent()) {
-                service.get().stop(unparsedModel, listener);
+                try {
+                    model = service.get()
+                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                } catch (Exception e) {
+                    if (request.isForceDelete()) {
+                        listener.onResponse(true);
+                        return;
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Strings.format(
+                                    "Failed to parse model configuration for inference endpoint [%s]",
+                                    request.getInferenceEndpointId()
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                        return;
+                    }
+                }
+                service.get().stop(model, listener.delegateResponse((l, e) -> {
+                    if (request.isForceDelete()) {
+                        l.onResponse(true);
+                    } else {
+                        l.onFailure(e);
+                    }
+                }));
+            } else if (request.isForceDelete()) {
+                listener.onResponse(true);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -186,6 +223,10 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         return null;
     }
 
+    private boolean isInferenceIdReserved(String inferenceEndpointId) {
+        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
+    }
+
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {
         StringBuilder errorString = new StringBuilder();
 
@@ -222,7 +263,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
     @Override
     protected ClusterBlockException checkBlock(DeleteInferenceEndpointAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.WRITE);
     }
 
 }

@@ -1,11 +1,14 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/cloud/current/ec-plugins-guide.html
+applies_to:
+  deployment:
+    ess: ga
 ---
 
 # Managing plugins and extensions through the API [ec-plugins-guide]
 
-This guide provides a full list of tasks for managing [plugins and extensions](ec-adding-plugins.md) in Elasticsearch Service, using the API.
+This guide provides a full list of tasks for managing [plugins and extensions](../plugin-management.md) in Elasticsearch Service, using the API.
 
 * [Create an extension](ec-plugins-guide.md#ec-extension-guide-create)
 * [Add an extension to a deployment plan](ec-plugins-guide.md#ec-extension-guide-add-plan)
@@ -46,7 +49,7 @@ curl -X POST \
   -H "Authorization: ApiKey $CLOUD_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-   "download_url" : "https://my_site/custom-plugin-8.4.3.zip",
+   "download_url" : "<MY_SITE_URL>/custom-plugin-8.4.3.zip",
    "extension_type" : "plugin",
    "name" : "custom-plugin",
    "version" : "8.4.3"
@@ -320,7 +323,7 @@ curl -X POST \
   -H "Authorization: ApiKey $CLOUD_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-   "download_url" : "https://my_site/custom-plugin-8.4.3-10212022.zip",
+   "download_url" : "<MY_SITE_URL>/custom-plugin-8.4.3-10212022.zip",
    "extension_type" : "plugin",
     "name": "custom-plugin-10212022",
    "version" : "8.4.3"

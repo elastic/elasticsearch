@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -33,7 +32,7 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(operator);
-        out.writeOptionalNamedWriteable(status != null && VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
+        out.writeOptionalNamedWriteable(status != null && status.supportsVersion(out.getTransportVersion()) ? status : null);
     }
 
     @Override
@@ -49,5 +48,27 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * The number of documents found by this operator. Most operators
+     * don't find documents and will return {@code 0} here.
+     */
+    public long documentsFound() {
+        if (status == null) {
+            return 0;
+        }
+        return status.documentsFound();
+    }
+
+    /**
+     * The number of values loaded by this operator. Most operators
+     * don't load values and will return {@code 0} here.
+     */
+    public long valuesLoaded() {
+        if (status == null) {
+            return 0;
+        }
+        return status.valuesLoaded();
     }
 }

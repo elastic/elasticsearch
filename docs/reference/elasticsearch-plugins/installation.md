@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/installation.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Installing plugins [installation]

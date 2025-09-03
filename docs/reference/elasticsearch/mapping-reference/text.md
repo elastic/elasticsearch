@@ -15,7 +15,7 @@ The text family includes the following field types:
 
 ## Text field type [text-field-type]
 
-A field to index full-text values, such as the body of an email or the description of a product. These fields are `analyzed`, that is they are passed through an [analyzer](docs-content://manage-data/data-store/text-analysis.md) to convert the string into a list of individual terms before being indexed. The analysis process allows Elasticsearch to search for individual words *within* each full text field. Text fields are not used for sorting and seldom used for aggregations (although the [significant text aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-significanttext-aggregation.md) is a notable exception).
+A field to index full-text values, such as the body of an email or the description of a product. These fields are `analyzed`, that is they are passed through an [analyzer](docs-content://manage-data/data-store/text-analysis.md) to convert the string into a list of individual terms before being indexed. The analysis process allows Elasticsearch to search for individual words *within* each full text field. Text fields are not used for sorting and seldom used for aggregations (although the [significant text aggregation](/reference/aggregations/search-aggregations-bucket-significanttext-aggregation.md) is a notable exception).
 
 `text` fields are best suited for unstructured but human-readable content. If you need to index unstructured machine-generated content, see [Mapping unstructured content](/reference/elasticsearch/mapping-reference/keyword.md#mapping-unstructured-content).
 
@@ -46,7 +46,7 @@ Sometimes it is useful to have both a full text (`text`) and a keyword (`keyword
 The following parameters are accepted by `text` fields:
 
 [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md)
-:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for the `text` field, both at index-time and at search-time (unless overridden by the  [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md).
+:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for the `text` field, both at index-time and at search-time (unless overridden by the  [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/text-analysis/analysis-standard-analyzer.md).
 
 [`eager_global_ordinals`](/reference/elasticsearch/mapping-reference/eager-global-ordinals.md)
 :   Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false` (default). Enabling this is a good idea on fields that are frequently used for (significant) terms aggregations.
@@ -99,16 +99,17 @@ The following parameters are accepted by `text` fields:
 
 ## Synthetic `_source` [text-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
+`text` fields can use a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field to support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) without storing values of the text field itself.
 
+In this case, the synthetic source of the `text` field will have the same [modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) as a `keyword` field.
 
-`text` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) if they have a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field that supports synthetic `_source` or if the `text` field sets `store` to `true`. Either way, it may not have [`copy_to`](/reference/elasticsearch/mapping-reference/copy-to.md).
+These modifications can impact usage of `text` fields:
+* Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more details. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
+* Handling of `null` values is different. `text` fields ignore `null` values, but `keyword` fields support replacing `null` values with a value specified in the `null_value` parameter. This replacement is represented in synthetic source.
 
-If using a sub-`keyword` field, then the values are sorted in the same way as a `keyword` field’s values are sorted. By default, that means sorted with duplicates removed. So:
+For example:
 
-$$$synthetic-source-text-example-default$$$
+$$$synthetic-source-text-example-multi-field$$$
 
 ```console
 PUT idx
@@ -127,8 +128,9 @@ PUT idx
       "text": {
         "type": "text",
         "fields": {
-          "raw": {
-            "type": "keyword"
+          "kwd": {
+            "type": "keyword",
+            "null_value": "NA"
           }
         }
       }
@@ -138,6 +140,7 @@ PUT idx
 PUT idx/_doc/1
 {
   "text": [
+    null,
     "the quick brown fox",
     "the quick brown fox",
     "jumped over the lazy dog"
@@ -150,18 +153,15 @@ Will become:
 ```console-result
 {
   "text": [
+    "NA",
     "jumped over the lazy dog",
     "the quick brown fox"
   ]
 }
 ```
 
-::::{note}
-Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
-::::
 
-
-If the `text` field sets `store` to true then order and duplicates are preserved.
+If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied. For example:
 
 $$$synthetic-source-text-example-stored$$$
 
@@ -179,7 +179,15 @@ PUT idx
   },
   "mappings": {
     "properties": {
-      "text": { "type": "text", "store": true }
+      "text": {
+        "type": "text",
+        "store": true,
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
     }
   }
 }
@@ -297,11 +305,11 @@ PUT my-index-000001
 
 ## Match-only text field type [match-only-text-field-type]
 
-A variant of [`text`](#text-field-type) that trades scoring and efficiency of positional queries for space efficiency. This field effectively stores data the same way as a `text` field that only indexes documents (`index_options: docs`) and disables norms (`norms: false`). Term queries perform as fast if not faster as on `text` fields, however queries that need positions such as the [`match_phrase` query](/reference/query-languages/query-dsl-match-query-phrase.md) perform slower as they need to look at the `_source` document to verify whether a phrase matches. All queries return constant scores that are equal to 1.0.
+A variant of [`text`](#text-field-type) that trades scoring and efficiency of positional queries for space efficiency. This field effectively stores data the same way as a `text` field that only indexes documents (`index_options: docs`) and disables norms (`norms: false`). Term queries perform as fast if not faster as on `text` fields, however queries that need positions such as the [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) perform slower as they need to look at the `_source` document to verify whether a phrase matches. All queries return constant scores that are equal to 1.0.
 
-Analysis is not configurable: text is always analyzed with the [default analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-default-analyzer) ([`standard`](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md) by default).
+Analysis is not configurable: text is always analyzed with the [default analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-default-analyzer) ([`standard`](/reference/text-analysis/analysis-standard-analyzer.md) by default).
 
-[span queries](/reference/query-languages/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
+[span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
 
 Other than that, `match_only_text` supports the same queries as `text`. And like `text`, it does not support sorting and has only limited support for aggregations.
 

@@ -110,10 +110,10 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
-        switch (random().nextInt(8)) {
-            case 0:
+        return switch (random().nextInt(8)) {
+            case 0 -> {
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     newField,
                     instance.queryVector,
                     instance.k,
@@ -121,9 +121,10 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 1:
+            }
+            case 1 -> {
                 float[] newVector = randomValueOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     newVector,
                     instance.k,
@@ -131,10 +132,11 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 2:
+            }
+            case 2 -> {
                 // given how the test instance is created, we have a 20-value gap between `k` and `numCands` so we SHOULD be safe
                 Integer newK = randomValueOtherThan(instance.k, () -> instance.k + ESTestCase.randomInt(10));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     newK,
@@ -142,9 +144,10 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 3:
+            }
+            case 3 -> {
                 Integer newNumCands = randomValueOtherThan(instance.numCands, () -> instance.numCands + ESTestCase.randomInt(100));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     instance.k,
@@ -152,20 +155,20 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 4:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k,
-                    instance.numCands,
-                    instance.getRescoreVectorBuilder(),
-                    instance.similarity
-                ).addFilterQueries(instance.filterQueries)
-                    .addFilterQuery(QueryBuilders.termQuery("new_field", "new-value"))
-                    .boost(instance.boost);
-            case 5:
+            }
+            case 4 -> new KnnSearchBuilder(
+                instance.field,
+                instance.queryVector,
+                instance.k,
+                instance.numCands,
+                instance.getRescoreVectorBuilder(),
+                instance.similarity
+            ).addFilterQueries(instance.filterQueries)
+                .addFilterQuery(QueryBuilders.termQuery("new_field", "new-value"))
+                .boost(instance.boost);
+            case 5 -> {
                 float newBoost = randomValueOtherThan(instance.boost, ESTestCase::randomFloat);
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     instance.k,
@@ -173,30 +176,28 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).addFilterQueries(instance.filterQueries).boost(newBoost);
-            case 6:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k,
-                    instance.numCands,
+            }
+            case 6 -> new KnnSearchBuilder(
+                instance.field,
+                instance.queryVector,
+                instance.k,
+                instance.numCands,
+                instance.getRescoreVectorBuilder(),
+                randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
+            ).addFilterQueries(instance.filterQueries).boost(instance.boost);
+            case 7 -> new KnnSearchBuilder(
+                instance.field,
+                instance.queryVector,
+                instance.k,
+                instance.numCands,
+                randomValueOtherThan(
                     instance.getRescoreVectorBuilder(),
-                    randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
-                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
-            case 7:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k,
-                    instance.numCands,
-                    randomValueOtherThan(
-                        instance.getRescoreVectorBuilder(),
-                        () -> new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false))
-                    ),
-                    instance.similarity
-                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
-            default:
-                throw new IllegalStateException();
-        }
+                    () -> new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false))
+                ),
+                instance.similarity
+            ).addFilterQueries(instance.filterQueries).boost(instance.boost);
+            default -> throw new IllegalStateException();
+        };
     }
 
     public void testToQueryBuilder() {

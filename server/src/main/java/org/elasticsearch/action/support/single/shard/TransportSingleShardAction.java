@@ -114,7 +114,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        getExecutor(request, shardId).execute(ActionRunnable.supplyAndDecRef(listener, () -> shardOperation(request, shardId)));
+        getExecutor(shardId).execute(ActionRunnable.supplyAndDecRef(listener, () -> shardOperation(request, shardId)));
     }
 
     protected abstract Writeable.Reader<Response> getResponseReader();
@@ -122,7 +122,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract boolean resolveIndex(Request request);
 
     protected static ClusterBlockException checkGlobalBlock(ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.READ);
     }
 
     protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
@@ -300,7 +300,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
-    protected Executor getExecutor(Request request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         return executor;
     }
 }

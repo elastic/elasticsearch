@@ -37,7 +37,6 @@ public class RankFeatureResult extends SearchPhaseResult {
 
     @SuppressWarnings("this-escape")
     public RankFeatureResult(StreamInput in) throws IOException {
-        super(in);
         contextId = new ShardSearchContextId(in);
         rankShardResult = in.readOptionalWriteable(RankFeatureShardResult::new);
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));

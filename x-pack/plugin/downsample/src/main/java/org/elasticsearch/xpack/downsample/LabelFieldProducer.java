@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -114,25 +115,31 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
             if (isEmpty() == false) {
                 return;
             }
-            if (docValues.advanceExact(docId) == false) {
-                return;
-            }
 
-            int docValuesCount = docValues.docValueCount();
-            assert docValuesCount > 0;
-            isEmpty = false;
-            if (docValuesCount == 1) {
-                label.collect(docValues.nextValue());
-            } else {
-                Object[] values = new Object[docValuesCount];
-                for (int i = 0; i < docValuesCount; i++) {
-                    values[i] = docValues.nextValue();
+            for (int i = 0; i < docIdBuffer.size(); i++) {
+                int docId = docIdBuffer.get(i);
+                if (docValues.advanceExact(docId) == false) {
+                    continue;
                 }
-                label.collect(values);
+                int docValuesCount = docValues.docValueCount();
+                assert docValuesCount > 0;
+                isEmpty = false;
+                if (docValuesCount == 1) {
+                    label.collect(docValues.nextValue());
+                } else {
+                    var values = new Object[docValuesCount];
+                    for (int j = 0; j < docValuesCount; j++) {
+                        values[j] = docValues.nextValue();
+                    }
+                    label.collect(values);
+                }
+                // Only need to record one label value from one document, within in the same tsid-and-time-interval we only keep the first
+                // with downsampling.
+                return;
             }
         }
 

@@ -28,6 +28,11 @@ public class KeywordSyntheticSourceNativeArrayIntegrationTests extends NativeArr
         return RandomStrings.randomAsciiOfLength(random(), 8);
     }
 
+    @Override
+    public Object getMalformedValue() {
+        return null;
+    }
+
     public void testSynthesizeArray() throws Exception {
         var arrayValues = new Object[][] {
             new Object[] { "z", "y", null, "x", null, "v" },

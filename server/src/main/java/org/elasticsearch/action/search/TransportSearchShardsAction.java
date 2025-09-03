@@ -131,11 +131,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
-
                     project.metadata(),
-
                     searchRequest.indices()
-
                 );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     project,
@@ -156,7 +153,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
                     );
                 } else {
-                    new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
                     },
@@ -168,9 +165,13 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         timeProvider,
                         (SearchTask) task,
                         false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        delegate.map(its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters))
-                    ).start();
+                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    )
+                        .addListener(
+                            delegate.map(
+                                its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters)
+                            )
+                        );
                 }
             })
         );

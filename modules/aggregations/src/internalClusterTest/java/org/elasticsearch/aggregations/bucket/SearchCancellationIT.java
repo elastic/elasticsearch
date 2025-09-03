@@ -43,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
@@ -97,9 +98,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
 
         logger.info("Executing search");
-        // we have to explicitly set error_trace=true for the later exception check for `TimeSeriesIndexSearcher`
         Client client = client();
-        client.threadPool().getThreadContext().putHeader("error_trace", "true");
         TimeSeriesAggregationBuilder timeSeriesAggregationBuilder = new TimeSeriesAggregationBuilder("test_agg");
         ActionFuture<SearchResponse> searchResponse = client.prepareSearch("test")
             .setQuery(matchAllQuery())
@@ -129,7 +128,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         logger.info("All shards failed with", ex);
         if (lowLevelCancellation) {
             // Ensure that we cancelled in TimeSeriesIndexSearcher and not in reduce phase
-            assertThat(ExceptionsHelper.stackTrace(ex), containsString("TimeSeriesIndexSearcher"));
+            assertThat(ExceptionsHelper.stackTrace(ex), not(containsString("not building sub-aggregations due to task cancellation")));
+        } else {
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("not building sub-aggregations due to task cancellation"));
         }
     }
 }

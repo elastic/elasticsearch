@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Objects;
  *
  * <p> Pages are immutable and can be passed between threads.
  */
-public final class Page implements Writeable {
+public final class Page implements Writeable, Releasable {
 
     private final Block[] blocks;
 
@@ -83,7 +84,7 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException(
+                throw new IllegalStateException(
                     "Block [" + block + "] does not have same position count: " + block.getPositionCount() + " != " + prev.positionCount
                 );
             }
@@ -98,10 +99,11 @@ public final class Page implements Writeable {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         boolean success = false;
         try {
             for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+                blocks[blockIndex] = Block.readTypedBlock(blockStreamInput);
             }
             success = true;
         } finally {
@@ -111,6 +113,15 @@ public final class Page implements Writeable {
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(positionCount);
+        out.writeVInt(getBlockCount());
+        for (Block block : blocks) {
+            Block.writeTypedBlock(block, out);
+        }
     }
 
     private static int determinePositionCount(Block... blocks) {
@@ -217,15 +228,6 @@ public final class Page implements Writeable {
         return blocks.length;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(positionCount);
-        out.writeVInt(getBlockCount());
-        for (Block block : blocks) {
-            out.writeNamedWriteable(block);
-        }
-    }
-
     public long ramBytesUsedByBlocks() {
         return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
     }
@@ -241,6 +243,11 @@ public final class Page implements Writeable {
         blocksReleased = true;
 
         Releasables.closeExpectNoException(blocks);
+    }
+
+    @Override
+    public void close() {
+        releaseBlocks();
     }
 
     /**
@@ -292,5 +299,22 @@ public final class Page implements Writeable {
                 Releasables.close(mapped);
             }
         }
+    }
+
+    public Page filter(int... positions) {
+        Block[] filteredBlocks = new Block[blocks.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                filteredBlocks[i] = getBlock(i).filter(positions);
+            }
+            success = true;
+        } finally {
+            releaseBlocks();
+            if (success == false) {
+                Releasables.closeExpectNoException(filteredBlocks);
+            }
+        }
+        return new Page(filteredBlocks);
     }
 }

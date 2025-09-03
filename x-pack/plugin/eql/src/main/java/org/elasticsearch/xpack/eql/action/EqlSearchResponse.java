@@ -121,7 +121,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
-        super(in);
         tookInMillis = in.readVLong();
         isTimeout = in.readBoolean();
         hits = new Hits(in);

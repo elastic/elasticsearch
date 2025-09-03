@@ -235,6 +235,11 @@ public abstract class Streams {
         public BytesReference bytes() {
             return delegate.bytes();
         }
+
+        @Override
+        public void seek(long position) {
+            delegate.seek(position);
+        }
     }
 
     /**

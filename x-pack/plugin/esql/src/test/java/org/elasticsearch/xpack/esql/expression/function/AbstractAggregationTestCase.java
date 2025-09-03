@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -40,8 +41,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base class for aggregation tests.
@@ -140,10 +142,28 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
     }
 
+    public void testAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = aggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
+    }
+
     public void testGroupingAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+    }
+
+    public void testGroupingAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = groupingAggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
     }
 
     public void testAggregateIntermediate() {
@@ -164,6 +184,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            assertAggregatorToString(aggregator);
             for (Page inputPage : rows(testCase.getMultiRowFields())) {
                 try (
                     BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
@@ -187,6 +208,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
 
             try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
                 var groupCount = randomIntBetween(1, 1000);
                 for (Page inputPage : pages) {
                     processPageGrouping(aggregator, inputPage, groupCount);
@@ -340,7 +362,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return toJavaObject(blocks[resultBlockIndex], 0);
+            return toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], 0);
         } finally {
             Releasables.close(blocks);
         }
@@ -354,7 +376,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
         try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, driverContext());
+            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
 
             var block = blocks[resultBlockIndex];
 
@@ -362,7 +384,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
             return IntStream.range(resultBlockIndex, groupCount)
-                .mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position))
+                .mapToObj(position -> toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], position))
                 .toList();
         } finally {
             Releasables.close(blocks);
@@ -481,5 +503,49 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
             }
         }
+    }
+
+    private void assertAggregatorToString(Object aggregator) {
+        String expectedStart = switch (aggregator) {
+            case Aggregator a -> "Aggregator[aggregatorFunction=";
+            case GroupingAggregator a -> "GroupingAggregator[aggregatorFunction=";
+            default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
+        };
+        String channels = initialInputChannels().stream().map(Object::toString).collect(Collectors.joining(", "));
+        String expectedEnd = switch (aggregator) {
+            case Aggregator a -> "AggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
+            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
+            default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
+        };
+
+        String toString = aggregator.toString();
+        assertThat(toString, startsWith(expectedStart));
+        assertThat(toString, endsWith(expectedEnd));
+        assertThat(toString.substring(expectedStart.length(), toString.length() - expectedEnd.length()), testCase.evaluatorToString());
+    }
+
+    protected static String standardAggregatorName(String prefix, DataType type) {
+        String typeName = switch (type) {
+            case BOOLEAN -> "Boolean";
+            case CARTESIAN_POINT -> "CartesianPoint";
+            case CARTESIAN_SHAPE -> "CartesianShape";
+            case GEO_POINT -> "GeoPoint";
+            case GEO_SHAPE -> "GeoShape";
+            case KEYWORD, TEXT, VERSION -> "BytesRef";
+            case DOUBLE, COUNTER_DOUBLE -> "Double";
+            case INTEGER, COUNTER_INTEGER -> "Int";
+            case IP -> "Ip";
+            case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+            case NULL -> "Null";
+            default -> throw new UnsupportedOperationException("name for [" + type + "]");
+        };
+        return prefix + typeName;
+    }
+
+    protected static String standardAggregatorNameAllBytesTheSame(String prefix, DataType type) {
+        return standardAggregatorName(prefix, switch (type) {
+            case CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP -> DataType.KEYWORD;
+            default -> type;
+        });
     }
 }

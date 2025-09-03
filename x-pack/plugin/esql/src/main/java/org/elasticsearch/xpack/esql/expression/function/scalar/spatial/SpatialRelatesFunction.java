@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -48,7 +48,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
         EvaluatorMapper,
         SpatialEvaluatorFactory.SpatialSourceSupplier,
-        TranslationAware {
+        TranslationAware,
+        SurrogateExpression {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false);
@@ -73,6 +74,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     /**
      * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
      */
+    @Override
     public SpatialRelatesFunction surrogate() {
         return this;
     }
@@ -178,12 +180,12 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         return super.translatable(pushdownPredicates); // only for the explicit Override, as only this subclass implements TranslationAware
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (left().foldable()) {
             checkSpatialRelatesFunction(left(), queryRelation());
             return translate(handler, right(), left());
@@ -210,7 +212,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         String name = handler.nameOf(attribute);
 
         try {
-            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
+            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
             return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
         } catch (IllegalArgumentException e) {
             throw new QlIllegalArgumentException(e.getMessage(), e);

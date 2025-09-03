@@ -575,22 +575,55 @@ public class Strings {
      *                    items are omitted
      */
     public static void collectionToDelimitedStringWithLimit(Iterable<?> coll, String delimiter, int appendLimit, StringBuilder sb) {
-        final Iterator<?> it = coll.iterator();
-        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
-        int count = 0;
-        while (it.hasNext()) {
-            sb.append(it.next());
+        final var boundedDelimitedStringCollector = new BoundedDelimitedStringCollector(sb, delimiter, appendLimit);
+        coll.forEach(boundedDelimitedStringCollector::appendItem);
+        boundedDelimitedStringCollector.finish();
+    }
+
+    /**
+     * Collects a sequence of objects into a delimited string, dropping objects once the string reaches a certain maximum length. Similar to
+     * {@link #collectionToDelimitedStringWithLimit} except that this doesn't need the collection of items to be provided up front.
+     */
+    public static final class BoundedDelimitedStringCollector {
+        private final StringBuilder stringBuilder;
+        private final String delimiter;
+        private final long lengthLimit;
+        private int count = 0;
+        private int omitted = 0;
+
+        public BoundedDelimitedStringCollector(StringBuilder stringBuilder, String delimiter, int appendLimit) {
+            this.stringBuilder = stringBuilder;
+            this.delimiter = delimiter;
+            this.lengthLimit = stringBuilder.length() + appendLimit; // long to avoid overflow
+        }
+
+        /**
+         * Add the given item's string representation to the string, with a delimiter if necessary and surrounded by the given prefix and
+         * suffix, as long as the string is not already too long.
+         */
+        public void appendItem(Object item) {
             count += 1;
-            if (it.hasNext()) {
-                sb.append(delimiter);
-                if (sb.length() > lengthLimit) {
-                    int omitted = 0;
-                    while (it.hasNext()) {
-                        it.next();
-                        omitted += 1;
-                    }
-                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
-                }
+            if (omitted > 0) {
+                omitted += 1;
+                return;
+            }
+            if (count > 1) {
+                stringBuilder.append(delimiter);
+            }
+            if (stringBuilder.length() > lengthLimit) {
+                omitted += 1;
+                stringBuilder.append("..."); // indicate there are some omissions, just in case the caller forgets to call finish()
+                return;
+            }
+            stringBuilder.append(item);
+        }
+
+        /**
+         * Complete the collection, adding to the string a summary of omitted objects, if any.
+         */
+        public void finish() {
+            if (omitted > 0) {
+                stringBuilder.append(" (").append(count).append(" in total, ").append(omitted).append(" omitted)");
             }
         }
     }
@@ -789,7 +822,7 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {

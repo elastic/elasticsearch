@@ -20,6 +20,7 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -61,7 +62,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
     }
 
     public void testDifferentCompressedRepresentation() throws Exception {
-        byte[] b = "---\nf:abcdefghijabcdefghij".getBytes("UTF-8");
+        byte[] b = "---\nf:abcdefghijabcdefghij".getBytes(StandardCharsets.UTF_8);
         BytesStreamOutput bout = new BytesStreamOutput();
         try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
             out.write(b);

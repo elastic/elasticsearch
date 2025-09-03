@@ -10,10 +10,10 @@
 package org.elasticsearch.action.admin.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
@@ -42,7 +42,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
         final boolean explain; // Non-private for testing
 
         public Request(boolean explain) {
@@ -84,7 +84,6 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
         private final CoordinationDiagnosticsResult result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = new CoordinationDiagnosticsResult(in);
         }
 
@@ -105,7 +104,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            CoordinationDiagnosticsAction.Response response = (CoordinationDiagnosticsAction.Response) o;
+            Response response = (Response) o;
             return result.equals(response.result);
         }
 
@@ -131,14 +130,14 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
                 CoordinationDiagnosticsAction.NAME,
                 transportService,
                 actionFilters,
-                CoordinationDiagnosticsAction.Request::new,
+                Request::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
             );
             this.coordinationDiagnosticsService = coordinationDiagnosticsService;
         }
 
         @Override
-        protected void doExecute(Task task, CoordinationDiagnosticsAction.Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             listener.onResponse(new Response(coordinationDiagnosticsService.diagnoseMasterStability(request.explain)));
         }
     }

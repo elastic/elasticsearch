@@ -40,6 +40,11 @@ public @interface FunctionInfo {
     boolean preview() default false;
 
     /**
+     * Whether this function applies to particular versions of Elasticsearch.
+     */
+    FunctionAppliesTo[] appliesTo() default {};
+
+    /**
      * The description of the function rendered in the docs and kibana's
      * json files that drive their IDE-like experience. These should be
      * complete sentences but can contain asciidoc syntax. It is rendered
@@ -64,6 +69,12 @@ public @interface FunctionInfo {
      * Extra information rendered at the bottom of the function docs.
      */
     String appendix() default "";
+
+    /**
+     * Adjusts documentation heading level (0=standard, 1=subheading, etc).
+     * Used to create logical nesting between related functions.
+     */
+    int depthOffset() default 0;
 
     /**
      * The position the function can appear in the language.

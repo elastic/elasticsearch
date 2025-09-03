@@ -26,6 +26,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,6 +64,19 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      * Loads directly the atomic field data for the reader, ignoring any caching involved.
      */
     FD loadDirect(LeafReaderContext context) throws Exception;
+
+    /**
+     * Returns the {@link SortField} to use for sorting depending on the version of the index.
+     */
+    default SortField sortField(
+        IndexVersion indexCreatedVersion,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        boolean reverse
+    ) {
+        return sortField(missingValue, sortMode, nested, reverse);
+    }
 
     /**
      * Returns the {@link SortField} to use for sorting.

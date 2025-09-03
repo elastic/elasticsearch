@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
@@ -56,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest
+public class BulkRequest extends LegacyActionRequest
     implements
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
@@ -85,6 +87,7 @@ public class BulkRequest extends ActionRequest
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
+    private Set<String> paramsUsed = emptySet();
 
     private long sizeInBytes = 0;
 
@@ -107,6 +110,9 @@ public class BulkRequest extends ActionRequest
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
         } // else default value is true
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -473,6 +479,9 @@ public class BulkRequest extends ActionRequest
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             out.writeBoolean(includeSourceOnError);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            out.writeCollection(paramsUsed, StreamOutput::writeString);
+        }
     }
 
     @Override
@@ -515,6 +524,14 @@ public class BulkRequest extends ActionRequest
         return false; // Always false, but may be overridden by a subclass
     }
 
+    public Set<String> requestParamsUsed() {
+        return paramsUsed;
+    }
+
+    public void requestParamsUsed(Set<String> paramsUsed) {
+        this.paramsUsed = paramsUsed;
+    }
+
     /*
      * Returns any component template substitutions that are to be used as part of this bulk request. We would likely only have
      * substitutions in the event of a simulated request.
@@ -553,6 +570,7 @@ public class BulkRequest extends ActionRequest
         bulkRequest.routing(routing());
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
+        bulkRequest.requestParamsUsed(requestParamsUsed());
         return bulkRequest;
     }
 }

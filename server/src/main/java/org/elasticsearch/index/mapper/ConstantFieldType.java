@@ -15,6 +15,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
@@ -23,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A {@link MappedFieldType} that has the same value for all documents.
@@ -135,9 +138,47 @@ public abstract class ConstantFieldType extends MappedFieldType {
         }
     }
 
+    /**
+     * Returns a query that matches all documents or no documents
+     * It usually calls {@link #wildcardQuery(String, boolean, QueryRewriteContext)}
+     * except for IndexFieldType which overrides this method to use its own matching logic.
+     */
+    public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+        return wildcardQuery(value, caseInsensitive, context);
+    }
+
     @Override
     public final boolean fieldHasValue(FieldInfos fieldInfos) {
         // We consider constant field types to always have value.
         return true;
+    }
+
+    /**
+     * Returns the constant value of this field as a string.
+     * Based on the field type, we need to get it in a different way.
+     */
+    public abstract String getConstantFieldValue(SearchExecutionContext context);
+
+    /**
+     * Returns a query that matches all documents or no documents
+     * depending on whether the constant value of this field matches or not
+     */
+    @Override
+    public Query automatonQuery(
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        CharacterRunAutomaton compiled = characterRunAutomatonSupplier.get();
+        boolean matches = compiled.run(getConstantFieldValue(context));
+        if (matches) {
+            return new MatchAllDocsQuery();
+        } else {
+            return new MatchNoDocsQuery(
+                "The \"" + context.getFullyQualifiedIndex().getName() + "\" query was rewritten to a \"match_none\" query."
+            );
+        }
     }
 }

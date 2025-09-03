@@ -24,6 +24,7 @@ import org.gradle.api.tasks.OutputDirectory;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -440,7 +441,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             // Now setup the writer
             try {
                 Files.createDirectories(dest.getParent());
-                current = new PrintWriter(dest.toFile(), "UTF-8");
+                current = new PrintWriter(dest.toFile(), StandardCharsets.UTF_8);
                 return current;
             } catch (IOException e) {
                 throw new RuntimeException(e);

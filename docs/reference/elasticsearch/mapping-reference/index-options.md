@@ -16,7 +16,7 @@ The parameter accepts one of the following values. Each value retrieves informat
 :   Doc number and term frequencies are indexed. Term frequencies are used to score repeated terms higher than single terms.
 
 `positions` (default)
-:   Doc number, term frequencies, and term positions (or order) are indexed. Positions can be used for [proximity or phrase queries](/reference/query-languages/query-dsl-match-query-phrase.md).
+:   Doc number, term frequencies, and term positions (or order) are indexed. Positions can be used for [proximity or phrase queries](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md).
 
 `offsets`
 :   Doc number, term frequencies, positions, and start and end character offsets (which map the term back to the original string) are indexed. Offsets are used by the [unified highlighter](/reference/elasticsearch/rest-apis/highlighting.md#unified-highlighter) to speed up highlighting.

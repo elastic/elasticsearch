@@ -21,12 +21,15 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,12 +50,10 @@ import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
-import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -325,15 +326,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
                         // We ensure that in the mixed cluster state trained model stats uses the same values for memory estimation
                         // as the rebalancer.
-                        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(
-                            TransportVersionUtils.getMinTransportVersion(clusterService.state())
-                        );
                         long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
                             ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
                                 model.getModelId(),
                                 totalDefinitionLength,
-                                useNewMemoryFields ? model.getPerDeploymentMemoryBytes() : 0,
-                                useNewMemoryFields ? model.getPerAllocationMemoryBytes() : 0,
+                                model.getPerDeploymentMemoryBytes(),
+                                model.getPerAllocationMemoryBytes(),
                                 numberOfAllocations
                             )
                             : 0L;
@@ -420,21 +418,26 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         return nodesStatsRequest;
     }
 
+    @FixForMultiProject // do not use default project
     static IngestStats ingestStatsForPipelineIds(NodeStats nodeStats, Set<String> pipelineIds) {
         IngestStats fullNodeStats = nodeStats.getIngestStats();
-        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(fullNodeStats.processorStats());
+        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(
+            fullNodeStats.processorStats().getOrDefault(ProjectId.DEFAULT, Map.of())
+        );
         filteredProcessorStats.keySet().retainAll(pipelineIds);
         List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.pipelineStats()
             .stream()
+            .filter(pipelineStat -> pipelineStat.projectId().equals(ProjectId.DEFAULT))
             .filter(pipelineStat -> pipelineIds.contains(pipelineStat.pipelineId()))
             .collect(Collectors.toList());
         IngestStatsAccumulator accumulator = new IngestStatsAccumulator();
 
         filteredPipelineStats.forEach(pipelineStat -> accumulator.inc(pipelineStat.stats()));
 
-        return new IngestStats(accumulator.build(), filteredPipelineStats, filteredProcessorStats);
+        return new IngestStats(accumulator.build(), filteredPipelineStats, Map.of(ProjectId.DEFAULT, filteredProcessorStats));
     }
 
+    @FixForMultiProject // don't use default project
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
 
         Map<String, PipelineStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
@@ -448,7 +451,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                         .inc(pipelineStat)
                 );
 
-            ingestStats.processorStats().forEach((pipelineId, processorStat) -> {
+            ingestStats.processorStats().getOrDefault(ProjectId.DEFAULT, Map.of()).forEach((pipelineId, processorStat) -> {
                 Map<String, IngestStatsAccumulator> processorAcc = processorStatsAcc.computeIfAbsent(
                     pipelineId,
                     k -> new LinkedHashMap<>()
@@ -464,7 +467,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
         pipelineStatsAcc.forEach(
             (pipelineId, accumulator) -> pipelineStatList.add(
-                new IngestStats.PipelineStat(pipelineId, accumulator.buildStats(), accumulator.buildByteStats())
+                new IngestStats.PipelineStat(
+                    Metadata.DEFAULT_PROJECT_ID,
+                    pipelineId,
+                    accumulator.buildStats(),
+                    accumulator.buildByteStats()
+                )
             )
         );
 
@@ -477,7 +485,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             processorStatList.put(pipelineId, processorStats);
         });
 
-        return new IngestStats(totalStats.build(), pipelineStatList, processorStatList);
+        return new IngestStats(totalStats.build(), pipelineStatList, Map.of(ProjectId.DEFAULT, processorStatList));
     }
 
     private static class IngestStatsAccumulator {

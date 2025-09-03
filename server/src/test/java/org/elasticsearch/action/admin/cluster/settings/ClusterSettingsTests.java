@@ -29,8 +29,6 @@ public class ClusterSettingsTests extends ESTestCase {
         clusterSettings.applySettings(newSettings);
 
         // the value should be current when initializing the consumer
-        clusterSettings.initializeAndWatch(clusterSetting, value -> {
-            assertThat(value, equalTo("updated_value"));
-        });
+        clusterSettings.initializeAndWatch(clusterSetting, value -> { assertThat(value, equalTo("updated_value")); });
     }
 }

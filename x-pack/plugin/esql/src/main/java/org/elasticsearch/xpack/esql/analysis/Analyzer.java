@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -139,6 +140,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1672,23 +1674,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int vectorArgsCount = ((VectorFunction)vectorFunction).vectorArgumentsCount();
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
-                if (i < vectorArgsCount && arg.resolved() && arg.dataType().isNumeric()) {
+                if (i < vectorArgsCount && arg.resolved()) {
                     if (arg.foldable()) {
-                        Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
-                        if (folded instanceof List) {
+                        Object folded = arg.fold(FoldContext.small());
+                        List<Float> floatVector = null;
+                        if (folded instanceof List && arg.dataType().isNumeric()) {
                             // Convert to floats so blocks are created accordingly
-                            List<Float> floatVector;
                             if (arg.dataType() == FLOAT) {
                                 floatVector = (List<Float>) folded;
                             } else {
                                 floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
                             }
+                        } else if (folded instanceof BytesRef hexString && arg.dataType() == KEYWORD) {
+                            byte[] bytes = HexFormat.of().parseHex(hexString.utf8ToString());
+                            floatVector = new ArrayList<>();
+                            for (byte value : bytes) {
+                                floatVector.add((float) value);
+                            }
+                        }
+                        if (floatVector != null) {
                             Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
                             newArgs.add(denseVector);
                             continue;
                         }
-                    } else {
-                        // add casting function
+                    } else if ((arg instanceof ToDenseVector == false) && (arg.dataType().isNumeric() || arg.dataType() == KEYWORD)) {
+                        // add casting function if it's not already there
                         newArgs.add(new ToDenseVector(arg.source(), arg));
                         continue;
                     }
@@ -1698,7 +1708,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             return vectorFunction.replaceChildren(newArgs);
         }
-
     }
 
     /**

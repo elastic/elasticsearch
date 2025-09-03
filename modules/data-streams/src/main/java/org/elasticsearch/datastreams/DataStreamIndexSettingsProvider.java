@@ -131,12 +131,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         );
                         if (dimensions.isEmpty() == false) {
                             if (matchesAllDimensions) {
+                                // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
+                                // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
                                 additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);
-                            } else {
-                                // Fall back to setting index.routing_path if the paths in the dimensions list don't match all potential
-                                // dimension fields (e.g. if a dynamic template matches by type instead of path).
-                                additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                             }
+                            // always populate index.routing_path, so that routing works for older index versions
+                            // this applies to indices created during a rolling upgrade
+                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                         }
                     }
                 }
@@ -171,8 +172,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         if (matchesAllDimensions) {
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         } else {
-            // If the new dimensions don't match all potential dimension fields, we need to set index.routing_path
-            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions);
+            // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
+            // so that index.routing_path is used instead.
+            // This can happen if a new dynamic template is added to an existing index that matches by mapping type instead of path_match.
+            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
         }
     }
 

@@ -314,6 +314,15 @@ public final class ServiceUtils {
         return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
+    public static URI extractOptionalUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
+        String parsedUrl = extractOptionalString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        if (parsedUrl == null) {
+            return null;
+        } else {
+            return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        }
+    }
+
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
             return createOptionalUri(url);

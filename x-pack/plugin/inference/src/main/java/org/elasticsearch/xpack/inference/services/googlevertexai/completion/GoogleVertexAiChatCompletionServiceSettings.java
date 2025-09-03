@@ -19,19 +19,29 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleDiscoveryEngineRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.URL_SETTING_NAME;
 
+/**
+ * Settings for the Google Vertex AI chat completion service.
+ * This class contains the settings required to configure a Google Vertex AI chat completion service.
+ */
 public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
@@ -43,20 +53,47 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     private final String modelId;
     private final String projectId;
 
+    private final URI uri;
+    private final URI streamingUri;
+    private final GoogleModelGardenProvider provider;
+
     private final RateLimitSettings rateLimitSettings;
 
     // https://cloud.google.com/vertex-ai/docs/quotas#eval-quotas
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000);
 
     public GoogleVertexAiChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readString(), new RateLimitSettings(in));
+        this(
+            in.readOptionalString(),
+            in.readOptionalString(),
+            in.readOptionalString(),
+            ServiceUtils.createOptionalUri(in.readString()),
+            ServiceUtils.createOptionalUri(in.readString()),
+            in.readOptionalEnum(GoogleModelGardenProvider.class),
+            new RateLimitSettings(in)
+        );
     }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(PROJECT_ID, projectId);
-        builder.field(LOCATION, location);
-        builder.field(MODEL_ID, modelId);
+        if (projectId != null) {
+            builder.field(PROJECT_ID, projectId);
+        }
+        if (location != null) {
+            builder.field(LOCATION, location);
+        }
+        if (modelId != null) {
+            builder.field(MODEL_ID, modelId);
+        }
+        if (uri != null) {
+            builder.field(URL_SETTING_NAME, uri.toString());
+        }
+        if (streamingUri != null) {
+            builder.field(STREAMING_URL_SETTING_NAME, streamingUri.toString());
+        }
+        if (provider != null) {
+            builder.field(PROVIDER_SETTING_NAME, provider.name());
+        }
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }
@@ -64,10 +101,22 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     public static GoogleVertexAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        // Extract required fields
-        String projectId = ServiceUtils.extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String location = ServiceUtils.extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        // Extract Google Vertex AI fields
+        String projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String location = ServiceUtils.extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        // Extract Google Model Garden fields
+        URI uri = ServiceUtils.extractOptionalUri(map, URL_SETTING_NAME, validationException);
+        URI streamingUri = ServiceUtils.extractOptionalUri(map, STREAMING_URL_SETTING_NAME, validationException);
+        GoogleModelGardenProvider provider = ServiceUtils.extractOptionalEnum(
+            map,
+            PROVIDER_SETTING_NAME,
+            ModelConfigurations.SERVICE_SETTINGS,
+            GoogleModelGardenProvider::fromString,
+            EnumSet.allOf(GoogleModelGardenProvider.class),
+            validationException
+        );
 
         // Extract rate limit settings
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
@@ -82,18 +131,32 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
             throw validationException;
         }
 
-        return new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, rateLimitSettings);
+        return new GoogleVertexAiChatCompletionServiceSettings(
+            projectId,
+            location,
+            modelId,
+            uri,
+            streamingUri,
+            provider,
+            rateLimitSettings
+        );
     }
 
     public GoogleVertexAiChatCompletionServiceSettings(
-        String projectId,
-        String location,
-        String modelId,
+        @Nullable String projectId,
+        @Nullable String location,
+        @Nullable String modelId,
+        @Nullable URI uri,
+        @Nullable URI streamingUri,
+        @Nullable GoogleModelGardenProvider provider,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.projectId = projectId;
         this.location = location;
         this.modelId = modelId;
+        this.uri = uri;
+        this.streamingUri = streamingUri;
+        this.provider = provider;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -109,6 +172,18 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     @Override
     public String projectId() {
         return projectId;
+    }
+
+    public URI uri() {
+        return uri;
+    }
+
+    public URI streamingUri() {
+        return streamingUri;
+    }
+
+    public GoogleModelGardenProvider provider() {
+        return provider;
     }
 
     @Override
@@ -130,9 +205,17 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(projectId);
-        out.writeString(location);
-        out.writeString(modelId);
+        out.writeOptionalString(projectId);
+        out.writeOptionalString(location);
+        out.writeOptionalString(modelId);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19)) {
+            out.writeOptionalString(uri != null ? uri.toString() : null);
+            out.writeOptionalString(streamingUri != null ? streamingUri.toString() : null);
+            out.writeOptionalEnum(provider);
+        }
+
         rateLimitSettings.writeTo(out);
     }
 
@@ -152,12 +235,15 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         return Objects.equals(location, that.location)
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(projectId, that.projectId)
+            && Objects.equals(uri, that.uri)
+            && Objects.equals(streamingUri, that.streamingUri)
+            && Objects.equals(provider, that.provider)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(location, modelId, projectId, rateLimitSettings);
+        return Objects.hash(location, modelId, projectId, uri, streamingUri, provider, rateLimitSettings);
     }
 
     @Override

@@ -2,9 +2,6 @@
 navigation_title: "Knn"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html
-applies_to:
-  stack: all
-  serverless: all
 ---
 
 # Knn query [query-dsl-knn-query]
@@ -90,13 +87,6 @@ If all queried fields are of type [semantic_text](/reference/elasticsearch/mappi
 :   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set.
 
 
-```{applies_to}
-stack: ga 9.2
-```
-`visit_percentage`
-:   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to ~1% per shard for every 1 million vectors.
-
-
 `filter`
 :   (Optional, query object) Query to filter the documents that can match. The kNN search will return the top documents that also match this filter. The value can be a single query or a list of queries. If `filter` is not provided, all documents are allowed to match.
 
@@ -118,7 +108,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
     **Parameters for `rescore_vector`**:
-
+    
     `oversample`
     :   (Required, float)
 
@@ -126,7 +116,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 
      * Retrieve `num_candidates` candidates per shard.
      * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
-     * The top `k` rescored candidates will be returned. Must be one of the following values:
+     * The top `k` rescored candidates will be returned. Must be one of the following values: 
        * \>= 1f to indicate the oversample factor
        * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
 

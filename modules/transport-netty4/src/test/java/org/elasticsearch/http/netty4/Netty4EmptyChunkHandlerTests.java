@@ -11,10 +11,12 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
@@ -37,6 +39,16 @@ public class Netty4EmptyChunkHandlerTests extends ESTestCase {
         channel.writeInbound(req, content);
         assertEquals(req, channel.readInbound());
         assertEquals(content, channel.readInbound());
+    }
+
+    public void testDecodingFailurePassthrough() {
+        var req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "");
+        HttpUtil.setTransferEncodingChunked(req, true);
+        req.setDecoderResult(DecoderResult.failure(new Exception()));
+        channel.writeInbound(req);
+        var recvReq = (HttpRequest) channel.readInbound();
+        assertTrue(recvReq.decoderResult().isFailure());
+        assertTrue(HttpUtil.isTransferEncodingChunked(recvReq));
     }
 
     public void testHoldChunkedRequest() {

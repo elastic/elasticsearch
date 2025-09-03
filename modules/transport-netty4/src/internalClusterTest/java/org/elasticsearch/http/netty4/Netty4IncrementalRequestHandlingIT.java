@@ -87,6 +87,7 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.InputStream;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
@@ -397,35 +398,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     public void testEmptyChunkedEncoding() throws Exception {
         try (var clientContext = newClientContext()) {
             var opaqueId = clientContext.newOpaqueId();
-            final var emptyStream = new HttpChunkedInput(new ChunkedInput<>() {
-                @Override
-                public boolean isEndOfInput() throws Exception {
-                    return true;
-                }
-
-                @Override
-                public void close() throws Exception {}
-
-                @Override
-                public ByteBuf readChunk(ChannelHandlerContext ctx) throws Exception {
-                    return null;
-                }
-
-                @Override
-                public ByteBuf readChunk(ByteBufAllocator allocator) throws Exception {
-                    return null;
-                }
-
-                @Override
-                public long length() {
-                    return 0;
-                }
-
-                @Override
-                public long progress() {
-                    return 0;
-                }
-            }, LastHttpContent.EMPTY_LAST_CONTENT);
+            final var emptyStream = new HttpChunkedInput(new ChunkedStream(InputStream.nullInputStream()));
             final var request = httpRequest(opaqueId, 0);
             HttpUtil.setTransferEncodingChunked(request, true);
             clientContext.channel().pipeline().addLast(new ChunkedWriteHandler());

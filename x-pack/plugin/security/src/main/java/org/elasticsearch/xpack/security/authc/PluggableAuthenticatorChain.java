@@ -55,7 +55,7 @@ public class PluggableAuthenticatorChain implements Authenticator {
         }
         AuthenticationToken token = context.getMostRecentAuthenticationToken();
         if (token != null) {
-            //TODO switch to IteratingActionListener
+            // TODO switch to IteratingActionListener
             for (CustomAuthenticator customAuthenticator : customAuthenticators) {
                 if (customAuthenticator.supports(token)) {
                     customAuthenticator.authenticate(token, ActionListener.wrap(response -> {

@@ -363,7 +363,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
         try {
             if (blobSize > getMaxCopySizeBeforeMultipart()) {
-                executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize, false);
+                executeMultipartCopy(purpose, s3SourceBlobContainer, sourceBlobName, blobName, blobSize);
             } else {
                 // metadata is inherited from source, but not canned ACL or storage class
                 final var blobKey = buildKey(blobName);
@@ -708,8 +708,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final S3BlobContainer sourceContainer,
         final String sourceBlobName,
         final String destinationBlobName,
-        final long blobSize,
-        final boolean failIfAlreadyExists
+        final long blobSize
     ) throws IOException {
         final long copyPartSize = MAX_FILE_SIZE.getBytes();
         final var destinationKey = buildKey(destinationBlobName);
@@ -738,7 +737,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     return CompletedPart.builder().partNumber(partNum).eTag(uploadPartCopyResponse.copyPartResult().eTag()).build();
                 }
             }),
-            failIfAlreadyExists
+            false
         );
     }
 

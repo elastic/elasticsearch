@@ -519,9 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
-  method: testHighNodeWriteLoadPreventsNewShardAllocation
-  issue: https://github.com/elastic/elasticsearch/issues/133857
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseOrQuery
   issue: https://github.com/elastic/elasticsearch/issues/133863
@@ -543,6 +540,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithCustomFeatureProcessors
   issue: https://github.com/elastic/elasticsearch/issues/134001
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/134019
 
 # Examples:
 #

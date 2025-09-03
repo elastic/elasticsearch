@@ -14,17 +14,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
-/**
- * Represents the result of replacing an original index expression with the concrete index resources it resolves to.
- * Also tracks whether the replacement was authorized, whether the indices exist and are visible, and any
- * authorization errors encountered during the process.
- */
 public final class ReplacedIndexExpression implements Writeable {
     private final String original;
     private final List<String> replacedBy;
@@ -69,6 +66,18 @@ public final class ReplacedIndexExpression implements Writeable {
     public void setAuthorizationError(ElasticsearchException error) {
         assert authorized == false : "we should never set an error if we are authorized";
         this.authorizationError = error;
+    }
+
+    public boolean hasLocalIndices() {
+        return false == getLocalIndices().isEmpty();
+    }
+
+    public List<String> getLocalIndices() {
+        return replacedBy.stream().filter(e -> false == RemoteClusterAware.isRemoteIndexName(e)).collect(Collectors.toList());
+    }
+
+    public List<String> getRemoteIndices() {
+        return replacedBy.stream().filter(RemoteClusterAware::isRemoteIndexName).collect(Collectors.toList());
     }
 
     public String original() {

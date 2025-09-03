@@ -9,22 +9,11 @@
 
 package org.elasticsearch.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.action.CrossProjectReplacedIndexExpressions.hasCanonicalExpressionForOrigin;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -81,88 +70,27 @@ public interface IndicesRequest {
             return false;
         }
 
-        // TODO probably makes more sense on a service class as opposed to the request itself
-        default <T extends ResponseWithReplacedIndexExpressions> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {}
-    }
-
-    interface CrossProjectSearchCapable extends Replaceable {
-        Logger logger = LogManager.getLogger(CrossProjectSearchCapable.class);
+        // Could this be useful?
+        default IndexResolutionMode indexResolutionMode() {
+            return IndexResolutionMode.CANONICAL;
+        }
 
         @Nullable
-        String getProjectRouting();
+        default String getProjectRouting() {
+            return null;
+        }
+    }
 
+    enum IndexResolutionMode {
+        FLAT,
+        CANONICAL
+    }
+
+    // Complete marker interface, can be folded into Replaceable if necessary
+    interface CrossProjectSearchCapable extends Replaceable {
         @Override
         default boolean allowsRemoteIndices() {
             return true;
-        }
-
-        default boolean crossProjectMode() {
-            return getReplacedIndexExpressions() instanceof CrossProjectReplacedIndexExpressions;
-        }
-
-        @Override
-        default <T extends ResponseWithReplacedIndexExpressions> void remoteFanoutErrorHandling(Map<String, T> remoteResults) {
-            logger.info("Checking if we should throw in flat world for [{}]", getReplacedIndexExpressions());
-            // No CPS nothing to do
-            if (false == crossProjectMode()) {
-                logger.info("Skipping because no cross-project expressions found...");
-                return;
-            }
-            if (indicesOptions().allowNoIndices() && indicesOptions().ignoreUnavailable()) {
-                // nothing to do since we're in lenient mode
-                logger.info("Skipping index existence check in lenient mode");
-                return;
-            }
-
-            Map<String, ReplacedIndexExpression> replacedExpressions = getReplacedIndexExpressions().asMap();
-            assert replacedExpressions != null;
-            logger.info("Replaced expressions to check: [{}]", replacedExpressions);
-            for (ReplacedIndexExpression replacedIndexExpression : replacedExpressions.values()) {
-                // TODO need to handle qualified expressions here, too
-                String original = replacedIndexExpression.original();
-                List<ElasticsearchException> exceptions = new ArrayList<>();
-                boolean exists = hasCanonicalExpressionForOrigin(replacedIndexExpression.replacedBy())
-                    && replacedIndexExpression.existsAndVisible();
-                if (exists) {
-                    logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
-                    continue;
-                }
-                if (replacedIndexExpression.authorizationError() != null) {
-                    exceptions.add(replacedIndexExpression.authorizationError());
-                }
-
-                for (var remoteResponse : remoteResults.values()) {
-                    logger.info("Remote response resolved: [{}]", remoteResponse);
-                    Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplacedIndexExpressions().asMap();
-                    assert resolved != null;
-                    var r = resolved.get(original);
-                    if (r != null && r.existsAndVisible() && resolved.get(original).replacedBy().isEmpty() == false) {
-                        logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);
-                        exists = true;
-                        break;
-                    } else if (r != null && r.authorizationError() != null) {
-                        assert r.authorized() == false : "we should never get an error if we are authorized";
-                        exceptions.add(resolved.get(original).authorizationError());
-                    }
-                }
-
-                if (false == exists && false == indicesOptions().ignoreUnavailable()) {
-                    if (false == exceptions.isEmpty()) {
-                        // we only ever get exceptions if they are security related
-                        // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
-                        // as 403 or 404
-                        ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-                            "authorization errors while resolving [" + original + "]",
-                            RestStatus.FORBIDDEN
-                        );
-                        exceptions.forEach(e::addSuppressed);
-                        throw e;
-                    } else {
-                        // TODO composite exception based on missing resources
-                        throw new IndexNotFoundException(original);
-                    }
-                }
-            }
         }
     }
 

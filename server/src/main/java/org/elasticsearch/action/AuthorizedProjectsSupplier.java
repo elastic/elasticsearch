@@ -20,6 +20,8 @@ import java.util.List;
 public interface AuthorizedProjectsSupplier {
     AuthorizedProjects get();
 
+    AuthorizedProjectsSupplier DEFAULT = new Default();
+
     class Default implements AuthorizedProjectsSupplier {
         @Override
         public AuthorizedProjects get() {

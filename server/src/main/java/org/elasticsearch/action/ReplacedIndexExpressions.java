@@ -9,17 +9,11 @@
 
 package org.elasticsearch.action;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-public class ReplacedIndexExpressions {
-    protected final Map<String, ReplacedIndexExpression> replacedExpressionMap;
-
-    public ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap) {
-        this.replacedExpressionMap = replacedExpressionMap;
-    }
-
+public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap) {
     public String[] indices() {
         return ReplacedIndexExpression.toIndices(replacedExpressionMap);
     }
@@ -32,21 +26,39 @@ public class ReplacedIndexExpressions {
         return replacedExpressionMap;
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (ReplacedIndexExpressions) obj;
-        return Objects.equals(this.replacedExpressionMap, that.replacedExpressionMap);
+    public List<String> getLocalIndices() {
+        return replacedExpressionMap.values().stream().flatMap(e -> e.getLocalIndices().stream()).toList();
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(replacedExpressionMap);
-    }
+    public void replaceLocalIndices(ReplacedIndexExpressions localResolved) {
+        if (localResolved == null || localResolved.asMap() == null || localResolved.asMap().isEmpty()) {
+            return;
+        }
 
-    @Override
-    public String toString() {
-        return "ReplacedIndexExpressions[" + "replacedExpressionMap=" + replacedExpressionMap + ']';
+        for (Map.Entry<String, ReplacedIndexExpression> e : localResolved.asMap().entrySet()) {
+            final String original = e.getKey();
+            final ReplacedIndexExpression local = e.getValue();
+            if (local == null) {
+                continue;
+            }
+
+            final ReplacedIndexExpression current = replacedExpressionMap.get(original);
+            if (current == null) {
+                continue;
+            }
+
+            final List<String> remoteIndices = current.getRemoteIndices();
+
+            final List<String> resolvedLocal = local.replacedBy();
+
+            final List<String> combined = new ArrayList<>(resolvedLocal.size() + remoteIndices.size());
+            combined.addAll(resolvedLocal);
+            combined.addAll(remoteIndices);
+
+            replacedExpressionMap.put(
+                original,
+                new ReplacedIndexExpression(original, combined, local.authorized(), local.existsAndVisible(), null)
+            );
+        }
     }
 }

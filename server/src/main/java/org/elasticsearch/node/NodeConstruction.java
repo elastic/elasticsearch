@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
@@ -1035,6 +1036,15 @@ class NodeConstruction {
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
+
+        // TODO make this work (it's just that SPI isn't set up correctly)
+        AuthorizedProjectsSupplier authorizedProjectsSupplier = pluginsService.loadSingletonServiceProvider(
+            AuthorizedProjectsSupplier.class,
+            () -> AuthorizedProjectsSupplier.DEFAULT
+        );
+        modules.bindToInstance(AuthorizedProjectsSupplier.class, authorizedProjectsSupplier);
+
+        logger.info("AuthorizedProjectsSupplier: {}", authorizedProjectsSupplier.getClass().getName());
 
         ActionModule actionModule = new ActionModule(
             settings,

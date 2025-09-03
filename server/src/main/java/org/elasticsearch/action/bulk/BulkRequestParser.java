@@ -159,7 +159,12 @@ public final class BulkRequestParser {
             deleteRequestConsumer
         );
 
-        incrementalParser.parse(ReleasableBytesReference.wrap(data), true);
+        incrementalParser.parse(
+            data instanceof ReleasableBytesReference releasableBytesReference
+                ? releasableBytesReference
+                : ReleasableBytesReference.wrap(data),
+            true
+        );
     }
 
     public IncrementalParser incrementalParser(
@@ -528,8 +533,7 @@ public final class BulkRequestParser {
         private void parseAndConsumeDocumentLine(ReleasableBytesReference data, int from, int to) throws IOException {
             assert currentRequest != null && currentRequest instanceof DeleteRequest == false;
             if (currentRequest instanceof IndexRequest indexRequest) {
-                ReleasableBytesReference indexSource = sliceTrimmingCarriageReturn(data, from, to, xContentType, true);
-                indexRequest.sourceContext().source(indexSource, xContentType);
+                indexRequest.sourceContext().source(sliceTrimmingCarriageReturn(data, from, to, xContentType, true), xContentType);
                 indexRequestConsumer.accept(indexRequest, currentType);
             } else if (currentRequest instanceof UpdateRequest updateRequest) {
                 try (

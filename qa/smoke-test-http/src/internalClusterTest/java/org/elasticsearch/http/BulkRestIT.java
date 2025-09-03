@@ -52,11 +52,7 @@ public class BulkRestIT extends HttpSmokeTestCase {
     }
 
     public void testBulkMissingBody() throws IOException {
-        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
-        request.setJsonEntity("");
-        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        sendMissingBody();
     }
 
     public void testBulkInvalidIndexNameString() throws IOException {
@@ -79,16 +75,7 @@ public class BulkRestIT extends HttpSmokeTestCase {
     }
 
     public void testBulkRequestBodyImproperlyTerminated() throws IOException {
-        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
-        // missing final line of the bulk body. cannot process
-        request.setJsonEntity(
-            "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
-                + "{\"field\":1}\n"
-                + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}"
-        );
-        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("The bulk request must be terminated by a newline"));
+        sendImproperlyTerminated();
     }
 
     public void testBulkRequest() throws IOException {
@@ -156,6 +143,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
 
         try {
             sendLargeBulk();
+            sendMalFormedActionLine();
+            sendImproperlyTerminated();
+            sendMissingBody();
         } finally {
             internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(true));
             updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null));
@@ -177,6 +167,31 @@ public class BulkRestIT extends HttpSmokeTestCase {
         final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
+        sendMalFormedActionLine();
+    }
+
+    private static void sendMissingBody() {
+        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        request.setJsonEntity("");
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
+        assertThat(responseException.getMessage(), containsString("request body is required"));
+    }
+
+    private static void sendImproperlyTerminated() {
+        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        // missing final line of the bulk body. cannot process
+        request.setJsonEntity(
+            "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
+                + "{\"field\":1}\n"
+                + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}"
+        );
+        ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
+        assertThat(responseException.getMessage(), containsString("The bulk request must be terminated by a newline"));
+    }
+
+    private static void sendMalFormedActionLine() throws IOException {
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
 
         final StringBuilder bulk = new StringBuilder();

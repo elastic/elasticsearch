@@ -113,11 +113,10 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
             bulkRequest.requestParamsUsed(request.params().keySet());
-            ReleasableBytesReference content = request.requiredContent();
 
             try {
                 bulkRequest.add(
-                    content,
+                    request.requiredContent(),
                     defaultIndex,
                     defaultRouting,
                     defaultFetchSourceContext,
@@ -130,12 +129,16 @@ public class RestBulkAction extends BaseRestHandler {
                     request.getRestApiVersion()
                 );
             } catch (Exception e) {
+                closeSourceContexts(bulkRequest.requests());
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-            return channel -> {
-                content.mustIncRef();
-                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
-            };
+
+            // The request list is actually mutable so we make a copy for close.
+            List<DocWriteRequest<?>> toClose = new ArrayList<>(bulkRequest.requests());
+            return channel -> client.bulk(
+                bulkRequest,
+                ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> closeSourceContexts(toClose))
+            );
         } else {
             request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
@@ -217,26 +220,30 @@ public class RestBulkAction extends BaseRestHandler {
                 return;
             }
 
-            final ReleasableBytesReference data;
             int bytesConsumed;
             if (chunk.length() == 0) {
                 chunk.close();
                 bytesConsumed = 0;
             } else {
+                final ReleasableBytesReference data;
                 try {
                     handler.getIncrementalOperation().incrementUnparsedBytes(chunk.length());
                     unParsedChunks.add(chunk);
 
                     if (unParsedChunks.size() > 1) {
                         ReleasableBytesReference[] components = unParsedChunks.toArray(new ReleasableBytesReference[0]);
+                        for (ReleasableBytesReference reference : components) {
+                            reference.incRef();
+                        }
                         data = new ReleasableBytesReference(CompositeBytesReference.of(components), () -> Releasables.close(components));
                     } else {
-                        data = chunk;
+                        data = chunk.retain();
                     }
 
-                    bytesConsumed = parser.parse(data, isLast);
-                    handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
-
+                    try (ReleasableBytesReference toClose = data) {
+                        bytesConsumed = parser.parse(data, isLast);
+                        handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
+                    }
                 } catch (Exception e) {
                     shortCircuit();
                     new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
@@ -272,16 +279,6 @@ public class RestBulkAction extends BaseRestHandler {
             }
         }
 
-        private static void closeSourceContexts(ArrayList<DocWriteRequest<?>> requests) {
-            // We only slice for index requests currently.
-            for (DocWriteRequest<?> request : requests) {
-                IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(request);
-                if (indexRequest != null) {
-                    indexRequest.sourceContext().close();
-                }
-            }
-        }
-
         @Override
         public void streamClose() {
             assert Transports.assertTransportThread();
@@ -294,6 +291,8 @@ public class RestBulkAction extends BaseRestHandler {
             shortCircuited = true;
             Releasables.close(handler);
             Releasables.close(unParsedChunks);
+            closeSourceContexts(items);
+            items.clear();
             unParsedChunks.clear();
         }
 
@@ -307,6 +306,16 @@ public class RestBulkAction extends BaseRestHandler {
                     bytesConsumed = 0;
                 }
                 reference.close();
+            }
+        }
+
+    }
+
+    private static void closeSourceContexts(List<DocWriteRequest<?>> requests) {
+        for (DocWriteRequest<?> request : requests) {
+            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(request);
+            if (indexRequest != null) {
+                indexRequest.sourceContext().close();
             }
         }
     }

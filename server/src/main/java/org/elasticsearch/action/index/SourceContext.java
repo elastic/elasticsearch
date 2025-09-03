@@ -34,6 +34,7 @@ public class SourceContext implements Writeable, Releasable {
     private XContentType contentType;
     private BytesReference source;
     private Releasable sourceReleasable;
+    private boolean isClosed = false;
 
     public SourceContext() {}
 
@@ -86,6 +87,8 @@ public class SourceContext implements Writeable, Releasable {
 
     @Override
     public void close() {
+        assert isClosed == false;
+        isClosed = true;
         Releasables.close(sourceReleasable);
     }
 
@@ -240,7 +243,8 @@ public class SourceContext implements Writeable, Releasable {
     private void setSource(BytesReference source, XContentType contentType, Releasable sourceReleasable) {
         this.source = source;
         this.contentType = contentType;
-        Releasables.close(sourceReleasable);
+        Releasable toClose = this.sourceReleasable;
         this.sourceReleasable = sourceReleasable;
+        Releasables.close(toClose);
     }
 }

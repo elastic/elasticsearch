@@ -47,7 +47,6 @@ import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.util.GradleVersion;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -72,7 +71,8 @@ import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
 import static org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin.VERSIONS_EXT;
-import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findPreReleaseBuild;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
@@ -107,7 +107,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
@@ -127,40 +126,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(versionProperties.get("minimumCompilerJava"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(versionProperties.get("minimumRuntimeJava"));
 
-        String bundledJdkVersion = versionProperties.getProperty("bundled_jdk");
-        String bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
         Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
-        Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
-        boolean isRuntimeJavaHomeExplicitlySet = explicitRuntimeJavaHome.isPresent();
-        Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
-            ? explicitRuntimeJavaHome
-            : resolveJavaHomeFromToolChainService(bundledJdkMajorVersion);
-
-        Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
-            runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
-        );
+        RuntimeJava runtimeJavaHome = findRuntimeJavaHome();
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
             () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(elasticsearchVersionProperty) : val)
         );
+
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
                 BuildParameterExtension.class,
                 BuildParameterExtension.EXTENSION_NAME,
                 DefaultBuildParameterExtension.class,
                 providers,
-                actualRuntimeJavaHome,
+                runtimeJavaHome,
                 resolveToolchainSpecFromEnv(),
-                actualRuntimeJavaHome.map(
-                    javaHome -> determineJavaVersion(
-                        "runtime java.home",
-                        javaHome,
-                        isRuntimeJavaHomeExplicitlySet ? minimumRuntimeVersion : JavaVersion.toVersion(bundledJdkMajorVersion)
-                    )
-                ),
-                isRuntimeJavaHomeExplicitlySet,
-                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
                 getAvailableJavaVersions(),
                 minimumCompilerVersion,
                 minimumRuntimeVersion,
@@ -177,13 +158,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         project.getGradle().getSharedServices().registerIfAbsent("buildParams", BuildParameterService.class, spec -> {
             // Provide some parameters
             spec.getParameters().getBuildParams().set(buildParams);
-        });
-
-        BuildParams.init(params -> {
-            params.reset();
-            params.setIsCi(
-                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
-            );
         });
 
         // Enforce the minimum compiler version
@@ -274,7 +248,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
-        if (buildParams.getIsRuntimeJavaHomeSet()) {
+        if (buildParams.getRuntimeJava().isExplicitlySet()) {
             JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(buildParams.getRuntimeJavaHome().get()));
             final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
             final String runtimeJvmImplementationVersion = runtimeJvm.getJvmVersion();
@@ -381,50 +355,80 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private Provider<File> findRuntimeJavaHome() {
-        String runtimeJavaProperty = System.getProperty("runtime.java");
+    private RuntimeJava findRuntimeJavaHome() {
+        Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
+        String bundledJdkVersion = versionProperties.getProperty("bundled_jdk");
+        String bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
 
+        String runtimeJavaProperty = System.getProperty("runtime.java");
         if (runtimeJavaProperty != null) {
-            if (runtimeJavaProperty.toLowerCase().endsWith("-ea")) {
-                // handle EA builds differently due to lack of support in Gradle toolchain service
+            if (runtimeJavaProperty.toLowerCase().endsWith("-pre")) {
+                // handle pre-release builds differently due to lack of support in Gradle toolchain service
                 // we resolve them using JdkDownloadPlugin for now.
-                Integer major = Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 3));
-                return resolveEarlyAccessJavaHome(major);
+                return resolvePreReleaseRuntimeJavaHome(runtimeJavaProperty, bundledJdkMajorVersion);
             } else {
-                return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+                return runtimeJavaHome(resolveJavaHomeFromToolChainService(runtimeJavaProperty), true, bundledJdkMajorVersion);
             }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
-            return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
+            return runtimeJavaHome(providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME"))), true, bundledJdkVersion);
         }
         // fall back to tool chain if set.
         String env = System.getenv("JAVA_TOOLCHAIN_HOME");
-        return providers.provider(() -> {
-            if (env == null) {
-                return null;
-            }
-            return new File(env);
-        });
+        boolean explicitlySet = env != null;
+        Provider<File> javaHome = explicitlySet
+            ? providers.provider(() -> new File(env))
+            : resolveJavaHomeFromToolChainService(bundledJdkMajorVersion);
+        return runtimeJavaHome(javaHome, explicitlySet, bundledJdkMajorVersion);
     }
 
-    private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {
-        NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+    private RuntimeJava runtimeJavaHome(Provider<File> fileProvider, boolean explicitlySet, String bundledJdkMajorVersion) {
+        return runtimeJavaHome(fileProvider, explicitlySet, null, null, bundledJdkMajorVersion);
+    }
+
+    private RuntimeJava runtimeJavaHome(
+        Provider<File> fileProvider,
+        boolean explicitlySet,
+        String preReleasePostfix,
+        Integer buildNumber,
+        String bundledJdkMajorVersion
+    ) {
+        Provider<JavaVersion> javaVersion = fileProvider.map(
+            javaHome -> determineJavaVersion(
+                "runtime java.home",
+                javaHome,
+                fileProvider.isPresent()
+                    ? JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"))
+                    : JavaVersion.toVersion(bundledJdkMajorVersion)
+            )
+        );
+
+        Provider<String> vendorDetails = fileProvider.map(j -> metadataDetector.getMetadata(getJavaInstallation(j)))
+            .map(m -> formatJavaVendorDetails(m));
+
+        return new RuntimeJava(fileProvider, javaVersion, vendorDetails, explicitlySet, preReleasePostfix, buildNumber);
+    }
+
+    private RuntimeJava resolvePreReleaseRuntimeJavaHome(String runtimeJavaProperty, String bundledJdkMajorVersion) {
+        var major = JavaLanguageVersion.of(Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 4)));
         Integer buildNumber = Integer.getInteger("runtime.java.build");
-        if (buildNumber == null) {
-            buildNumber = findLatestEABuildNumber(runtimeJavaProperty);
-        }
-        String eaVersionString = String.format("%d-ea+%d", runtimeJavaProperty, buildNumber);
-        Jdk jdk = container.create("ea_jdk_" + runtimeJavaProperty, j -> {
-            j.setVersion(eaVersionString);
+        var jdkbuild = buildNumber == null ? findLatestPreReleaseBuild(major) : findPreReleaseBuild(major, buildNumber);
+        String preReleaseType = jdkbuild.type();
+        String prVersionString = String.format("%d-%s+%d", major.asInt(), preReleaseType, jdkbuild.buildNumber());
+        NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+        Jdk jdk = container.create(preReleaseType + "_" + major.asInt(), j -> {
+            j.setVersion(prVersionString);
             j.setVendor("openjdk");
             j.setPlatform(OS.current().javaOsReference);
             j.setArchitecture(Architecture.current().javaClassifier);
-            j.setDistributionVersion("ea");
+            j.setDistributionVersion(preReleaseType);
         });
-        return providers.provider(() -> new File(jdk.getJavaHomePath().toString()));
+        // We on purpose resolve this here eagerly to ensure we resolve the jdk configuration in the context of the root project.
+        // If we keep this lazy we can not guarantee in which project context this is resolved which will fail the build.
+        File file = new File(jdk.getJavaHomePath().toString());
+        return runtimeJavaHome(providers.provider(() -> file), true, preReleaseType, jdkbuild.buildNumber(), bundledJdkMajorVersion);
     }
 
-    @NotNull
     private Provider<File> resolveJavaHomeFromToolChainService(String version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
@@ -481,4 +485,5 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             spec.getLanguageVersion().set(expectedJavaLanguageVersion);
         }
     }
+
 }

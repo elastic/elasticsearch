@@ -1397,6 +1397,22 @@ event_duration:long | _index:keyword       | ts:date                   | ts_str:
 8268153             | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z  | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
+multiIndexInlinestatsOfMultiTypedField
+required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+FROM apps, apps_short
+| INLINESTATS s = sum(id::integer)
+| SORT name, version
+| LIMIT 5
+;
+
+id:unsupported | name:keyword | version:version | s:long       
+null           | aaaaa        | 1               | 210
+null           | aaaaa        | 1               | 210
+null           | aaaaa        | 1.2.3.4         | 210
+null           | aaaaa        | 1.2.3.4         | 210
+null           | bbbbb        | 2.1             | 210
+;
 
 inlineStatsUnionGroup-Ignore
 required_capability: union_types
@@ -1718,6 +1734,33 @@ id:integer | name:keyword | count:long
 12         | aaaaa        | 2
 13         | lllll        | 2
 14         | mmmmm        | 2
+;
+
+shortIntegerWideningFork
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+required_capability: fork_v9
+
+FROM apps, apps_short
+| EVAL x = id::integer
+| FORK (WHERE true) (WHERE true)
+| DROP _fork
+| SORT x ASC, name ASC, version ASC
+| LIMIT 10
+;
+
+id:unsupported | name:keyword | version:version | x:integer
+null           | aaaaa        | 1               | 1
+null           | aaaaa        | 1               | 1
+null           | aaaaa        | 1               | 1
+null           | aaaaa        | 1               | 1
+null           | bbbbb        | 2.1             | 2
+null           | bbbbb        | 2.1             | 2
+null           | bbbbb        | 2.1             | 2
+null           | bbbbb        | 2.1             | 2
+null           | ccccc        | 2.3.4           | 3
+null           | ccccc        | 2.3.4           | 3
 ;
 
 ImplicitCastingMultiTypedFieldsKeepSort

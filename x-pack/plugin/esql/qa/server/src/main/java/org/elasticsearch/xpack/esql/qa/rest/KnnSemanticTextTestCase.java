@@ -37,14 +37,14 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
     }
 
     @SuppressWarnings("unchecked")
     public void testKnnQueryWithSemanticText() throws IOException {
         String knnQuery = """
             FROM semantic-test METADATA _score
-            | WHERE knn(dense_semantic, [0, 1, 2], 10)
+            | WHERE knn(dense_semantic, [0, 1, 2])
             | KEEP id, _score, dense_semantic
             | SORT _score DESC
             | LIMIT 10
@@ -65,7 +65,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     public void testKnnQueryOnTextField() throws IOException {
         String knnQuery = """
             FROM semantic-test METADATA _score
-            | WHERE knn(text, [0, 1, 2], 10)
+            | WHERE knn(text, [0, 1, 2])
             | KEEP id, _score, dense_semantic
             | SORT _score DESC
             | LIMIT 10
@@ -79,7 +79,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     public void testKnnQueryOnSparseSemanticTextField() throws IOException {
         String knnQuery = """
             FROM semantic-test METADATA _score
-            | WHERE knn(sparse_semantic, [0, 1, 2], 10)
+            | WHERE knn(sparse_semantic, [0, 1, 2])
             | KEEP id, _score, sparse_semantic
             | SORT _score DESC
             | LIMIT 10

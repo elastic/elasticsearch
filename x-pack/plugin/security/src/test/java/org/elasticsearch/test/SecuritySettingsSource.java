@@ -136,24 +136,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    Path homePath(final int nodeOrdinal) {
+    protected Path homePath(final int nodeOrdinal) {
         return parentFolder.resolve(subfolderPrefix + "-" + nodeOrdinal);
     }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path home = homePath(nodeOrdinal);
-        final Path xpackConf = home.resolve("config");
-        try {
-            Files.createDirectories(xpackConf);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        writeFile(xpackConf, "roles.yml", configRoles());
-        writeFile(xpackConf, "users", configUsers());
-        writeFile(xpackConf, "users_roles", configUsersRoles());
-        writeFile(xpackConf, "operator_users.yml", configOperatorUsers());
-        writeFile(xpackConf, "service_tokens", configServiceTokens());
+        writeConfigFiles(home);
 
         Settings.Builder builder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
@@ -174,6 +164,20 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             .put("xpack.license.self_generated.type", "trial");
         addNodeSSLSettings(builder);
         return builder.build();
+    }
+
+    protected void writeConfigFiles(Path home) {
+        final Path xpackConf = home.resolve("config");
+        try {
+            Files.createDirectories(xpackConf);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        writeFile(xpackConf, "roles.yml", configRoles());
+        writeFile(xpackConf, "users", configUsers());
+        writeFile(xpackConf, "users_roles", configUsersRoles());
+        writeFile(xpackConf, "operator_users.yml", configOperatorUsers());
+        writeFile(xpackConf, "service_tokens", configServiceTokens());
     }
 
     @Override
@@ -244,7 +248,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         );
     }
 
-    private void addNodeSSLSettings(Settings.Builder builder) {
+    protected void addNodeSSLSettings(Settings.Builder builder) {
         if (sslEnabled) {
             builder.put("xpack.security.transport.ssl.enabled", true);
             if (usePEM) {

@@ -305,7 +305,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use KNN function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V4.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
@@ -427,7 +427,13 @@ public class CsvTests extends ESTestCase {
             if (mapping.containsKey(entry.getKey())) {
                 DataType dataType = DataType.fromTypeName(entry.getValue());
                 EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                EsField editedField = new EsField(
+                    field.getName(),
+                    dataType,
+                    field.getProperties(),
+                    field.isAggregatable(),
+                    field.getTimeSeriesFieldType()
+                );
                 mapping.put(entry.getKey(), editedField);
             }
         }

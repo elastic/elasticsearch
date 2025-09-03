@@ -31,9 +31,16 @@ Combining `query` and `retrievers` is not supported.
 `normalizer` {applies_to}`stack: ga 9.1`
 :   (Optional, String)
 
-    The normalizer to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
+    The top-level normalizer to use when combining results.
     See [normalizers](#linear-retriever-normalizers) for supported values.
     Required when `query` is specified.
+    
+    When used with the [multi-field query format](../retrievers.md#multi-field-query-format) (`query` parameter), normalizes scores per [field grouping](../retrievers.md#multi-field-field-grouping).
+    Otherwise serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer.
+
+    :::{note}
+    **Top-level normalizer support for sub-retrievers**: The ability to use a top-level normalizer as a default for sub-retrievers was introduced in Elasticsearch 9.2+. In earlier versions, only per-retriever normalizers are supported.
+    :::
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
@@ -74,9 +81,10 @@ Each entry in the `retrievers` array specifies the following parameters:
 `normalizer`
 :   (Optional, String)
 
-    Specifies how the retriever’s score will be normalized before applying the specified `weight`.
+    Specifies how the retriever's score will be normalized before applying the specified `weight`.
     See [normalizers](#linear-retriever-normalizers) for supported values.
-    Defaults to `none`.
+    If not specified, uses the top-level `normalizer` or defaults to `none` if no top-level normalizer is set.
+    {applies_to}`stack: ga 9.2`
 
 See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
@@ -94,7 +102,7 @@ The `linear` retriever supports the following normalizers:
 
 ## Example
 
-This example of a hybrid search weights KNN results five times more heavily than BM25 results in the final ranking.
+This example of a hybrid search weights KNN results five times more heavily than BM25 results in the final ranking, with a top-level normalizer applied to all retrievers.
 
 ```console
 GET my_index/_search
@@ -105,7 +113,10 @@ GET my_index/_search
         {
           "retriever": {
             "knn": {
-              ...
+              "field": "title_vector",
+              "query_vector": [0.1, 0.2, 0.3],
+              "k": 10,
+              "num_candidates": 100
             }
           },
           "weight": 5 # KNN query weighted 5x
@@ -113,15 +124,22 @@ GET my_index/_search
         {
           "retriever": {
             "standard": {
-              ...
+              "query": {
+                "match": {
+                  "title": "elasticsearch"
+                }
+              }
             }
           },
           "weight": 1.5 # BM25 query weighted 1.5x
         }
-      ]
+      ],
+      "normalizer": "minmax"
     }
   }
 }
 ```
+
+In this example, the `minmax` normalizer is applied to both the kNN retriever and the standard retriever. The top-level normalizer serves as a default that can be overridden by individual sub-retrievers. When using the multi-field query format, the top-level normalizer is applied to all generated inner retrievers.
 
 See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever).

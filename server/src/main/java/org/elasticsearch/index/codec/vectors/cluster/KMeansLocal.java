@@ -28,8 +28,9 @@ import java.util.Random;
 class KMeansLocal {
 
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
-    // For vectors that are closer than this distance to the centroid, we use the squared distance to find the
-    // second closest centroid.
+    // For vectors that are closer than this distance to the centroid don't get spilled because they are well represented
+    // by the centroid itself. In many cases, it indicates a degenerated distribution, e.g the cluster is composed of the
+    // many equal vectors.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
 
     final int sampleSize;
@@ -281,19 +282,18 @@ class KMeansLocal {
         final float[] distances = new float[4];
         for (int i = 0; i < vectors.size(); i++) {
             float[] vector = vectors.vectorValue(i);
-
             int currAssignment = assignments[i];
             float[] currentCentroid = centroids[currAssignment];
-
             // TODO: cache these?
             float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
-
-            if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
-                for (int j = 0; j < vectors.dimension(); j++) {
-                    diffs[j] = vector[j] - currentCentroid[j];
-                }
+            if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {
+                spilledAssignments[i] = -1; // no SOAR assignment
+                continue;
             }
 
+            for (int j = 0; j < vectors.dimension(); j++) {
+                diffs[j] = vector[j] - currentCentroid[j];
+            }
             final int centroidCount;
             final IntToIntFunction centroidOrds;
             if (neighborhoods != null) {
@@ -310,29 +310,17 @@ class KMeansLocal {
             float minSoar = Float.MAX_VALUE;
             int j = 0;
             for (; j < limit; j += 4) {
-                if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
-                    ESVectorUtil.soarDistanceBulk(
-                        vector,
-                        centroids[centroidOrds.apply(j)],
-                        centroids[centroidOrds.apply(j + 1)],
-                        centroids[centroidOrds.apply(j + 2)],
-                        centroids[centroidOrds.apply(j + 3)],
-                        diffs,
-                        soarLambda,
-                        vectorCentroidDist,
-                        distances
-                    );
-                } else {
-                    // if the vector is very close to the centroid, we look for the second-nearest centroid
-                    ESVectorUtil.squareDistanceBulk(
-                        vector,
-                        centroids[centroidOrds.apply(j)],
-                        centroids[centroidOrds.apply(j + 1)],
-                        centroids[centroidOrds.apply(j + 2)],
-                        centroids[centroidOrds.apply(j + 3)],
-                        distances
-                    );
-                }
+                ESVectorUtil.soarDistanceBulk(
+                    vector,
+                    centroids[centroidOrds.apply(j)],
+                    centroids[centroidOrds.apply(j + 1)],
+                    centroids[centroidOrds.apply(j + 2)],
+                    centroids[centroidOrds.apply(j + 3)],
+                    diffs,
+                    soarLambda,
+                    vectorCentroidDist,
+                    distances
+                );
                 for (int k = 0; k < distances.length; k++) {
                     float soar = distances[k];
                     if (soar < minSoar) {
@@ -344,13 +332,7 @@ class KMeansLocal {
 
             for (; j < centroidCount; j++) {
                 int centroidOrd = centroidOrds.apply(j);
-                float soar;
-                if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
-                    soar = ESVectorUtil.soarDistance(vector, centroids[centroidOrd], diffs, soarLambda, vectorCentroidDist);
-                } else {
-                    // if the vector is very close to the centroid, we look for the second-nearest centroid
-                    soar = VectorUtil.squareDistance(vector, centroids[centroidOrd]);
-                }
+                float soar = ESVectorUtil.soarDistance(vector, centroids[centroidOrd], diffs, soarLambda, vectorCentroidDist);
                 if (soar < minSoar) {
                     minSoar = soar;
                     bestAssignment = centroidOrd;

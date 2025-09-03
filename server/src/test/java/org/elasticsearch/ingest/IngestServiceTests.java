@@ -3044,6 +3044,20 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+
+        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
+            final AtomicLong executionCount = new AtomicLong(0);
+
+            @Override
+            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
+                executionCount.incrementAndGet();
+            }
+
+            public long getExecutionCount() {
+                return executionCount.get();
+            }
+        };
+
         IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -3060,7 +3074,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            consumer
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3090,21 +3105,8 @@ public class IngestServiceTests extends ESTestCase {
             }
         };
 
-        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
-            final AtomicLong executionCount = new AtomicLong(0);
-
-            @Override
-            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
-                executionCount.incrementAndGet();
-            }
-
-            public long getExecutionCount() {
-                return executionCount.get();
-            }
-        };
-
         var request = putJsonPipelineRequest(pipelineId, pipelineString);
-        ingestService.putPipeline(clusterState.metadata().getProject().id(), request, listener, consumer);
+        ingestService.putPipeline(clusterState.metadata().getProject().id(), request, listener);
         latch.await();
 
         assertThat(consumer.getExecutionCount(), equalTo(0L));

@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.Accountable;
+
 import java.util.Iterator;
 import java.util.List;
 import java.util.OptionalLong;
@@ -43,9 +45,8 @@ import java.util.OptionalLong;
  * Additionally, all algorithms assume that samples within a bucket are located at a single point: the point of least relative error
  * (see {@link ExponentialScaleUtils#getPointOfLeastRelativeError(long, int)}).
  */
-public interface ExponentialHistogram {
+public interface ExponentialHistogram extends Accountable {
 
-    // TODO(b/128622): support min/max/sum/count storage and merging.
     // TODO(b/128622): Add special positive and negative infinity buckets
     // to allow representation of explicit bucket histograms with open boundaries.
 
@@ -92,6 +93,37 @@ public interface ExponentialHistogram {
     Buckets negativeBuckets();
 
     /**
+     * Returns the sum of all values represented by this histogram.
+     * Note that even if histograms are cumulative, the sum is not guaranteed to be monotonically increasing,
+     * because histograms support negative values.
+     *
+     * @return the sum, guaranteed to be zero for empty histograms
+     */
+    double sum();
+
+    /**
+     * Returns the number of values represented by this histogram.
+     * In other words, this is the sum of the counts of all buckets including the zero bucket.
+     *
+     * @return the value count, guaranteed to be zero for empty histograms
+     */
+    long valueCount();
+
+    /**
+     * Returns minimum of all values represented by this histogram.
+     *
+     * @return the minimum, NaN for empty histograms
+     */
+    double min();
+
+    /**
+     * Returns maximum of all values represented by this histogram.
+     *
+     * @return the maximum, NaN for empty histograms
+     */
+    double max();
+
+    /**
      * Represents a bucket range of an {@link ExponentialHistogram}, either the positive or the negative range.
      */
     interface Buckets {
@@ -115,46 +147,129 @@ public interface ExponentialHistogram {
     }
 
     /**
+     * Value-based equality for exponential histograms.
+     * @param a the first histogram (can be null)
+     * @param b the second histogram (can be null)
+     * @return true, if both histograms are equal
+     */
+    static boolean equals(ExponentialHistogram a, ExponentialHistogram b) {
+        if (a == b) return true;
+        if (a == null) return false;
+        if (b == null) return false;
+
+        return a.scale() == b.scale()
+            && a.sum() == b.sum()
+            && equalsIncludingNaN(a.min(), b.min())
+            && equalsIncludingNaN(a.max(), b.max())
+            && a.zeroBucket().equals(b.zeroBucket())
+            && bucketIteratorsEqual(a.negativeBuckets().iterator(), b.negativeBuckets().iterator())
+            && bucketIteratorsEqual(a.positiveBuckets().iterator(), b.positiveBuckets().iterator());
+    }
+
+    private static boolean equalsIncludingNaN(double a, double b) {
+        return (a == b) || (Double.isNaN(a) && Double.isNaN(b));
+    }
+
+    private static boolean bucketIteratorsEqual(BucketIterator a, BucketIterator b) {
+        if (a.scale() != b.scale()) {
+            return false;
+        }
+        while (a.hasNext() && b.hasNext()) {
+            if (a.peekIndex() != b.peekIndex() || a.peekCount() != b.peekCount()) {
+                return false;
+            }
+            a.advance();
+            b.advance();
+        }
+        return a.hasNext() == b.hasNext();
+    }
+
+    /**
+     * Default hash code implementation to be used with {@link #equals(ExponentialHistogram, ExponentialHistogram)}.
+     * @param histogram the histogram to hash
+     * @return the hash code
+     */
+    static int hashCode(ExponentialHistogram histogram) {
+        int hash = histogram.scale();
+        hash = 31 * hash + Double.hashCode(histogram.sum());
+        hash = 31 * hash + Long.hashCode(histogram.valueCount());
+        hash = 31 * hash + Double.hashCode(histogram.min());
+        hash = 31 * hash + Double.hashCode(histogram.max());
+        hash = 31 * hash + histogram.zeroBucket().hashCode();
+        // we intentionally don't include the hash of the buckets here, because that is likely expensive to compute
+        // instead, we assume that the value count and sum are a good enough approximation in most cases to minimize collisions
+        // the value count is typically available as a cached value and doesn't involve iterating over all buckets
+        return hash;
+    }
+
+    static ExponentialHistogram empty() {
+        return EmptyExponentialHistogram.INSTANCE;
+    }
+
+    /**
+     * Create a builder for an exponential histogram with the given scale.
+     * @param scale the scale of the histogram to build
+     * @param breaker the circuit breaker to use
+     * @return a new builder
+     */
+    static ExponentialHistogramBuilder builder(int scale, ExponentialHistogramCircuitBreaker breaker) {
+        return new ExponentialHistogramBuilder(scale, breaker);
+    }
+
+    /**
      * Creates a histogram representing the distribution of the given values with at most the given number of buckets.
      * If the given {@code maxBucketCount} is greater than or equal to the number of values, the resulting histogram will have a
      * relative error of less than {@code 2^(2^-MAX_SCALE) - 1}.
      *
      * @param maxBucketCount the maximum number of buckets
+     * @param breaker the circuit breaker to use to limit memory allocations
      * @param values the values to be added to the histogram
-     * @return a new {@link ExponentialHistogram}
+     * @return a new {@link ReleasableExponentialHistogram}
      */
-    static ExponentialHistogram create(int maxBucketCount, double... values) {
-        ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(maxBucketCount);
-        for (double val : values) {
-            generator.add(val);
+    static ReleasableExponentialHistogram create(int maxBucketCount, ExponentialHistogramCircuitBreaker breaker, double... values) {
+        try (ExponentialHistogramGenerator generator = ExponentialHistogramGenerator.create(maxBucketCount, breaker)) {
+            for (double val : values) {
+                generator.add(val);
+            }
+            return generator.getAndClear();
         }
-        return generator.get();
     }
 
     /**
      * Merges the provided exponential histograms to a new, single histogram with at most the given amount of buckets.
      *
      * @param maxBucketCount the maximum number of buckets the result histogram is allowed to have
-     * @param histograms teh histograms to merge
+     * @param breaker the circuit breaker to use to limit memory allocations
+     * @param histograms the histograms to merge
      * @return the merged histogram
      */
-    static ExponentialHistogram merge(int maxBucketCount, Iterator<ExponentialHistogram> histograms) {
-        ExponentialHistogramMerger merger = new ExponentialHistogramMerger(maxBucketCount);
-        while (histograms.hasNext()) {
-            merger.add(histograms.next());
+    static ReleasableExponentialHistogram merge(
+        int maxBucketCount,
+        ExponentialHistogramCircuitBreaker breaker,
+        Iterator<ExponentialHistogram> histograms
+    ) {
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(maxBucketCount, breaker)) {
+            while (histograms.hasNext()) {
+                merger.add(histograms.next());
+            }
+            return merger.getAndClear();
         }
-        return merger.get();
     }
 
     /**
      * Merges the provided exponential histograms to a new, single histogram with at most the given amount of buckets.
      *
      * @param maxBucketCount the maximum number of buckets the result histogram is allowed to have
-     * @param histograms teh histograms to merge
+     * @param breaker the circuit breaker to use to limit memory allocations
+     * @param histograms the histograms to merge
      * @return the merged histogram
      */
-    static ExponentialHistogram merge(int maxBucketCount, ExponentialHistogram... histograms) {
-        return merge(maxBucketCount, List.of(histograms).iterator());
+    static ReleasableExponentialHistogram merge(
+        int maxBucketCount,
+        ExponentialHistogramCircuitBreaker breaker,
+        ExponentialHistogram... histograms
+    ) {
+        return merge(maxBucketCount, breaker, List.of(histograms).iterator());
     }
 
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -70,7 +71,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -83,8 +83,10 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
@@ -116,6 +118,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -200,6 +203,7 @@ public class LocalExecutionPlanner {
      * turn the given plan into a list of drivers to execute
      */
     public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -209,6 +213,11 @@ public class LocalExecutionPlanner {
             blockFactory,
             foldCtx,
             settings,
+            new Holder<>(
+                localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec)
+                    ? DataPartitioning.AutoStrategy.DEFAULT_TIME_SERIES
+                    : DataPartitioning.AutoStrategy.DEFAULT
+            ),
             shardContexts
         );
 
@@ -491,7 +500,7 @@ public class LocalExecutionPlanner {
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
+                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
@@ -779,36 +788,21 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-        if (matchFields.size() != 1) {
-            throw new IllegalArgumentException("can't plan [" + join + "]: multiple join predicates are not supported");
-        }
-        // TODO support multiple match fields, and support more than equality predicates
-        MatchConfig matchConfig = matchFields.getFirst();
 
         return source.with(
             new LookupFromIndexOperator.Factory(
+                matchFields,
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                matchConfig.channel(),
                 ctx -> lookupFromIndexService,
-                matchConfig.type(),
                 localSourceExec.indexPattern(),
                 indexName,
-                matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
             layout
         );
-    }
-
-    private record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
-        private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
-            // indices, so the call to exactAttribute looks redundant now.
-            this(match.exactAttribute().fieldName(), input.channel(), input.type());
-        }
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
@@ -1026,6 +1020,7 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         FoldContext foldCtx,
         Settings settings,
+        Holder<DataPartitioning.AutoStrategy> autoPartitioningStrategy,
         List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

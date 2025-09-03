@@ -70,6 +70,10 @@ public abstract class LuceneOperator extends SourceOperator {
     private int sliceIndex;
 
     private LuceneScorer currentScorer;
+    /**
+     * The {@link ShardRefCounted} for the current scorer.
+     */
+    private ShardRefCounted.Single currentScorerShardRefCounted;
 
     long processingNanos;
     int pagesEmitted;
@@ -165,13 +169,17 @@ public abstract class LuceneOperator extends SourceOperator {
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                 sliceIndex = 0;
-                currentSlice = sliceQueue.nextSlice();
+                currentSlice = sliceQueue.nextSlice(currentSlice);
                 if (currentSlice == null) {
                     doneCollecting = true;
                     return null;
                 }
                 processedSlices++;
                 processedShards.add(currentSlice.shardContext().shardIdentifier());
+                int shardId = currentSlice.shardContext().index();
+                if (currentScorerShardRefCounted == null || currentScorerShardRefCounted.index() != shardId) {
+                    currentScorerShardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
+                }
             }
             final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
             logger.trace("Starting {}", partialLeaf);
@@ -192,6 +200,13 @@ public abstract class LuceneOperator extends SourceOperator {
             currentScorer.reinitialize();
         }
         return currentScorer;
+    }
+
+    /**
+     * The {@link ShardRefCounted} for the current scorer.
+     */
+    ShardRefCounted currentScorerShardRefCounted() {
+        return currentScorerShardRefCounted;
     }
 
     /**

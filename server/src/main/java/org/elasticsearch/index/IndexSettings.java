@@ -848,12 +848,12 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean SYNTHETIC_VECTORS = new FeatureFlag("mapping_synthetic_vectors").isEnabled();
-    public static final Setting<Boolean> INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING = Setting.boolSetting(
-        "index.mapping.synthetic_vectors",
-        false,
+    public static final Setting<Boolean> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING = Setting.boolSetting(
+        "index.mapping.exclude_source_vectors",
+        settings -> String.valueOf(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT)),
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     private final Index index;

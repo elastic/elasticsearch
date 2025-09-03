@@ -24,13 +24,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -43,11 +39,10 @@ import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteC
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -59,9 +54,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.enumSetting;
-import static org.elasticsearch.common.settings.Setting.timeSetting;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 /**
@@ -74,76 +66,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         IndicesExpressionGrouper {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
-
-    /**
-     * The initial connect timeout for remote cluster connections
-     */
-    public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "cluster.remote.initial_connect_timeout",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * The name of a node attribute to select nodes that should be connected to in the remote cluster.
-     * For instance a node can be configured with {@code node.attr.gateway: true} in order to be eligible as a gateway node between
-     * clusters. In that case {@code cluster.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
-     * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
-     */
-    public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString(
-        "cluster.remote.node.attr",
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
-        "cluster.remote.",
-        "skip_unavailable",
-        (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
-        "cluster.remote.",
-        "transport.ping_schedule",
-        (ns, key) -> timeSetting(
-            key,
-            TransportSettings.PING_SCHEDULE,
-            new RemoteConnectionEnabled<>(ns, key),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
-
-    public static final Setting.AffixSetting<Compression.Enabled> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "transport.compress",
-        (ns, key) -> enumSetting(
-            Compression.Enabled.class,
-            key,
-            TransportSettings.TRANSPORT_COMPRESS,
-            new RemoteConnectionEnabled<>(ns, key),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
-
-    public static final Setting.AffixSetting<Compression.Scheme> REMOTE_CLUSTER_COMPRESSION_SCHEME = Setting.affixKeySetting(
-        "cluster.remote.",
-        "transport.compression_scheme",
-        (ns, key) -> enumSetting(
-            Compression.Scheme.class,
-            key,
-            TransportSettings.TRANSPORT_COMPRESSION_SCHEME,
-            new RemoteConnectionEnabled<>(ns, key),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
-
-    public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_CREDENTIALS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "credentials",
-        key -> SecureSetting.secureString(key, null)
-    );
 
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
 
@@ -160,16 +82,16 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
+    private final boolean canUseSkipUnavailable;
 
-    @FixForMultiProject(description = "Inject the ProjectResolver instance.")
-    RemoteClusterService(Settings settings, TransportService transportService) {
+    RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
         this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.isStateless = DiscoveryNode.isStateless(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
-        this.projectResolver = DefaultProjectResolver.INSTANCE;
+        this.projectResolver = projectResolver;
         this.remoteClusters = projectResolver.supportsMultipleProjects()
             ? ConcurrentCollections.newConcurrentMap()
             : Map.of(ProjectId.DEFAULT, ConcurrentCollections.newConcurrentMap());
@@ -177,6 +99,11 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
+        /*
+         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
+         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
+         */
+        this.canUseSkipUnavailable = settings.getAsBoolean("serverless.cross_project.enabled", false) == false;
     }
 
     /**
@@ -287,10 +214,28 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     /**
-     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
+     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable.
+     * @param clusterAlias Name of the cluster
+     * @return A boolean optional that denotes if the cluster is configured to be skipped. In CPS-like environment,
+     * it returns an empty value where we default/fall back to true.
      */
-    public boolean isSkipUnavailable(String clusterAlias) {
-        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+    public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
+        if (canUseSkipUnavailable == false) {
+            return Optional.empty();
+        } else {
+            return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
+        }
+    }
+
+    /**
+     * Signifies if an error can be skipped for the specified cluster based on skip_unavailable, or,
+     * allow_partial_search_results if in CPS-like environment.
+     * @param clusterAlias Name of the cluster
+     * @param allowPartialSearchResults If partial results can be served for the search request.
+     * @return boolean
+     */
+    public boolean shouldSkipOnFailure(String clusterAlias, Boolean allowPartialSearchResults) {
+        return isSkipUnavailable(clusterAlias).orElseGet(() -> allowPartialSearchResults != null && allowPartialSearchResults);
     }
 
     public Transport.Connection getConnection(String cluster) {
@@ -343,7 +288,11 @@ public final class RemoteClusterService extends RemoteClusterAware
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
+        clusterSettings.addAffixUpdateConsumer(
+            RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+            this::updateSkipUnavailable,
+            (alias, value) -> {}
+        );
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
@@ -483,10 +432,22 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
+        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
+        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+        final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
+        updateRemoteCluster(linkedProjectConfig, forceRebuild, listener);
+    }
 
+    private synchronized void updateRemoteCluster(
+        LinkedProjectConfig config,
+        boolean forceRebuild,
+        ActionListener<RemoteClusterConnectionStatus> listener
+    ) {
+        final var projectId = config.originProjectId();
+        final var clusterAlias = config.linkedProjectAlias();
         final var connectionMap = getConnectionsMapForProject(projectId);
         RemoteClusterConnection remote = connectionMap.get(clusterAlias);
-        if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings) == false) {
+        if (config.isConnectionEnabled() == false) {
             try {
                 IOUtils.close(remote);
             } catch (IOException e) {
@@ -499,11 +460,10 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation
-            Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (forceRebuild || remote.shouldRebuildConnection(newSettings)) {
+        } else if (forceRebuild || remote.shouldRebuildConnection(config)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);
@@ -511,8 +471,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             connectionMap.remove(clusterAlias);
-            Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {
@@ -535,7 +494,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     void initializeRemoteClusters() {
         @FixForMultiProject(description = "Refactor for initializing connections to linked projects for each origin project supported.")
         final var projectId = projectResolver.getProjectId();
-        final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
+        final TimeValue timeValue = RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
 
@@ -545,7 +504,9 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(projectId, clusterAlias, settings, false, listener.map(ignored -> null));
+            @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+            final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, settings);
+            updateRemoteCluster(linkedProjectConfig, false, listener.map(ignored -> null));
         }
 
         if (enabledClusters.isEmpty()) {
@@ -630,9 +591,9 @@ public final class RemoteClusterService extends RemoteClusterAware
         FAIL_IF_DISCONNECTED,
 
         /**
-         * Behave according to the {@link #REMOTE_CLUSTER_SKIP_UNAVAILABLE} setting for this remote cluster: if this setting is
-         * {@code false} (the default) then behave like {@link #RECONNECT_IF_DISCONNECTED}, but if it is {@code true} then behave like
-         * {@link #FAIL_IF_DISCONNECTED}.
+         * Behave according to the {@link RemoteClusterSettings#REMOTE_CLUSTER_SKIP_UNAVAILABLE} setting for this remote cluster: if this
+         * setting is {@code false} (the default) then behave like {@link #RECONNECT_IF_DISCONNECTED}, but if it is {@code true} then behave
+         * like {@link #FAIL_IF_DISCONNECTED}.
          */
         RECONNECT_UNLESS_SKIP_UNAVAILABLE
     }
@@ -657,7 +618,9 @@ public final class RemoteClusterService extends RemoteClusterAware
         return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, switch (disconnectedStrategy) {
             case RECONNECT_IF_DISCONNECTED -> true;
             case FAIL_IF_DISCONNECTED -> false;
-            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService()
+                .isSkipUnavailable(clusterAlias)
+                .orElse(true) == false;
         });
     }
 
@@ -729,47 +692,12 @@ public final class RemoteClusterService extends RemoteClusterAware
     /**
      * Returns the map of connections for the given {@link ProjectId}.
      */
+    @FixForMultiProject(description = "Assert ProjectId.DEFAULT should not be used in multi-project environment")
     private Map<String, RemoteClusterConnection> getConnectionsMapForProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
-            assert ProjectId.DEFAULT.equals(projectId) == false : "The default project ID should not be used in multi-project environment";
             return remoteClusters.computeIfAbsent(projectId, unused -> ConcurrentCollections.newConcurrentMap());
         }
         assert ProjectId.DEFAULT.equals(projectId) : "Only the default project ID should be used when multiple projects are not supported";
         return remoteClusters.get(projectId);
     }
-
-    private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {
-
-        private final String clusterAlias;
-        private final String key;
-
-        private RemoteConnectionEnabled(String clusterAlias, String key) {
-            this.clusterAlias = clusterAlias;
-            this.key = key;
-        }
-
-        @Override
-        public void validate(T value) {}
-
-        @Override
-        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
-            if (isPresent && RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings) == false) {
-                throw new IllegalArgumentException("Cannot configure setting [" + key + "] if remote cluster is not enabled.");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<?>> settings() {
-            return Stream.concat(
-                Stream.of(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias)),
-                settingsStream()
-            ).iterator();
-        }
-
-        private Stream<Setting<?>> settingsStream() {
-            return Arrays.stream(RemoteConnectionStrategy.ConnectionStrategy.values())
-                .flatMap(strategy -> strategy.getEnablementSettings().get())
-                .map(as -> as.getConcreteSettingForNamespace(clusterAlias));
-        }
-    };
 }

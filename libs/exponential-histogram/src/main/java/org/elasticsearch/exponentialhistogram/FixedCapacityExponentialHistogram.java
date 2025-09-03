@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.OptionalLong;
 
 /**
@@ -29,7 +31,10 @@ import java.util.OptionalLong;
  * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
  */
-final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
+final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogram implements ReleasableExponentialHistogram {
+
+    static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedCapacityExponentialHistogram.class) + ZeroBucket.SHALLOW_SIZE
+        + 2 * Buckets.SHALLOW_SIZE;
 
     // These arrays represent both the positive and the negative buckets.
     // To avoid confusion, we refer to positions within the array as "slots" instead of indices in this file
@@ -48,13 +53,26 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
     private final Buckets positiveBuckets = new Buckets(true);
 
+    private double sum;
+    private double min;
+    private double max;
+
+    private final ExponentialHistogramCircuitBreaker circuitBreaker;
+    private boolean closed = false;
+
+    static FixedCapacityExponentialHistogram create(int bucketCapacity, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        circuitBreaker.adjustBreaker(estimateSize(bucketCapacity));
+        return new FixedCapacityExponentialHistogram(bucketCapacity, circuitBreaker);
+    }
+
     /**
      * Creates an empty histogram with the given capacity and a {@link ZeroBucket#minimalEmpty()} zero bucket.
      * The scale is initialized to the maximum possible precision ({@link #MAX_SCALE}).
      *
      * @param bucketCapacity the maximum total number of positive and negative buckets this histogram can hold.
      */
-    FixedCapacityExponentialHistogram(int bucketCapacity) {
+    private FixedCapacityExponentialHistogram(int bucketCapacity, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        this.circuitBreaker = circuitBreaker;
         bucketIndices = new long[bucketCapacity];
         bucketCounts = new long[bucketCapacity];
         reset();
@@ -64,6 +82,9 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      * Resets this histogram to the same state as a newly constructed one with the same capacity.
      */
     void reset() {
+        sum = 0;
+        min = Double.NaN;
+        max = Double.NaN;
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
     }
@@ -94,6 +115,33 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      */
     void setZeroBucket(ZeroBucket zeroBucket) {
         this.zeroBucket = zeroBucket;
+    }
+
+    @Override
+    public double sum() {
+        return sum;
+    }
+
+    void setSum(double sum) {
+        this.sum = sum;
+    }
+
+    @Override
+    public double min() {
+        return min;
+    }
+
+    void setMin(double min) {
+        this.min = min;
+    }
+
+    @Override
+    public double max() {
+        return max;
+    }
+
+    void setMax(double max) {
+        this.max = max;
     }
 
     /**
@@ -142,7 +190,28 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
         return positiveBuckets;
     }
 
+    @Override
+    public void close() {
+        if (closed) {
+            assert false : "FixedCapacityExponentialHistogram closed multiple times";
+        } else {
+            closed = true;
+            circuitBreaker.adjustBreaker(-ramBytesUsed());
+        }
+    }
+
+    static long estimateSize(int bucketCapacity) {
+        return BASE_SIZE + 2 * RamEstimationUtil.estimateLongArray(bucketCapacity);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return estimateSize(bucketIndices.length);
+    }
+
     private class Buckets implements ExponentialHistogram.Buckets {
+
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Buckets.class);
 
         private final boolean isPositive;
         private int numBuckets;
@@ -186,7 +255,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
         @Override
         public CopyableBucketIterator iterator() {
             int start = startSlot();
-            return new BucketArrayIterator(start, start + numBuckets);
+            return new BucketArrayIterator(bucketScale, bucketCounts, bucketIndices, start, start + numBuckets);
         }
 
         @Override
@@ -209,53 +278,4 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
         }
     }
 
-    private class BucketArrayIterator implements CopyableBucketIterator {
-
-        int currentSlot;
-        final int limit;
-
-        private BucketArrayIterator(int startSlot, int limit) {
-            this.currentSlot = startSlot;
-            this.limit = limit;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return currentSlot < limit;
-        }
-
-        @Override
-        public long peekCount() {
-            ensureEndNotReached();
-            return bucketCounts[currentSlot];
-        }
-
-        @Override
-        public long peekIndex() {
-            ensureEndNotReached();
-            return bucketIndices[currentSlot];
-        }
-
-        @Override
-        public void advance() {
-            ensureEndNotReached();
-            currentSlot++;
-        }
-
-        @Override
-        public int scale() {
-            return FixedCapacityExponentialHistogram.this.scale();
-        }
-
-        @Override
-        public CopyableBucketIterator copy() {
-            return new BucketArrayIterator(currentSlot, limit);
-        }
-
-        private void ensureEndNotReached() {
-            if (hasNext() == false) {
-                throw new IllegalStateException("Iterator has no more buckets");
-            }
-        }
-    }
 }

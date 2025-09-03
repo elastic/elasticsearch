@@ -104,7 +104,10 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             (float) trackingForWriteExecutor.pollUtilization(
                 TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
             ),
-            trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset()
+            Math.max(
+                trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
+                trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
+            )
         );
 
         Map<String, ThreadPoolUsageStats> perThreadPool = new HashMap<>();

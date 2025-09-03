@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -84,16 +85,16 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                "FirstOverTime[field=Attribute[channel=0],timestamp=Attribute[channel=1]]",
+                standardAggregatorName("First", fieldSupplier.type()) + "ByTimestamp",
                 type,
                 equalTo(expected)
             );
         });
     }
 
-    public static List<DataType> signatureTypes(List<DataType> testCaseTypes) {
-        assertThat(testCaseTypes, hasSize(2));
-        assertThat(testCaseTypes.get(1), equalTo(DataType.DATETIME));
-        return List.of(testCaseTypes.get(0));
+    public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        assertThat(params, hasSize(2));
+        assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
+        return List.of(params.get(0));
     }
 }

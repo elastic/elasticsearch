@@ -19,18 +19,12 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.PointValues.IntersectVisitor;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.DocBaseBitSetIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * This class is used to write and read the doc ids in a compressed format. The format is optimized
@@ -42,14 +36,12 @@ final class DocIdsWriter {
     public static final int DEFAULT_MAX_POINTS_IN_LEAF_NODE = 512;
 
     private static final byte CONTINUOUS_IDS = (byte) -2;
-    private static final byte BITSET_IDS = (byte) -1;
     private static final byte DELTA_BPV_16 = (byte) 16;
     private static final byte BPV_21 = (byte) 21;
     private static final byte BPV_24 = (byte) 24;
     private static final byte BPV_32 = (byte) 32;
 
     private int[] scratch = new int[0];
-    private final LongsRef scratchLongs = new LongsRef();
 
     /**
      * IntsRef to be used to iterate over the scratch buffer. A single instance is reused to avoid
@@ -68,6 +60,175 @@ final class DocIdsWriter {
     }
 
     DocIdsWriter() {}
+
+    /**
+     * Calculate the best encoding that will be used to write blocks of doc ids of blockSize.
+     * The encoding choice is universal for all the blocks, which means that the encoding is only as
+     * efficient as the worst block.
+     * @param docIds function to access the doc ids
+     * @param count number of doc ids
+     * @param blockSize the block size
+     * @return the byte encoding to use for the blocks
+     */
+    byte calculateBlockEncoding(IntToIntFunction docIds, int count, int blockSize) {
+        if (count == 0) {
+            return CONTINUOUS_IDS;
+        }
+        byte encoding = CONTINUOUS_IDS;
+        int iterationLimit = count - blockSize + 1;
+        int i = 0;
+        for (; i < iterationLimit; i += blockSize) {
+            int offset = i;
+            encoding = (byte) Math.max(encoding, blockEncoding(d -> docIds.apply(offset + d), blockSize));
+        }
+        // check the tail
+        if (i == count) {
+            return encoding;
+        }
+        int offset = i;
+        encoding = (byte) Math.max(encoding, blockEncoding(d -> docIds.apply(offset + d), count - i));
+        return encoding;
+    }
+
+    void writeDocIds(IntToIntFunction docIds, int count, byte encoding, DataOutput out) throws IOException {
+        if (count == 0) {
+            return;
+        }
+        if (count > scratch.length) {
+            scratch = new int[count];
+        }
+        int min = docIds.apply(0);
+        for (int i = 1; i < count; ++i) {
+            int current = docIds.apply(i);
+            min = Math.min(min, current);
+        }
+        switch (encoding) {
+            case CONTINUOUS_IDS:
+                writeContinuousIds(docIds, count, out);
+                break;
+            case DELTA_BPV_16:
+                writeDelta16(docIds, count, min, out);
+                break;
+            case BPV_21:
+                write21(docIds, count, min, out);
+                break;
+            case BPV_24:
+                write24(docIds, count, min, out);
+                break;
+            case BPV_32:
+                write32(docIds, count, min, out);
+                break;
+            default:
+                throw new IOException("Unsupported number of bits per value: " + encoding);
+        }
+    }
+
+    private static void writeContinuousIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
+        out.writeVInt(docIds.apply(0));
+    }
+
+    private void writeDelta16(IntToIntFunction docIds, int count, int min, DataOutput out) throws IOException {
+        for (int i = 0; i < count; i++) {
+            scratch[i] = docIds.apply(i) - min;
+        }
+        out.writeVInt(min);
+        final int halfLen = count >> 1;
+        for (int i = 0; i < halfLen; ++i) {
+            scratch[i] = scratch[halfLen + i] | (scratch[i] << 16);
+        }
+        for (int i = 0; i < halfLen; i++) {
+            out.writeInt(scratch[i]);
+        }
+        if ((count & 1) == 1) {
+            out.writeShort((short) scratch[count - 1]);
+        }
+    }
+
+    private void write21(IntToIntFunction docIds, int count, int min, DataOutput out) throws IOException {
+        final int oneThird = floorToMultipleOf16(count / 3);
+        final int numInts = oneThird * 2;
+        for (int i = 0; i < numInts; i++) {
+            scratch[i] = docIds.apply(i) << 11;
+        }
+        for (int i = 0; i < oneThird; i++) {
+            final int longIdx = i + numInts;
+            scratch[i] |= docIds.apply(longIdx) & 0x7FF;
+            scratch[i + oneThird] |= (docIds.apply(longIdx) >>> 11) & 0x7FF;
+        }
+        for (int i = 0; i < numInts; i++) {
+            out.writeInt(scratch[i]);
+        }
+        int i = oneThird * 3;
+        for (; i < count - 2; i += 3) {
+            out.writeLong(((long) docIds.apply(i)) | (((long) docIds.apply(i + 1)) << 21) | (((long) docIds.apply(i + 2)) << 42));
+        }
+        for (; i < count; ++i) {
+            out.writeShort((short) docIds.apply(i));
+            out.writeByte((byte) (docIds.apply(i) >>> 16));
+        }
+    }
+
+    private void write24(IntToIntFunction docIds, int count, int min, DataOutput out) throws IOException {
+
+        // encode the docs in the format that can be vectorized decoded.
+        final int quarter = count >> 2;
+        final int numInts = quarter * 3;
+        for (int i = 0; i < numInts; i++) {
+            scratch[i] = docIds.apply(i) << 8;
+        }
+        for (int i = 0; i < quarter; i++) {
+            final int longIdx = i + numInts;
+            scratch[i] |= docIds.apply(longIdx) & 0xFF;
+            scratch[i + quarter] |= (docIds.apply(longIdx) >>> 8) & 0xFF;
+            scratch[i + quarter * 2] |= docIds.apply(longIdx) >>> 16;
+        }
+        for (int i = 0; i < numInts; i++) {
+            out.writeInt(scratch[i]);
+        }
+        for (int i = quarter << 2; i < count; ++i) {
+            out.writeShort((short) docIds.apply(i));
+            out.writeByte((byte) (docIds.apply(i) >>> 16));
+        }
+    }
+
+    private void write32(IntToIntFunction docIds, int count, int min, DataOutput out) throws IOException {
+        for (int i = 0; i < count; i++) {
+            out.writeInt(docIds.apply(i));
+        }
+    }
+
+    private static byte blockEncoding(IntToIntFunction docIds, int count) {
+        // docs can be sorted either when all docs in a block have the same value
+        // or when a segment is sorted
+        boolean strictlySorted = true;
+        int min = docIds.apply(0);
+        int max = min;
+        for (int i = 1; i < count; ++i) {
+            int last = docIds.apply(i - 1);
+            int current = docIds.apply(i);
+            if (last >= current) {
+                strictlySorted = false;
+            }
+            min = Math.min(min, current);
+            max = Math.max(max, current);
+        }
+
+        int min2max = max - min + 1;
+        if (strictlySorted && min2max == count) {
+            return CONTINUOUS_IDS;
+        }
+        if (min2max <= 0xFFFF) {
+            return DELTA_BPV_16;
+        } else {
+            if (max <= 0x1FFFFF) {
+                return BPV_21;
+            } else if (max <= 0xFFFFFF) {
+                return BPV_24;
+            } else {
+                return BPV_32;
+            }
+        }
+    }
 
     void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
         if (count == 0) {
@@ -92,141 +253,40 @@ final class DocIdsWriter {
         }
 
         int min2max = max - min + 1;
-        if (strictlySorted) {
-            if (min2max == count) {
-                // continuous ids, typically happens when segment is sorted
-                out.writeByte(CONTINUOUS_IDS);
-                out.writeVInt(docIds.apply(0));
-                return;
-            } else if (min2max <= (count << 4)) {
-                assert min2max > count : "min2max: " + min2max + ", count: " + count;
-                // Only trigger bitset optimization when max - min + 1 <= 16 * count in order to avoid
-                // expanding too much storage.
-                // A field with lower cardinality will have higher probability to trigger this optimization.
-                out.writeByte(BITSET_IDS);
-                writeIdsAsBitSet(docIds, count, out);
-                return;
-            }
+        if (strictlySorted && min2max == count) {
+            // continuous ids, typically happens when segment is sorted
+            out.writeByte(CONTINUOUS_IDS);
+            writeContinuousIds(docIds, count, out);
+            return;
         }
 
         if (min2max <= 0xFFFF) {
             out.writeByte(DELTA_BPV_16);
-            for (int i = 0; i < count; i++) {
-                scratch[i] = docIds.apply(i) - min;
-            }
-            out.writeVInt(min);
-            final int halfLen = count >> 1;
-            for (int i = 0; i < halfLen; ++i) {
-                scratch[i] = scratch[halfLen + i] | (scratch[i] << 16);
-            }
-            for (int i = 0; i < halfLen; i++) {
-                out.writeInt(scratch[i]);
-            }
-            if ((count & 1) == 1) {
-                out.writeShort((short) scratch[count - 1]);
-            }
+            writeDelta16(docIds, count, min, out);
         } else {
             if (max <= 0x1FFFFF) {
                 out.writeByte(BPV_21);
-                final int oneThird = floorToMultipleOf16(count / 3);
-                final int numInts = oneThird * 2;
-                for (int i = 0; i < numInts; i++) {
-                    scratch[i] = docIds.apply(i) << 11;
-                }
-                for (int i = 0; i < oneThird; i++) {
-                    final int longIdx = i + numInts;
-                    scratch[i] |= docIds.apply(longIdx) & 0x7FF;
-                    scratch[i + oneThird] |= (docIds.apply(longIdx) >>> 11) & 0x7FF;
-                }
-                for (int i = 0; i < numInts; i++) {
-                    out.writeInt(scratch[i]);
-                }
-                int i = oneThird * 3;
-                for (; i < count - 2; i += 3) {
-                    out.writeLong(((long) docIds.apply(i)) | (((long) docIds.apply(i + 1)) << 21) | (((long) docIds.apply(i + 2)) << 42));
-                }
-                for (; i < count; ++i) {
-                    out.writeShort((short) docIds.apply(i));
-                    out.writeByte((byte) (docIds.apply(i) >>> 16));
-                }
+                write21(docIds, count, min, out);
             } else if (max <= 0xFFFFFF) {
                 out.writeByte(BPV_24);
-
-                // encode the docs in the format that can be vectorized decoded.
-                final int quarter = count >> 2;
-                final int numInts = quarter * 3;
-                for (int i = 0; i < numInts; i++) {
-                    scratch[i] = docIds.apply(i) << 8;
-                }
-                for (int i = 0; i < quarter; i++) {
-                    final int longIdx = i + numInts;
-                    scratch[i] |= docIds.apply(longIdx) & 0xFF;
-                    scratch[i + quarter] |= (docIds.apply(longIdx) >>> 8) & 0xFF;
-                    scratch[i + quarter * 2] |= docIds.apply(longIdx) >>> 16;
-                }
-                for (int i = 0; i < numInts; i++) {
-                    out.writeInt(scratch[i]);
-                }
-                for (int i = quarter << 2; i < count; ++i) {
-                    out.writeShort((short) docIds.apply(i));
-                    out.writeByte((byte) (docIds.apply(i) >>> 16));
-                }
+                write24(docIds, count, min, out);
             } else {
                 out.writeByte(BPV_32);
-                for (int i = 0; i < count; i++) {
-                    out.writeInt(docIds.apply(i));
-                }
+                write32(docIds, count, min, out);
             }
         }
     }
 
-    private static void writeIdsAsBitSet(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
-        int min = docIds.apply(0);
-        int max = docIds.apply(count - 1);
-
-        final int offsetWords = min >> 6;
-        final int offsetBits = offsetWords << 6;
-        final int totalWordCount = FixedBitSet.bits2words(max - offsetBits + 1);
-        long currentWord = 0;
-        int currentWordIndex = 0;
-
-        out.writeVInt(offsetWords);
-        out.writeVInt(totalWordCount);
-        // build bit set streaming
-        for (int i = 0; i < count; i++) {
-            final int index = docIds.apply(i) - offsetBits;
-            final int nextWordIndex = index >> 6;
-            assert currentWordIndex <= nextWordIndex;
-            if (currentWordIndex < nextWordIndex) {
-                out.writeLong(currentWord);
-                currentWord = 0L;
-                currentWordIndex++;
-                while (currentWordIndex < nextWordIndex) {
-                    currentWordIndex++;
-                    out.writeLong(0L);
-                }
-            }
-            currentWord |= 1L << index;
-        }
-        out.writeLong(currentWord);
-        assert currentWordIndex + 1 == totalWordCount;
-    }
-
-    /** Read {@code count} integers into {@code docIDs}. */
-    void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
+    void readInts(IndexInput in, int count, byte encoding, int[] docIDs) throws IOException {
         if (count == 0) {
             return;
         }
         if (count > scratch.length) {
             scratch = new int[count];
         }
-        final int bpv = in.readByte();
-        switch (bpv) {
+        switch (encoding) {
             case CONTINUOUS_IDS:
                 readContinuousIds(in, count, docIDs);
-                break;
-            case BITSET_IDS:
-                readBitSet(in, count, docIDs);
                 break;
             case DELTA_BPV_16:
                 readDelta16(in, count, docIDs);
@@ -241,22 +301,20 @@ final class DocIdsWriter {
                 readInts32(in, count, docIDs);
                 break;
             default:
-                throw new IOException("Unsupported number of bits per value: " + bpv);
+                throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 
-    private DocIdSetIterator readBitSetIterator(IndexInput in, int count) throws IOException {
-        int offsetWords = in.readVInt();
-        int longLen = in.readVInt();
-        scratchLongs.longs = ArrayUtil.growNoCopy(scratchLongs.longs, longLen);
-        in.readLongs(scratchLongs.longs, 0, longLen);
-        // make ghost bits clear for FixedBitSet.
-        if (longLen < scratchLongs.length) {
-            Arrays.fill(scratchLongs.longs, longLen, scratchLongs.longs.length, 0);
+    /** Read {@code count} integers into {@code docIDs}. */
+    void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
+        if (count == 0) {
+            return;
         }
-        scratchLongs.length = longLen;
-        FixedBitSet bitSet = new FixedBitSet(scratchLongs.longs, longLen << 6);
-        return new DocBaseBitSetIterator(bitSet, count, offsetWords << 6);
+        if (count > scratch.length) {
+            scratch = new int[count];
+        }
+        final int bpv = in.readByte();
+        readInts(in, count, (byte) bpv, docIDs);
     }
 
     private static void readContinuousIds(IndexInput in, int count, int[] docIDs) throws IOException {
@@ -264,15 +322,6 @@ final class DocIdsWriter {
         for (int i = 0; i < count; i++) {
             docIDs[i] = start + i;
         }
-    }
-
-    private void readBitSet(IndexInput in, int count, int[] docIDs) throws IOException {
-        DocIdSetIterator iterator = readBitSetIterator(in, count);
-        int docId, pos = 0;
-        while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            docIDs[pos++] = docId;
-        }
-        assert pos == count : "pos: " + pos + ", count: " + count;
     }
 
     private static void readDelta16(IndexInput in, int count, int[] docIds) throws IOException {

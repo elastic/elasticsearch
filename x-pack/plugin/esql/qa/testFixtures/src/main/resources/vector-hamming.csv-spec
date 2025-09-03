@@ -91,12 +91,12 @@ similarityWithRow
 required_capability: hamming_vector_similarity_function
 required_capability: to_dense_vector_function
  
-row vector = [1, 2, 3] 
+row vector = to_dense_vector([1, 2, 3])
 | eval similarity = round(v_hamming(vector, [0, 1, 2]), 3) 
 ;
 
-vector: integer  | similarity:double
-[1, 2, 3]        | 4.0
+vector: dense_vector | similarity:double
+[1.0, 2.0, 3.0]      | 4.0
 ;
 
 similarityWithVectorField
@@ -104,7 +104,7 @@ required_capability: hamming_vector_similarity_function
 required_capability: to_dense_vector_function
 
 from colors
-| eval query = [0, 255, 255]
+| eval query = to_dense_vector([0, 255, 255])
 | eval similarity = v_hamming(rgb_vector, query) 
 | sort similarity desc, color asc 
 | limit 10

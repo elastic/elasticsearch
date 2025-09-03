@@ -191,6 +191,23 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+
+    public void testKnnIncorrectCasting() {
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            | WHERE KNN(vector, "notcorrect", 5)
+            """);
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
+                    + "mode [lookup]"
+            )
+        );
+    }
+
     @Before
     public void setup() throws IOException {
         assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());

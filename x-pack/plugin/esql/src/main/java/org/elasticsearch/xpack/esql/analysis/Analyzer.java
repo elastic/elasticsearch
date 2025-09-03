@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Foldables
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -1686,10 +1685,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
                             }
                         } else if (folded instanceof BytesRef hexString && arg.dataType() == KEYWORD) {
-                            byte[] bytes = HexFormat.of().parseHex(hexString.utf8ToString());
-                            floatVector = new ArrayList<>();
-                            for (byte value : bytes) {
-                                floatVector.add((float) value);
+                            try {
+                                byte[] bytes = HexFormat.of().parseHex(hexString.utf8ToString());
+                                floatVector = new ArrayList<>();
+                                for (byte value : bytes) {
+                                    floatVector.add((float) value);
+                                }
+                            } catch (IllegalArgumentException e) {
+                                throw new VerificationException(
+                                    "Error in ["
+                                        + vectorFunction.sourceText()
+                                        + "] for argument ["
+                                        + arg.sourceText()
+                                        + "]; dense_vectors must be a hex-encoded string: "
+                                        + e.getMessage()
+                                );
                             }
                         }
                         if (floatVector != null) {
@@ -1697,10 +1707,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             newArgs.add(denseVector);
                             continue;
                         }
-                    } else if ((arg instanceof ToDenseVector == false) && (arg.dataType().isNumeric() || arg.dataType() == KEYWORD)) {
-                        // add casting function if it's not already there
-                        newArgs.add(new ToDenseVector(arg.source(), arg));
-                        continue;
                     }
                 }
                 newArgs.add(arg);

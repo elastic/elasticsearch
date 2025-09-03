@@ -94,12 +94,12 @@ similarityWithRow
 required_capability: cosine_vector_similarity_function
 required_capability: to_dense_vector_function
  
-row vector = [1, 2, 3] 
+row vector = to_dense_vector([1, 2, 3]) 
 | eval similarity = round(v_cosine(vector, [0, 1, 2]), 3) 
 ;
 
-vector: integer      | similarity:double
-[1, 2, 3]      | 0.978  
+vector: dense_vector | similarity:double
+[1.0, 2.0, 3.0]      | 0.978  
 ;
 
 similarityWithVectorField
@@ -108,7 +108,7 @@ required_capability: to_dense_vector_function
 
 from colors
 | where color != "black" 
-| eval query = [0, 255, 255]
+| eval query = to_dense_vector([0, 255, 255])
 | eval similarity = v_cosine(rgb_vector, query) 
 | sort similarity desc, color asc 
 | limit 10

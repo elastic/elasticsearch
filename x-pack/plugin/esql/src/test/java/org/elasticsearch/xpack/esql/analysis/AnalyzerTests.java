@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -2388,16 +2387,15 @@ public class AnalyzerTests extends ESTestCase {
 
     private static void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | eval query = [0, 1, 2] | where knn(%s, query, 10)
+            from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query, 10)
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        var queryVector = as(knn.query(), ToDenseVector.class);
+        var queryVector = as(knn.query(), ReferenceAttribute.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        var refAttr = as(queryVector.children().get(0), ReferenceAttribute.class);
-        assertThat(refAttr.name(), is("query"));
+        assertThat(queryVector.name(), is("query"));
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
@@ -2490,7 +2488,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | eval query = [0.342, 0.164, 0.234] | eval similarity = %s
+            from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
             """, similarityFunction), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
@@ -2500,8 +2498,9 @@ public class AnalyzerTests extends ESTestCase {
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
         assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
-        var right = as(similarity.right(), ToDenseVector.class);
+        var right = as(similarity.right(), ReferenceAttribute.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
+        assertThat(right.name(), is("query"));
     }
 
     public void testNoDenseVectorFailsSimilarityFunction() {
@@ -2528,6 +2527,33 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(
             error.getMessage(),
             containsString("second argument of [" + similarityFunction + "] must be" + " [dense_vector], found value [0.342] type [double]")
+        );
+    }
+
+    public void testVectorFunctionHexImplicitCastingError() {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\", 10)");
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_l1_norm(\"notcorrect\", 0.342)");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_l2_norm(\"notcorrect\", 0.342)");
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_hamming(\"notcorrect\", 0.342)");
+        }
+    }
+
+    private void checkVectorFunctionHexImplicitCastingError(String clause) {
+        var query = "from test | " + clause;
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, "mapping-dense_vector.json"));
+        assertThat(
+            error.getMessage(),
+            containsString("for argument [\"notcorrect\"]; dense_vectors must be a hex-encoded string")
         );
     }
 

@@ -308,7 +308,7 @@ required_capability: knn_function_v3
 required_capability: to_dense_vector_function
 
 from colors metadata _score
-| eval query = [0, 120, 0]
+| eval query = to_dense_vector([0, 120, 0])
 | where knn(rgb_vector, query, 10) 
 | sort _score desc, color asc
 | keep color, rgb_vector
@@ -333,7 +333,6 @@ required_capability: knn_function_v3
 required_capability: to_dense_vector_function
 
 from colors metadata _score
-| eval query = [0, 120, 0]
 | where knn(rgb_vector, "007800", 10) 
 | sort _score desc, color asc
 | keep color, rgb_vector

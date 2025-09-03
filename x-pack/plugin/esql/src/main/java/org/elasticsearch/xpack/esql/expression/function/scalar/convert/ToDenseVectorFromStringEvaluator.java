@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.HexFormat;
@@ -54,24 +55,29 @@ public class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.Ab
                     builder.appendNull();
                 } else {
                     scratch = block.getBytesRef(p, scratch);
-                    byte[] bytes = HexFormat.of().parseHex(scratch.utf8ToString());
-                    if (bytes.length == 0) {
-                        builder.appendNull();
-                        continue;
-                    }
-                    if (dimensions == 0) {
-                        dimensions = bytes.length;
-                    } else {
-                        if (bytes.length != dimensions) {
-                            throw new IllegalArgumentException("All dense_vector must have the same number of dimensions. Expected: "
-                                + dimensions + ", found: " + bytes.length);
+                    try {
+                        byte[] bytes = HexFormat.of().parseHex(scratch.utf8ToString());
+                        if (bytes.length == 0) {
+                            builder.appendNull();
+                            continue;
                         }
+                        if (dimensions == 0) {
+                            dimensions = bytes.length;
+                        } else {
+                            if (bytes.length != dimensions) {
+                                throw new IllegalArgumentException("All dense_vector must have the same number of dimensions. Expected: "
+                                    + dimensions + ", found: " + bytes.length);
+                            }
+                        }
+                        builder.beginPositionEntry();
+                        for (byte value : bytes) {
+                            builder.appendFloat(value);
+                        }
+                        builder.endPositionEntry();
+                    } catch (IllegalArgumentException  e) {
+                        registerException(e);
+                        builder.appendNull();
                     }
-                    builder.beginPositionEntry();
-                    for (byte value : bytes) {
-                        builder.appendFloat(value);
-                    }
-                    builder.endPositionEntry();
                 }
             }
             return builder.build();

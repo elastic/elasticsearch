@@ -7,21 +7,29 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -29,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
-public class ToDenseVector extends AbstractConvertFunction implements PostAnalysisVerificationAware {
+public class ToDenseVector extends AbstractConvertFunction implements PostAnalysisPlanVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToDenseVector",
@@ -58,6 +66,40 @@ public class ToDenseVector extends AbstractConvertFunction implements PostAnalys
         ) Expression field
     ) {
         super(source, field);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (lp, failures) -> {
+            Expression arg = children().get(0);
+            if (arg.foldable()) {
+                Object fold = arg.fold(FoldContext.small());
+                if ((fold instanceof List<?> list) && arg.dataType().isNumeric()) {
+                    if (list.size() <= 1) {
+                        failures.add(Failure.fail(
+                            this,
+                            "[" + sourceText() + "] requires at least two values to convert to a dense_vector"
+                        ));
+                    }
+                    return;
+                }
+                if ((arg.dataType() == KEYWORD) && fold instanceof BytesRef bytesRef) {
+                    if (bytesRef.length == 0) {
+                        failures.add(Failure.fail(
+                            this,
+                            "["
+                                + sourceText()
+                                + "] must be a non-empty hexadecimal string"));
+                    }
+                    return;
+                }
+                failures.add(Failure.fail(
+                    this,
+                    "["
+                        + sourceText()
+                        + "] must be a multi-valued input of numbers or an hexadecimal string"));
+            }
+        };
     }
 
     private ToDenseVector(StreamInput in) throws IOException {

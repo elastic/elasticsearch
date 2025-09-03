@@ -18,11 +18,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IntroSorter;
-import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -60,7 +60,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    LongValues buildAndWritePostingsLists(
+    CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -102,6 +102,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
+        final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
@@ -116,7 +117,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
-            offsets.add(postingsOutput.alignFilePointer(Float.BYTES) - fileOffset);
+            long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+            offsets.add(offset);
             buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
@@ -142,17 +144,19 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
             // write vectors
             bulkWriter.writeVectors(onHeapQuantizedVectors);
+            lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
 
         if (logger.isDebugEnabled()) {
             printClusterQualityStatistics(assignmentsByCluster);
         }
 
-        return offsets.build();
+        return new CentroidOffsetAndLength(offsets.build(), lengths.build());
     }
 
     @Override
-    LongValues buildAndWritePostingsLists(
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
+    CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -164,10 +168,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
         String quantizedVectorsTempName = null;
-        IndexOutput quantizedVectorsTemp = null;
         boolean success = false;
-        try {
-            quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "qvec_", IOContext.DEFAULT);
+        try (
+            IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
+                mergeState.segmentInfo.name,
+                "qvec_",
+                IOContext.DEFAULT
+            )
+        ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             int[] quantized = new int[fieldInfo.getVectorDimension()];
@@ -200,12 +208,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     writeQuantizedValue(quantizedVectorsTemp, binary, zeroResult);
                 }
             }
-            // close the temporary file so we can read it later
-            quantizedVectorsTemp.close();
             success = true;
         } finally {
-            if (success == false && quantizedVectorsTemp != null) {
-                mergeState.segmentInfo.dir.deleteFile(quantizedVectorsTemp.getName());
+            if (success == false && quantizedVectorsTempName != null) {
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
             }
         }
         int[] centroidVectorCount = new int[centroidSupplier.size()];
@@ -243,6 +249,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
             final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
+            final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
@@ -260,7 +267,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 boolean[] isOverspill = isOverspillByCluster[c];
-                offsets.add(postingsOutput.alignFilePointer(Float.BYTES) - fileOffset);
+                long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+                offsets.add(offset);
                 // write raw centroid for quantizing the query vectors
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
@@ -286,12 +294,16 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
                 // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
+                lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
+                // lengths.add(1);
             }
 
             if (logger.isDebugEnabled()) {
                 printClusterQualityStatistics(assignmentsByCluster);
             }
-            return offsets.build();
+            return new CentroidOffsetAndLength(offsets.build(), lengths.build());
+        } finally {
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, quantizedVectorsTempName);
         }
     }
 
@@ -335,16 +347,16 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
-        LongValues offsets,
+        CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
         // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
         if (centroidSupplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
-            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, offsets, centroidOutput);
+            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         } else {
-            writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, offsets, centroidOutput);
+            writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         }
     }
 
@@ -352,7 +364,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
-        LongValues offsets,
+        CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
         DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
@@ -392,7 +404,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
             final int[] centroidAssignments = centroidGroups.vectors()[i];
             for (int assignment : centroidAssignments) {
-                centroidOutput.writeLong(offsets.get(assignment));
+                centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(assignment));
+                centroidOutput.writeLong(centroidOffsetAndLength.lengths().get(assignment));
             }
         }
     }
@@ -401,7 +414,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
-        LongValues offsets,
+        CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
@@ -419,7 +432,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         bulkWriter.writeVectors(quantizedCentroids);
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {
-            centroidOutput.writeLong(offsets.get(i));
+            centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(i));
+            centroidOutput.writeLong(centroidOffsetAndLength.lengths().get(i));
         }
     }
 

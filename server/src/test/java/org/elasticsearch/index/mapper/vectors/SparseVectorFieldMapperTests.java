@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,16 +56,16 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
+import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
-import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
-import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
-import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -106,6 +107,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         b.field("type", "sparse_vector");
     }
 
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        return false;
+    }
+
+    @Override
+    protected boolean addsValueWhenNotSupplied() {
+        return true;
+    }
+
     protected void minimalFieldMappingPreviousIndexDefaultsIncluded(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
         b.field("store", false);
@@ -118,7 +129,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     protected void minimalMappingWithExplicitDefaults(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
-        b.field("store", false);
+        b.field("store", true);
 
         b.startObject("meta");
         b.endObject();
@@ -286,7 +297,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
             UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
         );
 
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
@@ -421,7 +432,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             .startObject("properties")
             .startObject("field")
             .field("type", "sparse_vector")
-            .field("store", true)
+            .field("store", false)
             .endObject()
             .endObject()
             .endObject()
@@ -474,23 +485,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
-        boolean withStore = randomBoolean();
         return new SyntheticSourceSupport() {
             @Override
             public boolean preservesExactSource() {
-                return withStore == false;
+                return false;
             }
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
                 var sample = getSampleValueForDocument();
-                return new SyntheticSourceExample(sample, sample, b -> {
-                    if (withStore) {
-                        minimalStoreMapping(b);
-                    } else {
-                        minimalMapping(b);
-                    }
-                });
+                return new SyntheticSourceExample(sample, sample, b -> { minimalMapping(b); });
             }
 
             @Override
@@ -508,7 +512,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     @Override
     protected String[] getParseMinimalWarnings(IndexVersion indexVersion) {
         String[] additionalWarnings = null;
-        if (indexVersion.before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
+        if (indexVersion.before(IndexVersions.V_8_0_0)) {
             additionalWarnings = new String[] { SparseVectorFieldMapper.ERROR_MESSAGE_7X };
         }
         return Strings.concatStringArrays(super.getParseMinimalWarnings(indexVersion), additionalWarnings);
@@ -516,13 +520,13 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
-        return NEW_SPARSE_VECTOR_INDEX_VERSION;
+        return NEW_SPARSE_VECTOR;
     }
 
     public void testSparseVectorUnsupportedIndex() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
-            PREVIOUS_SPARSE_VECTOR_INDEX_VERSION,
+            IndexVersions.V_8_0_0,
             IndexVersions.FIRST_DETACHED_INDEX_VERSION
         );
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
@@ -749,9 +753,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
             iw.addDocument(mapper.parse(source(b -> b.field("field", RARE_TOKENS))).rootDoc());
 
-            // This will lower the averageTokenFreqRatio so that common tokens get pruned with default settings
+            // This will lower the averageTokenFreqRatio so that common tokens get pruned with default settings.
+            // Depending on how the index is created, we will have 30-37 numUniqueTokens
+            // this will result in an averageTokenFreqRatio of 0.1021 - 0.1259
             Map<String, Float> uniqueDoc = new TreeMap<>();
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 30; i++) {
                 uniqueDoc.put("unique" + i, 0.5f);
             }
             iw.addDocument(mapper.parse(source(b -> b.field("field", uniqueDoc))).rootDoc());
@@ -765,10 +771,10 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public void testPruningScenarios() throws Exception {
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < 200; i++) {
             assertPruningScenario(
                 randomFrom(validIndexPruningScenarios),
-                new PruningOptions(randomBoolean() ? randomBoolean() : null, randomFrom(PruningConfig.values()))
+                new PruningOptions(randomFrom(true, false, null), randomFrom(PruningConfig.values()))
             );
         }
     }
@@ -798,7 +804,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         if (shouldPrune == null) {
-            shouldPrune = indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
+            shouldPrune = indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, UPGRADE_TO_LUCENE_10_0_0)
+                || indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT);
         }
 
         PruningScenario pruningScenario = PruningScenario.NO_PRUNING;
@@ -836,7 +843,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     private void assertPruningScenario(PruningOptions indexPruningOptions, PruningOptions queryPruningOptions) throws IOException {
-        IndexVersion indexVersion = getIndexVersionForTest(randomBoolean());
+        IndexVersion indexVersion = getIndexVersion();
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningOptions));
         PruningScenario effectivePruningScenario = getEffectivePruningScenario(indexPruningOptions, queryPruningOptions, indexVersion);
         withSearchExecutionContext(mapperService, (context) -> {
@@ -855,14 +862,41 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         });
     }
 
-    private IndexVersion getIndexVersionForTest(boolean usePreviousIndex) {
-        return usePreviousIndex
-            ? IndexVersionUtils.randomVersionBetween(
-                random(),
-                UPGRADE_TO_LUCENE_10_0_0,
-                IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
-            )
-            : IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+    private static IndexVersion getIndexVersion() {
+        VersionRange versionRange = randomFrom(VersionRange.values());
+        return versionRange.getRandomVersion();
+    }
+
+    private enum VersionRange {
+        ES_V8X_WITHOUT_INDEX_OPTIONS_SUPPORT(
+            NEW_SPARSE_VECTOR,
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
+        ),
+        ES_V8X_WITH_INDEX_OPTIONS_SUPPORT(
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+            IndexVersionUtils.getPreviousVersion(UPGRADE_TO_LUCENE_10_0_0)
+        ),
+        ES_V9X_WITHOUT_INDEX_OPTIONS_SUPPORT(
+            UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
+        ),
+        ES_V9X_WITH_INDEX_OPTIONS_SUPPORT(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+
+        private final IndexVersion fromVersion;
+        private final IndexVersion toVersion;
+
+        VersionRange(IndexVersion fromVersion, IndexVersion toVersion) {
+            this.fromVersion = fromVersion;
+            this.toVersion = toVersion;
+        }
+
+        IndexVersion getRandomVersion() {
+            // TODO: replace implementation with `IndexVersionUtils::randomVersionBetween` once support is added
+            // for handling unbalanced version distributions.
+            NavigableSet<IndexVersion> allReleaseVersions = IndexVersionUtils.allReleasedVersions();
+            Set<IndexVersion> candidateVersions = allReleaseVersions.subSet(fromVersion, toVersion);
+            return ESTestCase.randomFrom(candidateVersions);
+        }
     }
 
     private static final List<WeightedToken> QUERY_VECTORS = Stream.of(RARE_TOKENS, MEDIUM_TOKENS, COMMON_TOKENS)

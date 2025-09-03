@@ -88,6 +88,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
+        return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
+    }
+
+    @Override
     public ConstantNullBlock keepMask(BooleanVector mask) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
     }

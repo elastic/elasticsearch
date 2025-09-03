@@ -1121,7 +1121,8 @@ class NodeConstruction {
             settingsModule.getClusterSettings(),
             taskManager,
             telemetryProvider.getTracer(),
-            nodeEnvironment.nodeId()
+            nodeEnvironment.nodeId(),
+            projectResolver
         );
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
@@ -1721,7 +1722,8 @@ class NodeConstruction {
             fsHealthService,
             circuitBreakerService,
             compatibilityVersions,
-            featureService
+            featureService,
+            clusterService
         );
 
         modules.add(module, b -> {

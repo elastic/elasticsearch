@@ -85,7 +85,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -120,7 +120,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -155,7 +155,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -197,7 +197,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -238,7 +238,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Exception> exceptionHolder = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 fail(

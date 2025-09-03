@@ -1,4 +1,7 @@
-## `RENAME` [esql-rename]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `RENAME` processing command renames one or more columns.
 

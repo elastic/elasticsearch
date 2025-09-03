@@ -11,8 +11,8 @@ Queries do not return more than 10,000 rows, regardless of the `LIMIT` commandâ€
 
 To overcome this limitation:
 
-* Reduce the result set size by modifying the query to only return relevant data. Use [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) to select a smaller subset of the data.
-* Shift any post-query processing to the query itself. You can use the {{esql}} [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command to aggregate data in the query.
+* Reduce the result set size by modifying the query to only return relevant data. Use [`WHERE`](/reference/query-languages/esql/commands/where.md) to select a smaller subset of the data.
+* Shift any post-query processing to the query itself. You can use the {{esql}} [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command to aggregate data in the query.
 
 The upper limit only applies to the number of rows that are output by the query, not to the number of documents it processes: the query runs on the full data set.
 

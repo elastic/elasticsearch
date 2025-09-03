@@ -1,8 +1,8 @@
 {
   "indices.get_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-template-v1.html",
-      "description":"Returns an index template."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-template",
+      "description":"Get legacy index templates"
     },
     "stability":"stable",
     "visibility":"public",

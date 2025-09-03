@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -44,6 +43,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -648,10 +648,12 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        InetAddress address;
-        String value = context.parser().textOrNull();
+        ESInetAddressPoint address;
+        XContentString value = context.parser().optimizedTextOrNull();
         try {
-            address = value == null ? nullValue : InetAddresses.forString(value);
+            address = value == null
+                ? nullValue == null ? null : new ESInetAddressPoint(fieldType().name(), nullValue)
+                : new ESInetAddressPoint(fieldType().name(), value);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
                 context.addIgnoredField(fieldType().name());
@@ -669,7 +671,7 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (address != null) {
-                BytesRef sortableValue = new BytesRef(InetAddressPoint.encode(address));
+                BytesRef sortableValue = address.binaryValue();
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
             } else {
                 context.getOffSetContext().recordNull(offsetsFieldName);
@@ -677,21 +679,21 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    private void indexValue(DocumentParserContext context, InetAddress address) {
+    private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {
         if (dimension) {
-            context.getRoutingFields().addIp(fieldType().name(), address);
+            context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
+        LuceneDocument doc = context.doc();
         if (indexed) {
-            Field field = new InetAddressPoint(fieldType().name(), address);
-            context.doc().add(field);
+            doc.add(address);
         }
         if (hasDocValues) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+            doc.add(new StoredField(fieldType().name(), address.binaryValue()));
         }
     }
 
@@ -702,7 +704,12 @@ public class IpFieldMapper extends FieldMapper {
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
+        this.scriptValues.valuesForDoc(
+            searchLookup,
+            readerContext,
+            doc,
+            value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value))
+        );
     }
 
     @Override

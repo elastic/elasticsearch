@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -225,6 +226,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
                     timeBucketRef.set(e);
+                } else if (child instanceof TBucket tbucket && tbucket.field().equals(timestamp.get())) {
+                    if (timeBucketRef.get() != null) {
+                        throw new IllegalArgumentException("expected at most one time tbucket");
+                    }
+                    Bucket bucket = (Bucket) tbucket.surrogate();
+                    timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                 }
             }
         });

@@ -252,7 +252,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             private int nextCentroid() throws IOException {
                 if (currentParentQueue.size() > 0) {
-                    // return next centroid and add a children from the current parent queue
+                    // return next centroid and maybe add a children from the current parent queue
                     return neighborQueue.popAndAddRaw(currentParentQueue.popRaw());
                 } else if (parentsQueue.size() > 0) {
                     // current parent queue is empty, populate it again with the next parent

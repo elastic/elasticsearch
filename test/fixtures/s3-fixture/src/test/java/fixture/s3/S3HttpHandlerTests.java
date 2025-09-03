@@ -390,47 +390,11 @@ public class S3HttpHandlerTests extends ESTestCase {
     public void testPreventObjectOverwrite() throws InterruptedException {
         final var handler = new S3HttpHandler("bucket", "path");
 
-        Consumer<TestWriteTask> putObjectConsumer = (task) -> task.status = handleRequest(
-            handler,
-            "PUT",
-            "/bucket/path/blob",
-            task.body,
-            ifNoneMatchHeader()
-        ).status();
-
-        Consumer<TestWriteTask> prepareMultipartUploadConsumer = (task) -> {
-            final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
-            task.uploadId = getUploadId(createUploadResponse.body());
-
-            final var uploadPart1Response = handleRequest(
-                handler,
-                "PUT",
-                "/bucket/path/blob?uploadId=" + task.uploadId + "&partNumber=1",
-                task.body
-            );
-            task.etag = Objects.requireNonNull(uploadPart1Response.etag());
-        };
-
-        Consumer<TestWriteTask> completeMultipartUploadConsumer = (task) -> task.status = handleRequest(
-            handler,
-            "POST",
-            "/bucket/path/blob?uploadId=" + task.uploadId,
-            new BytesArray(Strings.format("""
-                <?xml version="1.0" encoding="UTF-8"?>
-                <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-                   <Part>
-                      <ETag>%s</ETag>
-                      <PartNumber>1</PartNumber>
-                   </Part>
-                </CompleteMultipartUpload>""", task.etag)),
-            ifNoneMatchHeader()
-        ).status();
-
         var tasks = List.of(
-            new TestWriteTask(putObjectConsumer),
-            new TestWriteTask(putObjectConsumer),
-            new TestWriteTask(completeMultipartUploadConsumer, prepareMultipartUploadConsumer),
-            new TestWriteTask(completeMultipartUploadConsumer, prepareMultipartUploadConsumer)
+            createPutObjectTask(handler),
+            createPutObjectTask(handler),
+            createMultipartUploadTask(handler),
+            createMultipartUploadTask(handler)
         );
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -457,17 +421,50 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
+    private static TestWriteTask createPutObjectTask(S3HttpHandler handler) {
+        return new TestWriteTask(
+            (task) -> task.status = handleRequest(handler, "PUT", "/bucket/path/blob", task.body, ifNoneMatchHeader()).status()
+        );
+    }
+
+    private static TestWriteTask createMultipartUploadTask(S3HttpHandler handler) {
+        final var multipartUploadTask = new TestWriteTask(
+            (task) -> task.status = handleRequest(
+                handler,
+                "POST",
+                "/bucket/path/blob?uploadId=" + task.uploadId,
+                new BytesArray(Strings.format("""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                       <Part>
+                          <ETag>%s</ETag>
+                          <PartNumber>1</PartNumber>
+                       </Part>
+                    </CompleteMultipartUpload>""", task.etag)),
+                ifNoneMatchHeader()
+            ).status()
+        );
+
+        final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
+        multipartUploadTask.uploadId = getUploadId(createUploadResponse.body());
+
+        final var uploadPart1Response = handleRequest(
+            handler,
+            "PUT",
+            "/bucket/path/blob?uploadId=" + multipartUploadTask.uploadId + "&partNumber=1",
+            multipartUploadTask.body
+        );
+        multipartUploadTask.etag = Objects.requireNonNull(uploadPart1Response.etag());
+
+        return multipartUploadTask;
+    }
+
     private static class TestWriteTask {
         final BytesReference body;
         final Runnable consumer;
         String uploadId;
         String etag;
         RestStatus status;
-
-        TestWriteTask(Consumer<TestWriteTask> consumer, Consumer<TestWriteTask> prepare) {
-            this(consumer);
-            prepare.accept(this);
-        }
 
         TestWriteTask(Consumer<TestWriteTask> consumer) {
             this.body = randomBytesReference(50);

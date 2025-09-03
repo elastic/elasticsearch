@@ -277,7 +277,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
 
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
-        float visitPercentage = randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         return new KnnSearch(field, vector, k, numCands, visitPercentage);
     }
 

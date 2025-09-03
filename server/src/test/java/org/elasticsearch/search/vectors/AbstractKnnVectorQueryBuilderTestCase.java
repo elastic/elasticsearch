@@ -146,7 +146,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         String fieldName = randomBoolean() ? VECTOR_FIELD : VECTOR_ALIAS_FIELD;
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
-        float visitPercentage = randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         KnnVectorQueryBuilder queryBuilder = createKnnVectorQueryBuilder(
             fieldName,
             k,

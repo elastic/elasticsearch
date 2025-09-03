@@ -25,22 +25,29 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BIT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +73,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
-        return randomFrom(
+        List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(Arrays.asList(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),
@@ -95,7 +102,18 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
             ),
             new DenseVectorFieldMapper.BBQFlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
-        );
+        ));
+
+        if(IVF_FORMAT.isEnabled()) {
+            options.add(
+                new DenseVectorFieldMapper.BBQIVFIndexOptions(
+                    randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                    randomFloatBetween(0.0f, 100.0f, true),
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
+            );
+        }
+
+        return randomFrom(options);
     }
 
     private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsHnswQuantized() {
@@ -244,7 +262,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenFloatKnnVectorQuery || query instanceof PatienceKnnVectorQuery);
+                assertTrue(query instanceof DiversifyingChildrenFloatKnnVectorQuery
+                    || query instanceof PatienceKnnVectorQuery
+                    || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery);
             }
         }
         {
@@ -475,7 +495,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
             } else {
-                assertTrue(query instanceof KnnFloatVectorQuery || query instanceof PatienceKnnVectorQuery);
+                assertTrue(query instanceof KnnFloatVectorQuery
+                    || query instanceof PatienceKnnVectorQuery
+                    || query instanceof IVFKnnFloatVectorQuery);
             }
         }
 
@@ -792,7 +814,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType fieldType,
         int k,
         int candidates,
-        float visitPercentage,
+        Float visitPercentage,
         float oversample,
         int expectedK,
         int expectedCandidates,

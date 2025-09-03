@@ -52,7 +52,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
-        float visitPercentage = randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null
             : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
@@ -230,7 +230,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         float[] vector = randomVector(randomIntBetween(2, 30));
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
-        float visitPercentage = randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         Float similarity = randomBoolean() ? null : randomFloat();
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null

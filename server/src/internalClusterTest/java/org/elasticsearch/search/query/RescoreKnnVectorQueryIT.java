@@ -116,7 +116,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         float[] queryVector,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder
     ) {
         public static TestParams generate() {
@@ -129,7 +129,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 randomVector(numDims),
                 k,
                 (int) (k * randomFloatBetween(1.0f, 10.0f, true)),
-                randomFloatBetween(0.0f, 100.0f, true),
+                randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
                 new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true))
             );
         }

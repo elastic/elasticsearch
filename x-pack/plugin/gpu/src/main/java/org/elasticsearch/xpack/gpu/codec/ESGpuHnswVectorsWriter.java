@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
@@ -42,6 +43,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.gpu.reflect.VectorsFormatReflectionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -73,6 +75,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
+    private final IndexOutput vectorData;
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
@@ -94,8 +97,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
+            vectorData = VectorsFormatReflectionUtils.getQuantizedVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
+            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
+            vectorData = VectorsFormatReflectionUtils.getVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         this.segmentWriteState = state;
@@ -148,11 +154,38 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         flatVectorWriter.flush(maxDoc, sortMap);
-        for (FieldWriter field : fields) {
-            if (sortMap == null) {
-                writeField(field);
-            } else {
-                writeSortingField(field, sortMap);
+
+        try (IndexInput in = segmentWriteState.segmentInfo.dir.openInput(vectorData.getName(), IOContext.DEFAULT)) {
+            var input = FilterIndexInput.unwrapOnlyTest(in);
+
+            for (FieldWriter fieldWriter : fields) {
+                // TODO: is this inefficient? Can we get "size" in another way?
+                var numVectors = fieldWriter.flatFieldVectorsWriter.getVectors().size();
+
+                final DatasetOrVectors datasetOrVectors;
+                if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                    // TODO: we are iterating over multiple fields, we probably need to memorySegmentAccessInput.segmentSliceOrNull()?
+                    var ds = DatasetUtils.getInstance()
+                        .fromInput(memorySegmentAccessInput, numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
+                    datasetOrVectors = DatasetOrVectors.fromDataset(ds);
+                } else {
+                    var builder = CuVSMatrix.hostBuilder(numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
+                    for (var vector : fieldWriter.flatFieldVectorsWriter.getVectors()) {
+                        builder.addVector(vector);
+                    }
+
+                    datasetOrVectors = DatasetOrVectors.fromDataset(builder.build());
+                }
+
+                try {
+                    if (sortMap == null) {
+                        writeField(fieldWriter.fieldInfo, datasetOrVectors);
+                    } else {
+                        writeSortingField(fieldWriter.fieldInfo, datasetOrVectors, sortMap);
+                    }
+                } finally {
+                    datasetOrVectors.close();
+                }
             }
         }
     }
@@ -221,38 +254,13 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void writeField(FieldWriter fieldWriter) throws IOException {
-        var vectors = fieldWriter.flatFieldVectorsWriter.getVectors();
-        final DatasetOrVectors datasetOrVectors;
-        if (vectors.size() < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-            // Use vectors/CPU
-            datasetOrVectors = DatasetOrVectors.fromArray(vectors);
-        } else {
-            // Avoid another heap copy (the float[][])
-
-            // TODO: another alternative is to use CuVSMatrix.deviceBuilder(), but this requires more effort
-            // 1. support no-copy CuVSDeviceMatrix as input in CagraIndex
-            // 2. ensure we are already holding a CuVSResource here
-            var builder = CuVSMatrix.hostBuilder(vectors.size(), vectors.getFirst().length, dataType);
-            for (var vector : vectors) {
-                builder.addVector(vector);
-            }
-            datasetOrVectors = DatasetOrVectors.fromDataset(builder.build());
-        }
-        try {
-            writeFieldInternal(fieldWriter.fieldInfo, datasetOrVectors);
-        } finally {
-            datasetOrVectors.close();
-        }
-    }
-
-    private void writeSortingField(FieldWriter fieldData, Sorter.DocMap sortMap) throws IOException {
+    private void writeSortingField(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors, Sorter.DocMap sortMap) throws IOException {
         // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
         // We can now treat them as a simple, sorted list of vectors.
-        writeField(fieldData);
+        writeField(fieldInfo, datasetOrVectors);
     }
 
-    private void writeFieldInternal(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors) throws IOException {
+    private void writeField(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors) throws IOException {
         try {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];

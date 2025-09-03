@@ -507,7 +507,7 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
-                def(Knn.class, quad(Knn::new), "knn"),
+                def(Knn.class, tri(Knn::new), "knn"),
                 def(ToGeohash.class, ToGeohash::new, "to_geohash"),
                 def(ToGeotile.class, ToGeotile::new, "to_geotile"),
                 def(ToGeohex.class, ToGeohex::new, "to_geohex"),

@@ -15,9 +15,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.ClusterInfoServiceUtils;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -241,7 +238,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          */
 
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
-        refreshClusterInfo(masterName);
+        refreshClusterInfo();
 
         logger.info(
             "---> Update the filter to exclude " + firstDataNodeName + " so that shards will be reassigned away to the other nodes"
@@ -271,12 +268,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .build();
-        final String masterName = internalCluster().startMasterOnlyNode(settings);
-        final var dataNodes = internalCluster().startDataOnlyNodes(2, settings);
-        ensureStableCluster(3);
+        final var dataNodes = internalCluster().startNodes(3, settings);
 
         // Refresh cluster info (should trigger polling)
-        refreshClusterInfo(masterName);
+        refreshClusterInfo();
 
         Map<String, Long> mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);
         assertThat(mostRecentQueueLatencyMetrics.keySet(), hasSize(dataNodes.size()));
@@ -295,18 +290,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         // Unblock the pool
         latch.countDown();
 
-        refreshClusterInfo(masterName);
+        refreshClusterInfo();
         mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);
         assertThat(mostRecentQueueLatencyMetrics.keySet(), hasSize(dataNodes.size()));
         assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
-    }
-
-    private static void refreshClusterInfo(String masterName) {
-        final InternalClusterInfoService clusterInfoService = asInstanceOf(
-            InternalClusterInfoService.class,
-            internalCluster().getInstance(ClusterInfoService.class, masterName)
-        );
-        ClusterInfoServiceUtils.refresh(clusterInfoService);
     }
 
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {

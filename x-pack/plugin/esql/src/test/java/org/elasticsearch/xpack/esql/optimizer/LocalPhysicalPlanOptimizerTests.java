@@ -172,7 +172,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_OPERATOR_QUERY = "from test | where %s:%s";
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
-    private TestPlannerOptimizer plannerOptimizer;
+    protected TestPlannerOptimizer plannerOptimizer;
     private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private Analyzer timeSeriesAnalyzer;
     private final Configuration config;
@@ -261,7 +261,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
     }
 
-    private Analyzer makeAnalyzer(String mappingFileName) {
+    protected Analyzer makeAnalyzer(String mappingFileName) {
         return makeAnalyzer(mappingFileName, new EnrichResolution());
     }
 
@@ -1376,12 +1376,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     public void testKnnOptionsPushDown() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3], 5,
-                { "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
+            | where KNN(dense_vector, [0.1, 0.2, 0.3],
+                { "similarity": 0.001, "min_candidates": 5000, "rescore_oversample": 7, "boost": 3.5 })
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
@@ -1392,12 +1392,69 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var expectedQuery = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0.1f, 0.2f, 0.3f },
-            5,
-            10,
+            5000,
+            5000,
             new RescoreVectorBuilder(7),
             0.001f
         ).boost(3.5f);
-        assertThat(expectedQuery.toString(), is(planStr.get()));
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnUsesLimitForK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3])
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null);
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnKAndMinCandidatesLowerK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 50})
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null);
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnKAndMinCandidatesHigherK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 10})
+            | limit 50
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null);
+        assertEquals(expectedQuery.toString(), planStr.get());
     }
 
     /**
@@ -1842,11 +1899,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnPrefilters() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10) and integer > 10
+            | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -1859,12 +1916,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             query,
             unscore(rangeQuery("integer").gt(10)),
             "integer",
-            new Source(2, 45, "integer > 10")
+            new Source(2, 41, "integer > 10")
         );
         KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0, 1, 2 },
-            10,
+            1000,
             null,
             null,
             null
@@ -1874,11 +1931,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnPrefiltersWithMultipleFilters() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10)
+            | where knn(dense_vector, [0, 1, 2])
             | where integer > 10
             | where keyword == "test"
             """;
@@ -1900,7 +1957,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0, 1, 2 },
-            10,
+            1000,
             null,
             null,
             null
@@ -1910,11 +1967,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testPushDownConjunctionsToKnnPrefilter() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10) and integer > 10
+            | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -1929,13 +1986,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             query,
             unscore(rangeQuery("integer").gt(10)),
             "integer",
-            new Source(2, 45, "integer > 10")
+            new Source(2, 41, "integer > 10")
         );
 
         KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0, 1, 2 },
-            10,
+            1000,
             null,
             null,
             null
@@ -1947,11 +2004,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testPushDownNegatedConjunctionsToKnnPrefilter() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10) and NOT integer > 10
+            | where knn(dense_vector, [0, 1, 2]) and NOT integer > 10
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -1966,13 +2023,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             query,
             unscore(boolQuery().mustNot(unscore(rangeQuery("integer").gt(10)))),
             "integer",
-            new Source(2, 45, "NOT integer > 10")
+            new Source(2, 41, "NOT integer > 10")
         );
 
         KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0, 1, 2 },
-            10,
+            1000,
             null,
             null,
             null
@@ -1984,11 +2041,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testNotPushDownDisjunctionsToKnnPrefilter() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where knn(dense_vector, [0, 1, 2], 10) or integer > 10
+            | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -1999,12 +2056,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryExec = as(field.child(), EsQueryExec.class);
 
         // The disjunction should not be pushed down to the KNN query
-        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
+        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null);
         QueryBuilder rangeQueryBuilder = wrapWithSingleQuery(
             query,
             unscore(rangeQuery("integer").gt(10)),
             "integer",
-            new Source(2, 44, "integer > 10")
+            new Source(2, 40, "integer > 10")
         );
 
         var expectedQuery = boolQuery().should(knnQueryBuilder).should(rangeQueryBuilder);
@@ -2013,11 +2070,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testNotPushDownKnnWithNonPushablePrefilters() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where ((knn(dense_vector, [0, 1, 2], 10) AND integer > 10) and ((keyword == "test") or length(text) > 10))
+            | where ((knn(dense_vector, [0, 1, 2]) AND integer > 10) and ((keyword == "test") or length(text) > 10))
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -2040,19 +2097,19 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             query,
             unscore(rangeQuery("integer").gt(10)),
             "integer",
-            new Source(2, 47, "integer > 10")
+            new Source(2, 43, "integer > 10")
         );
 
         assertEquals(integerGtQuery.toString(), queryExec.query().toString());
     }
 
     public void testPushDownComplexNegationsToKnnPrefilter() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where ((knn(dense_vector, [0, 1, 2], 10) or NOT integer > 10)
-              and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
+            | where ((knn(dense_vector, [0, 1, 2]) or NOT integer > 10)
+              and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -2072,18 +2129,18 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             query,
             unscore(boolQuery().mustNot(unscore(termQuery("keyword", "test")))),
             "keyword",
-            new Source(3, 6, "NOT ((keyword == \"test\") or knn(dense_vector, [4, 5, 6], 10))")
+            new Source(3, 6, "NOT ((keyword == \"test\") or knn(dense_vector, [4, 5, 6]))")
         );
 
         QueryBuilder notIntegerGt10 = wrapWithSingleQuery(
             query,
             unscore(boolQuery().mustNot(unscore(rangeQuery("integer").gt(10)))),
             "integer",
-            new Source(2, 46, "NOT integer > 10")
+            new Source(2, 42, "NOT integer > 10")
         );
 
-        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
-        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
+        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null);
+        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null);
 
         firstKnn.addFilterQuery(notKeywordFilter);
         secondKnn.addFilterQuery(notIntegerGt10);
@@ -2097,11 +2154,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testMultipleKnnQueriesInPrefilters() {
-        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         String query = """
             from test
-            | where ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
+            | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
@@ -2111,24 +2168,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var queryExec = as(field.child(), EsQueryExec.class);
 
-        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
+        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null);
         // Integer range query (right side of first OR)
         QueryBuilder integerRangeQuery = wrapWithSingleQuery(
             query,
             unscore(rangeQuery("integer").gt(10)),
             "integer",
-            new Source(2, 46, "integer > 10")
+            new Source(2, 42, "integer > 10")
         );
 
         // Second KNN query (right side of second OR)
-        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
+        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null);
 
         // Keyword term query (left side of second OR)
         QueryBuilder keywordQuery = wrapWithSingleQuery(
             query,
             unscore(termQuery("keyword", "test")),
             "keyword",
-            new Source(2, 66, "keyword == \"test\"")
+            new Source(2, 62, "keyword == \"test\"")
         );
 
         // First OR (knn1 OR integer > 10)
@@ -2510,7 +2567,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
-    private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
+    protected static QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }
 

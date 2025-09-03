@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -37,6 +38,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -93,6 +97,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
@@ -121,6 +126,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
@@ -131,6 +137,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -1628,7 +1635,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or geo_point or geo_shape or ip or numeric or string or version";
+            + "or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -2342,20 +2349,19 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         checkDenseVectorCastingKnn("float_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, [0.342, 0.164, 0.234], 10)
+            from test | where knn(%s, [0.342, 0.164, 0.234])
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        var field = knn.field();
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
         assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));
@@ -3101,6 +3107,27 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
+    public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
+        assertThat(attribute.name(), is("message"));
+        assertThat(attribute.dataType(), is(DataType.LONG));
+    }
+
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -3531,7 +3558,11 @@ public class AnalyzerTests extends ESTestCase {
         String indexName,
         Map<String, IndexFieldCapabilities> fields
     ) {
-        return new FieldCapabilitiesIndexResponse(indexName, indexName, fields, false, IndexMode.STANDARD);
+        String indexMappingHash = new String(
+            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
+        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
     }
 
     private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
@@ -4236,16 +4267,113 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         verifyUnsupported("""
             from test
             | inlinestats MIN(salary) BY x = languages, x = x + 1
             """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
     }
 
+    public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
+        LogicalPlan plan = analyze("""
+            FROM sample_data
+            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
+            | SORT min
+            """, "mapping-sample_data.json");
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Aggregate agg = as(orderBy.child(), Aggregate.class);
+
+        List<? extends NamedExpression> aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("min", a.name());
+        Min min = as(a.child(), Min.class);
+        FieldAttribute fa = as(min.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        a = as(aggregates.get(1), Alias.class);
+        assertEquals("max", a.name());
+        Max max = as(a.child(), Max.class);
+        fa = as(max.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        ReferenceAttribute ra = as(aggregates.get(2), ReferenceAttribute.class);
+        assertEquals("bucket", ra.name());
+
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
+        TBucket tbucket = as(a.child(), TBucket.class);
+        fa = as(tbucket.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        Literal literal = as(tbucket.buckets(), Literal.class);
+        Literal oneWeek = new Literal(EMPTY, Period.ofWeeks(1), DATE_PERIOD);
+        assertEquals(oneWeek, literal);
+    }
+
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {
         assertEquals(expectedName, actualName);
         assertEquals(expectedType, actualType);
+    }
+
+    public void testImplicitCastingForAggregateMetricDouble() {
+        assumeTrue(
+            "aggregate metric double implicit casting must be available",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.isEnabled()
+        );
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "cluster",
+            new EsField("cluster", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "metric_field",
+            new InvalidMappedField("metric_field", Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")))
+        );
+
+        var esIndex = new EsIndex(
+            "k8s*",
+            mapping,
+            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Set.of()
+        );
+        var indexResolution = IndexResolution.valid(esIndex);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultEnrichResolution(),
+                defaultInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s* | stats std_dev(metric_field)
+            """, analyzer));
+        assertThat(
+            e.getMessage(),
+            containsString("Cannot use field [metric_field] due to ambiguities being mapped as [2] incompatible types")
+        );
+
+        var plan = analyze("""
+            from k8s* | stats max = max(metric_field),
+            avg = avg(metric_field),
+            sum = sum(metric_field),
+            min = min(metric_field),
+            count = count(metric_field)
+            """, analyzer);
+        assertProjection(plan, "max", "avg", "sum", "min", "count");
+
+        assumeTrue("Metrics command must be available for TS", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        var plan2 = analyze("""
+            TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
+            s2 = sum(avg_over_time(metric_field)),
+            min = min(max_over_time(metric_field)),
+            count = count(count_over_time(metric_field)),
+            avg = avg(min_over_time(metric_field))
+            by cluster, time_bucket = bucket(@timestamp,1minute)
+            """, analyzer);
+        assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

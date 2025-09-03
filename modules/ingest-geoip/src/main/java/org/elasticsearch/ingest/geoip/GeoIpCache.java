@@ -42,8 +42,8 @@ public final class GeoIpCache {
         }
     };
 
-    private final LongSupplier relativeNanoTimeProvider;
     private final Cache<CacheKey, Object> cache;
+    private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 

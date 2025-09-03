@@ -1,8 +1,8 @@
 {
   "info":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
-      "description":"Returns basic information about the cluster."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-info",
+      "description":"Get cluster info"
     },
     "stability":"stable",
     "visibility":"public",

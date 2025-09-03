@@ -34,7 +34,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -75,7 +74,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -179,6 +177,11 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
+                assert ThreadPool.assertCurrentThreadPool(
+                    ThreadPool.Names.SEARCH,
+                    ThreadPool.Names.SEARCH_COORDINATION,
+                    ThreadPool.Names.SYSTEM_READ
+                );
                 SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
                     .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
                     .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
@@ -199,19 +202,17 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
+            ThreadPool.Names.SYSTEM_READ
         );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+                new ReferenceAttribute(EMPTY, null, "role", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "type", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "plan", DataType.KEYWORD)
             );
             List<List<Object>> values = new ArrayList<>();
             values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
@@ -372,12 +373,10 @@ public class EsqlSession {
         }
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
-
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
         var listener = SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l))
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
@@ -423,6 +422,7 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
+            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -637,8 +637,10 @@ public class EsqlSession {
                     result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
                 );
             } else {
+                boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
+                    includeAllDimensions = true;
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
                     if (requestFilter != null) {
@@ -651,6 +653,7 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
+                    includeAllDimensions,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
                     })
@@ -693,7 +696,9 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                if (executionInfo.clusterInfo.isEmpty() == false) {
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                }
             }
             LogicalPlan plan = analyzedPlan(parsed, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);

@@ -201,7 +201,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -222,6 +222,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
@@ -304,6 +305,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticateResponseHandler;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
@@ -628,6 +630,7 @@ public class Security extends Plugin
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
+    private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -922,7 +925,7 @@ public class Security extends Plugin
         components.add(privilegeStore);
 
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
-        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
@@ -957,6 +960,15 @@ public class Security extends Plugin
         if (fileRoleValidator.get() == null) {
             fileRoleValidator.set(new FileRoleValidator.Default());
         }
+        if (samlAuthenticateResponseHandlerFactory.get() == null) {
+            samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
+        }
+        components.add(
+            new PluginComponentBinding<>(
+                SamlAuthenticateResponseHandler.class,
+                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, getClock())
+            )
+        );
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
@@ -1068,9 +1080,8 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
-
-        components.add(customApiKeyAuthenticator);
+        final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
+        components.addAll(customAuthenticators);
 
         authcService.set(
             new AuthenticationService(
@@ -1084,7 +1095,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customApiKeyAuthenticator,
+                customAuthenticators,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1220,45 +1231,48 @@ public class Security extends Plugin
         return components;
     }
 
-    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
-        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
-        for (final SecurityExtension extension : securityExtensions) {
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
-            if (customApiKeyAuthenticator != null) {
-                if (false == isInternalExtension(extension)) {
+    private List<CustomAuthenticator> getCustomAuthenticatorFromExtensions(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, List<CustomAuthenticator>> customAuthenticatorsByExtension = new HashMap<>();
+        for (final SecurityExtension securityExtension : securityExtensions) {
+            final List<CustomAuthenticator> customAuthenticators = securityExtension.getCustomAuthenticators(extensionComponents);
+            if (customAuthenticators != null) {
+                if (false == isInternalExtension(securityExtension)) {
                     throw new IllegalStateException(
                         "The ["
-                            + extension.extensionName()
-                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
+                            + securityExtension.extensionName()
+                            + "] extension tried to install a  "
+                            + CustomAuthenticator.class.getSimpleName()
+                            + ". "
                             + "This functionality is not available to external extensions."
                     );
                 }
-                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
+                customAuthenticatorsByExtension.put(securityExtension.extensionName(), customAuthenticators);
             }
         }
 
-        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
+        if (customAuthenticatorsByExtension.isEmpty()) {
             logger.debug(
-                "No custom implementation for [{}]. Falling-back to noop implementation.",
-                CustomApiKeyAuthenticator.class.getCanonicalName()
+                "No custom implementations for [{}] provided by security extensions.",
+                CustomAuthenticator.class.getCanonicalName()
             );
-            return new CustomApiKeyAuthenticator.Noop();
-
-        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
+            return List.of();
+        } else if (customAuthenticatorsByExtension.size() > 1) {
             throw new IllegalStateException(
-                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
+                "Multiple extensions tried to install custom authenticators: " + customAuthenticatorsByExtension.keySet()
             );
-
         } else {
-            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final var authenticatorByExtensionEntry = customAuthenticatorsByExtension.entrySet().iterator().next();
+            final List<CustomAuthenticator> customAuthenticators = authenticatorByExtensionEntry.getValue();
             final String extensionName = authenticatorByExtensionEntry.getKey();
-            logger.debug(
-                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
-                customApiKeyAuthenticator.getClass().getCanonicalName(),
-                extensionName
-            );
-            return customApiKeyAuthenticator;
+            for (CustomAuthenticator authenticator : customAuthenticators) {
+                logger.debug(
+                    "{} implementation [{}] provided by extension [{}]",
+                    CustomAuthenticator.class.getSimpleName(),
+                    authenticator.getClass().getCanonicalName(),
+                    extensionName
+                );
+            }
+            return customAuthenticators;
         }
     }
 
@@ -2031,10 +2045,11 @@ public class Security extends Plugin
         httpTransports.put(SecurityField.NAME4, () -> {
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
             final SSLService sslService = getSslService();
-            final SslConfiguration sslConfiguration;
             final BiConsumer<Channel, ThreadContext> populateClientCertificate;
+            final TLSConfig tlsConfig;
             if (ssl) {
-                sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
+                final SslConfiguration sslConfiguration = sslProfile.configuration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                     throw new IllegalArgumentException(
                         "a key must be provided to run as a server. the key should be configured using the "
@@ -2046,8 +2061,9 @@ public class Security extends Plugin
                 } else {
                     populateClientCertificate = (channel, threadContext) -> {};
                 }
+                tlsConfig = new TLSConfig(sslProfile::engine);
             } else {
-                sslConfiguration = null;
+                tlsConfig = TLSConfig.noTLS();
                 populateClientCertificate = (channel, threadContext) -> {};
             }
             final AuthenticationService authenticationService = this.authcService.get();
@@ -2061,7 +2077,7 @@ public class Security extends Plugin
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
                 telemetryProvider,
-                new TLSConfig(sslConfiguration, sslService::createSSLEngine),
+                tlsConfig,
                 acceptPredicate,
                 (httpRequest, channel, listener) -> {
                     HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
@@ -2419,6 +2435,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

@@ -33,27 +33,27 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         }
     }
 
-    def namedTransportVersion(String name, String ids) {
-        javaResource("myserver", "transport/definitions/named/" + name + ".csv", ids)
+    def referableTransportVersion(String name, String ids) {
+        javaResource("myserver", "transport/definitions/referable/" + name + ".csv", ids)
     }
 
-    def unreferencedTransportVersion(String name, String id) {
-        javaResource("myserver", "transport/definitions/unreferenced/" + name + ".csv", id)
+    def unreferableTransportVersion(String name, String id) {
+        javaResource("myserver", "transport/definitions/unreferable/" + name + ".csv", id)
     }
 
-    def namedAndReferencedTransportVersion(String name, String ids) {
-        return namedAndReferencedTransportVersion(name, ids, "Test${name.capitalize()}")
+    def referableAndReferencedTransportVersion(String name, String ids) {
+        return referableAndReferencedTransportVersion(name, ids, "Test${name.capitalize()}")
     }
 
-    def namedAndReferencedTransportVersion(String name, String ids, String classname) {
+    def referableAndReferencedTransportVersion(String name, String ids, String classname) {
         javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
-        namedTransportVersion(name, ids)
+        referableTransportVersion(name, ids)
     }
 
-    def latestTransportVersion(String branch, String name, String id) {
-        javaResource("myserver", "transport/latest/" + branch + ".csv","${name},${id}")
+    def transportVersionUpperBound(String branch, String name, String id) {
+        javaResource("myserver", "transport/upper_bounds/" + branch + ".csv","${name},${id}")
     }
 
     def validateReferencesFails(String project) {
@@ -87,11 +87,11 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             apply plugin: 'elasticsearch.transport-version-references'
             apply plugin: 'elasticsearch.transport-version-resources'
         """
-        namedTransportVersion("existing_91", "8012000")
-        namedTransportVersion("existing_92", "8123000,8012001")
-        unreferencedTransportVersion("initial_9_0_0", "8000000")
-        latestTransportVersion("9.2", "existing_92", "8123000")
-        latestTransportVersion("9.1", "existing_92", "8012001")
+        referableTransportVersion("existing_91", "8012000")
+        referableTransportVersion("existing_92", "8123000,8012001")
+        unreferableTransportVersion("initial_9_0_0", "8000000")
+        transportVersionUpperBound("9.2", "existing_92", "8123000")
+        transportVersionUpperBound("9.1", "existing_92", "8012001")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al
         javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
             public static TransportVersion fromName(String name) {
@@ -115,5 +115,13 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         setupLocalGitRepo()
         execute("git checkout -b main")
         execute("git checkout -b test")
+    }
+
+    void setupLocalGitRepo() {
+        execute("git init")
+        execute('git config user.email "build-tool@elastic.co"')
+        execute('git config user.name "Build tool"')
+        execute("git add .")
+        execute('git commit -m "Initial"')
     }
 }

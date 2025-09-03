@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -34,7 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOptimizerTests {
 
     // Key is the predicate,

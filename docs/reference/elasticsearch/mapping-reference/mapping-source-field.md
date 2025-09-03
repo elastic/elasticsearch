@@ -17,7 +17,11 @@ If disk usage is important to you, then consider the following options:
 
 ## Synthetic `_source` [synthetic-source]
 
-Though very handy to have around, the source field takes up a significant amount of space on disk. Instead of storing source documents on disk exactly as you send them, Elasticsearch can reconstruct source content on the fly upon retrieval. To enable this [subscription](https://www.elastic.co/subscriptions) feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
+:::{note}
+This feature requires a [subscription](https://www.elastic.co/subscriptions).
+:::
+
+Though very handy to have around, the source field takes up a significant amount of space on disk. Instead of storing source documents on disk exactly as you send them, Elasticsearch can reconstruct source content on the fly upon retrieval. To enable this feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
 
 $$$enable-synthetic-source-example$$$
 

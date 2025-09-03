@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -99,62 +102,73 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    try (
-                        FloatBlock leftBlock = (FloatBlock) left.get(context).eval(page);
-                        FloatBlock rightBlock = (FloatBlock) right.get(context).eval(page)
-                    ) {
-                        int positionCount = page.getPositionCount();
-                        int dimensions = 0;
-                        // Get the first non-empty vector to calculate the dimension
-                        for (int p = 0; p < positionCount; p++) {
-                            if (leftBlock.getValueCount(p) != 0) {
-                                dimensions = leftBlock.getValueCount(p);
-                                break;
-                            }
-                        }
-                        if (dimensions == 0) {
-                            return context.blockFactory().newConstantNullBlock(positionCount);
-                        }
+            return new SimilarityEvaluator(
+                left.get(context),
+                right.get(context),
+                similarityFunction,
+                evaluatorName,
+                context.blockFactory()
+            );
+        }
 
-                        float[] leftScratch = new float[dimensions];
-                        float[] rightScratch = new float[dimensions];
-                        try (DoubleBlock.Builder builder = context.blockFactory().newDoubleBlockBuilder(positionCount * dimensions)) {
-                            for (int p = 0; p < positionCount; p++) {
-                                int dimsLeft = leftBlock.getValueCount(p);
-                                int dimsRight = rightBlock.getValueCount(p);
+        @Override
+        public String toString() {
+            return evaluatorName() + "[left=" + left + ", right=" + right + "]";
+        }
+    }
 
-                                if (dimsLeft == 0 || dimsRight == 0) {
-                                    // A null value on the left or right vector. Similarity is null
-                                    builder.appendNull();
-                                    continue;
-                                } else if (dimsLeft != dimsRight) {
-                                    throw new EsqlClientException(
-                                        "Vectors must have the same dimensions; first vector has {}, and second has {}",
-                                        dimsLeft,
-                                        dimsRight
-                                    );
-                                }
-                                readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
-                                readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
-                                float result = similarityFunction.calculateSimilarity(leftScratch, rightScratch);
-                                builder.appendDouble(result);
-                            }
-                            return builder.build();
-                        }
+    private record SimilarityEvaluator(
+        EvalOperator.ExpressionEvaluator left,
+        EvalOperator.ExpressionEvaluator right,
+        SimilarityEvaluatorFunction similarityFunction,
+        String evaluatorName,
+        BlockFactory blockFactory
+    ) implements EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SimilarityEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            try (FloatBlock leftBlock = (FloatBlock) left.eval(page); FloatBlock rightBlock = (FloatBlock) right.eval(page)) {
+                int positionCount = page.getPositionCount();
+                int dimensions = 0;
+                // Get the first non-empty vector to calculate the dimension
+                for (int p = 0; p < positionCount; p++) {
+                    if (leftBlock.getValueCount(p) != 0) {
+                        dimensions = leftBlock.getValueCount(p);
+                        break;
                     }
                 }
-
-                @Override
-                public String toString() {
-                    return evaluatorName() + "[left=" + left + ", right=" + right + "]";
+                if (dimensions == 0) {
+                    return blockFactory.newConstantNullBlock(positionCount);
                 }
 
-                @Override
-                public void close() {}
-            };
+                float[] leftScratch = new float[dimensions];
+                float[] rightScratch = new float[dimensions];
+                try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positionCount * dimensions)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        int dimsLeft = leftBlock.getValueCount(p);
+                        int dimsRight = rightBlock.getValueCount(p);
+
+                        if (dimsLeft == 0 || dimsRight == 0) {
+                            // A null value on the left or right vector. Similarity is null
+                            builder.appendNull();
+                            continue;
+                        } else if (dimsLeft != dimsRight) {
+                            throw new EsqlClientException(
+                                "Vectors must have the same dimensions; first vector has {}, and second has {}",
+                                dimsLeft,
+                                dimsRight
+                            );
+                        }
+                        readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
+                        readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
+                        float result = similarityFunction.calculateSimilarity(leftScratch, rightScratch);
+                        builder.appendDouble(result);
+                    }
+                    return builder.build();
+                }
+            }
         }
 
         private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
@@ -164,8 +178,18 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + left.baseRamBytesUsed() + right.baseRamBytesUsed();
+        }
+
+        @Override
         public String toString() {
             return evaluatorName() + "[left=" + left + ", right=" + right + "]";
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(left, right);
         }
     }
 }

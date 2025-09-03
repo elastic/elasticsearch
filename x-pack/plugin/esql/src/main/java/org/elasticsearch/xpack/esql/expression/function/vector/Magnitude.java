@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -121,49 +123,66 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    try (FloatBlock block = (FloatBlock) child.get(context).eval(page);) {
-                        int positionCount = page.getPositionCount();
-                        int dimensions = 0;
-                        // Get the first non-empty vector to calculate the dimension
-                        for (int p = 0; p < positionCount; p++) {
-                            if (block.getValueCount(p) != 0) {
-                                dimensions = block.getValueCount(p);
-                                break;
-                            }
-                        }
-                        if (dimensions == 0) {
-                            return context.blockFactory().newConstantFloatBlockWith(0F, 0);
-                        }
+            return new ScalarEvaluator(child.get(context), scalarFunction, evaluatorName, context.blockFactory());
+        }
 
-                        float[] scratch = new float[dimensions];
-                        try (var builder = context.blockFactory().newDoubleBlockBuilder(positionCount * dimensions)) {
-                            for (int p = 0; p < positionCount; p++) {
-                                int dims = block.getValueCount(p);
-                                if (dims == 0) {
-                                    // A null value for the vector, by default append null as result.
-                                    builder.appendNull();
-                                    continue;
-                                }
-                                readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
-                                float result = scalarFunction.calculateScalar(scratch);
-                                builder.appendDouble(result);
-                            }
-                            return builder.build();
-                        }
+        @Override
+        public String toString() {
+            return evaluatorName() + "[child=" + child + "]";
+        }
+    }
+
+    private record ScalarEvaluator(
+        EvalOperator.ExpressionEvaluator child,
+        ScalarEvaluatorFunction scalarFunction,
+        String evaluatorName,
+        BlockFactory blockFactory
+    ) implements EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalarEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            try (FloatBlock block = (FloatBlock) child.eval(page);) {
+                int positionCount = page.getPositionCount();
+                int dimensions = 0;
+                // Get the first non-empty vector to calculate the dimension
+                for (int p = 0; p < positionCount; p++) {
+                    if (block.getValueCount(p) != 0) {
+                        dimensions = block.getValueCount(p);
+                        break;
                     }
                 }
-
-                @Override
-                public String toString() {
-                    return evaluatorName() + "[child=" + child + "]";
+                if (dimensions == 0) {
+                    return blockFactory.newConstantFloatBlockWith(0F, 0);
                 }
 
-                @Override
-                public void close() {}
-            };
+                float[] scratch = new float[dimensions];
+                try (var builder = blockFactory.newDoubleBlockBuilder(positionCount * dimensions)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        int dims = block.getValueCount(p);
+                        if (dims == 0) {
+                            // A null value for the vector, by default append null as result.
+                            builder.appendNull();
+                            continue;
+                        }
+                        readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
+                        float result = scalarFunction.calculateScalar(scratch);
+                        builder.appendDouble(result);
+                    }
+                    return builder.build();
+                }
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + child.baseRamBytesUsed();
+        }
+
+        @Override
+        public String toString() {
+            return evaluatorName() + "[child=" + child + "]";
         }
 
         private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
@@ -173,8 +192,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         }
 
         @Override
-        public String toString() {
-            return evaluatorName() + "[child=" + child + "]";
+        public void close() {
+            child.close();
         }
     }
 }

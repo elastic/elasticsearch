@@ -490,6 +490,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
                 f -> new ValuesSourceReaderOperator.FieldInfo(
                     f.ft.name(),
                     f.elementType,
+                    false,
                     n -> f.ft.blockLoader(ValuesSourceReaderOperatorTests.blContext())
                 )
             )

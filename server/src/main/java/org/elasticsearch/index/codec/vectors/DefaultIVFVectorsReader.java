@@ -40,9 +40,6 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
-    // The percentage of centroids that are scored to keep recall
-    public static final double CENTROID_SAMPLING_PERCENTAGE = 0.2;
-
     public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);
     }
@@ -89,7 +86,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         int numCentroids,
         IndexInput centroids,
         float[] targetQuery,
-        IndexInput postingListSlice
+        IndexInput postingListSlice,
+        float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -112,8 +110,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
         int numParents = centroids.readVInt();
+
         CentroidIterator centroidIterator;
         if (numParents > 0) {
+            // equivalent to (float) centroidsPerParentCluster / 2
+            float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
@@ -122,7 +123,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 scorer,
                 quantized,
                 queryParams,
-                globalCentroidDp
+                globalCentroidDp,
+                visitRatio * centroidOversampling
             );
         } else {
             centroidIterator = getCentroidIteratorNoParent(
@@ -185,13 +187,14 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         ES92Int7VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
-        float globalCentroidDp
+        float globalCentroidDp,
+        float centroidRatio
     ) throws IOException {
         // build the three queues we are going to use
         final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
         final int maxChildrenSize = centroids.readVInt();
         final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
-        final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
+        final int bufferSize = (int) Math.min(Math.max(centroidRatio * numCentroids, 1), numCentroids);
         final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
         // score the parents
         final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
@@ -442,13 +445,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             for (int j = 0; j < BULK_SIZE; j++) {
                 int doc = docIdsScratch[j + offset];
                 if (doc != -1) {
-                    indexInput.seek(slicePos + (offset * quantizedByteLength) + (j * quantizedVectorByteSize));
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                     scores[j] = qcDist;
+                } else {
+                    indexInput.skipBytes(quantizedVectorByteSize);
                 }
             }
             // read in all corrections
-            indexInput.seek(slicePos + (offset * quantizedByteLength) + (BULK_SIZE * quantizedVectorByteSize));
             indexInput.readFloats(correctionsLower, 0, BULK_SIZE);
             indexInput.readFloats(correctionsUpper, 0, BULK_SIZE);
             for (int j = 0; j < BULK_SIZE; j++) {
@@ -504,18 +507,18 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
+            indexInput.seek(slicePos);
             // block processing
             int scoredDocs = 0;
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
-
             for (; i < limit; i += BULK_SIZE) {
                 final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, i, acceptDocs);
                 if (docsToBulkScore == 0) {
+                    indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
                 }
                 quantizeQueryIfNecessary();
-                indexInput.seek(slicePos + i * quantizedByteLength);
                 final float maxScore;
                 if (docsToBulkScore < BULK_SIZE / 2) {
                     maxScore = scoreIndividually(i);
@@ -541,7 +544,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 int doc = docIdsScratch[i];
                 if (acceptDocs == null || acceptDocs.get(doc)) {
                     quantizeQueryIfNecessary();
-                    indexInput.seek(slicePos + i * quantizedByteLength);
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
                     indexInput.readFloats(correctiveValues, 0, 3);
                     final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
@@ -560,6 +562,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                     );
                     scoredDocs++;
                     knnCollector.collect(doc, score);
+                } else {
+                    indexInput.skipBytes(quantizedByteLength);
                 }
             }
             if (scoredDocs > 0) {

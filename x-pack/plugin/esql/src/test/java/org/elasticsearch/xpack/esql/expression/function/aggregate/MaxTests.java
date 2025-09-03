@@ -73,7 +73,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     List.of(DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200), DataType.INTEGER, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.INTEGER),
                         DataType.INTEGER,
                         equalTo(200)
                     )
@@ -82,7 +82,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     List.of(DataType.LONG),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.LONG, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.LONG),
                         DataType.LONG,
                         equalTo(200L)
                     )
@@ -94,7 +94,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                             TestCaseSupplier.TypedData.multiRow(List.of(new BigInteger("200")), DataType.UNSIGNED_LONG, "field")
                                 .withAppliesTo(unsignedLongAppliesTo)
                         ),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.UNSIGNED_LONG),
                         DataType.UNSIGNED_LONG,
                         equalTo(new BigInteger("200"))
                     )
@@ -103,7 +103,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     List.of(DataType.DOUBLE),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200.), DataType.DOUBLE, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.DOUBLE),
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -112,7 +112,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     List.of(DataType.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.DATETIME, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.DATETIME),
                         DataType.DATETIME,
                         equalTo(200L)
                     )
@@ -121,7 +121,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     List.of(DataType.DATE_NANOS),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.DATE_NANOS, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.DATE_NANOS),
                         DataType.DATE_NANOS,
                         equalTo(200L)
                     )
@@ -130,7 +130,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     List.of(DataType.BOOLEAN),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(true), DataType.BOOLEAN, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.BOOLEAN),
                         DataType.BOOLEAN,
                         equalTo(true)
                     )
@@ -145,7 +145,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                                 "field"
                             )
                         ),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.IP),
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
@@ -154,7 +154,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.KEYWORD, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.KEYWORD),
                         DataType.KEYWORD,
                         equalTo(value)
                     );
@@ -163,7 +163,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.TEXT, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.TEXT),
                         DataType.KEYWORD,
                         equalTo(value)
                     );
@@ -175,7 +175,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                             .toBytesRef();
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.VERSION, "field")),
-                        "Max[field=Attribute[channel=0]]",
+                        standardAggregatorName("Max", DataType.VERSION),
                         DataType.VERSION,
                         equalTo(value)
                     );
@@ -203,7 +203,7 @@ public class MaxTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "Max[field=Attribute[channel=0]]",
+                standardAggregatorName("Max", fieldSupplier.type()),
                 fieldSupplier.type(),
                 equalTo(expected)
             );

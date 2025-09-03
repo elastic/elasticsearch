@@ -92,17 +92,20 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         {
             List<Step> steps = MigrateAction.ENABLED.toSteps(null, HOT_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_HOT));
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettingsSupplier().apply(null)), is(DATA_HOT));
         }
         {
             List<Step> steps = MigrateAction.ENABLED.toSteps(null, WARM_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_WARM + "," + DATA_HOT));
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettingsSupplier().apply(null)), is(DATA_WARM + "," + DATA_HOT));
         }
         {
             List<Step> steps = MigrateAction.ENABLED.toSteps(null, COLD_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
+            assertThat(
+                DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettingsSupplier().apply(null)),
+                is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT)
+            );
         }
     }
 

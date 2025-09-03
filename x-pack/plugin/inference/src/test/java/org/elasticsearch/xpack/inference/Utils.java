@@ -89,8 +89,7 @@ public final class Utils {
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.inference_response_thread_pool"
-            )
-        };
+            ) };
     }
 
     public static void storeSparseModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {

@@ -502,10 +502,10 @@ public class DesiredBalanceComputer {
             assert lastTrackedUnassignedShard == null : "unexpected non-null lastTrackedUnassignedShard " + lastTrackedUnassignedShard;
             if (routingNodes.hasUnassignedShards() && finishReason == DesiredBalance.ComputationFinishReason.CONVERGED) {
                 final Predicate<ShardRouting> predicate = routingNodes.hasUnassignedPrimaries() ? ShardRouting::primary : shard -> true;
-                lastTrackedUnassignedShard = Stream.concat(
-                    routingNodes.unassigned().stream(),
-                    routingNodes.unassigned().ignored().stream().filter(predicate)
-                ).findFirst().orElseThrow();
+                lastTrackedUnassignedShard = Stream.concat(routingNodes.unassigned().stream(), routingNodes.unassigned().ignored().stream())
+                    .filter(predicate)
+                    .findFirst()
+                    .orElseThrow();
 
                 final var originalDebugMode = routingAllocation.getDebugMode();
                 routingAllocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);

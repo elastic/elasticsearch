@@ -207,18 +207,12 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
                 // Get initial documents
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
-                int[] docIds = Arrays.stream(topDocs.scoreDocs)
-                    .mapToInt(scoreDoc -> scoreDoc.doc)
-                    .toArray();
+                int[] docIds = Arrays.stream(topDocs.scoreDocs).mapToInt(scoreDoc -> scoreDoc.doc).toArray();
 
                 // Test parallel loading
                 DirectIOVectorBatchLoader batchLoader = new DirectIOVectorBatchLoader();
 
-                Map<Integer, float[]> parallelResult = batchLoader.loadSegmentVectors(
-                    docIds,
-                    reader.leaves().get(0),
-                    VECTOR_FIELD
-                );
+                Map<Integer, float[]> parallelResult = batchLoader.loadSegmentVectors(docIds, reader.leaves().get(0), VECTOR_FIELD);
 
                 // use regular vector loader
                 Map<Integer, float[]> sequentialResult = new HashMap<>();
@@ -229,7 +223,9 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
                 // Verify results are identical
                 assertThat(
                     "Parallel and sequential results should have same size",
-                    parallelResult.size(), equalTo(sequentialResult.size()));
+                    parallelResult.size(),
+                    equalTo(sequentialResult.size())
+                );
 
                 for (int docId : docIds) {
                     float[] parallelVector = parallelResult.get(docId);
@@ -237,8 +233,7 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
                     assertNotNull("Parallel result should contain vector for doc " + docId, parallelVector);
                     assertNotNull("Sequential result should contain vector for doc " + docId, sequentialVector);
-                    assertArrayEquals("Vectors should be identical for doc " + docId,
-                        sequentialVector, parallelVector, 0.0001f);
+                    assertArrayEquals("Vectors should be identical for doc " + docId, sequentialVector, parallelVector, 0.0001f);
                 }
             }
         }

@@ -73,9 +73,10 @@ public class DirectIOVectorBatchLoader {
     }
 
     private Map<Integer, float[]> loadVectorBatch(
-            FloatVectorValues vectorValues,
-            List<Integer> docIdBatch,
-            Map<Integer, Integer> docToOrdinal) throws IOException {
+        FloatVectorValues vectorValues,
+        List<Integer> docIdBatch,
+        Map<Integer, Integer> docToOrdinal
+    ) throws IOException {
 
         Map<Integer, float[]> batchResult = new HashMap<>();
 
@@ -91,9 +92,7 @@ public class DirectIOVectorBatchLoader {
         return batchResult;
     }
 
-    private Map<Integer, Integer> buildDocToOrdinalMapping(
-        FloatVectorValues vectorValues,
-            int[] targetDocIds) throws IOException {
+    private Map<Integer, Integer> buildDocToOrdinalMapping(FloatVectorValues vectorValues, int[] targetDocIds) throws IOException {
 
         Map<Integer, Integer> docToOrdinal = new HashMap<>();
 

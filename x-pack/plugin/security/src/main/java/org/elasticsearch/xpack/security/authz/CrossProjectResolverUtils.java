@@ -41,15 +41,15 @@ public class CrossProjectResolverUtils {
         }
 
         if (targetProjects.isOriginOnly()) {
-            logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", targetProjects.origin());
+            logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", targetProjects.originProject());
             return null;
         }
 
-        if (targetProjects.projects().isEmpty()) {
+        if (targetProjects.linkedProjects().isEmpty()) {
             throw new ResourceNotFoundException("no target projects for cross-project search request");
         }
 
-        List<String> projects = targetProjects.projects();
+        List<String> projects = targetProjects.linkedProjects();
         String[] indices = request.indices();
         logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
@@ -65,7 +65,7 @@ public class CrossProjectResolverUtils {
                 logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
                 // un-qualified expression, i.e. flat-world
-                List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.projects());
+                List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.linkedProjects());
                 replacedExpressions.put(indexExpression, new ReplacedIndexExpression(indexExpression, canonicalExpressions));
                 logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             }

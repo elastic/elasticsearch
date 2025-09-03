@@ -27,11 +27,13 @@ public interface AuthorizedProjectsSupplier {
         }
     }
 
-    record AuthorizedProjects(@Nullable String origin, List<String> projects) {
+    // Note: in the final implementation these won't be strings but Project record classes with additional info
+    // relevant to e.g. project routing
+    record AuthorizedProjects(@Nullable String originProject, List<String> linkedProjects) {
         public static AuthorizedProjects NOT_CROSS_PROJECT = new AuthorizedProjects(null, List.of());
 
         public boolean isOriginOnly() {
-            return origin != null && projects.isEmpty();
+            return originProject != null && linkedProjects.isEmpty();
         }
     }
 }

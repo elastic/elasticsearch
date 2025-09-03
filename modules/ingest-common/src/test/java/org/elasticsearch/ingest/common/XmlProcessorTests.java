@@ -493,23 +493,21 @@ public class XmlProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<?, ?> result = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-        
+
         Map<String, Object> expectedData = Map.of(
-            "root", Map.of(
-                "valid", "content",
-                "nested", Map.of(
-                    "valid", "nested-content"
-                ),
-                "items", Map.of(
-                    "item", List.of("first", "third", "fifth")
-                ),
-                "mixed", Map.of(
-                    "valid", "content",
-                    "#text", "Text with  and"
-                )
+            "root",
+            Map.of(
+                "valid",
+                "content",
+                "nested",
+                Map.of("valid", "nested-content"),
+                "items",
+                Map.of("item", List.of("first", "third", "fifth")),
+                "mixed",
+                Map.of("valid", "content", "#text", "Text with  and")
             )
         );
-        
+
         assertThat(result, equalTo(expectedData));
     }
 

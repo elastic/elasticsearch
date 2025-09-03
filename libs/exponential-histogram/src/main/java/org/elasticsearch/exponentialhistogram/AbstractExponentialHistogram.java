@@ -46,4 +46,54 @@ public abstract class AbstractExponentialHistogram implements ExponentialHistogr
         }
         return false;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder(getClassNameWithoutPackage()).append("{");
+        sb.append("scale=").append(scale());
+        sb.append(", sum=").append(sum());
+        sb.append(", valueCount=").append(valueCount());
+        sb.append(", min=").append(min());
+        sb.append(", max=").append(max());
+        ZeroBucket zb = zeroBucket();
+        if (zb.zeroThreshold() != 0) {
+            sb.append(", zeroThreshold=").append(zb.zeroThreshold());
+        }
+        if (zb.count() != 0) {
+            sb.append(", zeroCount=").append(zb.count());
+        }
+        BucketIterator neg = negativeBuckets().iterator();
+        if (neg.hasNext()) {
+            sb.append(", negative=[");
+            appendsBucketsAsString(sb, neg);
+            sb.append("]");
+        }
+        BucketIterator pos = positiveBuckets().iterator();
+        if (pos.hasNext()) {
+            sb.append(", positive=[");
+            appendsBucketsAsString(sb, pos);
+            sb.append("]");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String getClassNameWithoutPackage() {
+        String fqn = getClass().getName();
+        int lastDot = fqn.lastIndexOf('.');
+        return fqn.substring(lastDot + 1);
+    }
+
+    private static void appendsBucketsAsString(StringBuilder out, BucketIterator it) {
+        boolean first = true;
+        while (it.hasNext()) {
+            if (first) {
+                first = false;
+            } else {
+                out.append(", ");
+            }
+            out.append(it.peekIndex()).append(": ").append(it.peekCount());
+            it.advance();
+        }
+    }
 }

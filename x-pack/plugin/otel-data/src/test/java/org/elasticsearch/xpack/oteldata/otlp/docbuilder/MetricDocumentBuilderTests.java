@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
-import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
@@ -24,19 +24,23 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createDoubleDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.mappingHints;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -66,11 +70,24 @@ public class MetricDocumentBuilderTests extends ESTestCase {
 
         List<KeyValue> dataPointAttributes = List.of(keyValue("operation", "test"), (keyValue("environment", "production")));
 
-        List<DataPoint> dataPoints = List.of(
+        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
+            resource,
+            resourceSchemaUrl,
+            scope,
+            scopeSchemaUrl,
+            dataPointAttributes,
+            "{test}",
+            TargetIndex.defaultMetrics()
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
             new DataPoint.Number(
                 createDoubleDataPoint(timestamp, startTimestamp, dataPointAttributes),
                 createGaugeMetric("system.cpu.usage", "", List.of())
-            ),
+            )
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
             new DataPoint.Number(
                 createLongDataPoint(timestamp, startTimestamp, dataPointAttributes),
                 createSumMetric(
@@ -82,16 +99,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
                 )
             )
         );
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            resourceSchemaUrl,
-            scope,
-            scopeSchemaUrl,
-            dataPointAttributes,
-            "{test}",
-            dataPoints,
-            "metrics-generic.otel-default"
-        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
@@ -99,6 +106,9 @@ public class MetricDocumentBuilderTests extends ESTestCase {
 
         assertThat(doc.evaluate("@timestamp"), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
         assertThat(doc.evaluate("start_timestamp"), equalTo(TimeUnit.NANOSECONDS.toMillis(startTimestamp)));
+        assertThat(doc.evaluate("data_stream.type"), equalTo("metrics"));
+        assertThat(doc.evaluate("data_stream.dataset"), equalTo("generic.otel"));
+        assertThat(doc.evaluate("data_stream.namespace"), equalTo("default"));
         assertThat(doc.evaluate("resource.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
         assertThat(doc.evaluate("resource.dropped_attributes_count"), equalTo(1));
         assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
@@ -129,10 +139,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().addAllAttributes(resourceAttributes).build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        List<DataPoint> dataPoints = List.of(
-            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
-        );
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -140,8 +146,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -162,10 +171,6 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder().build();
         InstrumentationScope scope = InstrumentationScope.newBuilder().build();
 
-        NumberDataPoint dataPoint = createDoubleDataPoint(timestamp);
-        var metric = createGaugeMetric("test.metric", "", List.of(dataPoint));
-        List<DataPoint> dataPoints = List.of(new DataPoint.Number(dataPoint, metric));
-
         DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
             resource,
             null,
@@ -173,8 +178,12 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             null,
             List.of(),
             "",
-            dataPoints,
-            "metrics-generic.otel-default"
+            TargetIndex.defaultMetrics()
+        );
+
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -191,4 +200,40 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("unit"), is(nullValue()));
     }
 
+    public void testSummary() throws Exception {
+        Resource resource = Resource.newBuilder().build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+
+        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
+            resource,
+            null,
+            scope,
+            null,
+            List.of(),
+            "",
+            TargetIndex.defaultMetrics()
+        );
+        dataPointGroup.addDataPoint(
+            Set.of(),
+            new DataPoint.Summary(
+                SummaryDataPoint.newBuilder()
+                    .setTimeUnixNano(timestamp)
+                    .setStartTimeUnixNano(startTimestamp)
+                    .setCount(1)
+                    .setSum(42.0)
+                    .addAllAttributes(mappingHints(MappingHints.DOC_COUNT))
+                    .build(),
+                createSummaryMetric("summary", "", List.of())
+            )
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
+
+        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        assertThat(doc.evaluate("metrics.summary.sum"), equalTo(42.0));
+        assertThat(doc.evaluate("metrics.summary.value_count"), equalTo(1));
+        assertThat(doc.evaluate("_doc_count"), equalTo(1));
+        assertThat(dynamicTemplates, hasEntry("metrics.summary", "summary"));
+    }
 }

@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
@@ -243,22 +243,19 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             @Override
             public CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException {
-                int centroidOrdinal = neighborQueue.pop();
-                updateQueue(); // add one children if available so the queue remains fully populated
+                int centroidOrdinal = nextCentroid();
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
                 return new CentroidOffsetAndLength(postingListOffset, postingListLength);
             }
 
-            private void updateQueue() throws IOException {
+            private int nextCentroid() throws IOException {
                 if (currentParentQueue.size() > 0) {
-                    // add a children from the current parent queue
-                    float score = currentParentQueue.topScore();
-                    int children = currentParentQueue.pop();
-                    neighborQueue.add(children, score);
+                    // return next centroid and maybe add a children from the current parent queue
+                    return neighborQueue.popAndAddRaw(currentParentQueue.popRaw());
                 } else if (parentsQueue.size() > 0) {
-                    // add a new parent from the current parent queue
+                    // current parent queue is empty, populate it again with the next parent
                     int pop = parentsQueue.pop();
                     populateOneChildrenGroup(
                         currentParentQueue,
@@ -273,7 +270,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                         globalCentroidDp,
                         scores
                     );
-                    updateQueue();
+                    return nextCentroid();
+                } else {
+                    return neighborQueue.pop();
                 }
             }
         };

@@ -32,41 +32,29 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
-        Set<Attribute> metrics = collectMetrics(logicalPlan);
-        if (metrics.isEmpty()) {
-            return logicalPlan;
-        }
-
-        Expression conditional = null;
-        for (Attribute metric : metrics) {
-            // Create an is not null check for each metric
-            if (conditional == null) {
-                conditional = new IsNotNull(logicalPlan.source(), metric);
-            } else {
-                // Join the is not null checks with OR nodes
-                conditional = new Or(logicalPlan.source(), conditional, new IsNotNull(Source.EMPTY, metric));
+        return logicalPlan.transformUp(TimeSeriesAggregate.class, agg -> {
+            Set<Attribute> metrics = new HashSet<>();
+            agg.forEachExpression(Attribute.class, attr -> {
+                if (attr.isMetric()) {
+                    metrics.add(attr);
+                }
+            });
+            if (metrics.isEmpty()) {
+                return agg;
             }
-        }
-
-        Expression finalConditional = conditional;
-        // Find where to put the new Filter node; We want it right after the relation leaf node
-        // We want to add the filter right after the TS command, which is a "leaf" node.
-        // So we want to find the first node above the leaf node.
-        return logicalPlan.transformUp(p -> isMetricsQuery((LogicalPlan) p), p -> new Filter(p.source(), p, finalConditional));
-    }
-
-    private Set<Attribute> collectMetrics(LogicalPlan logicalPlan) {
-        Set<Attribute> metrics = new HashSet<>();
-        logicalPlan.forEachDown(p -> {
-            if (p instanceof TimeSeriesAggregate) {
-                p.forEachExpression(Attribute.class, attr -> {
-                    if (attr.isMetric()) {
-                        metrics.add(attr);
-                    }
-                });
+            Expression conditional = null;
+            for (Attribute metric : metrics) {
+                // Create an is not null check for each metric
+                if (conditional == null) {
+                    conditional = new IsNotNull(logicalPlan.source(), metric);
+                } else {
+                    // Join the is not null checks with OR nodes
+                    conditional = new Or(logicalPlan.source(), conditional, new IsNotNull(Source.EMPTY, metric));
+                }
             }
+            Expression finalConditional = conditional;
+            return agg.transformUp(p -> isMetricsQuery((LogicalPlan) p), p -> new Filter(p.source(), p, finalConditional));
         });
-        return metrics;
     }
 
     /**

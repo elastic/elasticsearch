@@ -7,15 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
-
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
@@ -24,6 +15,15 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
+
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
 
 import java.util.Objects;
 import java.util.concurrent.Flow;
@@ -57,24 +57,22 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
 
         if (requestEntity.tools() != null) {
             requestEntity.tools().forEach(tool -> {
-                converseStreamRequest
-                    .toolConfig(ToolConfiguration.builder()
-                        .tools(Tool.builder()
-                            .toolSpec(ToolSpecification.builder()
-                                .name(tool.function().name())
-                                .description(tool.function().description())
-                                .inputSchema(
-                                    ToolInputSchema.builder()
-                                        .json(Document.fromString(""))
-                                        .build())
-                                .build())
-                            .build())
-                        .toolChoice(ToolChoice.builder()
-                            .tool(SpecificToolChoice.builder()
-                                .name(tool.function().name())
-                                .build())
-                            .build())
-                        .build());
+                converseStreamRequest.toolConfig(
+                    ToolConfiguration.builder()
+                        .tools(
+                            Tool.builder()
+                                .toolSpec(
+                                    ToolSpecification.builder()
+                                        .name(tool.function().name())
+                                        .description(tool.function().description())
+                                        .inputSchema(ToolInputSchema.builder().json(Document.fromString("")).build())
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder().name(tool.function().name()).build()).build())
+                        .build()
+                );
             });
         }
 
@@ -84,8 +82,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
     }
 
     @Override
-    protected void executeRequest(AmazonBedrockBaseClient client) {
-    }
+    protected void executeRequest(AmazonBedrockBaseClient client) {}
 
     @Override
     public TaskType taskType() {

@@ -18,8 +18,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.transport.LinkedProjectConfigService.LinkedProjectConfigListener;
 import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfigBuilder;
+import static org.elasticsearch.transport.LinkedProjectConfigService.LinkedProjectConfigListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 

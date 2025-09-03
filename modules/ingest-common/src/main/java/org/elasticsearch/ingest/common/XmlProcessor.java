@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -61,13 +62,13 @@ public final class XmlProcessor extends AbstractProcessor {
     // Pre-compiled pattern to detect namespace prefixes
     private static final Pattern NAMESPACE_PATTERN = Pattern.compile("\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*");
 
-    // Pre-configured SAX parser factories for secure XML parsing
+    // Pre-configured secure XML parser factories using XmlUtils
     private static final SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
     private static final SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
     private static final SAXParserFactory SAX_PARSER_FACTORY_STRICT = createSecureSaxParserFactoryStrict();
     private static final SAXParserFactory SAX_PARSER_FACTORY_NS_STRICT = createSecureSaxParserFactoryNamespaceAwareStrict();
 
-    // Pre-configured document builder factory for DOM creation
+    // Pre-configured secure document builder factory for DOM creation
     private static final DocumentBuilderFactory DOM_FACTORY = createSecureDocumentBuilderFactory();
 
     private final String field;
@@ -804,128 +805,91 @@ public final class XmlProcessor extends AbstractProcessor {
     }
 
     /**
-     * Creates a secure, pre-configured SAX parser factory for XML parsing.
-     * This factory is configured to prevent XXE attacks with SAX-specific features.
+     * Creates a secure, pre-configured SAX parser factory for XML parsing using XmlUtils.
      */
     private static SAXParserFactory createSecureSaxParserFactory() {
-        SAXParserFactory factory = SAXParserFactory.newInstance();
-        factory.setValidating(false);
-
-        // Configure SAX-specific security features to prevent XXE attacks
         try {
-            // SAX parser features - these are the correct features for SAXParserFactory
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            SAXParserFactory factory = XmlUtils.getHardenedSaxParserFactory();
+            factory.setValidating(false);
+            factory.setNamespaceAware(false);
+            return factory;
         } catch (Exception e) {
-            // Security features are critical - fail if they cannot be set
             throw new IllegalStateException("Cannot configure secure XML parsing features", e);
         }
-
-        return factory;
     }
 
     /**
-     * Creates a secure, pre-configured namespace-aware SAX parser factory for XML parsing.
-     * This factory is configured to prevent XXE attacks and has namespace awareness enabled.
+     * Creates a secure, pre-configured namespace-aware SAX parser factory for XML parsing using XmlUtils.
      */
     private static SAXParserFactory createSecureSaxParserFactoryNamespaceAware() {
-        SAXParserFactory factory = SAXParserFactory.newInstance();
-        factory.setValidating(false);
-        factory.setNamespaceAware(true);
-
-        // Configure SAX-specific security features to prevent XXE attacks
         try {
-            // SAX parser features - these are the correct features for SAXParserFactory
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            SAXParserFactory factory = XmlUtils.getHardenedSaxParserFactory();
+            factory.setValidating(false);
+            factory.setNamespaceAware(true);
+            return factory;
         } catch (Exception e) {
-            // Security features are critical - fail if they cannot be set
             throw new IllegalStateException("Cannot configure secure XML parsing features", e);
         }
-
-        return factory;
     }
 
     /**
-     * Creates a secure, pre-configured SAX parser factory for strict XML parsing.
-     * This factory is configured to prevent XXE attacks and has strict validation enabled.
+     * Creates a secure, pre-configured SAX parser factory for strict XML parsing using XmlUtils.
      */
     private static SAXParserFactory createSecureSaxParserFactoryStrict() {
-        SAXParserFactory factory = SAXParserFactory.newInstance();
-        factory.setValidating(false);
-
-        // Configure SAX-specific security features to prevent XXE attacks
         try {
-            // SAX parser features - these are the correct features for SAXParserFactory
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            SAXParserFactory factory = XmlUtils.getHardenedSaxParserFactory();
+            factory.setValidating(false);
+            factory.setNamespaceAware(false);
+
+            // Try to enable strict parsing features (optional - may not be supported)
+            try {
+                factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
+            } catch (Exception e) {
+                // Strict parsing features are optional - continue without them if not supported
+            }
+
+            return factory;
         } catch (Exception e) {
-            // Security features are critical - fail if they cannot be set
             throw new IllegalStateException("Cannot configure secure XML parsing features", e);
         }
-
-        // Try to enable strict parsing features (optional - may not be supported)
-        try {
-            factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
-        } catch (Exception e) {
-            // Strict parsing features are optional - continue without them if not supported
-        }
-
-        return factory;
     }
 
     /**
-     * Creates a secure, pre-configured namespace-aware SAX parser factory for strict XML parsing.
-     * This factory is configured to prevent XXE attacks, has namespace awareness enabled, and strict validation.
+     * Creates a secure, pre-configured namespace-aware SAX parser factory for strict XML parsing using XmlUtils.
      */
     private static SAXParserFactory createSecureSaxParserFactoryNamespaceAwareStrict() {
-        SAXParserFactory factory = SAXParserFactory.newInstance();
-        factory.setValidating(false);
-        factory.setNamespaceAware(true);
-
-        // Configure SAX-specific security features to prevent XXE attacks
         try {
-            // SAX parser features - these are the correct features for SAXParserFactory
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            SAXParserFactory factory = XmlUtils.getHardenedSaxParserFactory();
+            factory.setValidating(false);
+            factory.setNamespaceAware(true);
+
+            // Try to enable strict parsing features (optional - may not be supported)
+            try {
+                factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
+            } catch (Exception e) {
+                // Strict parsing features are optional - continue without them if not supported
+            }
+
+            return factory;
         } catch (Exception e) {
-            // Security features are critical - fail if they cannot be set
             throw new IllegalStateException("Cannot configure secure XML parsing features", e);
         }
-
-        // Try to enable strict parsing features (optional - may not be supported)
-        try {
-            factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
-        } catch (Exception e) {
-            // Strict parsing features are optional - continue without them if not supported
-        }
-
-        return factory;
     }
 
     /**
-     * Creates a secure, pre-configured DocumentBuilderFactory for DOM creation.
+     * Creates a secure, pre-configured DocumentBuilderFactory for DOM creation using XmlUtils.
      * Since we only use this factory to create empty DOM documents programmatically
-     * (not to parse XML), XXE security features are not needed here.
+     * (not to parse XML), we use the hardened builder factory.
      * The SAX parser handles all XML parsing with appropriate security measures.
      */
     private static DocumentBuilderFactory createSecureDocumentBuilderFactory() {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);  // Enable for maximum compatibility
-        factory.setValidating(false);
-
-        // No XXE security features needed - we only create empty documents,
-        // never parse XML with this factory
-
-        return factory;
+        try {
+            DocumentBuilderFactory factory = XmlUtils.getHardenedBuilderFactory();
+            factory.setValidating(false);  // Override validation for DOM creation
+            return factory;
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+        }
     }
 
     /**

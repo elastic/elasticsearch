@@ -2530,7 +2530,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             int k,
             int numCands,
-            float visitPercentage,
+            Float visitPercentage,
             Float oversample,
             Query filter,
             Float similarityThreshold,
@@ -2695,7 +2695,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             int k,
             int numCands,
-            float visitPercentage,
+            Float visitPercentage,
             Float queryOversample,
             Query filter,
             Float similarityThreshold,
@@ -2744,7 +2744,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
-                float visitRatio = visitPercentage == 0.0f ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

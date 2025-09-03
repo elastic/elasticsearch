@@ -570,7 +570,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
         int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
-        float adjustedVisitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
 
         if (fieldType == null) {
             return new MatchNoDocsQuery();
@@ -635,7 +634,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             queryVector,
             k,
             adjustedNumCands,
-            adjustedVisitPercentage,
+            visitPercentage,
             oversample,
             filterQuery,
             vectorSimilarity,

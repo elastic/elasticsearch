@@ -552,7 +552,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (visitPercentage != null && visitPercentage != 0.0f) {
+        if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 

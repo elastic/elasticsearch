@@ -232,7 +232,7 @@ public class KnnSearchRequestParser {
         final float[] queryVector;
         final int k;
         final int numCands;
-        final float visitPercentage;
+        final Float visitPercentage;
 
         /**
          * Defines a kNN search.
@@ -247,7 +247,7 @@ public class KnnSearchRequestParser {
             this.queryVector = queryVector;
             this.k = k;
             this.numCands = numCands;
-            this.visitPercentage = visitPercentage == null ? 0.0f : visitPercentage;
+            this.visitPercentage = visitPercentage;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {
@@ -264,7 +264,7 @@ public class KnnSearchRequestParser {
             if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
-            if (visitPercentage < 0.0f || visitPercentage > 100.0f) {
+            if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
                 throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
             }
             return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null);
@@ -277,7 +277,7 @@ public class KnnSearchRequestParser {
             KnnSearch that = (KnnSearch) o;
             return k == that.k
                 && numCands == that.numCands
-                && visitPercentage == that.visitPercentage
+                && Objects.equals(visitPercentage, that.visitPercentage)
                 && Objects.equals(field, that.field)
                 && Arrays.equals(queryVector, that.queryVector);
         }

@@ -133,17 +133,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     /**
      * This function will perform any planning needed on the local node
      * For now, we will just do mapping of the logical plan to physical plan
-     * In the future we can also do local physical and logical optimizations
+     * In the future we can also do local physical and logical optimizations.
+     * We only support a FragmentExec node containing a logical plan or a null plan
+     * If any other plan is sent we will just return null. This can happen in cases
+     * where the coordinator is running an older version that does not support
+     * keeping the plan as Logical Plan inside FragmentExec yet
+     * In those cases, it is safe to ignore the plan sent and return null
      */
     private static PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
         if (physicalPlan instanceof FragmentExec fragmentExec) {
-            try {
-                LocalMapper localMapper = new LocalMapper();
-                return localMapper.map(fragmentExec.fragment());
-            } catch (Exception e) {
-                logger.error(() -> "Failed to perform local mapping on the lookup node for plan: [" + physicalPlan + "]", e);
-                return null;
-            }
+            LocalMapper localMapper = new LocalMapper();
+            return localMapper.map(fragmentExec.fragment());
         }
         return null;
     }

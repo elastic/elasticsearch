@@ -49,11 +49,7 @@ public abstract class BinaryExec extends PhysicalPlan {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(left);
-        out.writeNamedWriteable(getRightToSerialize(out));
-    }
-
-    protected PhysicalPlan getRightToSerialize(StreamOutput out) {
-        return right;
+        out.writeNamedWriteable(right);
     }
 
     @Override

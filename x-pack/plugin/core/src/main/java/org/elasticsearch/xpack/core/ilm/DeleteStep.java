@@ -46,7 +46,9 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     /**
-     * Use this constructor to delete a specific index, potentially different from the one that ILM is currently operating on.
+     * Use this constructor to delete a specific index, potentially different from the one that ILM is currently operating on. The parameter
+     * {@code indexSurvives} indicates whether the index that ILM runs on will survive (i.e. not get deleted) this step.
+     * Look at the callers of {@link AsyncActionStep#indexSurvives()} for more details.
      */
     public DeleteStep(
         StepKey key,

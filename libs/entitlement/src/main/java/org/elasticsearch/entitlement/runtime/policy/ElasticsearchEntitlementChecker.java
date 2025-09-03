@@ -1403,8 +1403,19 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix) {
+        policyChecker.checkCreateTempFile(callerClass);
+    }
+
+    @Override
     public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory) {
-        policyChecker.checkFileWrite(callerClass, directory);
+        // A null value for the directory parameter means using the temp directory (java.io.tmpdir,
+        // aka org.elasticsearch.env.Environment#tmpDir, aka PathLookup#TEMP).
+        if (directory == null) {
+            policyChecker.checkCreateTempFile(callerClass);
+        } else {
+            policyChecker.checkFileWrite(callerClass, directory);
+        }
     }
 
     @Override

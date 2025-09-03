@@ -234,7 +234,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         mockRolloverIndexCall(alias, step, true);
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -290,7 +290,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             )
             .build();
         IndexMetadata indexToOperateOn = failureStoreIndex ? failureStoreMetadata : indexMetadata;
-        step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(metadata, indexToOperateOn, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -366,7 +366,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             )
             .build();
         IndexMetadata indexToOperateOn = failureStoreIndex ? firstGenerationFailureIndex : firstGenerationIndex;
-        step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(metadata, indexToOperateOn, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -414,7 +414,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -448,7 +448,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -474,7 +474,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .build();
 
         WaitForRolloverReadyStep step = createRandomInstance();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -515,7 +515,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -546,7 +546,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Boolean> correctFailureCalled = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -576,7 +576,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         mockRolloverIndexCall(alias, step, false);
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -618,7 +618,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -649,7 +649,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
@@ -684,7 +684,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");

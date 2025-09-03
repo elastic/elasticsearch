@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -53,6 +52,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
     private static final Logger logger = LogManager.getLogger(MlAnomaliesIndexUpdate.class);
 
+    private static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = TransportVersion.fromName("ml_rollover_legacy_indices");
+
     private final IndexNameExpressionResolver expressionResolver;
     private final OriginSettingClient client;
 
@@ -65,7 +66,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.onOrAfter(TransportVersions.ML_ROLLOVER_LEGACY_INDICES);
+        return minTransportVersion.supports(ML_ROLLOVER_LEGACY_INDICES);
     }
 
     @Override

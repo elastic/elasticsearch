@@ -1,5 +1,0 @@
-pr: 125192
-summary: 8.x branch backport for leting MLTQuery throw IAE when no analyzer is set
-area: Search
-type: bug
-issues: []

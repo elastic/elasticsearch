@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -123,6 +124,12 @@ abstract class DataNodeRequestSender {
     }
 
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            ThreadPool.Names.SYSTEM_READ,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION
+        );
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
             try (

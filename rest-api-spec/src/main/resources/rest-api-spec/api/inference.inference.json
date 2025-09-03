@@ -1,8 +1,8 @@
 {
   "inference.inference": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
-      "description": "Perform inference"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/post-inference-api.html",
+      "description": "Perform inference on the service"
     },
     "stability": "stable",
     "visibility": "public",

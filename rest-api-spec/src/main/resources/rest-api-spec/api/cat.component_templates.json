@@ -1,8 +1,8 @@
 {
   "cat.component_templates":{
     "documentation":{
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-component-templates.html",
-      "description":"Returns information about existing component_templates templates."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cat-component-templates.html",
+      "description":"Get component templates"
     },
     "stability":"stable",
     "visibility":"public",

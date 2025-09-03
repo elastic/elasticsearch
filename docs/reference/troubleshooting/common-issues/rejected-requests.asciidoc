@@ -63,7 +63,7 @@ rejections, use the <<cluster-nodes-stats,node stats API>>.
 GET _nodes/stats?human&filter_path=nodes.*.indexing_pressure
 ----
 
-These stats are cumulative from node startup. 
+These stats are cumulative from node startup.
 
 Indexing pressure rejections appear as an
 `EsRejectedExecutionException`, and indicate that they were rejected due
@@ -73,12 +73,31 @@ These errors are often related to <<task-queue-backlog,backlogged tasks>>,
 <<docs-bulk,bulk index>> sizing, or the ingest target's
 <<index-modules,`refresh_interval` setting>>.
 
+NOTE: Another cause of indexing pressure rejections might be the use of the <<semantic-text,`semantic_text`>> field type, which can cause rejections when indexing large batches of documents if the batch may otherwise incur an Out of Memory (OOM) error.
+
 [discrete]
 [[prevent-rejected-requests]]
 ==== Prevent rejected requests
 
-**Fix high CPU and memory usage**
+[discrete]
+[[fix-high-cpu-and-memory-usage]]
+===== Fix high CPU and memory usage
 
 If {es} regularly rejects requests and other tasks, your cluster likely has high
 CPU usage or high JVM memory pressure. For tips, see <<high-cpu-usage>> and
 <<high-jvm-memory-pressure>>.
+
+[discrete]
+[[fix-semantic-text-ingestion-issues]]
+===== Fix for `semantic_text` ingestion issues
+
+When bulk indexing documents with the `semantic_text` field type, you may encounter rejections due to high memory usage during inference processing.
+These rejections will appear as an `InferenceException` in your cluster logs.
+
+**To resolve this issue:**
+
+1. Reduce the batch size of documents in your indexing requests.
+2. If reducing batch size doesn't resolve the issue, then consider scaling up your machine resources.
+3. A last resort option is to adjust the `indexing_pressure.memory.coordinating.limit` cluster setting. The default value is 10% of the heap. Increasing this limit allows more memory to be used for coordinating operations before rejections occur.
+
+WARNING: This adjustment should only be considered after exhausting other options, as setting this value too high may risk Out of Memory (OOM) errors in your cluster. A cluster restart is required for this change to take effect.

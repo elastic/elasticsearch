@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,45 +78,128 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         this(null, id, null);
     }
 
+    interface BufferedReaderParser<T> {
+        T parse(String component, String path, BufferedReader bufferedReader);
+    }
+
+    static <T> T parseFromBufferedReader(
+        String component,
+        String path,
+        Function<String, InputStream> nameToStream,
+        BufferedReaderParser<T> parser
+    ) {
+        try (InputStream inputStream = nameToStream.apply(path)) {
+            if (inputStream == null) {
+                return null;
+            }
+            try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                return parser.parse(component, path, bufferedReader);
+            }
+        } catch (IOException ioe) {
+            throw new UncheckedIOException("parsing error [" + component + ":" + path + "]", ioe);
+        }
+    }
+
     /**
      * Constructs a named transport version along with its set of compatible patch versions from x-content.
-     * This method takes in the parameter {@code latest} which is the highest valid transport version id
-     * supported by this node. Versions newer than the current transport version id for this node are discarded.
+     * This method takes in the parameter {@code upperBound} which is the highest transport version id
+     * that will be loaded by this node.
      */
-    public static TransportVersion fromInputStream(String path, boolean nameInFile, InputStream stream, Integer latest) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String line = reader.readLine();
+    public static TransportVersion fromBufferedReader(
+        String component,
+        String path,
+        boolean nameInFile,
+        boolean isNamed,
+        BufferedReader bufferedReader,
+        Integer upperBound
+    ) {
+        try {
+            String line = bufferedReader.readLine();
             String[] parts = line.replaceAll("\\s+", "").split(",");
             String check;
-            while ((check = reader.readLine()) != null) {
+            while ((check = bufferedReader.readLine()) != null) {
                 if (check.replaceAll("\\s+", "").isEmpty() == false) {
-                    throw new IllegalArgumentException("invalid transport version file format [" + path + "]");
+                    throw new IllegalArgumentException("invalid transport version file format [" + toComponentPath(component, path) + "]");
                 }
             }
             if (parts.length < (nameInFile ? 2 : 1)) {
-                throw new IllegalStateException("invalid transport version file format [" + path + "]");
+                throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
             }
-            String name = nameInFile ? parts[0] : path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
+            String name = null;
+            if (isNamed) {
+                if (nameInFile) {
+                    name = parts[0];
+                } else {
+                    name = path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
+                }
+            }
             List<Integer> ids = new ArrayList<>();
             for (int i = nameInFile ? 1 : 0; i < parts.length; ++i) {
                 try {
                     ids.add(Integer.parseInt(parts[i]));
                 } catch (NumberFormatException nfe) {
-                    throw new IllegalStateException("invalid transport version file format [" + path + "]", nfe);
+                    throw new IllegalStateException(
+                        "invalid transport version file format [" + toComponentPath(component, path) + "]",
+                        nfe
+                    );
                 }
             }
-            ids.sort(Integer::compareTo);
             TransportVersion transportVersion = null;
-            for (int idIndex = 0; idIndex < ids.size(); ++idIndex) {
-                if (ids.get(idIndex) > latest) {
+            for (int idIndex = ids.size() - 1; idIndex >= 0; --idIndex) {
+                if (idIndex > 0 && ids.get(idIndex - 1) <= ids.get(idIndex)) {
+                    throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
+                }
+                if (ids.get(idIndex) > upperBound) {
                     break;
                 }
                 transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
             }
             return transportVersion;
         } catch (IOException ioe) {
-            throw new UncheckedIOException("cannot parse transport version [" + path + "]", ioe);
+            throw new UncheckedIOException("invalid transport version file format [" + toComponentPath(component, path) + "]", ioe);
         }
+    }
+
+    public static List<TransportVersion> collectFromInputStreams(
+        String component,
+        String resourceRoot,
+        Function<String, InputStream> resourceLoader,
+        String upperBoundFileName
+    ) {
+        TransportVersion upperBound = parseFromBufferedReader(
+            component,
+            resourceRoot + "/upper_bounds/" + upperBoundFileName,
+            resourceLoader,
+            (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
+        );
+        if (upperBound != null) {
+            List<String> versionRelativePaths = parseFromBufferedReader(
+                component,
+                resourceRoot + "/definitions/manifest.txt",
+                resourceLoader,
+                (c, p, br) -> br.lines().filter(line -> line.isBlank() == false).toList()
+            );
+            if (versionRelativePaths != null) {
+                List<TransportVersion> transportVersions = new ArrayList<>();
+                for (String versionRelativePath : versionRelativePaths) {
+                    TransportVersion transportVersion = parseFromBufferedReader(
+                        component,
+                        resourceRoot + "/definitions/" + versionRelativePath,
+                        resourceLoader,
+                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("referable/"), br, upperBound.id())
+                    );
+                    if (transportVersion != null) {
+                        transportVersions.add(transportVersion);
+                    }
+                }
+                return transportVersions;
+            }
+        }
+        return List.of();
+    }
+
+    private static String toComponentPath(String component, String path) {
+        return component + ":" + path;
     }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
@@ -137,7 +219,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Finds a {@link TransportVersion} by its name. The parameter {@code name} must be a {@link String}
      * direct value or validation checks will fail. {@code TransportVersion.fromName("direct_value")}.
      * <p>
-     * This will only return the latest known named transport version for a given name and not its
+     * This will only return the latest known referable transport version for a given name and not its
      * patch versions. Patch versions are constructed as a linked list internally and may be found by
      * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
      *
@@ -250,7 +332,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * and all of its patch ids for compatibility. This replaces the pattern
      * of {@code wireTV.onOrAfter(TV_FEATURE) || wireTV.isPatchFrom(TV_FEATURE_BACKPORT) || ...}
      * for unnamed transport versions with {@code wireTV.supports(TV_FEATURE)} for named
-     * transport versions (since named versions know about their own patch versions).
+     * transport versions (since referable versions know about their own patch versions).
      * <p>
      * The recommended use of this method is to declare a static final {@link TransportVersion}
      * as part of the file that it's used in. This constant is then used in conjunction with
@@ -321,10 +403,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * This class holds various data structures for looking up known transport versions both
-     * named and unnamed. While we transition to named transport versions, this class will
+     * This class holds various data structures for loading transport versions, both
+     * named file-based definitions and unnamed. While we transition to file-based transport versions, this class will
      * load and merge unnamed transport versions from {@link TransportVersions} along with
-     * named transport versions specified in a manifest file in resources.
+     * transport version definitions specified in a manifest file in resources.
      */
     private static class VersionsHolder {
 
@@ -337,8 +419,16 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
             List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
-            Map<String, TransportVersion> allVersionsByName = loadTransportVersionsByName();
-            addTransportVersions(allVersionsByName.values(), allVersions).sort(TransportVersion::compareTo);
+            List<TransportVersion> streamVersions = collectFromInputStreams(
+                "<server>",
+                "/transport",
+                TransportVersion.class::getResourceAsStream,
+                Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv"
+            );
+            Map<String, TransportVersion> allVersionsByName = streamVersions.stream()
+                .filter(tv -> tv.name() != null)
+                .collect(Collectors.toMap(TransportVersion::name, v -> v));
+            addTransportVersions(streamVersions, allVersions).sort(TransportVersion::compareTo);
 
             // set the transport version lookups
             ALL_VERSIONS = Collections.unmodifiableList(allVersions);
@@ -349,65 +439,6 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 allVersions.get(allVersions.size() - 1).id()
             );
             CURRENT = ALL_VERSIONS.get(ALL_VERSIONS.size() - 1);
-        }
-
-        private static Map<String, TransportVersion> loadTransportVersionsByName() {
-            Map<String, TransportVersion> transportVersions = new HashMap<>();
-
-            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv";
-            int latestId = -1;
-            try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
-                // this check is required until bootstrapping for the new transport versions format is completed;
-                // when load is false, we will only use the transport versions in the legacy format;
-                // load becomes false if we don't find the latest or manifest files required for the new format
-                if (inputStream != null) {
-                    TransportVersion latest = fromInputStream(latestLocation, true, inputStream, Integer.MAX_VALUE);
-                    if (latest == null) {
-                        throw new IllegalStateException(
-                            "invalid latest transport version for minor version ["
-                                + Version.CURRENT.major
-                                + "."
-                                + Version.CURRENT.minor
-                                + "]"
-                        );
-                    }
-                    latestId = latest.id();
-                }
-            } catch (IOException ioe) {
-                throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
-            }
-
-            String manifestLocation = "/transport/constant/manifest.txt";
-            List<String> versionFileNames = null;
-            if (latestId > -1) {
-                try (InputStream inputStream = TransportVersion.class.getResourceAsStream(manifestLocation)) {
-                    if (inputStream != null) {
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-                        versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
-                    }
-                } catch (IOException ioe) {
-                    throw new UncheckedIOException("transport version manifest file not found at [" + manifestLocation + "]", ioe);
-                }
-            }
-
-            if (versionFileNames != null) {
-                for (String name : versionFileNames) {
-                    String versionLocation = "/transport/constant/" + name;
-                    try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
-                        if (inputStream == null) {
-                            throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");
-                        }
-                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, false, inputStream, latestId);
-                        if (transportVersion != null) {
-                            transportVersions.put(transportVersion.name(), transportVersion);
-                        }
-                    } catch (IOException ioe) {
-                        throw new UncheckedIOException("transport version file not found at [ " + versionLocation + "]", ioe);
-                    }
-                }
-            }
-
-            return transportVersions;
         }
 
         private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {

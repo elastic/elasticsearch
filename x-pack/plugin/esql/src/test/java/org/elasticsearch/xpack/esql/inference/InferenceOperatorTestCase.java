@@ -205,6 +205,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {
 
             }

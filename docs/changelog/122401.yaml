@@ -1,6 +1,0 @@
-pr: 122401
-summary: "[8.x][Inference API] Rename `model_id` prop to model in EIS sparse inference\
-  \ request body"
-area: Inference
-type: enhancement
-issues: []

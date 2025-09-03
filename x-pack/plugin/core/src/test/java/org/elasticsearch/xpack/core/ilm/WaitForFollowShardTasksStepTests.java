@@ -72,7 +72,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final Exception[] exceptionHolder = new Exception[1];
         createRandomInstance().evaluateCondition(
             Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
+            indexMetadata,
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -111,7 +111,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final Exception[] exceptionHolder = new Exception[1];
         createRandomInstance().evaluateCondition(
             Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
+            indexMetadata,
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -149,7 +149,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final Exception[] exceptionHolder = new Exception[1];
         createRandomInstance().evaluateCondition(
             Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
+            indexMetadata,
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {

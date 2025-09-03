@@ -1,8 +1,8 @@
 {
   "security.get_settings":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-settings.html",
-      "description":"Retrieve settings for the security system indices"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-get-settings.html",
+      "description":"Get security index settings"
     },
     "stability":"stable",
     "visibility":"public",

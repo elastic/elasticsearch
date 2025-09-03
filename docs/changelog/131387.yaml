@@ -1,5 +1,0 @@
-pr: 131387
-summary: Disable `ReplaceStringCasingWithInsensitiveRegexMatch` rule in 8.19
-area: ES|QL
-type: bug
-issues: []

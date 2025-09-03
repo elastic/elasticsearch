@@ -3234,7 +3234,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             // full checkindex
             final BytesStreamOutput os = new BytesStreamOutput();
-            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8);
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (status.clean == false) {

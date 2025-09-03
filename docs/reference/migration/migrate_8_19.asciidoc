@@ -100,7 +100,7 @@ Unfortunately there are several differences between the two AWS SDK versions whi
 
 * AWS SDK v2 counts 4xx responses differently in its metrics reporting.
 
-* AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v2
+* AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v1
   could use either a regional endpoint or the global
   `https://sts.amazonaws.com` one.
 

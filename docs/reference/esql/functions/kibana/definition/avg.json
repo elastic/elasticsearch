@@ -10,7 +10,7 @@
           "name" : "number",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "Expression that outputs values to average."
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "number",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "Expression that outputs values to average."
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "number",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "Expression that outputs values to average."
         }
       ],
       "variadic" : false,

@@ -1,0 +1,5 @@
+pr: 133392
+summary: Track memory in evaluators
+area: ES|QL
+type: bug
+issues: []

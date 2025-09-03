@@ -1,8 +1,8 @@
 {
   "connector.last_sync": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-last-sync-api.html",
-      "description": "Updates the stats of last sync in the connector document."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/update-connector-last-sync-api.html",
+      "description": "Update the connector last sync stats"
     },
     "stability": "experimental",
     "visibility": "public",

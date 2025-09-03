@@ -1,8 +1,8 @@
 {
   "ml.delete_datafeed":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html",
-      "description":"Deletes an existing datafeed."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ml-delete-datafeed.html",
+      "description":"Delete a datafeed"
     },
     "stability":"stable",
     "visibility":"public",

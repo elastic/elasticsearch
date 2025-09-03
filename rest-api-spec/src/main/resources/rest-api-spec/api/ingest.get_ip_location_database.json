@@ -1,8 +1,8 @@
 {
   "ingest.get_ip_location_database":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-ip-location-database-api.html",
-      "description":"Returns the specified ip location database configuration"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-ip-location-database-api.html",
+      "description":"Get IP geolocation database configurations"
     },
     "stability":"stable",
     "visibility":"public",

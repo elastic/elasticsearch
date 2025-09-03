@@ -32,6 +32,7 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -186,6 +187,11 @@ public class EsqlSession {
             new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
+                    assert ThreadPool.assertCurrentThreadPool(
+                        ThreadPool.Names.SEARCH,
+                        ThreadPool.Names.SEARCH_COORDINATION,
+                        ThreadPool.Names.SYSTEM_READ
+                    );
                     preMapper.preMapper(
                         analyzedPlan,
                         listener.delegateFailureAndWrap(
@@ -208,6 +214,11 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
         // TODO: this could be snuck into the underlying listener
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
@@ -360,6 +371,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (parsed.analyzed()) {
             logicalPlanListener.onResponse(parsed);
             return;
@@ -556,7 +568,9 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                if (executionInfo.clusterInfo.isEmpty() == false) {
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                }
             }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {

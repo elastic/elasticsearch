@@ -924,7 +924,7 @@ public class Security extends Plugin
         components.add(privilegeStore);
 
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
-        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);

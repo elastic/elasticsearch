@@ -31,6 +31,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final String DEFAULT_ACCOUNT_NAME = "account";

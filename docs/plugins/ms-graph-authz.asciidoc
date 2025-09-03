@@ -1,0 +1,155 @@
+[[ms-graph-authz]]
+=== Microsoft Graph Authz
+
+The Microsoft Graph Authz plugin uses https://learn.microsoft.com/en-us/graph/api/user-list-memberof[Microsoft Graph] to look up group membership information from Microsoft Entra ID.
+
+This is primarily intended to work around the Microsoft Entra ID maximum group size limit (see https://learn.microsoft.com/en-us/security/zero-trust/develop/configure-tokens-group-claims-app-roles#group-overages[Group overages]).
+
+[discrete]
+[id="microsoft-graph-authz-install"]
+==== Installation
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of the Elastic Stack has not yet been released.
+
+endif::[]
+
+If you're using a self-managed Elasticsearch cluster, then this plugin can be installed using the plugin manager:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install microsoft-graph-authz
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+You can download this plugin for <<plugin-management-custom-url,offline
+install>> from {plugin_url}/microsoft-graph-authz/microsoft-graph-authz-{version}.zip. To verify
+the `.zip` file, use the
+{plugin_url}/microsoft-graph-authz/microsoft-graph-authz-{version}.zip.sha512[SHA hash] or
+{plugin_url}/microsoft-graph-authz/microsoft-graph-authz-{version}.zip.asc[ASC key].
+
+For all other deployment types, refer to <<plugin-management,plugin management>>.
+
+[discrete]
+[id="microsoft-graph-authz-remove"]
+==== Removal
+
+The plugin can be removed with the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove {plugin_name}
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[discrete]
+==== Configuration
+To learn how to configure the Microsoft Graph Authz plugin, refer to <<configure-elasticsearch,configuration properties>>.
+
+[[configure-azure]]
+==== Configure Azure
+
+To make API calls to Microsoft Graph, Elasticsearch requires Azure credentials with the correct permissions.
+
+[discrete]
+==== Create a custom Azure application
+
+. Log in to the https://portal.azure.com[Azure portal] and go to Microsoft Entra ID.
+. To register a new application, click *Enterprise applications* > *New application*.
+. Click *Create your own application*, provide a name, and select the *Integrate any other application you don’t find in the gallery* option.
+
+image::images/01-create-enterprise-application.png["create your own application" page]
+
+[discrete]
+==== Configure the custom Application
+
+. In the https://portal.azure.com[Azure portal], go to Microsoft Entra ID.
+. Under *App registrations*, select the *All applications* tab, and then find the application created in the previous section.
++
+image::images/02-find-app-registration.png[find your app registration]
+. Take note of the *Application (client) ID* and *Tenant ID* shown here.
+These will be needed to configure Elasticsearch later.
++
+image::images/03-get-application-id.png[get your application ID]
+. Under *Manage* > *Certificates & secrets*
+- Create a new client secret.
+- Take note of your new client secret's *Value*.
+This is needed later, and is only displayed once.
++
+image::images/04-create-client-secret.png[get your client secret]
+. Under *Manage* > *API permissions*, do the following:
+.. Go to *Add a permission*.
+.. Choose *Microsoft Graph*.
+.. Choose *Application permissions*.
+.. Select `Directory.ReadWrite.All`, `Group.ReadWrite.All`, `User.Read.All`.
++
+NOTE: An Azure Admin must approve these permissions before the credentials can be used.
++
+image::images/05-configure-api-permissions.png[configure api permissions]
+
+[[configure-elasticsearch]]
+==== Configuration properties
+
+After the plugin is installed, the following configuration settings are available:
+
+xpack.security.authc.realms.microsoft_graph.*.order::
+The priority of the realm within the realm chain.
+Realms with a lower order are consulted first.
+The value must be unique for each realm.
+This setting is required.
+
+xpack.security.authc.realms.microsoft_graph.*.tenant_id::
+Your Microsoft Entra ID https://learn.microsoft.com/en-us/entra/fundamentals/how-to-find-tenant[Tenant ID].
+This setting is required.
+
+xpack.security.authc.realms.microsoft_graph.*.client_id::
+The Application ID of the Enterprise Application you registered in the previous section.
+This setting is required.
+
+xpack.security.authc.realms.microsoft_graph.*.client_secret::
+The client secret value for the Application you registered in the previous section.
+This is a sensitive setting, and must be configured in the Elasticsearch keystore.
+This setting is required.
+
+xpack.security.authc.realms.microsoft_graph.*.access_token_host::
+A Microsoft login URL.
+Defaults to `https://login.microsoftonline.com`.
+
+xpack.security.authc.realms.microsoft_graph.*.graph_host::
+The Microsoft Graph base address.
+Defaults to `https://graph.microsoft.com/v1.0`.
+
+xpack.security.authc.realms.microsoft_graph.*.http_request_timeout::
+The timeout for individual Graph HTTP requests.
+Defaults to `10s`.
+
+xpack.security.authc.realms.microsoft_graph.*.execution_timeout::
+The overall timeout for authorization requests to this plugin.
+Defaults to `30s`.
+
+Create a Microsoft Graph realm, following the above settings, then configure an existing realm to delegate to it using `authorization_realms`.
+
+For example, the following configuration authenticates via Microsoft Entra with SAML, and uses the Microsoft Graph plugin to look up group membership:
+
+[source,yaml]
+----
+xpack.security.authc.realms.saml.kibana-realm:
+  order: 2
+  attributes.principal: nameid
+  attributes.groups: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+  idp.metadata.path: "https://login.microsoftonline.com/<Tenant ID>/federationmetadata/2007-06/federationmetadata.xml?appid=<Application_ID>"
+  idp.entity_id: "https://sts.windows.net/<Tenant_ID>/"
+  sp.entity_id: "<Kibana_Endpoint_URL>"
+  sp.acs: "<Kibana_Endpoint_URL>/api/security/saml/callback"
+  sp.logout: "<Kibana_Endpoint_URL>/logout"
+  authorization_realms: microsoft_graph1
+
+xpack.security.authc.realms.microsoft_graph.microsoft_graph1:
+  order: 3
+  tenant_id: "<Tenant_ID>"
+  client_id: "<Graph_Application_ID>"
+----

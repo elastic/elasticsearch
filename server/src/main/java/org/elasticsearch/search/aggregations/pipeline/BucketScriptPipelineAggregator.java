@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
@@ -47,10 +48,24 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg;
+
+        if (aggregation instanceof InternalMultiBucketAggregation multiBucketAggregation) {
+            originalAgg = multiBucketAggregation;
+        } else {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Expected a multi bucket aggregation but got [%s] for aggregation [%s]",
+                    aggregation.getClass().getSimpleName(),
+                    name()
+                )
+            );
+        }
+
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
         BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);

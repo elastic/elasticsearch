@@ -1,8 +1,8 @@
 {
   "transform.reset_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/reset-transform.html",
-      "description":"Resets an existing transform."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/reset-transform.html",
+      "description":"Reset a transform"
     },
     "stability":"stable",
     "visibility":"public",

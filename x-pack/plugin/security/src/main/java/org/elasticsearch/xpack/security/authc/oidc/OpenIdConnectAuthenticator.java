@@ -477,7 +477,20 @@ public class OpenIdConnectAuthenticator {
             if (httpResponse.getStatusLine().getStatusCode() == 200) {
                 if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
-                    validateUserInfoResponse(userInfoClaims, verifiedIdTokenClaims.getSubject(), claimsListener);
+                    String expectedSub = verifiedIdTokenClaims.getSubject();
+                    if (userInfoClaims.getSubject() == null || userInfoClaims.getSubject().isEmpty()) {
+                        claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
+                        return;
+                    } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
+                        claimsListener.onFailure(
+                            new ElasticsearchSecurityException(
+                                "Userinfo Response is not valid as it is for " + "subject [{}] while the ID Token was for subject [{}]",
+                                userInfoClaims.getSubject(),
+                                expectedSub
+                            )
+                        );
+                        return;
+                    }
                     if (LOGGER.isTraceEnabled()) {
                         LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims);
                     }
@@ -524,27 +537,6 @@ public class OpenIdConnectAuthenticator {
             }
         } catch (Exception e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint.", e));
-        }
-    }
-
-    /**
-     * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
-     */
-    private static void validateUserInfoResponse(
-        JWTClaimsSet userInfoClaims,
-        String expectedSub,
-        ActionListener<JWTClaimsSet> claimsListener
-    ) {
-        if (userInfoClaims.getSubject().isEmpty()) {
-            claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
-        } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
-            claimsListener.onFailure(
-                new ElasticsearchSecurityException(
-                    "Userinfo Response is not valid as it is for " + "subject [{}] while the ID Token was for subject [{}]",
-                    userInfoClaims.getSubject(),
-                    expectedSub
-                )
-            );
         }
     }
 

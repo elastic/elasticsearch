@@ -1,8 +1,8 @@
 {
   "ccr.follow":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-follow.html",
-      "description": "Creates a new follower index configured to follow the referenced leader index."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ccr-put-follow.html",
+      "description": "Create a follower"
     },
     "stability":"stable",
     "visibility":"public",

@@ -1,8 +1,8 @@
 {
   "ml.clear_trained_model_deployment_cache":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/clear-trained-model-deployment-cache.html",
-      "description":"Clear the cached results from a trained model deployment"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/clear-trained-model-deployment-cache.html",
+      "description":"Clear trained model deployment cache"
     },
     "stability":"stable",
     "visibility":"public",

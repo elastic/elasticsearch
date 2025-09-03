@@ -1,8 +1,8 @@
 {
   "cluster.delete_component_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-component-template.html",
-      "description":"Deletes a component template"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/indices-component-template.html",
+      "description":"Delete component templates"
     },
     "stability":"stable",
     "visibility":"public",

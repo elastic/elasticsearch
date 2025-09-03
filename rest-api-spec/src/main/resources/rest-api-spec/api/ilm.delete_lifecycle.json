@@ -1,8 +1,8 @@
 {
   "ilm.delete_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-delete-lifecycle.html",
-      "description": "Deletes the specified lifecycle policy definition. A currently used policy cannot be deleted."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ilm-delete-lifecycle.html",
+      "description": "Delete a lifecycle policy"
     },
     "stability":"stable",
     "visibility":"public",

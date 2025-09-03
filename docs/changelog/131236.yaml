@@ -1,6 +1,0 @@
-pr: 131236
-summary: Correctly handling `download_database_on_pipeline_creation` within a pipeline
-  processor within a default or final pipeline
-area: Ingest Node
-type: bug
-issues: []

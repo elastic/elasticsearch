@@ -1,8 +1,8 @@
 {
   "ml.start_datafeed":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html",
-      "description":"Starts one or more datafeeds."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ml-start-datafeed.html",
+      "description":"Start datafeeds"
     },
     "stability":"stable",
     "visibility":"public",

@@ -1676,6 +1676,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 }
 
                 @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+
+                @Override
                 public void close() {}
             };
         }

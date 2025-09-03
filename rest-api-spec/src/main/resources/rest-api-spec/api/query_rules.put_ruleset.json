@@ -1,8 +1,8 @@
 {
   "query_rules.put_ruleset": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-query-ruleset.html",
-      "description": "Creates or updates a query ruleset."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/put-query-ruleset.html",
+      "description": "Create or update a query ruleset"
     },
     "stability": "stable",
     "visibility": "public",

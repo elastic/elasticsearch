@@ -1,0 +1,55 @@
+[[release-notes-8.19.2]]
+== {es} version 8.19.2
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
++
+.Validate parent aggregation type in `bucket_script`
+[%collapsible]
+===============
+The `bucket_script` pipeline aggregation didn’t validate that its parent aggregation was a multi-bucket aggregation.
+This caused a `ClassCastException` at runtime when the parent was not multi-bucket. 
+{es-pull}132320[#132320] adds a validation step so the aggregation fails early, preventing the runtime error. (issue: {es-issue}132272[#132272])
+===============
+
+Codec::
++
+.Use local segment `fieldInfos` for TSDB merge stats
+[%collapsible]
+===============
+Merging shrink TSDB or LogsDB indices in versions 8.19 or 9.1+ could fail when using addIndexes to combine Lucene segments directly.
+In these cases, fieldInfos could differ between shards and the merged segment, causing incorrect merge statistics.
+PR {es-pull}132597[#132597] updates the process to use `fieldInfos` from each segment instead of the merged segment, ensuring accurate stats and preventing merge failures.
+===============
++
+.Remove unused `tsdb_doc_values_optimized_merge` feature flag in 8.19
+[%collapsible]
+===============
+In 8.19, the `tsdb_doc_values_optimized_merge` optimization was unintentionally disabled because its feature flag was not removed as planned.
+This happened when the original change failed to merge due to CI issues. 
+{es-pull}128459[#128459] removes the leftover flag, enabling the optimization as intended.
+===============
+
+Mapping::
++
+.Calculate text string length correctly for code points outside BMP
+[%collapsible]
+===============
+Strings parsed with the optimized UTF-8 parsing path had incorrect length calculations for characters outside the basic multilingual plane (BMP).
+These characters require two UTF-16 code units, but the optimized path did not account for this, causing mismatches with the non-optimized path.
+{es-pull}132593[#132593] fixes the calculation to ensure consistent and correct string lengths.
+===============
+
+[[enhancement-8.19.2]]
+[float]
+=== Enhancements
+
+Authorization::
+* Adds `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges for the `kibana_system` role on third-party agent indices used by ExtraHop (logs-extrahop.investigation-*) and Qualys GAV (logs-qualys_gav.asset-*). This ensures ILM policies can delete these indices without permission errors. {es-pull}132387[#132387] (issue: {es-issue}131825[#131825])
+
+

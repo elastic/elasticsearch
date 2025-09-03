@@ -1,8 +1,8 @@
 {
   "connector.sync_job_post": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/create-connector-sync-job-api.html",
-      "description": "Creates a connector sync job."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/create-connector-sync-job-api.html",
+      "description": "Create a connector sync job"
     },
     "stability": "experimental",
     "visibility": "public",

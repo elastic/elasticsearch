@@ -1,8 +1,8 @@
 {
   "_internal.delete_desired_nodes":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-desired-nodes.html",
-      "description": "Deletes the desired nodes. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+      "url": null,
+      "description": "Deletes the desired nodes"
     },
     "stability":"experimental",
     "visibility":"private",

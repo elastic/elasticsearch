@@ -262,8 +262,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.warn(e);
-                                // still record the completed snapshot
+                                logger.warn("failed to retrieve stale registered snapshots for job [{}]", jobId, e);
+                                // still record the successful snapshot
                                 submitUnbatchedTask(
                                     clusterService,
                                     "slm-record-success-" + policyId,
@@ -321,8 +321,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(e);
-                            // still record the completed snapshot, next SLM run will retry clearing the stale registered snapshots
+                            logger.warn("failed to retrieve stale registered snapshots for job [{}]", jobId, e);
+                            // still record the failed snapshot
                             submitUnbatchedTask(
                                 clusterService,
                                 "slm-record-failure-" + policyMetadata.getPolicy().getId(),
@@ -559,7 +559,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                     snapshotInfo.endTime(),
                                     String.format(
                                         Locale.ROOT,
-                                        "found non-successful registered snapshot [%s] which is no longer running",
+                                        "found failed registered snapshot [%s], the master node was likely shutdown during SLM execution",
                                         snapshotInfo.snapshotId().getName()
                                     )
                                 )

@@ -184,7 +184,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
         // validate index:
         var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(index).hasValue("index.routing_path"), equalTo(false));
+        assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), equalTo("[attributes.*]"));
+        assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), equalTo("[attributes.*]"));
         // validate mapping
         var mapping = getIndexResponse.mappings().get(index).getSourceAsMap();
         assertMap(

@@ -327,7 +327,14 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
                 .template(
-                    new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent(mappingTemplate), null)
+                    new Template(
+                        Settings.builder()
+                            .put("index.mode", "time_series")
+                            .put("index.routing_path", randomBoolean() ? "metricset" : null)
+                            .build(),
+                        new CompressedXContent(mappingTemplate),
+                        null
+                    )
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()

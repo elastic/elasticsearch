@@ -8716,7 +8716,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(knn.k(), equalTo(10));
     }
 
-    public void testKnnWithMultipleLimits() {
+    public void testKnnWithMultipleLimitsAfterTopN() {
         assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         var query = """
@@ -8734,6 +8734,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
         assertThat(knn.k(), equalTo(20));
+    }
+
+    public void testKnnWithMultipleLimitsCombined() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 20
+            | limit 10
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.k(), equalTo(10));
     }
 
     public void testKnnWithMultipleClauses() {

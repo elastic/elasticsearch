@@ -14,7 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -33,10 +36,19 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     public static final String NAME = "elastic_inference_service_completion_service_settings";
 
-    public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map) {
+    public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            map,
+            ModelConfigurations.SERVICE_SETTINGS,
+            ElasticInferenceService.NAME,
+            TaskType.CHAT_COMPLETION,
+            context,
+            validationException
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

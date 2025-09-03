@@ -212,8 +212,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
 
             var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{rate_limit={requests_per_minute=100}}] unknown to the [elastic] service"
+                ValidationException.class,
+                "Validation Failed: 1: [service_settings] rate limit settings are not permitted for "
+                    + "service [elastic] and task type [sparse_embedding];"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }

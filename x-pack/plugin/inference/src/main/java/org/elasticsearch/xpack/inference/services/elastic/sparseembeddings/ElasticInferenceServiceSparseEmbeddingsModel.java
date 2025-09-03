@@ -47,7 +47,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings),
+            ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents,

@@ -16,8 +16,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -51,14 +51,15 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
         var modelId = "model_id";
 
         var serviceSettings = ElasticInferenceServiceCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId))
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+            ConfigurationParseContext.REQUEST
         );
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
-    public void testFromMap_DoesNotRemoveRateLimitField() {
+    public void testFromMap_ThrowsValidationError_IfRateLimitFieldExists_ForRequestContext() {
         var modelId = "my-model-id";
 
         var map = new HashMap<String, Object>(
@@ -69,17 +70,40 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceRerankServiceSettings.fromMap(map);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("[service_settings] rate limit settings are not permitted for service [elastic] and task type [chat_completion]")
+        );
+    }
+
+    public void testFromMap_DoesNotThrowValidationError_IfRateLimitFieldExists_ForPersistentContext() {
+        var modelId = "my-model-id";
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                modelId,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+            )
+        );
+
+        var serviceSettings = ElasticInferenceServiceCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
         assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
-        assertThat(serviceSettings, is(new ElasticInferenceServiceRerankServiceSettings(modelId)));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
     public void testFromMap_MissingModelId_ThrowsException() {
         ValidationException validationException = expectThrows(
             ValidationException.class,
-            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(new HashMap<>(Map.of()))
+            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST)
         );
 
         assertThat(validationException.getMessage(), containsString("does not contain the required setting [model_id]"));

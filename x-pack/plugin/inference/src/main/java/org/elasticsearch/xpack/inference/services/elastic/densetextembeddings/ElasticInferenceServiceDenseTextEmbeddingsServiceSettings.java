@@ -17,7 +17,10 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -47,13 +50,25 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
+    public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context
+    ) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            map,
+            ModelConfigurations.SERVICE_SETTINGS,
+            ElasticInferenceService.NAME,
+            TaskType.TEXT_EMBEDDING,
+            context,
+            validationException
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

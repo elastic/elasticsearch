@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -23,6 +25,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -64,7 +68,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
                 )
-            )
+            ),
+            ConfigurationParseContext.REQUEST
         );
 
         assertThat(serviceSettings.modelId(), is(modelId));
@@ -73,7 +78,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
     }
 
-    public void testFromMap_Request_WithAllSettings_DoesNotRemoveRateLimitField() {
+    public void testFromMap_WithAllSettings_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_PersistentContext() {
         var modelId = "my-dense-model-id";
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 384;
@@ -93,9 +98,69 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map);
+        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
         assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
+        assertThat(serviceSettings.modelId(), is(modelId));
+        assertThat(serviceSettings.similarity(), is(similarity));
+        assertThat(serviceSettings.dimensions(), is(dimensions));
+        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
+        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+    }
+
+    public void testFromMap_WithAllSettings_DoesNotRemoveRateLimitField_ThrowsValidationException_RequestContext() {
+        var modelId = "my-dense-model-id";
+        var similarity = SimilarityMeasure.COSINE;
+        var dimensions = 384;
+        var maxInputTokens = 512;
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                modelId,
+                ServiceFields.SIMILARITY,
+                similarity.toString(),
+                ServiceFields.DIMENSIONS,
+                dimensions,
+                ServiceFields.MAX_INPUT_TOKENS,
+                maxInputTokens,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+            )
+        );
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
+        assertThat(
+            exception.getMessage(),
+            containsString("[service_settings] rate limit settings are not permitted for service [elastic] and task type [text_embedding]")
+        );
+    }
+
+    public void testFromMap_WithAllSettings_DoesNotThrowValidationException_WhenRateLimitFieldDoesNotExist_RequestContext() {
+        var modelId = "my-dense-model-id";
+        var similarity = SimilarityMeasure.COSINE;
+        var dimensions = 384;
+        var maxInputTokens = 512;
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                modelId,
+                ServiceFields.SIMILARITY,
+                similarity.toString(),
+                ServiceFields.DIMENSIONS,
+                dimensions,
+                ServiceFields.MAX_INPUT_TOKENS,
+                maxInputTokens
+            )
+        );
+        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(map, anEmptyMap());
         assertThat(serviceSettings.modelId(), is(modelId));
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));

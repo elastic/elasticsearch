@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase<RateLimitSettings> {
@@ -120,6 +122,55 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
             }""")));
+    }
+
+    public void testRejectRateLimitFieldForRequestContext_DoesNotAddError_WhenRateLimitFieldDoesNotExist() {
+        var mapWithoutRateLimit = new HashMap<String, Object>(Map.of("abc", 100));
+        var validation = new ValidationException();
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            mapWithoutRateLimit,
+            "scope",
+            "service",
+            TaskType.CHAT_COMPLETION,
+            ConfigurationParseContext.REQUEST,
+            validation
+        );
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testRejectRateLimitFieldForRequestContext_DoesNotAddError_WhenRateLimitFieldDoesExist_PersistentContext() {
+        var mapWithRateLimit = new HashMap<String, Object>(
+            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+        );
+        var validation = new ValidationException();
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            mapWithRateLimit,
+            "scope",
+            "service",
+            TaskType.CHAT_COMPLETION,
+            ConfigurationParseContext.PERSISTENT,
+            validation
+        );
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testRejectRateLimitFieldForRequestContext_DoesAddError_WhenRateLimitFieldDoesExist() {
+        var mapWithRateLimit = new HashMap<String, Object>(
+            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+        );
+        var validation = new ValidationException();
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            mapWithRateLimit,
+            "scope",
+            "service",
+            TaskType.CHAT_COMPLETION,
+            ConfigurationParseContext.REQUEST,
+            validation
+        );
+        assertThat(
+            validation.getMessage(),
+            containsString("[scope] rate limit settings are not permitted for service [service] and task type [chat_completion]")
+        );
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -50,6 +51,26 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
+    }
+
+    public static void rejectRateLimitFieldForRequestContext(
+        Map<String, Object> map,
+        String scope,
+        String service,
+        TaskType taskType,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        if (ConfigurationParseContext.isRequestContext(context) && map.containsKey(FIELD_NAME)) {
+            validationException.addValidationError(
+                Strings.format(
+                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
+                    scope,
+                    service,
+                    taskType.toString()
+                )
+            );
+        }
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(

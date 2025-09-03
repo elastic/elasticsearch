@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -24,6 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -51,13 +55,14 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         var modelId = "my-model-id";
 
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId))
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+            ConfigurationParseContext.REQUEST
         );
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
     }
 
-    public void testFromMap_DoesNotRemoveRateLimitField() {
+    public void testFromMap_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_PersistentContext() {
         var modelId = "my-model-id";
         var map = new HashMap<String, Object>(
             Map.of(
@@ -67,11 +72,45 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
             )
         );
-        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map);
+        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
         assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+    }
+
+    public void testFromMap_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_WhenRateLimitFieldDoesNotExist() {
+        var modelId = "my-model-id";
+        var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, modelId));
+        var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
+
+        assertThat(map, anEmptyMap());
+        assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
+        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
+    }
+
+    public void testFromMap_DoesThrowValidationException_WhenRateLimitFieldDoesExist_RequestContext() {
+        var modelId = "my-model-id";
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                modelId,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+            )
+        );
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "[service_settings] rate limit settings are not permitted for service [elastic] and task type [sparse_embedding]"
+            )
+        );
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
     }
 
     public void testToXContent_WritesAllFields() throws IOException {

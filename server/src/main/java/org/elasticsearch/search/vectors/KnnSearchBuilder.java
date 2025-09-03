@@ -601,7 +601,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeVInt(k);
         out.writeVInt(numCands);
         if (out.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
-            out.writeFloat(visitPercentage);
+            out.writeOptionalFloat(visitPercentage);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);

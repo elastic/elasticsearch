@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,9 +25,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 public class SourceContext implements Writeable, Releasable {
+
+    private static final Releasable NOOP_RELEASABLE = () -> {};
 
     private XContentType contentType;
     private BytesReference source;
@@ -35,7 +37,7 @@ public class SourceContext implements Writeable, Releasable {
     public SourceContext() {}
 
     public SourceContext(XContentType contentType, BytesReference source) {
-        this(contentType, source, () -> {});
+        this(contentType, source, NOOP_RELEASABLE);
     }
 
     public SourceContext(XContentType contentType, BytesReference source, Releasable sourceReleasable) {
@@ -200,19 +202,22 @@ public class SourceContext implements Writeable, Releasable {
         }
     }
 
-    /**
-     * Sets the document to index in bytes form.
-     */
-    public void source(BytesReference source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
-        this.contentType = Objects.requireNonNull(xContentType);
+    public void source(ReleasableBytesReference source, XContentType contentType) {
+        setSource(source, contentType, source);
     }
 
     /**
      * Sets the document to index in bytes form.
      */
-    public void source(byte[] source, XContentType xContentType) {
-        source(source, 0, source.length, xContentType);
+    public void source(BytesReference source, XContentType contentType) {
+        setSource(source, contentType);
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public void source(byte[] source, XContentType contentType) {
+        source(source, 0, source.length, contentType);
     }
 
     /**
@@ -223,7 +228,18 @@ public class SourceContext implements Writeable, Releasable {
      * @param offset The offset in the byte array
      * @param length The length of the data
      */
-    public void source(byte[] source, int offset, int length, XContentType xContentType) {
-        source(new BytesArray(source, offset, length), xContentType);
+    public void source(byte[] source, int offset, int length, XContentType contentType) {
+        source(new BytesArray(source, offset, length), contentType);
+    }
+
+    private void setSource(BytesReference source, XContentType contentType) {
+        setSource(source, contentType, NOOP_RELEASABLE);
+    }
+
+    private void setSource(BytesReference source, XContentType contentType, Releasable sourceReleasable) {
+        this.source = source;
+        this.contentType = contentType;
+        this.sourceReleasable.close();
+        this.sourceReleasable = sourceReleasable;
     }
 }

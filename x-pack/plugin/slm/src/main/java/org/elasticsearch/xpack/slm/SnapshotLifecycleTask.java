@@ -17,22 +17,17 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots.PolicySnapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -75,7 +70,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     private final Client client;
     private final ClusterService clusterService;
     private final SnapshotHistoryStore historyStore;
-    private final MasterServiceTaskQueue<UpdatePolicyStatsTask> updatePolicyStatsQueue;
 
     public SnapshotLifecycleTask(
         final ProjectId projectId,
@@ -87,34 +81,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         this.client = client;
         this.clusterService = clusterService;
         this.historyStore = historyStore;
-
-        ClusterStateTaskExecutor<UpdatePolicyStatsTask> executor = new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Object> executeTask(UpdatePolicyStatsTask updatePolicyStatsTask, ClusterState clusterState)
-                throws Exception {
-                // TODO
-                return null;
-            }
-
-            @Override
-            public void taskSucceeded(UpdatePolicyStatsTask updatePolicyStatsTask, Object o) {
-                // TODO
-            }
-        };
-        this.updatePolicyStatsQueue = clusterService.createTaskQueue("slm-update-policy-stats", Priority.HIGH, executor);
-    }
-
-    static class UpdatePolicyStatsTask extends ClusterStateUpdateTask {
-
-        @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
-            return null;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            // TODO
-        }
     }
 
     static List<String> findStaleRegisteredSnapshotIds(ProjectState projectState, String policyId) {
@@ -529,11 +495,15 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             for (PolicySnapshot registeredSnapshot : registeredSnapshots.getSnapshots()) {
                 SnapshotId registeredSnapshotId = registeredSnapshot.getSnapshotId();
                 if (registeredSnapshotId.equals(snapshotId)) {
-                    // skip the snapshot just completed, it will be handled below
+                    // skip the snapshot just completed, it will be handled later
+                    continue;
+                }
+                if (snapLifecycles.containsKey(registeredSnapshot.getPolicy()) == false) {
+                    // the SLM policy no longer exists, just remove the snapshot from registered set, no need to record stats
                     continue;
                 }
                 if (registeredSnapshot.getPolicy().equals(policyName) == false || runningSnapshots.contains(registeredSnapshotId)) {
-                    // the snapshot is for another policy, or is still running, so keep it in the registered set
+                    // the snapshot is for another policy, leave it to that policy to clean up, or the snapshot is still running
                     newRegistered.add(registeredSnapshot);
                 } else {
                     // the snapshot was completed and should be removed from registered snapshots, update state accordingly

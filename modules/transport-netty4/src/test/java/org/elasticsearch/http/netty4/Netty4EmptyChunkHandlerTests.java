@@ -85,9 +85,10 @@ public class Netty4EmptyChunkHandlerTests extends ESTestCase {
 
     public void testRandomizedChannelReuse() {
         for (int i = 0; i < 1000; i++) {
-            switch (between(0, 2)) {
+            switch (between(0, 3)) {
                 case 0 -> testNonChunkedPassthrough();
                 case 1 -> testKeepEncodingForNonEmpty();
+                case 2 -> testDecodingFailurePassthrough();
                 default -> testRemoveEncodingFromEmpty();
             }
         }

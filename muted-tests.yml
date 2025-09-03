@@ -143,8 +143,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -214,9 +212,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
-- class: org.elasticsearch.search.CCSDuelIT
-  method: testTerminateAfter
-  issue: https://github.com/elastic/elasticsearch/issues/126085
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
@@ -286,12 +281,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testOneRemoteClusterPartial
-  issue: https://github.com/elastic/elasticsearch/issues/124055
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/128030
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
@@ -301,27 +290,9 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/128418
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testFailToStartRequestOnRemoteCluster
-  issue: https://github.com/elastic/elasticsearch/issues/128545
-- class: org.elasticsearch.compute.operator.LimitOperatorTests
-  method: testEarlyTermination
-  issue: https://github.com/elastic/elasticsearch/issues/128721
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {lookup-join.EnrichLookupStatsBug ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129228
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {lookup-join.EnrichLookupStatsBug SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129229
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {lookup-join.MultipleBatches*
-  issue: https://github.com/elastic/elasticsearch/issues/129210
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
@@ -362,24 +333,9 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
   issue: https://github.com/elastic/elasticsearch/issues/130281
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnFrom SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/130296
 - class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
   method: testSuccessfulExecution
   issue: https://github.com/elastic/elasticsearch/issues/130306
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
-  issue: https://github.com/elastic/elasticsearch/issues/130472
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/130497
-- class: org.elasticsearch.gradle.LoggedExecFuncTest
-  method: failed tasks output logged to console when spooling true
-  issue: https://github.com/elastic/elasticsearch/issues/119509
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {lookup-join.MvJoinKeyFromRow ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/130642
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -389,15 +345,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnFromAfterStats ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/131148
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLookupJoinAliases
-  issue: https://github.com/elastic/elasticsearch/issues/131166
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=field_caps/40_time_series/Get simple time series field caps}
-  issue: https://github.com/elastic/elasticsearch/issues/131225
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
@@ -408,26 +355,11 @@ tests:
   method: testMatchInsideEval
   issue: https://github.com/elastic/elasticsearch/issues/131336
 - class: org.elasticsearch.packaging.test.DockerTests
-  method: test022InstallPluginsFromLocalArchive
-  issue: https://github.com/elastic/elasticsearch/issues/116866
-- class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests}
-  issue: https://github.com/elastic/elasticsearch/issues/131348
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testSimilarityBetweenConstantVectors {functionName=v_cosine similarityFunction=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/131361
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testDifferentDimensions {functionName=v_cosine similarityFunction=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/131362
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testSimilarityBetweenConstantVectorAndField {functionName=v_cosine similarityFunction=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/131363
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
   issue: https://github.com/elastic/elasticsearch/issues/131364
@@ -440,90 +372,183 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/131394
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionNoFetch
   issue: https://github.com/elastic/elasticsearch/issues/128720
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=vector-tile/20_aggregations/stats agg}
-  issue: https://github.com/elastic/elasticsearch/issues/131484
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testFromEvalStats
-  issue: https://github.com/elastic/elasticsearch/issues/131503
-- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
-  method: test {p0=downsample-with-security/10_basic/Downsample index}
-  issue: https://github.com/elastic/elasticsearch/issues/131513
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/131248
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/131508
-- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
-  method: testRemoveBanParentsOnDisconnect
-  issue: https://github.com/elastic/elasticsearch/issues/131562
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/131481
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search/40_indices_boost/Indices boost with alias}
-  issue: https://github.com/elastic/elasticsearch/issues/131598
-- class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
-  method: testReader
-  issue: https://github.com/elastic/elasticsearch/issues/131573
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testSearchShardsOnIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131662
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testSearchIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131693
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testOpenPITOnIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131695
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLookupJoinAliasesSkipOld
-  issue: https://github.com/elastic/elasticsearch/issues/131697
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testMultiSearchIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131698
-- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
-  method: testTimeoutSetting
-  issue: https://github.com/elastic/elasticsearch/issues/131656
-- class: org.elasticsearch.xpack.stack.StackYamlIT
-  method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
-  issue: https://github.com/elastic/elasticsearch/issues/131803
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/131795
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testDifferentDimensions {functionName=v_dot_product similarityFunction=DOT_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/131845
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/131965
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
-  issue: https://github.com/elastic/elasticsearch/issues/131967
-- class: org.elasticsearch.search.routing.SearchReplicaSelectionIT
-  method: testNodeSelection
-  issue: https://github.com/elastic/elasticsearch/issues/132017
+- class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
+  method: test {yaml=mdp/10_basic/Index using shared data path}
+  issue: https://github.com/elastic/elasticsearch/issues/132223
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/132249
+- class: org.elasticsearch.common.logging.JULBridgeTests
+  method: testThrowable
+  issue: https://github.com/elastic/elasticsearch/issues/132280
+- class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
+  method: testManyDistinctOverFields
+  issue: https://github.com/elastic/elasticsearch/issues/132308
+- class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
+  method: testTooManyByAndOverFields
+  issue: https://github.com/elastic/elasticsearch/issues/132310
+- class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/132382
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot_DeleteInterveningResults
+  issue: https://github.com/elastic/elasticsearch/issues/132349
+#- class: org.elasticsearch.xpack.ml.integration.TextEmbeddingQueryIT
+#  method: testHybridSearch
+#  issue: https://github.com/elastic/elasticsearch/issues/132703
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/132733
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: definitions have primary ids which cannot change
+  issue: https://github.com/elastic/elasticsearch/issues/132788
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: latest files cannot change base id
+  issue: https://github.com/elastic/elasticsearch/issues/132789
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionManagementPluginFuncTest
+  method: cannot change committed ids to a branch
+  issue: https://github.com/elastic/elasticsearch/issues/132790
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
+  method: testSettingsAppliedOnStart
+  issue: https://github.com/elastic/elasticsearch/issues/131210
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test40VerifyAutogeneratedCredentials
+  issue: https://github.com/elastic/elasticsearch/issues/132877
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test50CredentialAutogenerationOnlyOnce
+  issue: https://github.com/elastic/elasticsearch/issues/132878
+- class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
+  method: testTransformRollingUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/132892
+- class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
+  method: testMatchOptimization
+  issue: https://github.com/elastic/elasticsearch/issues/132894
+- class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
+  method: testUniqueDeprecationResponsesMergedTogether
+  issue: https://github.com/elastic/elasticsearch/issues/132895
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggs
+  issue: https://github.com/elastic/elasticsearch/issues/132879
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTermsAggsWithProfile
+  issue: https://github.com/elastic/elasticsearch/issues/132880
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceDefault
+  issue: https://github.com/elastic/elasticsearch/issues/133010
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/133060
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/133061
+- class: org.elasticsearch.xpack.ml.integration.TextEmbeddingQueryIT
+  method: testModelWithPrefixStrings
+  issue: https://github.com/elastic/elasticsearch/issues/133138
+- class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
+  method: testInvalidToken
+  issue: https://github.com/elastic/elasticsearch/issues/133328
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:change_point.Values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/133334
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
+  issue: https://github.com/elastic/elasticsearch/issues/127302
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/133370
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133449
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testFilterWithUnavailableRemote
+  issue: https://github.com/elastic/elasticsearch/issues/133450
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/133461
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesRateIT
+  method: testRateWithTimeBucketAndClusterMultipleMetricsByMin
+  issue: https://github.com/elastic/elasticsearch/issues/133478
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  method: testLookupJoinOthers
+  issue: https://github.com/elastic/elasticsearch/issues/133480
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/133481
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testIntBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133596
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testDoubleBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133606
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testBooleanBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133608
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testLongBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133618
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/133619
+- class: org.elasticsearch.compute.data.BasicBlockTests
+  method: testFloatBlock
+  issue: https://github.com/elastic/elasticsearch/issues/133621
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/133077
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/133220
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseOrQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133863
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseAndQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133871
+- class: org.elasticsearch.xpack.ml.integration.InferenceIT
+  method: testInferClassificationModel
+  issue: https://github.com/elastic/elasticsearch/issues/133448
+- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
+  method: testRouteOnSortFields
+  issue: https://github.com/elastic/elasticsearch/issues/133993
+- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
+  method: testShrink
+  issue: https://github.com/elastic/elasticsearch/issues/133875
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/131481
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithCustomFeatureProcessors
+  issue: https://github.com/elastic/elasticsearch/issues/134001
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/134019
+- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
+  method: testDesiredNodesAreTakenIntoAccountInAutoExpandReplicas
+  issue: https://github.com/elastic/elasticsearch/issues/134049
+- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
+  method: testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState
+  issue: https://github.com/elastic/elasticsearch/issues/134050
 
 # Examples:
 #
@@ -555,7 +580,6 @@ tests:
 #    issue: "https://github.com/elastic/elasticsearch/..."
 #  Note that this mutes for the unit-test-like CsvTests only.
 #  Muting all the integration tests can be done using the class "org.elasticsearch.xpack.esql.**".
-#  Consider however, that some tests are named as "test {file.test SYNC}" and "ASYNC" in the integration tests.
 #  To mute all 3 tests safely everywhere use:
 #  - class: "org.elasticsearch.xpack.esql.**"
 #    method: "test {union_types.MultiIndexIpStringStatsInline}"

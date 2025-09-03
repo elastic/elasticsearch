@@ -22,8 +22,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
@@ -37,7 +39,9 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -53,7 +57,18 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     @Before
     @Override
     public void setUp() throws Exception {
-        format = new IVFVectorsFormat(random().nextInt(MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER));
+        if (rarely()) {
+            format = new IVFVectorsFormat(
+                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER),
+                random().nextInt(8, IVFVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
+            );
+        } else {
+            // run with low numbers to force many clusters with parents
+            format = new IVFVectorsFormat(
+                random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
+                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8)
+            );
+        }
         super.setUp();
     }
 
@@ -93,7 +108,7 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new IVFVectorsFormat(128);
+                return new IVFVectorsFormat(128, 4);
             }
         };
         String expectedPattern = "IVFVectorsFormat(vectorPerCluster=128)";
@@ -104,8 +119,10 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1));
-        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1));
+        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16));
+        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
+        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
+        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -126,6 +143,66 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                     var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
                     assertEquals(0, offHeap.size());
                 }
+            }
+        }
+    }
+
+    public void testFewVectorManyTimes() throws IOException {
+        int numDifferentVectors = random().nextInt(1, 20);
+        float[][] vectors = new float[numDifferentVectors][];
+        int dimensions = random().nextInt(12, 500);
+        for (int i = 0; i < numDifferentVectors; i++) {
+            vectors[i] = randomVector(dimensions);
+        }
+        int numDocs = random().nextInt(100, 10_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                float[] vector = vectors[random().nextInt(numDifferentVectors)];
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    float[] vector = randomVector(dimensions);
+                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                }
+
+            }
+        }
+    }
+
+    public void testOneRepeatedVector() throws IOException {
+        int dimensions = random().nextInt(12, 500);
+        float[] repeatedVector = randomVector(dimensions);
+        int numDocs = random().nextInt(100, 10_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                float[] vector = random().nextInt(3) == 0 ? repeatedVector : randomVector(dimensions);
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            if (rarely()) {
+                w.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                List<LeafReaderContext> subReaders = reader.leaves();
+                for (LeafReaderContext r : subReaders) {
+                    LeafReader leafReader = r.reader();
+                    float[] vector = randomVector(dimensions);
+                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
+                }
+
             }
         }
     }

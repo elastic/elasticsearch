@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.equalTo;
@@ -189,6 +190,16 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
         try {
             assertInsertNulls(b.block());
+        } finally {
+            b.block().close();
+        }
+    }
+
+    public void testDeepCopy() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
+        try {
+            assertDeepCopy(b.block());
         } finally {
             b.block().close();
         }

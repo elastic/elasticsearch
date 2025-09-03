@@ -206,6 +206,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final Executor snapshotMetaExecutor;
 
+    private final IndexMetadataRestoreTransformer indexMetadataRestoreTransformer;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -219,7 +221,8 @@ public final class RestoreService implements ClusterStateApplier {
         IndicesService indicesService,
         FileSettingsService fileSettingsService,
         ThreadPool threadPool,
-        boolean deserializeProjectMetadata
+        boolean deserializeProjectMetadata,
+        IndexMetadataRestoreTransformer indexMetadataRestoreTransformer
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -240,6 +243,7 @@ public final class RestoreService implements ClusterStateApplier {
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
+        this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
     }
 
     /**
@@ -521,6 +525,8 @@ public final class RestoreService implements ClusterStateApplier {
         }
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
+            // Update the snapshot index metadata before adding it to the metadata
+            snapshotIndexMetaData = indexMetadataRestoreTransformer.updateIndexMetadata(snapshotIndexMetaData);
             if (snapshotIndexMetaData.isSystem()) {
                 if (requestIndices.contains(indexId.getName())) {
                     explicitlyRequestedSystemIndices.add(indexId.getName());
@@ -1567,7 +1573,7 @@ public final class RestoreService implements ClusterStateApplier {
             // Restore global state if needed
             if (request.includeGlobalState()) {
                 applyGlobalStateRestore(currentState, mdBuilder, projectId);
-                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder, projectId);
+                fileSettingsService.handleSnapshotRestore(currentState, builder, mdBuilder, projectId);
             }
 
             if (completed(shards)) {

@@ -58,6 +58,9 @@
             }
           }
         },
+        "last_known_status": {
+          "type": "keyword"
+        },
         "unhealthy_reason": {
           "type": "keyword"
         },

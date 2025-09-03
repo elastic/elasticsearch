@@ -10,8 +10,17 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  testImplementation project(path: ':test:test-clusters')
-  yamlRestTestImplementation project(path: xpackModule('rollup'))
+  testImplementation project(':test:test-clusters')
+  yamlRestTestImplementation project(xpackModule('rollup'))
+
+  clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:ingest-common')
 }
 
 restResources {
@@ -24,12 +33,6 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-tasks.named('yamlRestTest') {
-  usesDefaultDistribution("to be triaged")
-}
-tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution("to be triaged")
-}
 if (buildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }

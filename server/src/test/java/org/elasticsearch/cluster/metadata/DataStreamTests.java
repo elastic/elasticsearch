@@ -2497,7 +2497,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
         Settings componentSettings = randomSettings();
         Template.Builder componentTemplateBuilder = Template.builder().settings(componentSettings);
-        ComponentTemplate componentTemplate1 = new ComponentTemplate(componentTemplateBuilder.build(), null, null, null);
+        ComponentTemplate componentTemplate1 = new ComponentTemplate(componentTemplateBuilder.build(), null, null);
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
             .componentTemplates(Map.of("component-template-1", componentTemplate1));

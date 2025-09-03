@@ -51,6 +51,25 @@ public class HuggingFaceChatCompletionResponseHandlerTests extends ESTestCase {
             "type":"hugging_face_error"}}"""));
     }
 
+    public void testFailValidationWithErrorAsObject() throws IOException {
+        var responseJson = """
+            {
+              "error": {
+                "message": "a message"
+              },
+              "type": "validation"
+            }
+            """;
+
+        var errorJson = invalidResponseJson(responseJson);
+
+        assertThat(errorJson, is("""
+            {"error":{"code":"bad_request","message":"Received a server error status code for request from \
+            inference entity id [id] status [500]. \
+            Error message: [a message]",\
+            "type":"hugging_face_error"}}"""));
+    }
+
     public void testFailValidationWithoutOptionalFields() throws IOException {
         var responseJson = """
             {
@@ -75,7 +94,7 @@ public class HuggingFaceChatCompletionResponseHandlerTests extends ESTestCase {
 
         assertThat(errorJson, is("""
             {"error":{"code":"bad_request","message":"Received a server error status code for request from inference entity id [id] status\
-             [500]","type":"ErrorResponse"}}"""));
+             [500]","type":"UnifiedChatCompletionErrorResponse"}}"""));
     }
 
     private String invalidResponseJson(String responseJson) throws IOException {
@@ -92,8 +111,7 @@ public class HuggingFaceChatCompletionResponseHandlerTests extends ESTestCase {
                 mock(),
                 mock(),
                 mockRequest(),
-                new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
+                new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }

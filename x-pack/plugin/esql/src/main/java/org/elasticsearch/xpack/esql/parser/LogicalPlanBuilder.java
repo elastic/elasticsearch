@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -89,7 +92,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -212,7 +214,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
             String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
-            Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
+            Map<String, Object> options = visitDissectCommandOptions(ctx.dissectCommandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
@@ -255,17 +257,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name(), null));
 
     }
 
     @Override
-    public Map<String, Object> visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) {
+    public Map<String, Object> visitDissectCommandOptions(EsqlBaseParser.DissectCommandOptionsContext ctx) {
         if (ctx == null) {
             return Map.of();
         }
         Map<String, Object> result = new HashMap<>();
-        for (EsqlBaseParser.CommandOptionContext option : ctx.commandOption()) {
+        for (EsqlBaseParser.DissectCommandOptionContext option : ctx.dissectCommandOption()) {
             result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold(FoldContext.small() /* TODO remove me */));
         }
         return result;
@@ -463,7 +465,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
-        return p -> {
+        return child -> {
             var source = source(ctx);
             Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
             Mode mode = tuple.v1();
@@ -482,9 +484,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
+
+            // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            if (mode == Mode.REMOTE) {
+                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+            }
+
             return new Enrich(
                 source,
-                p,
+                child,
                 mode,
                 Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
@@ -500,14 +508,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
+        }
+
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
+        }
+
         Attribute targetType = new ReferenceAttribute(
             src,
-            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            null,
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
-            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            null,
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
@@ -549,7 +571,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
+        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
             throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
         return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
@@ -580,6 +602,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
+    @Override
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
         if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
@@ -622,12 +645,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        // ON only with qualified names
+        // ON only with un-qualified names for now
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
                 joinFields.add(ua);
             } else {
                 throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
@@ -636,7 +666,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var matchFieldsCount = joinFields.size();
         if (matchFieldsCount > 1) {
-            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+
+            }
         }
 
         return p -> {
@@ -742,7 +782,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
             List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
+                new Alias(
+                    source,
+                    MetadataAttribute.SCORE,
+                    new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN), SummationMode.COMPENSATED_LITERAL)
+                )
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
@@ -755,137 +799,101 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
-
-        if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
-            if (queryTextLiteral.value() == null) {
-                throw new ParsingException(
-                    source(ctx.queryText),
-                    "Query text cannot be null or undefined in RERANK",
-                    ctx.queryText.getText()
-                );
-            }
-        } else {
-            throw new ParsingException(
-                source(ctx.queryText),
-                "RERANK only support string as query text but [{}] cannot be used as string",
-                ctx.queryText.getText()
-            );
+        Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
+        if (scoreAttribute.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields), ctx.inferenceCommandOptions());
+            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
         };
     }
 
-    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.InferenceCommandOptionsContext ctx) {
-        if (ctx == null) {
+    private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression optionExpression = visitCommandNamedParameters(ctx);
+
+        if (optionExpression == null) {
             return rerank;
         }
 
-        Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
+        Map<String, Expression> optionsMap = optionExpression.keyFoldedMap();
+        Expression inferenceId = optionsMap.remove(Rerank.INFERENCE_ID_OPTION_NAME);
 
-        for (var option : ctx.inferenceCommandOption()) {
-            String optionName = visitIdentifier(option.identifier());
-            EsqlBaseParser.InferenceCommandOptionValueContext optionValue = option.inferenceCommandOptionValue();
-            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
-                rerankBuilder.withInferenceId(visitInferenceId(optionValue));
-            } else if (optionName.equals(Rerank.SCORE_COLUMN_OPTION_NAME)) {
-                rerankBuilder.withScoreAttribute(visitRerankScoreAttribute(optionName, optionValue));
-            } else {
-                throw new ParsingException(
-                    source(option.identifier()),
-                    "Unknowm parameter [{}] in RERANK command",
-                    option.identifier().getText()
-                );
-            }
+        if (inferenceId != null) {
+            rerank = applyInferenceId(rerank, inferenceId);
         }
 
-        return rerankBuilder.build();
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Inavalid option [{}] in RERANK, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                rerank.validOptionNames()
+            );
+        }
+
+        return rerank;
     }
 
-    private UnresolvedAttribute visitRerankScoreAttribute(String optionName, EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
-        if (ctx.constant() == null && ctx.identifier() == null) {
-            throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", optionName);
-        }
-
-        Expression optionValue = ctx.identifier() != null
-            ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()))
-            : expression(ctx.constant());
-
-        if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
-            return scoreAttribute;
-        } else if (optionValue instanceof Literal literal) {
-            if (literal.value() == null) {
-                throw new ParsingException(optionValue.source(), "Parameter [{}] is null or undefined", optionName);
-            }
-
-            if (literal.value() instanceof BytesRef attributeName) {
-                return new UnresolvedAttribute(literal.source(), BytesRefs.toString(attributeName));
-            }
-        }
-
-        throw new ParsingException(
-            source(ctx),
-            "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
-            optionName,
-            ctx.constant().getText()
-        );
-    }
-
-    @Override
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
-        Literal inferenceId = visitInferenceId(ctx.inferenceId);
-        Attribute targetField = ctx.targetField == null
-            ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
-            : visitQualifiedName(ctx.targetField);
+        Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return new Completion(source, p, inferenceId, prompt, targetField);
+            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
         };
     }
 
-    private Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
-        if (ctx.identifier() != null) {
-            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
+    private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression optionsExpresion = visitCommandNamedParameters(ctx);
+
+        if (optionsExpresion == null || optionsExpresion.containsKey(Completion.INFERENCE_ID_OPTION_NAME) == false) {
+            // Having a mandatory named parameter for inference_id is an antipattern, but it will be optional in the future when we have a
+            // default LLM. It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than
+            // completely change the syntax in the future.
+            throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
         }
 
-        return visitInferenceId(expression(ctx.parameter()));
+        Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
+
+        Expression inferenceId = optionsMap.remove(Completion.INFERENCE_ID_OPTION_NAME);
+        if (inferenceId != null) {
+            completion = applyInferenceId(completion, inferenceId);
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Inavalid option [{}] in COMPLETION, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                completion.validOptionNames()
+            );
+        }
+
+        return completion;
     }
 
-    private Literal visitInferenceId(EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
-        if (ctx.identifier() != null) {
-            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
+    private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(
+        InferencePlanType inferencePlan,
+        Expression inferenceId
+    ) {
+        if ((inferenceId instanceof Literal && DataType.isString(inferenceId.dataType())) == false) {
+            throw new ParsingException(
+                inferenceId.source(),
+                "Option [{}] must be a valid string, found [{}]",
+                Completion.INFERENCE_ID_OPTION_NAME,
+                inferenceId.source().text()
+            );
         }
 
-        return visitInferenceId(expression(ctx.constant()));
-    }
-
-    private Literal visitInferenceId(Expression expression) {
-        if (expression instanceof Literal literal) {
-            if (literal.value() == null) {
-                throw new ParsingException(
-                    expression.source(),
-                    "Parameter [{}] is null or undefined and cannot be used as inference id",
-                    expression.source().text()
-                );
-            }
-
-            return literal;
-        } else if (expression instanceof UnresolvedAttribute attribute) {
-            // Support for unquoted inference id
-            return new Literal(expression.source(), attribute.name(), KEYWORD);
-        }
-
-        throw new ParsingException(
-            expression.source(),
-            "Query parameter [{}] is not a string and cannot be used as inference id [{}]",
-            expression.source().text(),
-            expression.getClass()
-        );
+        return inferencePlan.withInferenceId(inferenceId);
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {

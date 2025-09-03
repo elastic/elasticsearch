@@ -78,18 +78,26 @@ public class Options {
         for (EntryExpression entry : options.entryExpressions()) {
             Expression optionExpr = entry.key();
             Expression valueExpr = entry.value();
-            Expression.TypeResolution resolution = isFoldable(optionExpr, source.text(), paramOrdinal).and(
-                isFoldable(valueExpr, source.text(), paramOrdinal)
-            );
-            if (resolution.unresolved()) {
-                throw new InvalidArgumentException(resolution.message());
+
+            Expression.TypeResolution optionNameResolution = isFoldable(optionExpr, source.text(), paramOrdinal);
+            if (optionNameResolution.unresolved()) {
+                throw new InvalidArgumentException(optionNameResolution.message());
             }
+
             Object optionExprLiteral = ((Literal) optionExpr).value();
-            Object valueExprLiteral = ((Literal) valueExpr).value();
             String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            DataType dataType = allowedOptions.get(optionName);
+
+            // valueExpr could be a MapExpression, but for now functions only accept literal values in options
+            if ((valueExpr instanceof Literal) == false) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected a [{}] value", optionName, source.text(), dataType)
+                );
+            }
+
+            Object valueExprLiteral = ((Literal) valueExpr).value();
             String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
             // validate the optionExpr is supported
-            DataType dataType = allowedOptions.get(optionName);
             if (dataType == null) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, source.text(), allowedOptions.keySet())

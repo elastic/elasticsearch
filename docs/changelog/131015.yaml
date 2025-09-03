@@ -1,5 +1,0 @@
-pr: 131015
-summary: Move streams status actions to cluster:monitor group
-area: Data streams
-type: bug
-issues: []

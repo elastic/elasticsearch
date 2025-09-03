@@ -247,8 +247,11 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
     }
 
-    // from ... | where a > 1 | COMPLETION completion="some prompt" WITH inferenceId | where b < 2 and match(completion, some text)
-    // => ... | where a > 1 AND b < 2| COMPLETION completion="some prompt" WITH inferenceId | where match(completion, some text)
+    // from ... | where a > 1 | COMPLETION completion = "some prompt" WITH { "inferenceId' : "inferenceId" } | where b < 2 and
+    // match(completion, some text)
+    // => ... | where a > 1 AND b < 2| COMPLETION completion = "some prompt" WITH { "inferenceId' : "inferenceId" } | where
+    // match(completion,
+    // some text)
     public void testPushDownFilterPastCompletion() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");
@@ -284,8 +287,8 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
     }
 
-    // from ... | where a > 1 | RERANK "query" ON title WITH inferenceId | where b < 2 and _score > 1
-    // => ... | where a > 1 AND b < 2| RERANK "query" ON title WITH inferenceId | where _score > 1
+    // from ... | where a > 1 | RERANK "query" ON title WITH { "inference_id" : "inferenceId" } | where b < 2 and _score > 1
+    // => ... | where a > 1 AND b < 2| RERANK "query" ON title WITH { "inference_id" : "inferenceId" } | where _score > 1
     public void testPushDownFilterPastRerank() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");

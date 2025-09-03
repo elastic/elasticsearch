@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.upgrades;
@@ -34,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     private static final String DATA_STREAM = "logs-bwc-test";
 
@@ -43,12 +41,11 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
     private static final int NUM_DOCS_PER_REQUEST = 1024;
 
     static String BULK_ITEM_TEMPLATE =
-        """
-            { "create": {} }
-            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
-            """;
+            """
+                { "create": {} }
+                {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
+                """;
 
-    // "ignore_above": "$IGNORE_ABOVE"
     private static final String TEMPLATE = """
         {
             "mappings": {
@@ -60,11 +57,11 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
                   "type": "keyword"
                 },
                 "message": {
-                  "type": "match_only_text",
+                  "type": "text",
                   "fields": {
                     "keyword": {
-                      "type": "keyword",
-                      "store": true
+                      "ignore_above": $IGNORE_ABOVE,
+                      "type": "keyword"
                     }
                   }
                 },
@@ -81,7 +78,10 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
             }
         }""";
 
-    public MatchOnlyTextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    // when sorted, this message will appear at the top
+    private String smallestMessage;
+
+    public TextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
@@ -140,7 +140,13 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
     }
 
     private String prepareTemplate() {
-        return TEMPLATE.replace("$IGNORE_ABOVE", String.valueOf(randomInt(IGNORE_ABOVE_MAX)));
+        boolean shouldSetIgnoreAbove = randomBoolean();
+        if (shouldSetIgnoreAbove) {
+            return TEMPLATE.replace("$IGNORE_ABOVE", String.valueOf(randomInt(IGNORE_ABOVE_MAX)));
+        }
+
+        // removes the entire line that defines ignore_above
+        return TEMPLATE.replaceAll("(?m)^\\s*\"ignore_above\":\\s*\\$IGNORE_ABOVE\\s*,?\\s*\\n?", "");
     }
 
     static void createTemplate(String dataStreamName, String id, String template) throws IOException {
@@ -185,6 +191,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
             String methodName = "method" + j % 5;
             String ip = NetworkAddress.format(randomIp(true));
             String message = randomAlphasDelimitedBySpace(10, 1, 15);
+            recordSmallestMessage(message);
             long length = randomLong();
             double factor = randomDouble();
 
@@ -203,6 +210,12 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
         }
 
         return requestBody.toString();
+    }
+
+    private void recordSmallestMessage(final String message) {
+        if (smallestMessage == null || message.compareTo(smallestMessage) < 0) {
+            smallestMessage = message;
+        }
     }
 
     void search(String dataStreamName) throws Exception {
@@ -233,22 +246,21 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
         var response = client().performRequest(queryRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
-        logger.info("potato response body");
         logger.info("{}", responseBody);
 
         String column1 = ObjectPath.evaluate(responseBody, "columns.0.name");
-        String column2 = ObjectPath.evaluate(responseBody, "columns.1.name");
-        String column3 = ObjectPath.evaluate(responseBody, "columns.2.name");
         assertThat(column1, equalTo("max(length)"));
+        String column2 = ObjectPath.evaluate(responseBody, "columns.1.name");
         assertThat(column2, equalTo("max(factor)"));
+        String column3 = ObjectPath.evaluate(responseBody, "columns.2.name");
         assertThat(column3, equalTo("message"));
 
         Long maxRx = ObjectPath.evaluate(responseBody, "values.0.0");
-        Double maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
-        String key = ObjectPath.evaluate(responseBody, "values.0.2");
-        assertThat(maxTx, notNullValue());
         assertThat(maxRx, notNullValue());
-        assertThat(key, equalTo("banana boy"));
+        Double maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
+        assertThat(maxTx, notNullValue());
+        String key = ObjectPath.evaluate(responseBody, "values.0.2");
+        assertThat(key, equalTo(smallestMessage));
     }
 
     protected static void startTrial() throws IOException {
@@ -270,9 +282,9 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(
-                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
-                is,
-                true
+                    XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
+                    is,
+                    true
             );
         }
     }

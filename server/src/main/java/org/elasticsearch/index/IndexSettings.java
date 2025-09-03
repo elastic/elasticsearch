@@ -803,6 +803,9 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
+    private static final int IGNORE_ABOVE_DEFAULT = Integer.MAX_VALUE;
+    private static final int IGNORE_ABOVE_DEFAULT_LOGSDB = 8191;
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         IndexSettings::getIgnoreAboveDefaultValue,
@@ -813,11 +816,17 @@ public final class IndexSettings {
     );
 
     private static String getIgnoreAboveDefaultValue(final Settings settings) {
-        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
-            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
-            return "8191";
+        return String.valueOf(
+            getIgnoreAboveDefaultValue(IndexSettings.MODE.get(settings), IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings))
+        );
+    }
+
+    public static int getIgnoreAboveDefaultValue(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+        if (indexMode == IndexMode.LOGSDB
+            && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB))) {
+            return IGNORE_ABOVE_DEFAULT_LOGSDB;
         } else {
-            return String.valueOf(Integer.MAX_VALUE);
+            return IGNORE_ABOVE_DEFAULT;
         }
     }
 

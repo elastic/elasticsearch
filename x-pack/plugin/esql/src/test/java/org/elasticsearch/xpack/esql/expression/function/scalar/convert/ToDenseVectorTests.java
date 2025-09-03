@@ -37,49 +37,25 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "int",
-                List.of(DataType.INTEGER),
-                () -> {
-                    List<Integer> data = Arrays.asList(randomArray(1, 10, Integer[]::new, ESTestCase::randomInt));
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(
-                                data,
-                                DataType.INTEGER,
-                                "int"
-                            )
-                        ),
-                        evaluatorName("Int", "i"),
-                        DataType.DENSE_VECTOR,
-                        equalTo(data.stream().map(Number::floatValue).toList())
-                    );
-                }
-            )
-        );
+        suppliers.add(new TestCaseSupplier("int", List.of(DataType.INTEGER), () -> {
+            List<Integer> data = Arrays.asList(randomArray(1, 10, Integer[]::new, ESTestCase::randomInt));
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(data, DataType.INTEGER, "int")),
+                evaluatorName("Int", "i"),
+                DataType.DENSE_VECTOR,
+                equalTo(data.stream().map(Number::floatValue).toList())
+            );
+        }));
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "long",
-                List.of(DataType.LONG),
-                () -> {
-                    List<Long> data = Arrays.asList(randomArray(1, 10, Long[]::new, ESTestCase::randomLong));
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(
-                                data,
-                                DataType.LONG,
-                                "long"
-                            )
-                        ),
-                        evaluatorName("Long", "l"),
-                        DataType.DENSE_VECTOR,
-                        equalTo(data.stream().map(Number::floatValue).toList())
-                    );
-                }
-            )
-        );
+        suppliers.add(new TestCaseSupplier("long", List.of(DataType.LONG), () -> {
+            List<Long> data = Arrays.asList(randomArray(1, 10, Long[]::new, ESTestCase::randomLong));
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(data, DataType.LONG, "long")),
+                evaluatorName("Long", "l"),
+                DataType.DENSE_VECTOR,
+                equalTo(data.stream().map(Number::floatValue).toList())
+            );
+        }));
 
         suppliers.add(
             new TestCaseSupplier(

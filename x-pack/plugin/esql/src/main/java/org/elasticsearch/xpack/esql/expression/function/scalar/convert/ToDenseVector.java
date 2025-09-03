@@ -61,7 +61,7 @@ public class ToDenseVector extends AbstractConvertFunction implements PostAnalys
         Source source,
         @Param(
             name = "field",
-            type = {"double", "long", "integer", "keyword"},
+            type = { "double", "long", "integer", "keyword" },
             description = "multi-valued input of numbers or hexadecimal string to convert."
         ) Expression field
     ) {

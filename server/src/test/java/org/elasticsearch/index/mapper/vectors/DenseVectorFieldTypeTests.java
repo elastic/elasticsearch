@@ -73,43 +73,48 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
-        List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(Arrays.asList(
-            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
-            new DenseVectorFieldMapper.Int8HnswIndexOptions(
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 10_000),
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            ),
-            new DenseVectorFieldMapper.Int4HnswIndexOptions(
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 10_000),
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            ),
-            new DenseVectorFieldMapper.FlatIndexOptions(),
-            new DenseVectorFieldMapper.Int8FlatIndexOptions(
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            ),
-            new DenseVectorFieldMapper.Int4FlatIndexOptions(
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 10_000),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            ),
-            new DenseVectorFieldMapper.BBQFlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
-        ));
+        List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(
+            Arrays.asList(
+                new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
+                new DenseVectorFieldMapper.Int8HnswIndexOptions(
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 10_000),
+                    randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                ),
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 10_000),
+                    randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                ),
+                new DenseVectorFieldMapper.FlatIndexOptions(),
+                new DenseVectorFieldMapper.Int8FlatIndexOptions(
+                    randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                ),
+                new DenseVectorFieldMapper.Int4FlatIndexOptions(
+                    randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                ),
+                new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 10_000),
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                ),
+                new DenseVectorFieldMapper.BBQFlatIndexOptions(
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                )
+            )
+        );
 
-        if(IVF_FORMAT.isEnabled()) {
+        if (IVF_FORMAT.isEnabled()) {
             options.add(
                 new DenseVectorFieldMapper.BBQIVFIndexOptions(
                     randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                     randomFloatBetween(0.0f, 100.0f, true),
-                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                )
             );
         }
 
@@ -262,9 +267,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenFloatKnnVectorQuery
-                    || query instanceof PatienceKnnVectorQuery
-                    || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery);
+                assertTrue(
+                    query instanceof DiversifyingChildrenFloatKnnVectorQuery
+                        || query instanceof PatienceKnnVectorQuery
+                        || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery
+                );
             }
         }
         {
@@ -495,9 +502,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
             } else {
-                assertTrue(query instanceof KnnFloatVectorQuery
-                    || query instanceof PatienceKnnVectorQuery
-                    || query instanceof IVFKnnFloatVectorQuery);
+                assertTrue(
+                    query instanceof KnnFloatVectorQuery
+                        || query instanceof PatienceKnnVectorQuery
+                        || query instanceof IVFKnnFloatVectorQuery
+                );
             }
         }
 

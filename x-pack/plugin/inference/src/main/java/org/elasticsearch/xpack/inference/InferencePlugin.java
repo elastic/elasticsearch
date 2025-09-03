@@ -104,6 +104,8 @@ import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
+import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
@@ -199,6 +201,27 @@ public class InferencePlugin extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
+    public static final Setting<Boolean> INFERENCE_ENDPOINT_CACHE_ENABLED = Setting.boolSetting(
+        "xpack.inference.cache.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> INFERENCE_ENDPOINT_CACHE_WEIGHT = Setting.intSetting(
+        "xpack.inference.cache.weight",
+        25,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> INFERENCE_ENDPOINT_CACHE_EXPIRY = Setting.timeSetting(
+        "xpack.inference.cache.expiry_time",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueHours(1),
+        Setting.Property.NodeScope
+    );
+
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
 
     public static final String NAME = "inference";
@@ -237,7 +260,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
             new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
             new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
-            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class)
+            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
+            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class)
         );
     }
 
@@ -389,6 +413,16 @@ public class InferencePlugin extends Plugin
         // Add binding for interface -> implementation
         components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
 
+        components.add(
+            new InferenceEndpointRegistry(
+                services.clusterService(),
+                settings,
+                modelRegistry.get(),
+                serviceRegistry,
+                services.projectResolver()
+            )
+        );
+
         return components;
     }
 
@@ -441,6 +475,13 @@ public class InferencePlugin extends Plugin
                 Metadata.ProjectCustom.class,
                 new ParseField(ModelRegistryMetadata.TYPE),
                 ModelRegistryMetadata::fromXContent
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME),
+                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
             )
         );
         return namedXContent;
@@ -527,6 +568,9 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
+        settings.add(INFERENCE_ENDPOINT_CACHE_ENABLED);
+        settings.add(INFERENCE_ENDPOINT_CACHE_EXPIRY);
+        settings.add(INFERENCE_ENDPOINT_CACHE_WEIGHT);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }

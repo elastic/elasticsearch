@@ -543,6 +543,10 @@ tests:
 - class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
   method: testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState
   issue: https://github.com/elastic/elasticsearch/issues/134050
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
+  issue: https://github.com/elastic/elasticsearch/issues/134072
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SampleTests
+  issue: https://github.com/elastic/elasticsearch/issues/134072
 
 # Examples:
 #

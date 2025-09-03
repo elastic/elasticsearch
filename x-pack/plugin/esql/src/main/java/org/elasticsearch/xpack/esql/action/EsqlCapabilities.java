@@ -1427,7 +1427,12 @@ public class EsqlCapabilities {
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot());
+        URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * FORK with remote indices
+         */
+        ENABLE_FORK_FOR_REMOTE_INDICES;
 
         private final boolean enabled;
 

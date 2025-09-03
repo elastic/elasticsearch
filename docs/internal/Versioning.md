@@ -109,12 +109,12 @@ This is an optional cleanup step that is never required for correctness.
 The transport version used between two nodes is determined by the initial handshake
 (see `TransportHandshaker`, where the two nodes swap their highest known transport version).
 The lowest transport version that is compatible with the current node
-is determined by `TransportVersions.MINIMUM_COMPATIBLE`,
+is determined by `TransportVersion.minimumCompatible()`,
 and the node is prevented from joining the cluster if it is below that version.
 This constant should be updated manually on a major release.
 
 The minimum version that can be used for CCS is determined by
-`TransportVersions.MINIMUM_CCS_VERSION`, but this is not actively checked
+`TransportVersion.minimumCCSVersion()`, but this is not actively checked
 before queries are performed. Only if a query cannot be serialized at that
 version is an action rejected. This constant is updated automatically
 as part of performing a release.

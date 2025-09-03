@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<
     InterceptedInferenceQueryBuilder<T>> {
@@ -62,6 +64,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     // TODO: Support multiple fields
     protected abstract String getFieldName();
 
+    protected abstract Map<String, Float> getFields();
+
     protected abstract String getQuery();
 
     protected abstract QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap);
@@ -69,6 +73,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextField);
 
     protected abstract QueryBuilder queryNonSemanticTextField(MappedFieldType fieldType);
+
+    protected abstract boolean resolveWildcards();
 
     protected String getInferenceIdOverride() {
         return null;
@@ -133,9 +139,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             // Validate early to prevent partial failures
             coordinatorNodeValidate(resolvedIndices);
 
-            Set<String> inferenceIds = getInferenceIdsForForField(
+            Set<String> inferenceIds = getInferenceIdsForFields(
                 resolvedIndices.getConcreteLocalIndicesMetadata().values(),
-                getFieldName()
+                getFields().keySet(),
+                resolveWildcards()
             );
 
             // TODO: Check for supported CCS mode here
@@ -171,17 +178,33 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         return this;
     }
 
-    // TODO: Support multiple fields
-    private static Set<String> getInferenceIdsForForField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
+    private static Set<String> getInferenceIdsForFields(
+        Collection<IndexMetadata> indexMetadataCollection,
+        Set<String> fields,
+        boolean resolveWildcards
+    ) {
         Set<String> inferenceIds = new HashSet<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getSearchInferenceId() : null;
-            if (indexInferenceId != null) {
-                inferenceIds.add(indexInferenceId);
-            }
+            Set<InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields()
+                .entrySet()
+                .stream()
+                .filter(e -> InterceptedInferenceQueryBuilder.fieldMatches(e.getKey(), fields, resolveWildcards))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toUnmodifiableSet());
+
+            indexInferenceFields.forEach(e -> inferenceIds.add(e.getSearchInferenceId()));
         }
 
         return inferenceIds;
+    }
+
+    private static boolean fieldMatches(String inferenceField, Set<String> queryFields, boolean resolveWildcards) {
+        boolean match = queryFields.contains(inferenceField);
+        if (match == false && resolveWildcards) {
+            match = queryFields.stream()
+                .anyMatch(s -> Regex.isMatchAllPattern(s) || (Regex.isSimpleMatchPattern(s) && Regex.simpleMatch(s, inferenceField)));
+        }
+
+        return match;
     }
 }

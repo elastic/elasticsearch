@@ -165,7 +165,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, IndexVersion version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesUUIDs(version) == false) {
+        if (SnapshotsServiceUtils.includesUUIDs(version) == false) {
             return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;

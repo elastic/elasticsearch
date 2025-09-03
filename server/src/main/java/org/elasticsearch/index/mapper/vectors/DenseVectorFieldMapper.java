@@ -259,7 +259,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean isExcludeSourceVectors;
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
-        public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors, List<VectorsFormatProvider> vectorsFormatProviders) {
+        public Builder(
+            String name,
+            IndexVersion indexVersionCreated,
+            boolean isExcludeSourceVectors,
+            List<VectorsFormatProvider> vectorsFormatProviders
+        ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             this.vectorsFormatProviders = vectorsFormatProviders;

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.exponentialhistogram;
 
-import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.List;
+import java.util.OptionalLong;
 
 /**
  * An exponential histogram bucket represented by its index and associated bucket count.
@@ -17,34 +19,68 @@ import java.util.List;
  * @param count the number of values in that bucket.
  */
 public record IndexWithCount(long index, long count) {
-    public static BucketIterator asBucketIterator(int scale, List<IndexWithCount> buckets) {
-        return new BucketIterator() {
-            int position = 0;
 
+    static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
+        return new ExponentialHistogram.Buckets() {
             @Override
-            public boolean hasNext() {
-                return position < buckets.size();
+            public CopyableBucketIterator iterator() {
+                return new Iterator(bucketIndices, scale, 0);
             }
 
             @Override
-            public long peekCount() {
-                return buckets.get(position).count;
+            public OptionalLong maxBucketIndex() {
+                if (bucketIndices.isEmpty()) {
+                    return OptionalLong.empty();
+                }
+                return OptionalLong.of(bucketIndices.get(bucketIndices.size() - 1).index);
             }
 
             @Override
-            public long peekIndex() {
-                return buckets.get(position).index;
-            }
-
-            @Override
-            public void advance() {
-                position++;
-            }
-
-            @Override
-            public int scale() {
-                return scale;
+            public long valueCount() {
+                throw new UnsupportedOperationException("not implemented");
             }
         };
+    }
+
+    private static class Iterator implements CopyableBucketIterator {
+        private final List<IndexWithCount> buckets;
+        private final int scale;
+        private int position;
+
+        Iterator(List<IndexWithCount> buckets, int scale, int position) {
+            this.buckets = buckets;
+            this.scale = scale;
+            this.position = position;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return position < buckets.size();
+        }
+
+        @Override
+        public long peekCount() {
+            return buckets.get(position).count;
+        }
+
+        @Override
+        public long peekIndex() {
+            return buckets.get(position).index;
+        }
+
+        @Override
+        public void advance() {
+            position++;
+        }
+
+        @Override
+        public int scale() {
+            return scale;
+        }
+
+        @Override
+        public CopyableBucketIterator copy() {
+            return new Iterator(buckets, scale, position);
+        }
     }
 }

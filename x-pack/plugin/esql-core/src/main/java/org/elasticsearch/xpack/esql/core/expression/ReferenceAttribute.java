@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,8 +19,6 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.ESQL_QUALIFIERS_IN_ATTRIBUTES;
-
 /**
  * Attribute based on a reference to an expression.
  */
@@ -29,6 +28,8 @@ public class ReferenceAttribute extends TypedAttribute {
         "ReferenceAttribute",
         ReferenceAttribute::readFrom
     );
+
+    private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
 
     @Deprecated
     /**
@@ -61,7 +62,7 @@ public class ReferenceAttribute extends TypedAttribute {
             out.writeString(name());
             dataType().writeTo(out);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
-            if (out.getTransportVersion().before(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+            if (out.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
                 // We used to always serialize a null qualifier here, so do the same for bwc.
                 out.writeOptionalString(null);
             }
@@ -89,7 +90,7 @@ public class ReferenceAttribute extends TypedAttribute {
         String name = in.readString();
         DataType dataType = DataType.readFrom(in);
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
-        if (in.getTransportVersion().before(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+        if (in.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
             in.readOptionalString();
         }
         Nullability nullability = in.readEnum(Nullability.class);

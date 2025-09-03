@@ -32,7 +32,7 @@ public class Jdk implements Buildable, Iterable<File> {
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
-    private static final Pattern EA_VERSION_PATTERN = Pattern.compile("(\\d+)-ea\\+(\\d+)(@([a-f0-9]{32}))?");
+    private static final Pattern EA_VERSION_PATTERN = Pattern.compile("(\\d+)-(?:ea|rc)\\+(\\d+)(@([a-f0-9]{32}))?");
 
     private final String name;
     private final FileCollection configuration;

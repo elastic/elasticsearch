@@ -250,7 +250,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                 mockGraph = writeGraph(size, graphLevelNodeOffsets);
             } else {
                 var dataset = datasetOrVectors.getDataset();
-                var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns());
+                var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns(), dataset.dataType());
                 try {
                     try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
                         assert index != null : "GPU index should be built for field: " + fieldInfo.name;

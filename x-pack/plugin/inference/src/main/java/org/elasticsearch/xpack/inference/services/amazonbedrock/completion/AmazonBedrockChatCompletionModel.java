@@ -34,7 +34,6 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         return new AmazonBedrockChatCompletionModel(completionModel, taskSettingsToUse);
     }
 
-
     public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel model, UnifiedCompletionRequest request) {
         if (request.model() == null) {
             return model;

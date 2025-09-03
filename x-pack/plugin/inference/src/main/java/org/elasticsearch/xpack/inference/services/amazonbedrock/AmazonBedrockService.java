@@ -35,7 +35,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
-import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -89,7 +88,10 @@ public class AmazonBedrockService extends SenderService {
     private final Sender amazonBedrockSender;
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
-        TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
 
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,

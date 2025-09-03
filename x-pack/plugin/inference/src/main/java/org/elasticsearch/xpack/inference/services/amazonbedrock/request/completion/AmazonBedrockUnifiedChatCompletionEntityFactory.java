@@ -14,18 +14,23 @@ import java.util.Objects;
 
 public class AmazonBedrockUnifiedChatCompletionEntityFactory {
     public static AmazonBedrockUnifiedConverseRequestEntity createEntity(
-        AmazonBedrockChatCompletionModel model, UnifiedCompletionRequest request) {
+        AmazonBedrockChatCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
         Objects.requireNonNull(model);
         Objects.requireNonNull(request);
         var serviceSettings = model.getServiceSettings();
 
-        var messages = request.messages().stream()
-            .map(message -> new UnifiedCompletionRequest.Message(
-                message.content(),
-                toBedrockRole(message.role()),
-                message.toolCallId(),
-                message.toolCalls()
-            ))
+        var messages = request.messages()
+            .stream()
+            .map(
+                message -> new UnifiedCompletionRequest.Message(
+                    message.content(),
+                    toBedrockRole(message.role()),
+                    message.toolCallId(),
+                    message.toolCalls()
+                )
+            )
             .toList();
 
         switch (serviceSettings.provider()) {

@@ -74,6 +74,7 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -1572,14 +1573,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    public static void refreshClusterInfo() {
+    /**
+     * Refreshes the cluster info on the master
+     *
+     * @return The new cluster info if the refresh was executed, null if the ClusterInfoService was of an unknown type
+     */
+    @Nullable
+    public static ClusterInfo refreshClusterInfo() {
         final ClusterInfoService clusterInfoService = internalCluster().getInstance(
             ClusterInfoService.class,
             internalCluster().getMasterName()
         );
         if (clusterInfoService instanceof InternalClusterInfoService) {
-            ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+            return ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         }
+        return null;
     }
 
     /**

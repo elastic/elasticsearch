@@ -127,7 +127,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, precisionTypedData),
-                "CountDistinct[field=Attribute[channel=0],precision=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );
@@ -149,7 +149,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "CountDistinct[field=Attribute[channel=0]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );

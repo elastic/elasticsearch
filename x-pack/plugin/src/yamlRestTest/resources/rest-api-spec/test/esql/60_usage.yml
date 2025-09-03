@@ -34,7 +34,7 @@ setup:
           parameters: []
           # A snapshot function was removed in match_function_options, it can't work on mixed cluster tests otherwise.
           capabilities:
-            - snapshot_test_for_telemetry
+            - snapshot_test_for_telemetry_v2
             - fn_byte_length
             - match_function_options
             - first_over_time
@@ -139,7 +139,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ non_snapshot_test_for_telemetry, fn_contains ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains ]
       reason: "Test that should only be executed on release versions"
 
   - do: {xpack.usage: {}}

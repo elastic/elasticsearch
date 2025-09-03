@@ -39,10 +39,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         XmlProcessor.Factory factory = createFactory();
         String processorTag = randomAlphaOfLength(10);
 
-
         // Make a copy of the config to avoid modifying the original
         Map<String, Object> configCopy = new HashMap<>(config);
-
 
         // Create the processor (this should consume config parameters)
         XmlProcessor processor = factory.create(null, processorTag, null, configCopy, null);
@@ -169,13 +167,13 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         );
 
         expectCreationFailure(
-            
+
             config,
-           
+
             ElasticsearchParseException.class,
-           
+
             "[namespaces] property isn't a map, but of type [java.lang.String]"
-        
+
         );
     }
 

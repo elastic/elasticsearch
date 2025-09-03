@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -431,7 +432,14 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"), nullValue());
+        assertThat(
+            ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
+            containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*")
+        );
+        assertThat(
+            ObjectPath.evaluate(responseBody, "template.settings.index.dimensions"),
+            containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*")
+        );
         assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }
 

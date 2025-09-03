@@ -1451,25 +1451,16 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         reason = "test logging for allocation explain"
     )
     public void testLogAllocationExplainForUnassigned() {
-        final var timeInMillis = new AtomicLong(0L);
-        final long logIntervalInSeconds = between(60, 120);
-        final ClusterSettings clusterSettings = createBuiltInClusterSettings(
-            Settings.builder()
-                .put(
-                    DesiredBalanceShardsAllocator.ALLOCATION_EXPLAIN_LOGGING_INTERVAL.getKey(),
-                    TimeValue.timeValueSeconds(logIntervalInSeconds)
-                )
-                .build()
-        );
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings();
         final var computer = new DesiredBalanceComputer(
             clusterSettings,
-            TimeProviderUtils.create(timeInMillis::incrementAndGet),
+            TimeProviderUtils.create(() -> 0L),
             new BalancedShardsAllocator(Settings.EMPTY),
             createAllocationService()::explainShardAllocation
         );
         final String loggerName = DesiredBalanceComputer.class.getCanonicalName() + ".allocation_explain";
 
-        // No logging since no unassigned shards
+        // No logging since no unassigned shard
         {
             final var allocation = new RoutingAllocation(
                 randomAllocationDeciders(Settings.EMPTY, clusterSettings),
@@ -1481,7 +1472,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             try (var mockLog = MockLog.capture(loggerName)) {
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
-                        "Should log allocation explain for unassigned primary shard",
+                        "Should NOT log allocation explain since all shards are assigned",
                         loggerName,
                         Level.DEBUG,
                         "unassigned shard * with allocation decision *"
@@ -1506,7 +1497,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                                 .setNodeId(dataNode.getId())
                                 .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                 .setReason("test")
-                                .setStartedAtMillis(timeInMillis.get())
+                                .setStartedAtMillis(0L)
                                 .build()
                         )
                     )
@@ -1519,6 +1510,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 SnapshotShardSizeInfo.EMPTY,
                 0L
             );
+            final DesiredBalance newDesiredBalance;
             try (var mockLog = MockLog.capture(loggerName)) {
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
@@ -1529,7 +1521,27 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
                     )
                 );
-                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                newDesiredBalance = computer.compute(
+                    DesiredBalance.BECOME_MASTER_INITIAL,
+                    DesiredBalanceInput.create(1, allocation),
+                    queue(),
+                    ignore -> true
+                );
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            // No logging since the same tracked primary is still unassigned
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain again for existing tracked unassigned shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
+                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                    )
+                );
+                computer.compute(newDesiredBalance, DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
                 mockLog.assertAllExpectationsMatched();
             }
         }
@@ -1544,20 +1556,23 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 0L
             );
             try (var mockLog = MockLog.capture(loggerName)) {
-                final var expectation = new MockLog.EventuallySeenEventExpectation(
-                    "Should log allocation explain for unassigned replica shard",
-                    loggerName,
-                    Level.DEBUG,
-                    "unassigned shard [[test-index][0], node[null], [R], * with allocation decision *"
-                        + "\"decider\":\"same_shard\",\"decision\":\"NO\"*"
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log for previously unassigned shard becomes assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "previously tracked unassigned shard [[test-index][0], node[null], [P],* is now assigned"
+                    )
                 );
-                mockLog.addExpectation(expectation);
-                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
-                mockLog.assertAllExpectationsMatched();
-
-                // Simulate time passing
-                timeInMillis.addAndGet(logIntervalInSeconds * 1000);
-                expectation.setExpectSeen();
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log allocation explain for unassigned replica shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [R], * with allocation decision *"
+                            + "\"decider\":\"same_shard\",\"decision\":\"NO\"*"
+                    )
+                );
                 computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
                 mockLog.assertAllExpectationsMatched();
             }

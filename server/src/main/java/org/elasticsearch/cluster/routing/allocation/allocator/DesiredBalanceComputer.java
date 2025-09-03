@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -86,7 +85,7 @@ public class DesiredBalanceComputer {
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
     private Level convergenceLogMsgLevel;
-    private final FrequencyCappedAction logAllocationExplainForUnassigned;
+    private ShardRouting lastTrackedUnassignedShard;
 
     public DesiredBalanceComputer(
         ClusterSettings clusterSettings,
@@ -99,14 +98,9 @@ public class DesiredBalanceComputer {
         this.shardAllocationExplainer = shardAllocationExplainer;
         this.numComputeCallsSinceLastConverged = 0;
         this.numIterationsSinceLastConverged = 0;
-        this.logAllocationExplainForUnassigned = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
         this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
         this.convergenceLogMsgLevel = Level.DEBUG;
-        clusterSettings.initializeAndWatch(
-            DesiredBalanceShardsAllocator.ALLOCATION_EXPLAIN_LOGGING_INTERVAL,
-            logAllocationExplainForUnassigned::setMinInterval
-        );
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -494,31 +488,45 @@ public class DesiredBalanceComputer {
         RoutingNodes routingNodes,
         RoutingAllocation routingAllocation
     ) {
-        if (allocationExplainLogger.isDebugEnabled()
-            && finishReason == DesiredBalance.ComputationFinishReason.CONVERGED
-            && routingNodes.hasUnassignedShards()) {
-            logAllocationExplainForUnassigned.maybeExecute(() -> {
-                final var unassigned = routingNodes.unassigned();
-                final var shardRouting = Stream.concat(unassigned.stream(), unassigned.ignored().stream())
-                    .filter(ShardRouting::primary)
-                    .findFirst()
-                    .orElse(Stream.concat(unassigned.stream(), unassigned.ignored().stream()).iterator().next());
+        if (allocationExplainLogger.isDebugEnabled()) {
+            if (lastTrackedUnassignedShard != null) {
+                if (Stream.concat(routingNodes.unassigned().stream(), routingNodes.unassigned().ignored().stream())
+                    .noneMatch(shardRouting -> shardRouting.equals(lastTrackedUnassignedShard))) {
+                    allocationExplainLogger.debug("previously tracked unassigned shard [{}] is now assigned", lastTrackedUnassignedShard);
+                    lastTrackedUnassignedShard = null;
+                } else {
+                    return; // The last tracked unassigned shard is still unassigned, keep tracking it
+                }
+            }
+
+            assert lastTrackedUnassignedShard == null : "unexpected non-null lastTrackedUnassignedShard " + lastTrackedUnassignedShard;
+            if (routingNodes.hasUnassignedShards() && finishReason == DesiredBalance.ComputationFinishReason.CONVERGED) {
+                final Predicate<ShardRouting> predicate = routingNodes.hasUnassignedPrimaries() ? ShardRouting::primary : shard -> true;
+                lastTrackedUnassignedShard = Stream.concat(
+                    routingNodes.unassigned().stream(),
+                    routingNodes.unassigned().ignored().stream().filter(predicate)
+                ).findFirst().orElseThrow();
+
                 final var originalDebugMode = routingAllocation.getDebugMode();
                 routingAllocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
                 final ShardAllocationDecision shardAllocationDecision;
                 try {
-                    shardAllocationDecision = shardAllocationExplainer.explain(shardRouting, routingAllocation);
+                    shardAllocationDecision = shardAllocationExplainer.explain(lastTrackedUnassignedShard, routingAllocation);
                 } finally {
                     routingAllocation.setDebugMode(originalDebugMode);
                 }
                 allocationExplainLogger.debug(
                     "unassigned shard [{}] with allocation decision {}",
-                    shardRouting,
+                    lastTrackedUnassignedShard,
                     org.elasticsearch.common.Strings.toString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
                     )
                 );
-            });
+            }
+        } else {
+            if (lastTrackedUnassignedShard != null) {
+                lastTrackedUnassignedShard = null;
+            }
         }
     }
 

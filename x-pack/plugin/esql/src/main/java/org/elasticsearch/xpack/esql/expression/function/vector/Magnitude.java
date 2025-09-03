@@ -96,6 +96,11 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         return isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.FIRST, "dense_vector");
     }
 
+    @Override
+    public int vectorArgumentsCount() {
+        return 1;
+    }
+
     /**
      * Functional interface for evaluating the scalar value of the underlying float array.
      */

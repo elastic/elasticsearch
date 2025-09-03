@@ -1668,8 +1668,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
-            for (Expression arg : args) {
-                if (arg.resolved() && arg.dataType().isNumeric()) {
+            // Only the first vector arguments are vectors and considered for casting
+            int vectorArgsCount = ((VectorFunction)vectorFunction).vectorArgumentsCount();
+            for (int i = 0; i < args.size(); i++) {
+                Expression arg = args.get(i);
+                if (i < vectorArgsCount && arg.resolved() && arg.dataType().isNumeric()) {
                     if (arg.foldable()) {
                         Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
                         if (folded instanceof List) {

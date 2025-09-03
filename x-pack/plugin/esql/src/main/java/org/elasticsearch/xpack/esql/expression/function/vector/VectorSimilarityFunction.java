@@ -78,6 +78,11 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     @Override
+    public int vectorArgumentsCount() {
+        return 2;
+    }
+
+    @Override
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         return new SimilarityEvaluatorFactory(
             toEvaluator.apply(left()),

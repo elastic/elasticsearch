@@ -12,4 +12,11 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
  * from multi values to dense_vector field types, so parameters are actually
  * processed as dense_vectors in vector functions
  */
-public interface VectorFunction {}
+public interface VectorFunction {
+
+    /**
+     * Number of arguments that should be treated as vectors. The first vectorArgumentsCount() arguments will be implicitly casted as
+     * dense_vector according to the value returned of this method
+     */
+    int vectorArgumentsCount();
+}

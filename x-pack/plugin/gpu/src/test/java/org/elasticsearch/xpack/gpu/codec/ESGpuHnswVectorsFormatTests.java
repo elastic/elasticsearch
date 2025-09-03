@@ -10,11 +10,14 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
+// CuVS prints tons of logs to stdout
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "https://github.com/rapidsai/cuvs/issues/1310")
 public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {

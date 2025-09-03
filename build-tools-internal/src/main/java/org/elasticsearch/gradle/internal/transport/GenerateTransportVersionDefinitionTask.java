@@ -208,7 +208,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private TransportVersionId maybeGetExistingId(TransportVersionUpperBound upperBound, TransportVersionDefinition existingDefinition, String name) {
+    private TransportVersionId maybeGetExistingId(
+        TransportVersionUpperBound upperBound,
+        TransportVersionDefinition existingDefinition,
+        String name
+    ) {
         if (existingDefinition == null) {
             // the name doesn't yet exist, so there is no id to return
             return null;

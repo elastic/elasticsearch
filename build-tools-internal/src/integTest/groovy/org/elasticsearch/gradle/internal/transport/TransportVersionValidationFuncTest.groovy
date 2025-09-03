@@ -26,7 +26,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
     def "definitions must be referenced"() {
         given:
         javaSource("myplugin", "org.elasticsearch.plugin", "MyPlugin",
-                "import org.elasticsearch.TransportVersion;", """
+            "import org.elasticsearch.TransportVersion;", """
             static final TransportVersion dne = TransportVersion.fromName("dne");
         """)
         when:

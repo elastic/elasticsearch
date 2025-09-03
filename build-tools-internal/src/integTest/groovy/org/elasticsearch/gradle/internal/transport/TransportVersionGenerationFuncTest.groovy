@@ -345,11 +345,12 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         file("myserver/build.gradle") << """
             tasks.named('validateTransportVersionResources') {
                 shouldValidateDensity = false
+                shouldValidatePrimaryIdNotPatch = false
             }
         """
 
         when:
-        def result = runGenerateAndValidateTask("--backport-branches=9.2", "--increment=100").build()
+        def result = runGenerateAndValidateTask("--increment=100").build()
 
         then:
         assertGenerateAndValidateSuccess(result)

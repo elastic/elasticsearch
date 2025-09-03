@@ -57,6 +57,9 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @Input
     public abstract Property<Boolean> getShouldValidateDensity();
 
+    @Input
+    public abstract Property<Boolean> getShouldValidatePrimaryIdNotPatch();
+
     private record IdAndDefinition(TransportVersionId id, TransportVersionDefinition definition) {}
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
@@ -153,7 +156,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             TransportVersionId id = definition.ids().get(ndx);
 
             if (ndx == 0) {
-                if (id.patch() != 0) {
+                if (getShouldValidatePrimaryIdNotPatch().get() && id.patch() != 0) {
                     throwDefinitionFailure(definition, "has patch version " + id.complete() + " as primary id");
                 }
             } else {

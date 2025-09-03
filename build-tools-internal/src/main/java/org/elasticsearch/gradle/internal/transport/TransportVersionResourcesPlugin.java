@@ -57,6 +57,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getShouldValidateDensity().convention(true);
+                t.getShouldValidatePrimaryIdNotPatch().convention(true);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 

@@ -51,8 +51,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Option(option = "name", description = "The name of the Transport Version definition, e.g. --name=my_new_tv")
     public abstract Property<String> getTransportVersionName();
 
-    @Optional
     @Input
+    @Optional
     @Option(
         option = "backport-branches",
         description = "The branches this definition will be backported to, e.g. --backport-branches=9.1,8.19"
@@ -85,9 +85,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         checkReleaseBranches(mainUpperBounds, releaseBranches);
 
         if (name.isEmpty()) {
-            resetAllLatestFiles(resources);
+            resetAllUpperBounds(resources);
         } else {
-            List<TransportVersionId> ids = updateUpperBoundsFiles(resources, mainUpperBounds, releaseBranches, name);
+            List<TransportVersionId> ids = updateUpperBounds(resources, mainUpperBounds, releaseBranches, name);
             // (Re)write the definition file.
             resources.writeReferableDefinition(new TransportVersionDefinition(name, ids));
         }
@@ -111,7 +111,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private List<TransportVersionId> updateUpperBoundsFiles(
+    private List<TransportVersionId> updateUpperBounds(
         TransportVersionResourcesService resources,
         List<TransportVersionUpperBound> existingUpperBounds,
         Set<String> targetReleaseBranches,
@@ -126,19 +126,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(name);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
-
             String releaseBranch = existingUpperBound.releaseBranch();
-            boolean targetThisBranch = targetReleaseBranches.contains(existingUpperBound.releaseBranch());
 
-            // Case: Targeting this upper bound file and it already points at the name we're generating
-            if (targetThisBranch && name.equals(existingUpperBound.name())) {
-                ids.add(existingUpperBound.id());
-                continue;
-            }
-
-            if (targetThisBranch) {
+            if (targetReleaseBranches.contains(releaseBranch)) {
                 // Case: targeting this branch, find an existing id for this branch if it exists
-                TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition);
+                TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition, name);
                 if (targetId == null) {
                     // Case: an id doesn't yet exist for this branch, so create one
                     int increment = releaseBranch.equals(mainReleaseBranch) ? primaryIncrement : 1;
@@ -167,7 +159,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return releaseBranches;
     }
 
-    private void resetAllLatestFiles(TransportVersionResourcesService resources) throws IOException {
+    private void resetAllUpperBounds(TransportVersionResourcesService resources) throws IOException {
         // TODO: this should also _delete_ extraneous files from latest?
         for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
             resources.writeUpperBound(upperBound);
@@ -216,13 +208,20 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private TransportVersionId maybeGetExistingId(TransportVersionUpperBound upperBound, TransportVersionDefinition existingDefinition) {
+    private TransportVersionId maybeGetExistingId(TransportVersionUpperBound upperBound, TransportVersionDefinition existingDefinition, String name) {
         if (existingDefinition == null) {
+            // the name doesn't yet exist, so there is no id to return
             return null;
         }
-        if (upperBound.releaseBranch().equals(getMainReleaseBranch().get())) {
-            return existingDefinition.ids().get(0); // main is always the primary id
+        if (upperBound.name().equals(name)) {
+            // the name exists and this upper bound already points at it
+            return upperBound.id();
         }
+        if (upperBound.releaseBranch().equals(getMainReleaseBranch().get())) {
+            // the upper bound is for main, so return the primary id
+            return existingDefinition.ids().get(0);
+        }
+        // the upper bound is for a non-main branch, so find the id with the same base
         for (TransportVersionId id : existingDefinition.ids()) {
             if (id.base() == upperBound.id().base()) {
                 return id;

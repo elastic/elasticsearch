@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -166,7 +167,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES;
         List<String> newIndexDimensions = new ArrayList<>(indexDimensions.size());
         boolean matchesAllDimensions = findDimensionFields(newIndexDimensions, documentMapper);
-        if (indexDimensions.equals(newIndexDimensions)) {
+        if (indexDimensions.size() == newIndexDimensions.size()
+            && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions))) {
             return;
         }
         if (matchesAllDimensions) {

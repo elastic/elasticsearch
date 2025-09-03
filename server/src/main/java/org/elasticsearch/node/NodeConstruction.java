@@ -1722,8 +1722,7 @@ class NodeConstruction {
             fsHealthService,
             circuitBreakerService,
             compatibilityVersions,
-            featureService,
-            clusterService
+            featureService
         );
 
         modules.add(module, b -> {

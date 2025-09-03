@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -24,8 +23,8 @@ public record LuceneSlice(
     boolean queryHead,
     ShardContext shardContext,
     List<PartialLeafReaderContext> leaves,
-    Query query,
     ScoreMode scoreMode,
+    Query query,
     List<Object> tags
 ) {
 
@@ -40,23 +39,9 @@ public record LuceneSlice(
     Weight createWeight() {
         var searcher = shardContext.searcher();
         try {
-            Weight w = searcher.createWeight(query, scoreMode, 1);
-            return new OwningWeight(query, w);
+            return searcher.createWeight(query, scoreMode, 1);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private static class OwningWeight extends FilterWeight {
-        final Query originalQuery;
-
-        protected OwningWeight(Query originalQuery, Weight weight) {
-            super(weight);
-            this.originalQuery = originalQuery;
-        }
-    }
-
-    boolean isWeightCompatible(Weight weight) {
-        return weight instanceof OwningWeight ow && ow.originalQuery == query;
     }
 }

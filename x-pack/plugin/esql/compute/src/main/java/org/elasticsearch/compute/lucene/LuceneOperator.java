@@ -206,15 +206,23 @@ public abstract class LuceneOperator extends SourceOperator {
 
     private void loadScorerForNewPartialLeaf(PartialLeafReaderContext partialLeaf) {
         final LeafReaderContext leaf = partialLeaf.leafReaderContext();
-        // the current Weight can be reused with the current slice
-        if (currentScorer != null && currentSlice.isWeightCompatible(currentScorer.weight)) {
+        if (currentScorer != null
+            && currentScorer.query == currentSlice.query()
+            && currentScorer.shardContext == currentSlice.shardContext()) {
+            assert currentScorer.tags == currentSlice.tags() : "different tags: " + currentScorer.tags + " != " + currentSlice.tags();
             if (currentScorer.leafReaderContext != leaf) {
-                currentScorer = new LuceneScorer(currentSlice.shardContext(), currentScorer.weight, currentSlice.tags(), leaf);
+                currentScorer = new LuceneScorer(
+                    currentSlice.shardContext(),
+                    currentScorer.weight,
+                    currentSlice.query(),
+                    currentSlice.tags(),
+                    leaf
+                );
             }
         } else {
             final var weight = currentSlice.createWeight();
-            processedQueries.add(weight.getQuery());
-            currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+            currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.query(), currentSlice.tags(), leaf);
+            processedQueries.add(currentScorer.query);
         }
         assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
         currentScorer.maxPosition = partialLeaf.maxDoc();
@@ -234,6 +242,7 @@ public abstract class LuceneOperator extends SourceOperator {
     static final class LuceneScorer {
         private final ShardContext shardContext;
         private final Weight weight;
+        private final Query query;
         private final LeafReaderContext leafReaderContext;
         private final List<Object> tags;
 
@@ -242,9 +251,10 @@ public abstract class LuceneOperator extends SourceOperator {
         private int maxPosition;
         private Thread executingThread;
 
-        LuceneScorer(ShardContext shardContext, Weight weight, List<Object> tags, LeafReaderContext leafReaderContext) {
+        LuceneScorer(ShardContext shardContext, Weight weight, Query query, List<Object> tags, LeafReaderContext leafReaderContext) {
             this.shardContext = shardContext;
             this.weight = weight;
+            this.query = query;
             this.tags = tags;
             this.leafReaderContext = leafReaderContext;
             reinitialize();

@@ -212,7 +212,7 @@ public final class LuceneSliceQueue {
                 for (List<PartialLeafReaderContext> group : groups) {
                     if (group.isEmpty() == false) {
                         final int slicePosition = nextSliceId++;
-                        slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, query, scoreMode, queryAndExtra.tags));
+                        slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, scoreMode, query, queryAndExtra.tags));
                         queryHead = false;
                     }
                 }

@@ -2540,3 +2540,34 @@ x:date_nanos             | b1d:date_nanos
 2023-10-24T13:00:00.000Z | 2023-10-23T13:00:00.000Z
 2023-10-24T12:00:00.000Z | 2023-10-23T12:00:00.000Z
 ;
+
+multiIndexAggregationUsingPresent
+required_capability: date_nanos_type
+required_capability: fn_present
+
+FROM employees, employees_incompatible
+| WHERE hire_date > DATE_PARSE("yyyy-MM-dd", "1989-01-01") and hire_date < DATE_PARSE("yyyy-MM-dd", "1991-01-01")
+| STATS is_present = present(birth_date) BY b = BUCKET(hire_date, 1 month)
+| SORT b DESC, is_present
+;
+ignoreOrder:true
+
+is_present:boolean | b:date_nanos
+false              | 1989-03-01T00:00:00.000Z
+false              | 1990-10-01T00:00:00.000Z
+true               | 1989-02-01T00:00:00.000Z
+true               | 1989-04-01T00:00:00.000Z
+true               | 1989-06-01T00:00:00.000Z
+true               | 1989-07-01T00:00:00.000Z
+true               | 1989-08-01T00:00:00.000Z
+true               | 1989-09-01T00:00:00.000Z
+true               | 1989-11-01T00:00:00.000Z
+true               | 1989-12-01T00:00:00.000Z
+true               | 1990-01-01T00:00:00.000Z
+true               | 1990-02-01T00:00:00.000Z
+true               | 1990-03-01T00:00:00.000Z
+true               | 1990-06-01T00:00:00.000Z
+true               | 1990-08-01T00:00:00.000Z
+true               | 1990-09-01T00:00:00.000Z
+true               | 1990-12-01T00:00:00.000Z
+;

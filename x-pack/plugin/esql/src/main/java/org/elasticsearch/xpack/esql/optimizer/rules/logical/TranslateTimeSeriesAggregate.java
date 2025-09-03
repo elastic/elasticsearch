@@ -153,6 +153,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
+        // NOCOMMIT I think the null check here is to skip already processed time series aggregates
         if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
             return translate(ts);
         } else {
@@ -167,6 +168,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
         var internalNames = new InternalNames();
         for (NamedExpression agg : aggregate.aggregates()) {
+            // NOCOMMIT The aggregations are Aliases, and the time bucket grouping is a Reference Attribute
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
                 Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
@@ -221,6 +223,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
+                // We need two branches here because the TBUCKET translation rule runs after this rule
                 if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
@@ -246,6 +249,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
             } else {
+                // NOCOMMIT What on earth is this branch?
                 newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
                 firstPassAggs.add(newFinalGroup);
             }

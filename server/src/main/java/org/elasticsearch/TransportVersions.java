@@ -354,7 +354,10 @@ public class TransportVersions {
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
-    public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_00_00);
+    public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
+    public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);
+    public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_150_0_00);
+    public static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = def(9_151_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

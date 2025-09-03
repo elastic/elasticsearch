@@ -147,7 +147,7 @@ The following configuration fields are required to set up the connector:
     * `collection1`
     * `collection1, collection2`
 
-If you need to parse the root from SharePoint, just use the URL of your SharePoint Server in `site_collections`.
+To index from the root of all site collections, simply specify your SharePoint server URL in the `site_collections` field.
 
 `ssl_enabled`
 :   Whether SSL verification will be enabled. Default value is `False`.

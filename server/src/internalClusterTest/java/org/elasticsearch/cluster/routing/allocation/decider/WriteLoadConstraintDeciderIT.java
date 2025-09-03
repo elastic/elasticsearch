@@ -68,8 +68,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      */
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
         int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
-        int numberOfWritePoolThreads = randomIntBetween(10, 20);
-        double shardWriteLoad = randomDoubleBetween(0.0, 0.2, true);
+        int numberOfWritePoolThreads = randomIntBetween(2, 20);
+        double shardWriteLoad = randomDoubleBetween(0.0, 0.01, false);
         Settings settings = Settings.builder()
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),

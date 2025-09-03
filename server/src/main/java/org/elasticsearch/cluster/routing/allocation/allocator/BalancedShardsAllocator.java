@@ -196,7 +196,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         if (shard.unassigned()) {
             allocateUnassignedDecision = balancer.decideAllocateUnassigned(index, shard);
         } else {
-            moveDecision = balancer.decideMove(index, shard);  ////  this is the allocation explain path? Make sure that NOT_PREFERRED is surfaced in explain response
+            moveDecision = balancer.decideMove(index, shard);
             if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
                 moveDecision = balancer.decideRebalance(index, shard, moveDecision.getCanRemainDecision());
             }

@@ -322,7 +322,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private record SegmentAffinity(LeafReaderContext context, double affinityScore, int numVectors) {}
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {
         TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);

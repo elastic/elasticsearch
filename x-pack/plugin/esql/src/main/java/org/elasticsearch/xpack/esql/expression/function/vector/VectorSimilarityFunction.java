@@ -82,16 +82,16 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         return 2;
     }
 
-//    @Override
-//    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-//        return (lp, failures) -> {
-//            for (Expression child : children()) {
-//                if (child instanceof PostAnalysisVerificationAware pa) {
-//                    pa.postAnalysisVerification(failures);
-//                }
-//            }
-//        };
-//    }
+    // @Override
+    // public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    // return (lp, failures) -> {
+    // for (Expression child : children()) {
+    // if (child instanceof PostAnalysisVerificationAware pa) {
+    // pa.postAnalysisVerification(failures);
+    // }
+    // }
+    // };
+    // }
 
     @Override
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {

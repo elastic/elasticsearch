@@ -57,54 +57,30 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "double",
-                List.of(DataType.DOUBLE),
-                () -> {
-                    List<Double> data = Arrays.asList(randomArray(1, 10, Double[]::new, ESTestCase::randomDouble));
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(
-                                data,
-                                DataType.DOUBLE,
-                                "double"
-                            )
-                        ),
-                        evaluatorName("Double", "d"),
-                        DataType.DENSE_VECTOR,
-                        equalTo(data.stream().map(Number::floatValue).toList())
-                    );
-                }
-            )
-        );
+        suppliers.add(new TestCaseSupplier("double", List.of(DataType.DOUBLE), () -> {
+            List<Double> data = Arrays.asList(randomArray(1, 10, Double[]::new, ESTestCase::randomDouble));
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(data, DataType.DOUBLE, "double")),
+                evaluatorName("Double", "d"),
+                DataType.DENSE_VECTOR,
+                equalTo(data.stream().map(Number::floatValue).toList())
+            );
+        }));
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "keyword",
-                List.of(DataType.KEYWORD),
-                () -> {
-                    byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 20));
-                    String data = HexFormat.of().formatHex(bytes);
-                    List<Float> expected = new ArrayList<>(bytes.length);
-                    for (int i = 0; i < bytes.length; i++) {
-                        expected.add((float) bytes[i]);
-                    }
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(
-                                new BytesRef(data),
-                                DataType.KEYWORD,
-                                "keyword"
-                            )
-                        ),
-                        evaluatorName("String", "s"),
-                        DataType.DENSE_VECTOR,
-                        is(expected)
-                    );
-                }
-            )
-        );
+        suppliers.add(new TestCaseSupplier("keyword", List.of(DataType.KEYWORD), () -> {
+            byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 20));
+            String data = HexFormat.of().formatHex(bytes);
+            List<Float> expected = new ArrayList<>(bytes.length);
+            for (int i = 0; i < bytes.length; i++) {
+                expected.add((float) bytes[i]);
+            }
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(data), DataType.KEYWORD, "keyword")),
+                evaluatorName("String", "s"),
+                DataType.DENSE_VECTOR,
+                is(expected)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }

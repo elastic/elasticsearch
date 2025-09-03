@@ -2541,10 +2541,7 @@ public class AnalyzerTests extends ESTestCase {
     private void checkVectorFunctionHexImplicitCastingError(String clause) {
         var query = "from test | " + clause;
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, "mapping-dense_vector.json"));
-        assertThat(
-            error.getMessage(),
-            containsString("for argument [\"notcorrect\"]; dense_vectors must be a hex-encoded string")
-        );
+        assertThat(error.getMessage(), containsString("for argument [\"notcorrect\"]; dense_vectors must be a hex-encoded string"));
     }
 
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {

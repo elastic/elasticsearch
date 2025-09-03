@@ -1670,7 +1670,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
             // Only the first vector arguments are vectors and considered for casting
-            int vectorArgsCount = ((VectorFunction)vectorFunction).vectorArgumentsCount();
+            int vectorArgsCount = ((VectorFunction) vectorFunction).vectorArgumentsCount();
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
                 if (i < vectorArgsCount && arg.resolved()) {

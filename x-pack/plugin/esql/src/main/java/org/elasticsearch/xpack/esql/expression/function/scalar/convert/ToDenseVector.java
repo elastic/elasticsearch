@@ -12,8 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -76,28 +74,19 @@ public class ToDenseVector extends AbstractConvertFunction implements PostAnalys
                 Object fold = arg.fold(FoldContext.small());
                 if ((fold instanceof List<?> list) && arg.dataType().isNumeric()) {
                     if (list.size() <= 1) {
-                        failures.add(Failure.fail(
-                            this,
-                            "[" + sourceText() + "] requires at least two values to convert to a dense_vector"
-                        ));
+                        failures.add(
+                            Failure.fail(this, "[" + sourceText() + "] requires at least two values to convert to a dense_vector")
+                        );
                     }
                     return;
                 }
                 if ((arg.dataType() == KEYWORD) && fold instanceof BytesRef bytesRef) {
                     if (bytesRef.length == 0) {
-                        failures.add(Failure.fail(
-                            this,
-                            "["
-                                + sourceText()
-                                + "] must be a non-empty hexadecimal string"));
+                        failures.add(Failure.fail(this, "[" + sourceText() + "] must be a non-empty hexadecimal string"));
                     }
                     return;
                 }
-                failures.add(Failure.fail(
-                    this,
-                    "["
-                        + sourceText()
-                        + "] must be a multi-valued input of numbers or an hexadecimal string"));
+                failures.add(Failure.fail(this, "[" + sourceText() + "] must be a multi-valued input of numbers or an hexadecimal string"));
             }
         };
     }

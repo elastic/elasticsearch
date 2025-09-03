@@ -16,15 +16,12 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.HexFormat;
 
 public class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
-        ToDenseVectorFromStringEvaluator.class
-    );
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDenseVectorFromStringEvaluator.class);
 
     private final EvalOperator.ExpressionEvaluator field;
 
@@ -65,8 +62,12 @@ public class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.Ab
                             dimensions = bytes.length;
                         } else {
                             if (bytes.length != dimensions) {
-                                throw new IllegalArgumentException("All dense_vector must have the same number of dimensions. Expected: "
-                                    + dimensions + ", found: " + bytes.length);
+                                throw new IllegalArgumentException(
+                                    "All dense_vector must have the same number of dimensions. Expected: "
+                                        + dimensions
+                                        + ", found: "
+                                        + bytes.length
+                                );
                             }
                         }
                         builder.beginPositionEntry();
@@ -74,7 +75,7 @@ public class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.Ab
                             builder.appendFloat(value);
                         }
                         builder.endPositionEntry();
-                    } catch (IllegalArgumentException  e) {
+                    } catch (IllegalArgumentException e) {
                         registerException(e);
                         builder.appendNull();
                     }

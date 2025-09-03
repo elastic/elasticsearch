@@ -8625,7 +8625,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(leftAnd.right(), equalTo(rightAndPrefilter));
     }
 
-
     public void testTest() {
         assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 

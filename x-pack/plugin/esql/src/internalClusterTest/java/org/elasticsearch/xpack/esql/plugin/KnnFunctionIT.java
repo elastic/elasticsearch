@@ -191,7 +191,6 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-
     public void testKnnIncorrectCasting() {
         var query = String.format(Locale.ROOT, """
             FROM test

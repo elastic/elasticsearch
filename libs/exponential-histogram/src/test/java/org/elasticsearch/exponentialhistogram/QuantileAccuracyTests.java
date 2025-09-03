@@ -56,10 +56,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
     }
 
     public void testNoNegativeZeroReturned() {
-        FixedCapacityExponentialHistogram histogram = createAutoReleasedHistogram(2);
-        histogram.resetBuckets(MAX_SCALE);
-        // add a single, negative bucket close to zero
-        histogram.tryAddBucket(MIN_INDEX, 3, false);
+        ExponentialHistogram histogram = createAutoReleasedHistogram(b -> b.scale(MAX_SCALE).setNegativeBucket(MIN_INDEX, 3));
         double median = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
         assertThat(median, equalTo(0.0));
     }

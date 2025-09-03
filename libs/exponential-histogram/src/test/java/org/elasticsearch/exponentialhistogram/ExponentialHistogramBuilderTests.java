@@ -27,18 +27,18 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCase {
 
-    public void testBuildWithAllFieldsSet() {
+    public void testBuildAndCopyWithAllFieldsSet() {
         ZeroBucket zeroBucket = ZeroBucket.create(1, 2);
         ExponentialHistogramBuilder builder = ExponentialHistogram.builder(3, breaker())
             .zeroBucket(zeroBucket)
             .sum(100.0)
             .min(1.0)
             .max(50.0)
-            .addPositiveBucket(2, 10)
-            .addPositiveBucket(0, 1)
-            .addPositiveBucket(5, 2)
-            .addNegativeBucket(-2, 5)
-            .addNegativeBucket(1, 2);
+            .setPositiveBucket(2, 10)
+            .setPositiveBucket(0, 1)
+            .setPositiveBucket(5, 2)
+            .setNegativeBucket(-2, 5)
+            .setNegativeBucket(1, 2);
 
         try (ReleasableExponentialHistogram histogram = builder.build()) {
             assertThat(histogram.scale(), equalTo(3));
@@ -48,14 +48,19 @@ public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCa
             assertThat(histogram.max(), equalTo(50.0));
             assertBuckets(histogram.positiveBuckets(), List.of(0L, 2L, 5L), List.of(1L, 10L, 2L));
             assertBuckets(histogram.negativeBuckets(), List.of(-2L, 1L), List.of(5L, 2L));
+
+            try (ReleasableExponentialHistogram copy = ExponentialHistogram.builder(histogram, breaker()).build()) {
+                assertThat(copy, equalTo(histogram));
+            }
         }
+
     }
 
     public void testBuildWithEstimation() {
         ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker())
-            .addPositiveBucket(0, 1)
-            .addPositiveBucket(1, 1)
-            .addNegativeBucket(0, 4);
+            .setPositiveBucket(0, 1)
+            .setPositiveBucket(1, 1)
+            .setNegativeBucket(0, 4);
 
         try (ReleasableExponentialHistogram histogram = builder.build()) {
             assertThat(histogram.scale(), equalTo(0));
@@ -66,18 +71,6 @@ public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCa
             assertBuckets(histogram.positiveBuckets(), List.of(0L, 1L), List.of(1L, 1L));
             assertBuckets(histogram.negativeBuckets(), List.of(0L), List.of(4L));
         }
-    }
-
-    public void testAddDuplicatePositiveBucketThrows() {
-        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker());
-        builder.addPositiveBucket(1, 10);
-        expectThrows(IllegalArgumentException.class, () -> builder.addPositiveBucket(1, 5));
-    }
-
-    public void testAddDuplicateNegativeBucketThrows() {
-        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker());
-        builder.addNegativeBucket(-1, 10);
-        expectThrows(IllegalArgumentException.class, () -> builder.addNegativeBucket(-1, 5));
     }
 
     private static void assertBuckets(ExponentialHistogram.Buckets buckets, List<Long> indices, List<Long> counts) {

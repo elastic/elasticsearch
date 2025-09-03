@@ -13,6 +13,7 @@ import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,7 +25,11 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsReque
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryDataPoint;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSummaryMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 
 public class DataPointGroupingContextTests extends ESTestCase {
 
@@ -43,17 +48,45 @@ public class DataPointGroupingContextTests extends ESTestCase {
                     List.of(createLongDataPoint(nowUnixNanos)),
                     true,
                     AGGREGATION_TEMPORALITY_CUMULATIVE
-                )
+                ),
+                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
             )
         );
         context.groupDataPoints(metricsRequest);
-        assertEquals(3, context.totalDataPoints());
+        assertEquals(4, context.totalDataPoints());
         assertEquals(0, context.getIgnoredDataPoints());
         assertEquals("", context.getIgnoredDataPointsMessage());
 
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
         assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingDifferentTargetIndex() throws Exception {
+        // Group data points
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric(
+                    "system.cpu.usage",
+                    "",
+                    List.of(createDoubleDataPoint(nowUnixNanos, nowUnixNanos, List.of(keyValue("data_stream.dataset", "custom"))))
+                ),
+                createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos)))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(2, context.totalDataPoints());
+        assertEquals(0, context.getIgnoredDataPoints());
+        assertEquals("", context.getIgnoredDataPointsMessage());
+
+        AtomicInteger groupCount = new AtomicInteger(0);
+        List<String> targetIndexes = new ArrayList<>();
+        context.consume(dataPointGroup -> {
+            groupCount.incrementAndGet();
+            targetIndexes.add(dataPointGroup.targetIndex().index());
+        });
+        assertEquals(2, groupCount.get());
+        assertThat(targetIndexes, containsInAnyOrder("metrics-custom.otel-default", "metrics-generic.otel-default"));
     }
 
     public void testGroupingDifferentGroupUnit() throws Exception {
@@ -68,6 +101,39 @@ public class DataPointGroupingContextTests extends ESTestCase {
         assertEquals(2, context.totalDataPoints());
         assertEquals(0, context.getIgnoredDataPoints());
         assertEquals("", context.getIgnoredDataPointsMessage());
+
+        AtomicInteger groupCount = new AtomicInteger(0);
+        context.consume(dataPointGroup -> groupCount.incrementAndGet());
+        assertEquals(2, groupCount.get());
+    }
+
+    public void testGroupingDuplicateNameSameTimeSeries() throws Exception {
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos)))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(2, context.totalDataPoints());
+        assertEquals(1, context.getIgnoredDataPoints());
+        assertThat(context.getIgnoredDataPointsMessage(), containsString("Duplicate metric name 'system.cpu.usage' for timestamp"));
+
+        AtomicInteger groupCount = new AtomicInteger(0);
+        context.consume(dataPointGroup -> groupCount.incrementAndGet());
+        assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingDuplicateNameDifferentTimeSeries() throws Exception {
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.cpu.usage", "{percent}", List.of(createLongDataPoint(nowUnixNanos)))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(2, context.totalDataPoints());
+        assertEquals(0, context.getIgnoredDataPoints());
 
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
@@ -176,6 +242,53 @@ public class DataPointGroupingContextTests extends ESTestCase {
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
         assertEquals(2, groupCount.get());
+    }
+
+    public void testReceiverBasedRouting() throws Exception {
+        String scopeName =
+            "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/processscraper";
+        ResourceMetrics resource = createResourceMetrics(
+            List.of(keyValue("service.name", "test-service_1")),
+            List.of(
+                createScopeMetrics(
+                    scopeName,
+                    "1.0.0",
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
+                )
+            )
+        );
+
+        context.groupDataPoints(ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(List.of(resource)).build());
+        assertEquals(1, context.totalDataPoints());
+        assertEquals(0, context.getIgnoredDataPoints());
+        assertEquals("", context.getIgnoredDataPointsMessage());
+
+        List<String> targetIndexes = new ArrayList<>();
+        context.consume(dataPointGroup -> targetIndexes.add(dataPointGroup.targetIndex().index()));
+        assertThat(targetIndexes, containsInAnyOrder("metrics-hostmetricsreceiver.otel-default"));
+    }
+
+    public void testReceiverBasedRoutingWithoutTrailingSlash() throws Exception {
+        String scopeName = "/receiver/foo";
+        ResourceMetrics resource = createResourceMetrics(
+            List.of(keyValue("service.name", "test-service_1")),
+            List.of(
+                createScopeMetrics(
+                    scopeName,
+                    "1.0.0",
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
+                )
+            )
+        );
+
+        context.groupDataPoints(ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(List.of(resource)).build());
+        assertEquals(1, context.totalDataPoints());
+        assertEquals(0, context.getIgnoredDataPoints());
+        assertEquals("", context.getIgnoredDataPointsMessage());
+
+        List<String> targetIndexes = new ArrayList<>();
+        context.consume(dataPointGroup -> targetIndexes.add(dataPointGroup.targetIndex().index()));
+        assertThat(targetIndexes, containsInAnyOrder("metrics-foo.otel-default"));
     }
 
 }

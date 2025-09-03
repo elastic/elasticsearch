@@ -1,8 +1,8 @@
 {
   "security.clear_cached_privileges":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html",
-      "description":"Evicts application privileges from the native application privileges cache."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-clear-cached-privileges",
+      "description":"Clear the privileges cache"
     },
     "stability":"stable",
     "visibility":"public",

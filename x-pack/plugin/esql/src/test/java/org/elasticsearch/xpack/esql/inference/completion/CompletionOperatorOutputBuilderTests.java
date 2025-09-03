@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.completion;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
@@ -71,7 +72,7 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
             for (int i = 0; i < columnCount; i++) {
                 blocks[i] = RandomBlock.randomBlock(
                     blockFactory(),
-                    RandomBlock.randomElementType(),
+                    RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE)),
                     positionCount,
                     randomBoolean(),
                     0,

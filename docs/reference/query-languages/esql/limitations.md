@@ -93,7 +93,7 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
     * `cartesian_shape`
 
 
-In addition, when [querying multiple indexes](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md#esql-multi-index-union-types).
+In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
 
 ## _source availability [esql-_source-availability]
@@ -177,10 +177,10 @@ Or consider using one of the [full-text search](/reference/query-languages/esql/
 
 ## Using {{esql}} to query multiple indices [esql-multi-index-limitations]
 
-As discussed in more detail in [Using {{esql}} to query multiple indices](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md), {{esql}} can execute a single query across multiple indices, data streams, or aliases. However, there are some limitations to be aware of:
+As discussed in more detail in [Using {{esql}} to query multiple indices](/reference/query-languages/esql/esql-multi-index.md), {{esql}} can execute a single query across multiple indices, data streams, or aliases. However, there are some limitations to be aware of:
 
 * All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
-* The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md#esql-multi-index-union-types).
+* The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
 
 ## Time series data streams are not supported [esql-tsdb]

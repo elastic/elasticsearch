@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -45,8 +46,8 @@ import java.util.Map;
  * in order to provide a “factory reset” of the plugin state. This can be useful for testing. The default method will simply retrieve a list
  * of system and associated indices and delete them.
  *
- * <p>An implementation may also override {@link #prepareForIndicesMigration(ClusterService, Client, ActionListener)}  and
- * {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}  in order to take special action before and after a
+ * <p>An implementation may also override {@link #prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}  and
+ * {@link #indicesMigrationComplete(Map, Client, ActionListener)}  in order to take special action before and after a
  * feature migration, which will temporarily block access to system indices. For example, a plugin might want to enter a safe mode and
  * reject certain requests while the migration is in progress. See org.elasticsearch.upgrades.SystemIndexMigrationExecutor for
  * more details.
@@ -126,19 +127,19 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * very rare.
      *
      * This method can also store metadata to be passed to
-     * {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)} when it is called; see the
+     * {@link SystemIndexPlugin#indicesMigrationComplete(Map, Client, ActionListener)} when it is called; see the
      * {@code listener} parameter for details.
      *
-     * @param clusterService The cluster service.
+     * @param project The project metadata.
      * @param client A {@link org.elasticsearch.client.internal.ParentTaskAssigningClient} with the parent task set to the upgrade task.
      *               Does not set the origin header, so implementors of this method will likely want to wrap it in an
      *               {@link org.elasticsearch.client.internal.OriginSettingClient}.
      * @param listener A listener that should have {@link ActionListener#onResponse(Object)} called once all necessary preparations for the
      *                 upgrade of indices owned by this plugin have been completed. The {@link Map} passed to the listener will be stored
-     *                 and passed to {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}. Note the contents of
+     *                 and passed to {@link #indicesMigrationComplete(Map, Client, ActionListener)}. Note the contents of
      *                 the map *must* be writeable using {@link org.elasticsearch.common.io.stream.StreamOutput#writeGenericValue(Object)}.
      */
-    default void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+    default void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
         listener.onResponse(Collections.emptyMap());
     }
 
@@ -155,20 +156,14 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * with no data format changes allowed).
      *
      * @param preUpgradeMetadata The metadata that was given to the listener by
-     *                           {@link #prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
-     * @param clusterService The cluster service.
+     *                           {@link #prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}.
      * @param client A {@link org.elasticsearch.client.internal.ParentTaskAssigningClient} with the parent task set to the upgrade task.
      *               Does not set the origin header, so implementors of this method will likely want to wrap it in an
      *               {@link org.elasticsearch.client.internal.OriginSettingClient}.
      * @param listener A listener that should have {@code ActionListener.onResponse(true)} called once all actions following the upgrade
      *                 of this plugin's system indices have been completed.
      */
-    default void indicesMigrationComplete(
-        Map<String, Object> preUpgradeMetadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
+    default void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 }

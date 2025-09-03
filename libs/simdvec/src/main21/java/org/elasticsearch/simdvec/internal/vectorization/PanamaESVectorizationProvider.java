@@ -40,7 +40,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
                 return new MemorySegmentES91OSQVectorsScorer(input, dimension, ms);
             }
         }
-        return new ES91OSQVectorsScorer(input, dimension);
+        return new OnHeapES91OSQVectorsScorer(input, dimension);
     }
 
     @Override

@@ -19,7 +19,11 @@ import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.metrics.v1.Sum;
+import io.opentelemetry.proto.metrics.v1.Summary;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
+
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +40,10 @@ public class OtlpUtils {
 
     public static KeyValue keyValue(String key, String value) {
         return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setStringValue(value).build()).build();
+    }
+
+    public static List<KeyValue> mappingHints(String... mappingHints) {
+        return List.of(keyValue(MappingHints.MAPPING_HINTS, mappingHints));
     }
 
     public static KeyValue keyValue(String key, String... values) {
@@ -105,21 +113,47 @@ public class OtlpUtils {
             .build();
     }
 
-    public static NumberDataPoint createDoubleDataPoint(long timestamp, List<KeyValue> attributes) {
+    public static Metric createSummaryMetric(String name, String unit, List<SummaryDataPoint> dataPoints) {
+        return Metric.newBuilder()
+            .setName(name)
+            .setUnit(unit)
+            .setSummary(Summary.newBuilder().addAllDataPoints(dataPoints).build())
+            .build();
+    }
+
+    public static NumberDataPoint createDoubleDataPoint(long timestamp) {
+        return createDoubleDataPoint(timestamp, timestamp, List.of());
+    }
+
+    public static NumberDataPoint createDoubleDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
-            .setTimeUnixNano(timestamp)
-            .setStartTimeUnixNano(timestamp)
+            .setTimeUnixNano(timeUnixNano)
+            .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
             .setAsDouble(randomDouble())
             .build();
     }
 
-    public static NumberDataPoint createLongDataPoint(long timestamp, List<KeyValue> attributes) {
+    public static NumberDataPoint createLongDataPoint(long timestamp) {
+        return createLongDataPoint(timestamp, timestamp, List.of());
+    }
+
+    public static NumberDataPoint createLongDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
         return NumberDataPoint.newBuilder()
+            .setTimeUnixNano(timeUnixNano)
+            .setStartTimeUnixNano(startTimeUnixNano)
+            .addAllAttributes(attributes)
+            .setAsInt(randomLong())
+            .build();
+    }
+
+    public static SummaryDataPoint createSummaryDataPoint(long timestamp, List<KeyValue> attributes) {
+        return SummaryDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
             .setStartTimeUnixNano(timestamp)
             .addAllAttributes(attributes)
-            .setAsInt(randomLong())
+            .setCount(randomLong())
+            .setSum(randomDouble())
             .build();
     }
 

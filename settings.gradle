@@ -36,21 +36,39 @@ dependencyResolutionManagement {
 
 dependencyResolutionManagement {
   components {
-    withModule("com.google.googlejavaformat:google-java-format", SpotlessRule, new Action<ActionConfiguration>() {
-      @Override
-      void execute(ActionConfiguration config) {
-        config.params("runtime")
-      }
-    })
+//    withModule("com.google.googlejavaformat:google-java-format", SpotlessRule, new Action<ActionConfiguration>() {
+//      @Override
+//      void execute(ActionConfiguration config) {
+//        config.params("runtime")
+//      }
+//    })
+//
+//    withModule("com.google.guava:guava", SpotlessRule, new Action<ActionConfiguration>() {
+//      @Override
+//      void execute(ActionConfiguration config) {
+//        config.params("jreRuntimeElements")
+//      }
+//    })
 
-    withModule("com.google.guava:guava", SpotlessRule, new Action<ActionConfiguration>() {
-      @Override
-      void execute(ActionConfiguration config) {
-        config.params("jreRuntimeElements")
+    all(ExcludeTransitivesRule) {
+      params {
+        excludeGroup("org.checkerframework")
+        excludeGroup("com.google.code.findbugs")
+        excludeGroup("com.google.errorprone")
+        excludeGroup("com.google.j2objc")
+        excludeGroup("com.google.guava")
+        excludeGroup("org.codehaus.mojo")
+        excludeGroup("org.slf4j")
+        excludeGroup("log4j")
+        excludeGroup("commons-logging")
+        excludeGroup("javax.servlet")
+        excludeGroup("junit")
+        excludeGroup("org.junit.vintage")
+        excludeGroup("org.mockito")
+        excludeGroup("net.bytebuddy")
+        excludeGroup("org.objenesis")
       }
-    })
-
-    all(ExcludeTransitivesRule)
+    }
   }
 }
 

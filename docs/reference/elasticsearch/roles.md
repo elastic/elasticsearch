@@ -5,14 +5,15 @@ applies_to:
   stack: all
 ---
 
-# Available roles [built-in-roles]
+# Roles [built-in-roles]
 
-This section provides detailed **reference information** for Elasticsearch privileges.
+This section provides detailed **reference information** for {{es}} roles.
+
+To learn how to apply roles for {{stack}}, and to learn how role-based access control works, refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md).
+
 
 :::{tip}
-If you're using a stack-versioned deployment such as a self-managed cluster, {{ech}}, {{eck}}, or {{ece}}, then refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) for more information on how role-based access control works.
-
-If you're using {{serverless-full}}, refer to [Elastic Cloud Serverless predefined roles](docs-content://deploy-manage/users-roles/cloud-organization/user-roles.md#general-assign-user-roles-table) to learn about the predefined roles available in {{serverless-short}} projects.
+{{serverless-full}} uses a different set of predefined roles. To learn more about the roles available in {{serverless-short}} projects, refer to [Elastic Cloud Serverless predefined roles](docs-content://deploy-manage/users-roles/cloud-organization/user-roles.md#general-assign-user-roles-table).
 :::
 
 The {{stack-security-features}} apply a default role to all users, including [anonymous users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/anonymous-access.md). The default role enables users to access the authenticate endpoint, change their own passwords, and get information about themselves.
@@ -23,9 +24,7 @@ When you assign a user multiple roles, the user receives a union of the roles’
 
 If the built-in roles do not address your use case, then you can create additional [custom roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/defining-roles.md).
 
-[Learn how to assign roles to users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md#assign-roles-to-users).
-
-## Roles
+## Available roles [available-roles]
 
 $$$built-in-roles-apm-system$$$ `apm_system`
 :   Grants access necessary for the APM system user to send system-level data (such as monitoring) to {{es}}.

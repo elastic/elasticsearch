@@ -51,7 +51,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -286,22 +286,19 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         // Fill the write thread pool
         final int writeThreadPoolSize = threadPoolToDelay.info(ThreadPool.Names.WRITE).getMax();
-        final CyclicBarrier delayLatch = new CyclicBarrier(writeThreadPoolSize + 1);
+        final var latch = new CountDownLatch(1);
+        final var writeThreadPool = threadPoolToDelay.executor(ThreadPool.Names.WRITE);
         for (int i = 0; i < writeThreadPoolSize; i++) {
-            threadPoolToDelay.executor(ThreadPool.Names.WRITE).execute(() -> {
-                safeAwait(delayLatch);
-                safeAwait(delayLatch);
-            });
+            writeThreadPool.execute(() -> safeAwait(latch));
         }
-        safeAwait(delayLatch);
         // Submit a task that will be delayed
-        threadPoolToDelay.executor(ThreadPool.Names.WRITE).execute(() -> {
+        writeThreadPool.execute(() -> {
             // Doesn't need to do anything
         });
         final long delayMillis = randomIntBetween(100, 200);
         safeSleep(delayMillis);
         // Unblock the pool
-        safeAwait(delayLatch);
+        latch.countDown();
 
         refreshClusterInfo(masterName);
         mostRecentQueueLatencyMetrics = getMostRecentQueueLatencyMetrics(dataNodes);

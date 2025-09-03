@@ -14,8 +14,10 @@ import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -143,6 +145,7 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
+    private final AuthorizedProjectsSupplier authorizedProjectsSupplier;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -164,7 +167,8 @@ public class AuthorizationService {
         OperatorPrivilegesService operatorPrivilegesService,
         RestrictedIndices restrictedIndices,
         AuthorizationDenialMessages authorizationDenialMessages,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        AuthorizedProjectsSupplier authorizedProjectsSupplier
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -190,6 +194,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
+        this.authorizedProjectsSupplier = authorizedProjectsSupplier;
     }
 
     public void checkPrivileges(
@@ -485,10 +490,13 @@ public class AuthorizationService {
             }));
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            final AuthorizedProjectsSupplier.AuthorizedProjects targetProjects = request instanceof IndicesRequest.CrossProjectSearchCapable
+                ? authorizedProjectsSupplier.get()
+                : AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT;
             assert projectMetadata != null;
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(() -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
-                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
+                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest, targetProjects);
                     return SubscribableListener.newSucceeded(resolvedIndices);
                 }
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
@@ -502,7 +510,7 @@ public class AuthorizationService {
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
-                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
+                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices, targetProjects)
                             ),
                             e -> {
                                 if (e instanceof InvalidIndexNameException

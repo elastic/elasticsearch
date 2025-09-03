@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.CrossProjectRemoteServerTransportInterceptor;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -100,6 +101,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final XPackLicenseState licenseState;
+    private final CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -121,6 +123,33 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
+            new CrossProjectRemoteServerTransportInterceptor.Default(),
+            licenseState
+        );
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor,
+        XPackLicenseState licenseState
+    ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            crossClusterAccessAuthcService,
+            crossProjectRemoteServerTransportInterceptor,
             licenseState,
             RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
         );
@@ -139,6 +168,35 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         // Inject for simplified testing
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            crossClusterAccessAuthcService,
+            new CrossProjectRemoteServerTransportInterceptor.Default(),
+            licenseState,
+            remoteClusterCredentialsResolver
+        );
+    }
+
+    SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor,
+        XPackLicenseState licenseState,
+        // Inject for simplified testing
+        Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -148,6 +206,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
+        this.crossProjectRemoteServerTransportInterceptor = crossProjectRemoteServerTransportInterceptor;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
@@ -273,14 +332,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
                 if (remoteClusterCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
-                } else {
-                    // Send regular request, without cross cluster access headers
-                    try {
-                        sender.sendRequest(connection, action, request, options, handler);
-                    } catch (Exception e) {
-                        handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                } else if (crossProjectRemoteServerTransportInterceptor.enabled()
+                    && RemoteConnectionManager.resolveRemoteClusterAliasWithCredentials(connection).isPresent()) {
+                        crossProjectRemoteServerTransportInterceptor.sendRequest(sender, connection, action, request, options, handler);
+                    } else {
+                        // Send regular request, without cross cluster access headers
+                        try {
+                            sender.sendRequest(connection, action, request, options, handler);
+                        } catch (Exception e) {
+                            handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                        }
                     }
-                }
             }
 
             /**
@@ -498,18 +560,34 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             assert profileConfiguration != null : "Ssl Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
             if (useRemoteClusterProfile) {
-                profileFilters.put(
-                    profileName,
-                    new CrossClusterAccessServerTransportFilter(
-                        crossClusterAccessAuthcService,
-                        authzService,
-                        threadPool.getThreadContext(),
-                        remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                        destructiveOperations,
-                        securityContext,
-                        licenseState
-                    )
-                );
+                // probably not how we want to do this but ballpark correct
+                if (crossProjectRemoteServerTransportInterceptor.enabled()) {
+                    profileFilters.put(
+                        profileName,
+                        new CustomRemoteServerTransportFilter(
+                            crossProjectRemoteServerTransportInterceptor.getFilter(),
+                            authcService,
+                            authzService,
+                            threadPool.getThreadContext(),
+                            remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                            destructiveOperations,
+                            securityContext
+                        )
+                    );
+                } else {
+                    profileFilters.put(
+                        profileName,
+                        new CrossClusterAccessServerTransportFilter(
+                            crossClusterAccessAuthcService,
+                            authzService,
+                            threadPool.getThreadContext(),
+                            remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                            destructiveOperations,
+                            securityContext,
+                            licenseState
+                        )
+                    );
+                }
             } else {
                 profileFilters.put(
                     profileName,

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -2666,7 +2667,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices);
+        return defaultIndicesResolver.resolve(
+            action,
+            request,
+            this.projectMetadata,
+            authorizedIndices,
+            AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT
+        );
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

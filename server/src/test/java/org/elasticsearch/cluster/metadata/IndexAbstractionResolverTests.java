@@ -369,9 +369,9 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             indicesOptions,
             projectMetadata,
             (ignored) -> mask,
-            (ignored, nothing) -> true,
+            (ignored1, nothing) -> true,
             true
-        );
+        ).indicesAsList();
     }
 
     private boolean isIndexVisible(String index, String selector) {

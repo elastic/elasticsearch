@@ -149,18 +149,20 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             new Object[] {
                 new Test(
                     "TS time_series_idx | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
+                        ? Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1))
+                        : Collections.emptyMap(),
                     Map.ofEntries(),
-                    Build.current().isSnapshot()
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
                 ) },
             new Object[] {
                 new Test(
                     "TS time_series_idx | STATS max(id) BY host | LIMIT 10",
-                    Build.current().isSnapshot()
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
                         ? Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
                         : Collections.emptyMap(),
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
-                    Build.current().isSnapshot()
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
                 ) },
             new Object[] {
                 new Test(

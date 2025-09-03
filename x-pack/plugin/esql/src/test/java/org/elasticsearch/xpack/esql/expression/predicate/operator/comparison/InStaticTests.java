@@ -59,7 +59,11 @@ public class InStaticTests extends ESTestCase {
     public void testConvertedNull() {
         In in = new In(
             EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
             Arrays.asList(ONE, new Literal(Source.EMPTY, null, randomFrom(DataType.types())), THREE)
         );
         var query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);

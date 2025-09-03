@@ -90,18 +90,18 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
   }
 
   private void addRawVector(FloatVector vVector) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      float vValue = vVector.getFloat(i);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      float vValue = vVector.getFloat(valuesPosition);
       CountDistinctFloatAggregator.combine(state, vValue);
     }
   }
 
   private void addRawVector(FloatVector vVector, BooleanVector mask) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      float vValue = vVector.getFloat(i);
+      float vValue = vVector.getFloat(valuesPosition);
       CountDistinctFloatAggregator.combine(state, vValue);
     }
   }

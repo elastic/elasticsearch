@@ -27,6 +27,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -77,8 +78,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
@@ -1885,7 +1886,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.fieldUsages(), equalTo(0L));
         assertThat(stats.postingsInMemoryBytes(), equalTo(0L));
 
-        boolean postingsBytesTrackingEnabled = TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled();
+        boolean postingsBytesTrackingEnabled = DiscoveryNode.isStateless(shard.indexSettings().getNodeSettings());
 
         // index some documents
         int numDocs = between(2, 10);
@@ -1981,7 +1982,10 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardFieldStatsWithDeletes() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build();
+        Settings settings = Settings.builder()
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .build();
         IndexShard shard = newShard(true, settings);
         assertNull(shard.getShardFieldStats());
         recoverShardFromStore(shard);
@@ -2010,8 +2014,14 @@ public class IndexShardTests extends IndexShardTestCase {
         stats = shard.getShardFieldStats();
         // More segments because delete operation is stored in the new segment for replication purposes.
         assertThat(stats.numSegments(), equalTo(2));
-        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 40L : 0L));
+        long expectedLiveDocsSize = 0;
+        if (liveDocsTrackingEnabled) {
+            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
+            // Second segment the delete operation that is marked as deleted:
+            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
+        }
+        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
 
         // delete another doc:
         deleteDoc(shard, "first_1");
@@ -2022,8 +2032,16 @@ public class IndexShardTests extends IndexShardTestCase {
         stats = shard.getShardFieldStats();
         // More segments because delete operation is stored in the new segment for replication purposes.
         assertThat(stats.numSegments(), equalTo(3));
-        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 56L : 0L));
+        expectedLiveDocsSize = 0;
+        if (liveDocsTrackingEnabled) {
+            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+            // First segment with deletes
+            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
+            // Second and third segments the delete operation that is marked as deleted:
+            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
+            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
+        }
+        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
 
         closeShards(shard);
     }
@@ -5608,6 +5626,7 @@ public class IndexShardTests extends IndexShardTestCase {
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
             fakeClock,
+            Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:
             new IndexingOperationListener() {
                 @Override
@@ -5753,6 +5772,7 @@ public class IndexShardTests extends IndexShardTestCase {
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
             fakeClock,
+            Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:
             new IndexingOperationListener() {
                 @Override

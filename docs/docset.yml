@@ -13,6 +13,7 @@ cross_links:
   - docs-content
   - ecs
   - eland
+  - elasticsearch
   - elasticsearch-hadoop
   - elasticsearch-java
   - elasticsearch-js

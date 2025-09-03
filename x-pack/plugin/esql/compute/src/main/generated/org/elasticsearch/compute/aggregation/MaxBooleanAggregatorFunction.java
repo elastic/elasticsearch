@@ -85,19 +85,19 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(BooleanVector vVector) {
     state.seen(true);
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      boolean vValue = vVector.getBoolean(i);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      boolean vValue = vVector.getBoolean(valuesPosition);
       state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
     }
   }
 
   private void addRawVector(BooleanVector vVector, BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      boolean vValue = vVector.getBoolean(i);
+      boolean vValue = vVector.getBoolean(valuesPosition);
       state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
     }
   }

@@ -1,6 +1,0 @@
-pr: 132167
-summary: Deal with internally created IN in a different way for EQL
-area: EQL
-type: bug
-issues:
- - 118621

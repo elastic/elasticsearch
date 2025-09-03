@@ -96,19 +96,19 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
 
   private void addRawVector(BytesRefVector wkbVector) {
     BytesRef wkbScratch = new BytesRef();
-    for (int i = 0; i < wkbVector.getPositionCount(); i++) {
-      BytesRef wkbValue = wkbVector.getBytesRef(i, wkbScratch);
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
       SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
     }
   }
 
   private void addRawVector(BytesRefVector wkbVector, BooleanVector mask) {
     BytesRef wkbScratch = new BytesRef();
-    for (int i = 0; i < wkbVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      BytesRef wkbValue = wkbVector.getBytesRef(i, wkbScratch);
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
       SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
     }
   }

@@ -223,3 +223,74 @@ book_no:keyword | title:keyword                         | author:keyword        
 5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 0.04
 2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 0.03
 ;
+
+
+simple
+required_capability: rerank
+
+// tag::simple-query[]
+FROM books METADATA _score
+| WHERE MATCH(description, "hobbit")
+| SORT _score DESC
+| LIMIT 100
+| RERANK "hobbit" ON description WITH { "inference_id" : "test_reranker" }
+| LIMIT 3
+| KEEP title, _score
+// end::simple-query[]
+;
+
+// tag::simple-query-result[]
+title:text                                                                                  | _score:double
+Poems from the Hobbit                                                                       | 0.0015673980815336108
+A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 0.007936508394777775
+Return of the King Being the Third Part of The Lord of the Rings                            | 9.960159659385681E-4
+// end::simple-query-result[]
+;
+
+two_queries
+required_capability: rerank
+
+// tag::two-queries[]
+FROM books METADATA _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 100
+| RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
+| SORT rerank_score
+| LIMIT 3
+| KEEP title, _score, rerank_score
+// end::two-queries[]
+;
+
+// tag::two-queries-result[]
+title:text                                                       | _score:double      | rerank_score:double
+Return of the Shadow                                             | 2.8181066513061523 | 5.740527994930744E-4
+Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4
+The Lays of Beleriand                                            | 1.3002015352249146 | 9.36329597607255E-4
+// end::two-queries-result[]
+;
+
+combine
+required_capability: rerank
+required_capability: rerank_combine
+
+// tag::combine[]
+FROM books METADATA _score
+| WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
+| SORT _score DESC
+| LIMIT 100
+| RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
+| EVAL original_score = _score, _score = rerank_score + original_score
+| SORT _score
+| LIMIT 3
+| KEEP title, original_score, rerank_score, _score
+// end::combine[]
+;
+
+// tag::combine-result[]
+title:text                                                       | _score:double      | rerank_score:double  | rerank_score:double
+Poems from the Hobbit                                            | 4.012462615966797  | 0.001396648003719747 | 0.001396648003719747
+The Lord of the Rings - Boxed Set                                | 3.768855094909668  | 0.0010020040208473802 | 0.001396648003719747
+Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4 | 0.001396648003719747
+// end::combine-result[]
+;

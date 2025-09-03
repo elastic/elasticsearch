@@ -89,6 +89,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,10 +101,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
@@ -125,6 +128,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
+    public static final String UNSUPPORTED_INDEX_MESSAGE = "[semantic_text] is available on indices created with 8.11 or higher.";
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -163,6 +167,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
         return (n, c) -> {
+            if (c.getIndexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR)) {
+                throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
+            }
             if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false) {
                 notInMultiFields(type).accept(n, c);
             }
@@ -864,6 +871,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null && "chunks".equals(format) == false) {
+                throw new IllegalArgumentException(
+                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
+                );
+            }
+            if (format != null) {
+                return valueFetcherWithInferenceResults(getChunksField().bitsetProducer(), context.searcher(), true);
+            }
             if (useLegacyFormat) {
                 // Redirect the fetcher to load the original values of the field
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
@@ -871,7 +886,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return SourceValueFetcher.toString(name(), context, null);
         }
 
-        ValueFetcher valueFetcherWithInferenceResults(Function<Query, BitSetProducer> bitSetCache, IndexSearcher searcher) {
+        ValueFetcher valueFetcherWithInferenceResults(
+            Function<Query, BitSetProducer> bitSetCache,
+            IndexSearcher searcher,
+            boolean onlyTextChunks
+        ) {
             var embeddingsField = getEmbeddingsField();
             if (embeddingsField == null) {
                 return ValueFetcher.EMPTY;
@@ -884,7 +903,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES,
                     1
                 );
-                return new SemanticTextFieldValueFetcher(bitSetFilter, childWeight, embeddingsLoader);
+                return new SemanticTextFieldValueFetcher(bitSetFilter, childWeight, embeddingsLoader, onlyTextChunks);
             } catch (IOException exc) {
                 throw new UncheckedIOException(exc);
             }
@@ -1022,6 +1041,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             private final BitSetProducer parentBitSetProducer;
             private final Weight childWeight;
             private final SourceLoader.SyntheticFieldLoader fieldLoader;
+            private final boolean onlyTextChunks;
 
             private BitSet bitSet;
             private Scorer childScorer;
@@ -1031,11 +1051,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             private SemanticTextFieldValueFetcher(
                 BitSetProducer bitSetProducer,
                 Weight childWeight,
-                SourceLoader.SyntheticFieldLoader fieldLoader
+                SourceLoader.SyntheticFieldLoader fieldLoader,
+                boolean onlyTextChunks
             ) {
                 this.parentBitSetProducer = bitSetProducer;
                 this.childWeight = childWeight;
                 this.fieldLoader = fieldLoader;
+                this.onlyTextChunks = onlyTextChunks;
             }
 
             @Override
@@ -1046,7 +1068,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     if (childScorer != null) {
                         childScorer.iterator().nextDoc();
                     }
-                    dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    if (onlyTextChunks == false) {
+                        dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    }
                     var terms = context.reader().terms(getOffsetsFieldName(name()));
                     offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
                 } catch (IOException exc) {
@@ -1064,21 +1088,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 if (it.docID() < previousParent) {
                     it.advance(previousParent);
                 }
+
+                return onlyTextChunks ? fetchTextChunks(source, doc, it) : fetchFullField(source, doc, it);
+            }
+
+            private List<Object> fetchTextChunks(Source source, int doc, DocIdSetIterator it) throws IOException {
+                Map<String, String> originalValueMap = new HashMap<>();
+                List<Object> chunks = new ArrayList<>();
+
+                iterateChildDocs(doc, it, offset -> {
+                    var rawValue = originalValueMap.computeIfAbsent(offset.field(), k -> {
+                        var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
+                        var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj).stream().toList();
+                        return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
+                    });
+
+                    chunks.add(rawValue.substring(offset.start(), offset.end()));
+                });
+
+                return chunks;
+            }
+
+            private List<Object> fetchFullField(Source source, int doc, DocIdSetIterator it) throws IOException {
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
-                while (it.docID() < doc) {
-                    if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
-                        throw new IllegalStateException(
-                            "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
-                        );
-                    }
-                    var offset = offsetsLoader.advanceTo(it.docID());
-                    if (offset == null) {
-                        throw new IllegalStateException(
-                            "Cannot fetch values for field [" + name() + "], missing offsets for doc [" + doc + "]"
-                        );
-                    }
-                    var chunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
-                    chunks.add(
+
+                iterateChildDocs(doc, it, offset -> {
+                    var fullChunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
+                    fullChunks.add(
                         new SemanticTextField.Chunk(
                             null,
                             offset.start(),
@@ -1086,13 +1122,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             rawEmbeddings(fieldLoader::write, source.sourceContentType())
                         )
                     );
-                    if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-                        break;
-                    }
-                }
+                });
+
                 if (chunkMap.isEmpty()) {
                     return List.of();
                 }
+
                 return List.of(
                     new SemanticTextField(
                         useLegacyFormat,
@@ -1102,6 +1137,38 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         source.sourceContentType()
                     )
                 );
+            }
+
+            /**
+             * Iterates over all child documents for the given doc and applies the provided action for each valid offset.
+             */
+            private void iterateChildDocs(
+                int doc,
+                DocIdSetIterator it,
+                CheckedConsumer<OffsetSourceFieldMapper.OffsetSource, IOException> action
+            ) throws IOException {
+                while (it.docID() < doc) {
+                    if (onlyTextChunks == false) {
+                        if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
+                            throw new IllegalStateException(
+                                "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
+                            );
+                        }
+                    }
+
+                    var offset = offsetsLoader.advanceTo(it.docID());
+                    if (offset == null) {
+                        throw new IllegalStateException(
+                            "Cannot fetch values for field [" + name() + "], missing offsets for doc [" + doc + "]"
+                        );
+                    }
+
+                    action.accept(offset);
+
+                    if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                }
             }
 
             private BytesReference rawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)

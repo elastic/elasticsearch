@@ -51,6 +51,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Map<String, EsField> metricMapping;
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
+    protected static Analyzer sampleDataIndexAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -151,7 +152,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var multiIndexMapping = loadMapping("mapping-basic.json");
-        multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
+        multiIndexMapping.put(
+            "partial_type_keyword",
+            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         var multiIndex = IndexResolution.valid(
             new EsIndex(
                 "multi_index",
@@ -165,6 +169,21 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 multiIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        var sampleDataMapping = loadMapping("mapping-sample_data.json");
+        var sampleDataIndex = IndexResolution.valid(
+            new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD))
+        );
+        sampleDataIndexAnalyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                sampleDataIndex,
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -210,6 +229,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planMultiIndex(String query) {
         return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+    }
+
+    protected LogicalPlan planSample(String query) {
+        var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        return logicalOptimizer.optimize(analyzed);
     }
 
     @Override

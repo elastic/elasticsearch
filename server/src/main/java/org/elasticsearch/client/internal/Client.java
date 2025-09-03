@@ -404,7 +404,7 @@ public interface Client extends ElasticsearchClient {
     /**
      * Returns a client that executes every request in the context of the given project.
      */
-    Client projectClient(ProjectId projectId);
+    ProjectClient projectClient(ProjectId projectId);
 
     /**
      * Returns this client's project resolver.

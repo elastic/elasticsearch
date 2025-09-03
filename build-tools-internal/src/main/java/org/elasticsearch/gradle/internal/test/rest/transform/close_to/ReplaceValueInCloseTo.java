@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.ReplaceByKey;
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
 import org.gradle.api.tasks.Internal;
 
 /**
@@ -22,11 +23,11 @@ import org.gradle.api.tasks.Internal;
  */
 public class ReplaceValueInCloseTo extends ReplaceByKey {
 
-    public ReplaceValueInCloseTo(String replaceKey, NumericNode replacementNode) {
+    public ReplaceValueInCloseTo(String replaceKey, SerializableJsonNode<NumericNode> replacementNode) {
         this(replaceKey, replacementNode, null);
     }
 
-    public ReplaceValueInCloseTo(String replaceKey, NumericNode replacementNode, String testName) {
+    public ReplaceValueInCloseTo(String replaceKey, SerializableJsonNode<NumericNode> replacementNode, String testName) {
         super(replaceKey, replaceKey, replacementNode, testName);
     }
 
@@ -41,6 +42,7 @@ public class ReplaceValueInCloseTo extends ReplaceByKey {
         ObjectNode closeToNode = (ObjectNode) matchParent.get(getKeyToFind());
         ObjectNode subNode = (ObjectNode) closeToNode.get(requiredChildKey());
         subNode.remove("value");
-        subNode.set("value", getReplacementNode());
+        subNode.set("value", getReplacementNode().toJsonNode());
     }
+
 }

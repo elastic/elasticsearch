@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -697,13 +698,26 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testLookupExplosion() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 10000;
-        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
+    }
+
+    public void testLookupExplosionManyFields() throws IOException {
+        int sensorDataCount = 400;
+        int lookupEntries = 1000;
+        int joinFieldsCount = 990;
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
+    }
+
+    public void testLookupExplosionManyMatchesManyFields() throws IOException {
+        // 1500, 10000 is enough locally, but some CI machines need more.
+        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000, 30));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
         // 1500, 10000 is enough locally, but some CI machines need more.
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000));
+        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000, 1));
     }
 
     public void testLookupExplosionNoFetch() throws IOException {
@@ -730,11 +744,18 @@ public class HeapAttackIT extends ESRestTestCase {
         assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 500, 1));
     }
 
-    private Map<String, Object> lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+    private Map<String, Object> lookupExplosion(int sensorDataCount, int lookupEntries, int joinFieldsCount) throws IOException {
         try {
-            lookupExplosionData(sensorDataCount, lookupEntries);
+            lookupExplosionData(sensorDataCount, lookupEntries, joinFieldsCount);
             StringBuilder query = startQuery();
-            query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(location)\"}");
+            query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON ");
+            for (int i = 0; i < joinFieldsCount; i++) {
+                if (i != 0) {
+                    query.append(",");
+                }
+                query.append("id").append(i);
+            }
+            query.append(" | STATS COUNT(location)\"}");
             return responseAsMap(query(query.toString(), null));
         } finally {
             deleteIndex("sensor_data");
@@ -744,9 +765,9 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private Map<String, Object> lookupExplosionNoFetch(int sensorDataCount, int lookupEntries) throws IOException {
         try {
-            lookupExplosionData(sensorDataCount, lookupEntries);
+            lookupExplosionData(sensorDataCount, lookupEntries, 1);
             StringBuilder query = startQuery();
-            query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(*)\"}");
+            query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id0 | STATS COUNT(*)\"}");
             return responseAsMap(query(query.toString(), null));
         } finally {
             deleteIndex("sensor_data");
@@ -754,14 +775,14 @@ public class HeapAttackIT extends ESRestTestCase {
         }
     }
 
-    private void lookupExplosionData(int sensorDataCount, int lookupEntries) throws IOException {
-        initSensorData(sensorDataCount, 1);
-        initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484");
+    private void lookupExplosionData(int sensorDataCount, int lookupEntries, int joinFieldCount) throws IOException {
+        initSensorData(sensorDataCount, 1, joinFieldCount);
+        initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484", joinFieldCount);
     }
 
     private Map<String, Object> lookupExplosionBigString(int sensorDataCount, int lookupEntries) throws IOException {
         try {
-            initSensorData(sensorDataCount, 1);
+            initSensorData(sensorDataCount, 1, 1);
             initSensorLookupString(lookupEntries, 1, i -> {
                 int target = Math.toIntExact(ByteSizeValue.ofMb(1).getBytes());
                 StringBuilder str = new StringBuilder(Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()));
@@ -772,7 +793,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 return str.toString();
             });
             StringBuilder query = startQuery();
-            query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(string)\"}");
+            query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id0 | STATS COUNT(string)\"}");
             return responseAsMap(query(query.toString(), null));
         } finally {
             deleteIndex("sensor_data");
@@ -794,11 +815,11 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private Map<String, Object> enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
         try {
-            initSensorData(sensorDataCount, 1);
+            initSensorData(sensorDataCount, 1, 1);
             initSensorEnrich(lookupEntries, 1, i -> "73.9857 40.7484");
             try {
                 StringBuilder query = startQuery();
-                query.append("FROM sensor_data | ENRICH sensor ON id | STATS COUNT(*)\"}");
+                query.append("FROM sensor_data | ENRICH sensor ON id0 | STATS COUNT(*)\"}");
                 return responseAsMap(query(query.toString(), null));
             } finally {
                 Request delete = new Request("DELETE", "/_enrich/policy/sensor");
@@ -958,16 +979,30 @@ public class HeapAttackIT extends ESRestTestCase {
         initIndex("mv_longs", bulk.toString());
     }
 
-    private void initSensorData(int docCount, int sensorCount) throws IOException {
+    private void initSensorData(int docCount, int sensorCount, int joinFieldCount) throws IOException {
         logger.info("loading sensor data");
-        createIndex("sensor_data", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
-            {
-                "properties": {
-                    "@timestamp": { "type": "date" },
-                    "id": { "type": "long" },
+        // We cannot go over 1000 fields, due to failed on parsing mappings on index creation
+        // [sensor_data] java.lang.IllegalArgumentException: Limit of total fields [1000] has been exceeded
+        assertTrue("Too many columns, it will throw an exception later", joinFieldCount <= 990);
+        StringBuilder createIndexBuilder = new StringBuilder();
+        createIndexBuilder.append("""
+             {
+                 "properties": {
+                     "@timestamp": { "type": "date" },
+            """);
+        for (int i = 0; i < joinFieldCount; i++) {
+            createIndexBuilder.append("\"id").append(i).append("\": { \"type\": \"long\" },");
+        }
+        createIndexBuilder.append("""
                     "value": { "type": "double" }
                 }
             }""");
+        CreateIndexResponse response = createIndex(
+            "sensor_data",
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(),
+            createIndexBuilder.toString()
+        );
+        assertTrue(response.isAcknowledged());
         int docsPerBulk = 1000;
         long firstDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01T00:00:00Z");
 
@@ -975,8 +1010,11 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int i = 0; i < docCount; i++) {
             data.append(String.format(Locale.ROOT, """
                 {"create":{}}
-                {"timestamp":"%s", "id": %d, "value": %f}
-                """, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i * 10L + firstDate), i % sensorCount, i * 1.1));
+                {"timestamp":"%s",""", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i * 10L + firstDate)));
+            for (int j = 0; j < joinFieldCount; j++) {
+                data.append(String.format(Locale.ROOT, "\"id%d\":%d, ", j, i % sensorCount));
+            }
+            data.append(String.format(Locale.ROOT, "\"value\": %f}\n", i * 1.1));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_data", data.toString());
                 data.setLength(0);
@@ -985,23 +1023,42 @@ public class HeapAttackIT extends ESRestTestCase {
         initIndex("sensor_data", data.toString());
     }
 
-    private void initSensorLookup(int lookupEntries, int sensorCount, IntFunction<String> location) throws IOException {
+    private void initSensorLookup(int lookupEntries, int sensorCount, IntFunction<String> location, int joinFieldsCount)
+        throws IOException {
         logger.info("loading sensor lookup");
-        createIndex("sensor_lookup", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
+        // cannot go over 1000 fields, due to failed on parsing mappings on index creation
+        // [sensor_data] java.lang.IllegalArgumentException: Limit of total fields [1000] has been exceeded
+        assertTrue("Too many join on fields, it will throw an exception later", joinFieldsCount <= 990);
+        StringBuilder createIndexBuilder = new StringBuilder();
+        createIndexBuilder.append("""
             {
                 "properties": {
-                    "id": { "type": "long" },
+            """);
+        for (int i = 0; i < joinFieldsCount; i++) {
+            createIndexBuilder.append("\"id").append(i).append("\": { \"type\": \"long\" },");
+        }
+        createIndexBuilder.append("""
                     "location": { "type": "geo_point" }
                 }
             }""");
+        CreateIndexResponse response = createIndex(
+            "sensor_lookup",
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(),
+            createIndexBuilder.toString()
+        );
+        assertTrue(response.isAcknowledged());
         int docsPerBulk = 1000;
         StringBuilder data = new StringBuilder();
         for (int i = 0; i < lookupEntries; i++) {
             int sensor = i % sensorCount;
             data.append(String.format(Locale.ROOT, """
                 {"create":{}}
-                {"id": %d, "location": "POINT(%s)"}
-                """, sensor, location.apply(sensor)));
+                {"""));
+            for (int j = 0; j < joinFieldsCount; j++) {
+                data.append(String.format(Locale.ROOT, "\"id%d\":%d, ", j, sensor));
+            }
+            data.append(String.format(Locale.ROOT, """
+                "location": "POINT(%s)"}\n""", location.apply(sensor)));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_lookup", data.toString());
                 data.setLength(0);
@@ -1015,7 +1072,7 @@ public class HeapAttackIT extends ESRestTestCase {
         createIndex("sensor_lookup", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
             {
                 "properties": {
-                    "id": { "type": "long" },
+                    "id0": { "type": "long" },
                     "string": { "type": "text" }
                 }
             }""");
@@ -1025,7 +1082,7 @@ public class HeapAttackIT extends ESRestTestCase {
             int sensor = i % sensorCount;
             data.append(String.format(Locale.ROOT, """
                 {"create":{}}
-                {"id": %d, "string": "%s"}
+                {"id0": %d, "string": "%s"}
                 """, sensor, string.apply(sensor)));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_lookup", data.toString());
@@ -1036,7 +1093,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private void initSensorEnrich(int lookupEntries, int sensorCount, IntFunction<String> location) throws IOException {
-        initSensorLookup(lookupEntries, sensorCount, location);
+        initSensorLookup(lookupEntries, sensorCount, location, 1);
         logger.info("loading sensor enrich");
 
         Request create = new Request("PUT", "/_enrich/policy/sensor");
@@ -1044,7 +1101,7 @@ public class HeapAttackIT extends ESRestTestCase {
             {
               "match": {
                 "indices": "sensor_lookup",
-                "match_field": "id",
+                "match_field": "id0",
                 "enrich_fields": ["location"]
               }
             }

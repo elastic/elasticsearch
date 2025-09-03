@@ -92,19 +92,19 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(BytesRefVector vVector) {
     BytesRef vScratch = new BytesRef();
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      BytesRef vValue = vVector.getBytesRef(i, vScratch);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
       TopBytesRefAggregator.combine(state, vValue);
     }
   }
 
   private void addRawVector(BytesRefVector vVector, BooleanVector mask) {
     BytesRef vScratch = new BytesRef();
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      BytesRef vValue = vVector.getBytesRef(i, vScratch);
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
       TopBytesRefAggregator.combine(state, vValue);
     }
   }

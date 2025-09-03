@@ -17,7 +17,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -48,7 +47,6 @@ public class TransportVersions {
     }
 
     // TODO: ES-10337 we can remove all transport versions earlier than 8.18
-    public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_1_0 = def(7_01_00_99);
     public static final TransportVersion V_7_2_0 = def(7_02_00_99);
@@ -223,6 +221,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_3 = def(9_000_0_12);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_4 = def(9_000_0_13);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_6 = def(9_000_0_15);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_7 = def(9_000_0_16);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
@@ -339,6 +338,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_3 = def(9_112_0_06);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_4 = def(9_112_0_07);
     public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
@@ -353,8 +353,10 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
-    public static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = def(9_145_0_00);
-    public static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = def(9_146_0_00);
+    public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
+    public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
+    public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);
+    public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_150_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -412,18 +414,6 @@ public class TransportVersions {
      */
 
     /**
-     * Reference to the earliest compatible transport version to this version of the codebase.
-     * This should be the transport version used by the highest minor version of the previous major.
-     */
-    public static final TransportVersion MINIMUM_COMPATIBLE = INITIAL_ELASTICSEARCH_8_19;
-
-    /**
-     * Reference to the minimum transport version that can be used with CCS.
-     * This should be the transport version used by the previous minor release.
-     */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_1_2;
-
-    /**
      * Sorted list of all versions defined in this class
      */
     static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
@@ -432,14 +422,9 @@ public class TransportVersions {
         Map<Integer, String> versionIdFields = new HashMap<>();
         List<TransportVersion> definedTransportVersions = new ArrayList<>();
 
-        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
-
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
-                if (ignore.contains(fieldName)) {
-                    continue;
-                }
 
                 TransportVersion version;
                 try {

@@ -16,7 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for {@link XmlProcessor}. These tests ensure feature parity and test coverage.
@@ -31,23 +33,18 @@ public class XmlProcessorTests extends ESTestCase {
         return new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of(XML_FIELD, xml)));
     }
 
-    private static XmlProcessor createTestProcessor(Map<String, Object> config) {
+    private static XmlProcessor createTestProcessor(Map<String, Object> config) throws Exception {
         config.putIfAbsent("field", XML_FIELD);
         config.putIfAbsent("target_field", TARGET_FIELD);
 
         XmlProcessor.Factory factory = new XmlProcessor.Factory();
-        try {
-            return factory.create(null, "_tag", null, config, null);
-        } catch (Exception e) {
-            fail("Failed to create XmlProcessor: " + e.getMessage());
-            return null; // This line will never be reached, but is needed to satisfy the compiler
-        }
+        return factory.create(null, "_tag", null, config, null);
     }
 
     /**
-     * Test parsing standard XML with attributes.
+     * Test parsing standard XML structure.
      */
-    public void testParseStandardXml() {
+    public void testParseStandardXml() throws Exception {
         String xml = "<foo key=\"value\"/>";
 
         Map<String, Object> config = new HashMap<>();
@@ -56,16 +53,21 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        assertThat(foo.get("key"), equalTo("value"));
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+
+        Map<String, Object> expectedData = Map.of("foo", Map.of("key", "value"));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test parsing XML with array elements (multiple elements with same name).
      */
-    public void testParseXmlWithArrayValue() {
-        String xml = "<foo><key>value1</key><key>value2</key></foo>";
+    public void testParseXmlWithArrayValue() throws Exception {
+        String xml = """
+            <foo>
+              <key>value1</key>
+              <key>value2</key>
+            </foo>""";
 
         Map<String, Object> config = new HashMap<>();
         XmlProcessor processor = createTestProcessor(config);
@@ -73,24 +75,22 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        List<Object> keyValues = (List<Object>) foo.get("key");
-        assertThat(keyValues.size(), equalTo(2));
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        // The values might be nested inside their own lists
-        Object firstValue = keyValues.get(0);
-        assertThat(firstValue, equalTo("value1"));
-
-        Object secondValue = keyValues.get(1);
-        assertThat(secondValue, equalTo("value2"));
+        Map<String, Object> expectedData = Map.of("foo", Map.of("key", List.of("value1", "value2")));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test parsing XML with nested elements.
      */
-    public void testParseXmlWithNestedElements() {
-        String xml = "<foo><key1><key2>value</key2></key1></foo>";
+    public void testParseXmlWithNestedElements() throws Exception {
+        String xml = """
+            <foo>
+              <key1>
+                <key2>value</key2>
+              </key1>
+            </foo>""";
 
         Map<String, Object> config = new HashMap<>();
         XmlProcessor processor = createTestProcessor(config);
@@ -98,20 +98,16 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        Map<String, Object> key1Map = (Map<String, Object>) foo.get("key1");
-        assertThat(key1Map.size(), equalTo(1));
-
-        String key2Value = (String) key1Map.get("key2");
-        assertThat(key2Value, equalTo("value"));
+        Map<String, Object> expectedData = Map.of("foo", Map.of("key1", Map.of("key2", "value")));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test parsing XML in a single item array.
      */
-    public void testParseXmlInSingleItemArray() {
+    public void testParseXmlInSingleItemArray() throws Exception {
         String xml = "<foo bar=\"baz\"/>";
 
         Map<String, Object> config = new HashMap<>();
@@ -120,16 +116,21 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        assertThat(foo.get("bar"), equalTo("baz"));
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+
+        Map<String, Object> expectedData = Map.of("foo", Map.of("bar", "baz"));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test extracting a single element using XPath.
      */
-    public void testXPathSingleElementExtraction() {
-        String xml = "<foo><bar>hello</bar><baz>world</baz></foo>";
+    public void testXPathSingleElementExtraction() throws Exception {
+        String xml = """
+            <foo>
+              <bar>hello</bar>
+              <baz>world</baz>
+            </foo>""";
 
         Map<String, String> xpathMap = Map.of("/foo/bar/text()", "bar_content");
 
@@ -142,22 +143,25 @@ public class XmlProcessorTests extends ESTestCase {
 
         // Get the XPath result
         Object barContent = ingestDocument.getFieldValue("bar_content", Object.class);
-        assertNotNull(barContent);
-        assertEquals("hello", barContent);
+        assertThat(barContent, equalTo("hello"));
 
         // Verify that the full parsed XML is also available
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        assertNotNull(foo);
-        assertThat(foo.get("bar"), equalTo("hello"));
-        assertThat(foo.get("baz"), equalTo("world"));
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+
+        Map<String, Object> expectedData = Map.of("foo", Map.of("bar", "hello", "baz", "world"));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test extracting multiple elements using XPath.
      */
-    public void testXPathMultipleElementsExtraction() {
-        String xml = "<foo><bar>first</bar><bar>second</bar><bar>third</bar></foo>";
+    public void testXPathMultipleElementsExtraction() throws Exception {
+        String xml = """
+            <foo>
+              <bar>first</bar>
+              <bar>second</bar>
+              <bar>third</bar>
+            </foo>""";
 
         Map<String, String> xpathMap = Map.of("/foo/bar", "all_bars");
 
@@ -169,19 +173,18 @@ public class XmlProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         List<String> allBars = ingestDocument.getFieldValue("all_bars", List.class);
-
-        assertNotNull(allBars);
-        assertThat(allBars.size(), equalTo(3));
-        assertThat(allBars.get(0), equalTo("first"));
-        assertThat(allBars.get(1), equalTo("second"));
-        assertThat(allBars.get(2), equalTo("third"));
+        List<String> expectedBars = List.of("first", "second", "third");
+        assertThat(allBars, equalTo(expectedBars));
     }
 
     /**
      * Test extracting attributes using XPath.
      */
-    public void testXPathAttributeExtraction() {
-        String xml = "<foo><bar id=\"123\" type=\"test\">content</bar></foo>";
+    public void testXPathAttributeExtraction() throws Exception {
+        String xml = """
+            <foo>
+              <bar id="123" type="test">content</bar>
+            </foo>""";
 
         Map<String, String> xpathMap = new HashMap<>();
         xpathMap.put("/foo/bar/@id", "bar_id");
@@ -195,23 +198,22 @@ public class XmlProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         String barId = ingestDocument.getFieldValue("bar_id", String.class);
-        assertNotNull(barId);
         assertThat(barId, equalTo("123"));
 
         String barType = ingestDocument.getFieldValue("bar_type", String.class);
-        assertNotNull(barType);
         assertThat(barType, equalTo("test"));
     }
 
     /**
      * Test extracting elements with namespaces using XPath.
      */
-    public void testXPathNamespacedExtraction() {
-        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            + "<root xmlns:myns=\"http://example.org/ns1\">"
-            + "  <myns:element>namespace-value</myns:element>"
-            + "  <regular>regular-value</regular>"
-            + "</root>";
+    public void testXPathNamespacedExtraction() throws Exception {
+        String xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <root xmlns:myns="http://example.org/ns1">
+              <myns:element>namespace-value</myns:element>
+              <regular>regular-value</regular>
+            </root>""";
 
         Map<String, String> namespaces = Map.of("myns", "http://example.org/ns1");
         Map<String, String> xpathMap = Map.of("//myns:element/text()", "ns_value");
@@ -225,15 +227,17 @@ public class XmlProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         String nsValue = ingestDocument.getFieldValue("ns_value", String.class);
-        assertNotNull(nsValue);
         assertThat(nsValue, equalTo("namespace-value"));
     }
 
     /**
      * Test parsing XML with mixed content (text and elements mixed together).
      */
-    public void testParseXmlWithMixedContent() {
-        String xml = "<foo>This text is <b>bold</b> and this is <i>italic</i>!</foo>";
+    public void testParseXmlWithMixedContent() throws Exception {
+        String xml = """
+            <foo>
+              This text is <b>bold</b> and this is <i>italic</i>!
+            </foo>""";
 
         Map<String, Object> config = new HashMap<>();
         XmlProcessor processor = createTestProcessor(config);
@@ -241,21 +245,16 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        assertNotNull(foo.get("b"));
-        assertThat((String) foo.get("b"), equalTo("bold"));
-        assertNotNull(foo.get("i"));
-        assertThat((String) foo.get("i"), equalTo("italic"));
-        assertNotNull(foo.get("#text"));
-        assertThat((String) foo.get("#text"), equalTo("This text is  and this is !"));
+        Map<String, Object> expectedData = Map.of("foo", Map.of("b", "bold", "i", "italic", "#text", "This text is  and this is !"));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test parsing XML with CDATA sections.
      */
-    public void testParseXmlWithCDATA() {
+    public void testParseXmlWithCDATA() throws Exception {
         String xml = "<foo><![CDATA[This is CDATA content with <tags> that shouldn't be parsed!]]></foo>";
 
         Map<String, Object> config = new HashMap<>();
@@ -264,18 +263,22 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Object content = data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        assertNotNull(content);
-        assertThat(content, equalTo("This is CDATA content with <tags> that shouldn't be parsed!"));
+        Map<String, Object> expectedData = Map.of("foo", "This is CDATA content with <tags> that shouldn't be parsed!");
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test parsing XML with numeric data.
      */
-    public void testParseXmlWithNumericData() {
-        String xml = "<foo><count>123</count><price>99.95</price><active>true</active></foo>";
+    public void testParseXmlWithNumericData() throws Exception {
+        String xml = """
+            <foo>
+              <count>123</count>
+              <price>99.95</price>
+              <active>true</active>
+            </foo>""";
 
         Map<String, Object> config = new HashMap<>();
         XmlProcessor processor = createTestProcessor(config);
@@ -283,18 +286,16 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        assertThat((String) foo.get("count"), equalTo("123"));
-        assertThat((String) foo.get("price"), equalTo("99.95"));
-        assertThat((String) foo.get("active"), equalTo("true"));
+        Map<String, Object> expectedData = Map.of("foo", Map.of("count", "123", "price", "99.95", "active", "true"));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test parsing XML with force_array option enabled.
      */
-    public void testParseXmlWithForceArray() {
+    public void testParseXmlWithForceArray() throws Exception {
         String xml = "<foo><bar>single_value</bar></foo>";
 
         Map<String, Object> config = new HashMap<>();
@@ -304,28 +305,28 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        // With force_array=true, even single values should be in arrays
-        Object barValue = foo.get("bar");
-        assertNotNull(barValue);
-        assertTrue("Expected bar value to be a List with force_array=true", barValue instanceof List);
-
-        List<String> barList = (List<String>) barValue;
-        assertThat(barList.size(), equalTo(1));
-        assertThat(barList.get(0), equalTo("single_value"));
+        Map<String, Object> expectedData = Map.of("foo", Map.of("bar", List.of("single_value")));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test extracting multiple elements using multiple XPath expressions.
      * Tests that multiple XPath expressions can be used simultaneously.
      */
-    public void testMultipleXPathExpressions() {
-        String xml = "<root>"
-            + "  <person id=\"1\"><n>John</n><age>30</age></person>"
-            + "  <person id=\"2\"><n>Jane</n><age>25</age></person>"
-            + "</root>";
+    public void testMultipleXPathExpressions() throws Exception {
+        String xml = """
+            <root>
+              <person id="1">
+                <n>John</n>
+                <age>30</age>
+              </person>
+              <person id="2">
+                <n>Jane</n>
+                <age>25</age>
+              </person>
+            </root>""";
 
         // Configure multiple XPath expressions
         Map<String, String> xpathMap = new HashMap<>();
@@ -340,30 +341,24 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        assertTrue("first_person_name field should exist", ingestDocument.hasField("first_person_name"));
-        assertTrue("second_person_name field should exist", ingestDocument.hasField("second_person_name"));
-        assertTrue("person_ids field should exist", ingestDocument.hasField("person_ids"));
-
+        // Verify XPath results
         Object firstName = ingestDocument.getFieldValue("first_person_name", Object.class);
-        assertEquals("John", firstName);
+        assertThat(firstName, equalTo("John"));
 
         Object secondName = ingestDocument.getFieldValue("second_person_name", Object.class);
-        assertEquals("Jane", secondName);
+        assertThat(secondName, equalTo("Jane"));
 
-        Object personIdsObj = ingestDocument.getFieldValue("person_ids", Object.class);
-        assertTrue("person_ids should be a List", personIdsObj instanceof List);
-        List<?> personIds = (List<?>) personIdsObj;
-        assertEquals("Should have 2 person IDs", 2, personIds.size());
-        assertEquals("First person ID should be '1'", "1", personIds.get(0));
-        assertEquals("Second person ID should be '2'", "2", personIds.get(1));
+        List<?> personIds = ingestDocument.getFieldValue("person_ids", List.class);
+        assertThat(personIds, equalTo(List.of("1", "2")));
 
-        assertTrue("Target field should exist", ingestDocument.hasField(TARGET_FIELD));
+        // Verify that the target field was also created (since storeXml defaults to true)
+        assertThat(ingestDocument.hasField(TARGET_FIELD), equalTo(true));
     }
 
     /**
      * Test handling of invalid XML with ignoreFailure=false.
      */
-    public void testInvalidXml() {
+    public void testInvalidXml() throws Exception {
         String xml = "<foo><unclosed>"; // Invalid XML missing closing tag
 
         Map<String, Object> config = new HashMap<>();
@@ -372,10 +367,7 @@ public class XmlProcessorTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
 
-        assertTrue(
-            "Error message should indicate XML is invalid",
-            exception.getMessage().contains("invalid XML") || exception.getCause().getMessage().contains("XML")
-        );
+        assertThat(exception.getMessage(), containsString("invalid XML"));
     }
 
     /**
@@ -384,7 +376,7 @@ public class XmlProcessorTests extends ESTestCase {
      * When calling the processor directly (as in tests), exceptions are still thrown.
      * This test verifies that the processor itself properly reports XML parsing errors.
      */
-    public void testInvalidXmlWithIgnoreFailure() {
+    public void testInvalidXmlWithIgnoreFailure() throws Exception {
         String xml = "<foo><unclosed>"; // Invalid XML missing closing tag
 
         Map<String, Object> config = new HashMap<>();
@@ -396,16 +388,13 @@ public class XmlProcessorTests extends ESTestCase {
         // The framework's OnFailureProcessor wrapper handles the ignore_failure behavior in production
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
 
-        assertTrue(
-            "Error message should indicate XML is invalid",
-            exception.getMessage().contains("invalid XML") || exception.getCause().getMessage().contains("XML")
-        );
+        assertThat(exception.getMessage(), containsString("invalid XML"));
     }
 
     /**
      * Test the store_xml=false option to not store parsed XML in target field.
      */
-    public void testNoStoreXml() {
+    public void testNoStoreXml() throws Exception {
         String xml = "<foo><bar>value</bar></foo>";
 
         // Set up XPath to extract value but don't store XML
@@ -421,17 +410,16 @@ public class XmlProcessorTests extends ESTestCase {
 
         // Verify XPath result is stored
         String barContent = ingestDocument.getFieldValue("bar_content", String.class);
-        assertNotNull(barContent);
         assertThat(barContent, equalTo("value"));
 
         // Verify the target field was not created
-        assertFalse(ingestDocument.hasField(TARGET_FIELD));
+        assertThat(ingestDocument.hasField(TARGET_FIELD), is(false));
     }
 
     /**
      * Test the to_lower option for converting field names to lowercase.
      */
-    public void testToLower() {
+    public void testToLower() throws Exception {
         String xml = "<FOO><BAR>value</BAR></FOO>";
 
         Map<String, Object> config = new HashMap<>();
@@ -442,20 +430,16 @@ public class XmlProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         // Verify field names are lowercase
-        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-        assertTrue(data.containsKey("foo"));
-        assertFalse(data.containsKey("FOO"));
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        assertTrue(foo.containsKey("bar"));
-        assertFalse(foo.containsKey("BAR"));
-        assertThat(foo.get("bar"), equalTo("value"));
+        Map<String, Object> expectedData = Map.of("foo", Map.of("bar", "value"));
+        assertThat(data, equalTo(expectedData));
     }
 
     /**
      * Test the ignore_missing option when field is missing.
      */
-    public void testIgnoreMissing() {
+    public void testIgnoreMissing() throws Exception {
         String xmlField = "nonexistent_field";
 
         Map<String, Object> config = new HashMap<>();
@@ -465,7 +449,7 @@ public class XmlProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of()));
         processor.execute(ingestDocument);
 
-        assertFalse("Target field should not be created when source field is missing", ingestDocument.hasField(TARGET_FIELD));
+        assertThat("Target field should not be created when source field is missing", ingestDocument.hasField(TARGET_FIELD), is(false));
 
         // With ignoreMissing=false
         config.put("ignore_missing", false);
@@ -474,28 +458,32 @@ public class XmlProcessorTests extends ESTestCase {
         // This should throw an exception
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> failingProcessor.execute(ingestDocument));
 
-        assertTrue(exception.getMessage().contains("not present as part of path"));
+        assertThat(exception.getMessage(), containsString("not present as part of path"));
     }
 
     /**
      * Test that remove_empty_values correctly filters out empty values from arrays and mixed content.
      */
-    public void testRemoveEmptyValues() {
+    public void testRemoveEmptyValues() throws Exception {
         // XML with mixed empty and non-empty elements, including array elements with mixed empty/non-empty values
-        String xml = "<root>"
-            + "  <empty></empty>"
-            + "  <blank>   </blank>"
-            + "  <valid>content</valid>"
-            + "  <nested><empty/><valid>nested-content</valid></nested>"
-            + "  <items>"
-            + "    <item>first</item>"
-            + "    <item></item>"
-            + "    <item>third</item>"
-            + "    <item>   </item>"
-            + "    <item>fifth</item>"
-            + "  </items>"
-            + "  <mixed>Text with <empty></empty> and <valid>content</valid></mixed>"
-            + "</root>";
+        String xml = """
+            <root>
+              <empty></empty>
+              <blank>   </blank>
+              <valid>content</valid>
+              <nested>
+                <empty/>
+                <valid>nested-content</valid>
+              </nested>
+              <items>
+                <item>first</item>
+                <item></item>
+                <item>third</item>
+                <item>   </item>
+                <item>fifth</item>
+              </items>
+              <mixed>Text with <empty></empty> and <valid>content</valid></mixed>
+            </root>""";
 
         Map<String, Object> config = new HashMap<>();
         config.put("remove_empty_values", true);
@@ -504,46 +492,31 @@ public class XmlProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = createTestIngestDocument(xml);
         processor.execute(ingestDocument);
 
-        Map<String, Object> result = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-        Map<String, Object> root = (Map<String, Object>) result.get("root");
-
-        // Check empty elements are filtered
-        assertFalse("Empty element should be filtered out", root.containsKey("empty"));
-        assertFalse("Blank element should be filtered out", root.containsKey("blank"));
-
-        // Check valid elements are preserved
-        assertTrue("Valid element should be preserved", root.containsKey("valid"));
-        assertEquals("content", root.get("valid"));
-
-        // Check nested structure filtering
-        Map<String, Object> nested = (Map<String, Object>) root.get("nested");
-        assertNotNull("Nested element should be preserved", nested);
-        assertFalse("Empty nested element should be filtered", nested.containsKey("empty"));
-        assertEquals("nested-content", nested.get("valid"));
-
-        // Check array with mixed empty/non-empty values
-        Map<String, Object> items = (Map<String, Object>) root.get("items");
-        assertNotNull("Items object should be preserved", items);
-        List<String> itemList = (List<String>) items.get("item");
-        assertNotNull("Item array should be preserved", itemList);
-        assertEquals("Array should contain only non-empty items", 3, itemList.size());
-        assertEquals("first", itemList.get(0));
-        assertEquals("third", itemList.get(1));
-        assertEquals("fifth", itemList.get(2));
-
-        // Check mixed content handling
-        Map<String, Object> mixed = (Map<String, Object>) root.get("mixed");
-        assertNotNull("Mixed content should be preserved", mixed);
-        assertFalse("Empty element in mixed content should be filtered", mixed.containsKey("empty"));
-        assertTrue("Valid element in mixed content should be preserved", mixed.containsKey("valid"));
-        assertEquals("content", mixed.get("valid"));
-        assertEquals("Text with  and", mixed.get("#text"));
+        Map<?, ?> result = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+        
+        Map<String, Object> expectedData = Map.of(
+            "root", Map.of(
+                "valid", "content",
+                "nested", Map.of(
+                    "valid", "nested-content"
+                ),
+                "items", Map.of(
+                    "item", List.of("first", "third", "fifth")
+                ),
+                "mixed", Map.of(
+                    "valid", "content",
+                    "#text", "Text with  and"
+                )
+            )
+        );
+        
+        assertThat(result, equalTo(expectedData));
     }
 
     /**
      * Test parsing with strict mode option.
      */
-    public void testStrictParsing() {
+    public void testStrictParsing() throws Exception {
         String xml = "<foo><bar>valid</bar></foo>";
 
         Map<String, Object> config = new HashMap<>();
@@ -553,9 +526,10 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        assertThat(foo.get("bar"), equalTo("valid"));
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+
+        Map<String, Object> expectedData = Map.of("foo", Map.of("bar", "valid"));
+        assertThat(data, equalTo(expectedData));
 
         // Test with invalid XML in strict mode
         String invalidXml = "<foo><invalid & xml</foo>";
@@ -563,17 +537,17 @@ public class XmlProcessorTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidDocument));
 
-        assertTrue(
-            "Error message should indicate XML is invalid",
-            exception.getMessage().contains("invalid XML") || exception.getCause().getMessage().contains("XML")
-        );
+        assertThat(exception.getMessage(), containsString("contains invalid XML"));
     }
 
     /**
      * Test parsing XML with remove_namespaces option.
      */
-    public void testRemoveNamespaces() {
-        String xml = "<foo xmlns:ns=\"http://example.org/ns\"><ns:bar>value</ns:bar></foo>";
+    public void testRemoveNamespaces() throws Exception {
+        String xml = """
+            <foo xmlns:ns="http://example.org/ns">
+              <ns:bar>value</ns:bar>
+            </foo>""";
 
         Map<String, Object> config = new HashMap<>();
         config.put("remove_namespaces", true);
@@ -582,11 +556,10 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        assertTrue("Element without namespace should be present", foo.containsKey("bar"));
-        assertThat(foo.get("bar"), equalTo("value"));
+        Map<String, Object> expectedDataWithoutNs = Map.of("foo", Map.of("bar", "value"));
+        assertThat(data, equalTo(expectedDataWithoutNs));
 
         // Now test with removeNamespaces=false
         IngestDocument ingestDocument2 = createTestIngestDocument(xml);
@@ -595,18 +568,16 @@ public class XmlProcessorTests extends ESTestCase {
         XmlProcessor processor2 = createTestProcessor(config);
         processor2.execute(ingestDocument2);
 
-        Map<String, Object> data2 = ingestDocument2.getFieldValue(TARGET_FIELD, Map.class);
-        Map<String, Object> foo2 = (Map<String, Object>) data2.get("foo");
+        Map<?, ?> data2 = ingestDocument2.getFieldValue(TARGET_FIELD, Map.class);
 
-        // With removeNamespaces=false, the "ns:" prefix should be preserved
-        assertTrue("Element should be accessible with namespace prefix", foo2.containsKey("ns:bar"));
-        assertThat(foo2.get("ns:bar"), equalTo("value"));
+        Map<String, Object> expectedDataWithNs = Map.of("foo", Map.of("xmlns:ns", "http://example.org/ns", "ns:bar", "value"));
+        assertThat(data2, equalTo(expectedDataWithNs));
     }
 
     /**
      * Test the force_content option.
      */
-    public void testForceContent() {
+    public void testForceContent() throws Exception {
         String xml = "<foo>simple text</foo>";
 
         Map<String, Object> config = new HashMap<>();
@@ -616,12 +587,10 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
 
-        // With forceContent=true, the text should be in a #text field
-        assertTrue("Text content should be in #text field", foo.containsKey("#text"));
-        assertThat(foo.get("#text"), equalTo("simple text"));
+        Map<String, Object> expectedDataWithForceContent = Map.of("foo", Map.of("#text", "simple text"));
+        assertThat(data, equalTo(expectedDataWithForceContent));
 
         // Now test with forceContent=false
         config.put("force_content", false);
@@ -630,9 +599,9 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor2.execute(ingestDocument2);
 
-        Map<String, Object> data2 = ingestDocument2.getFieldValue(TARGET_FIELD, Map.class);
+        Map<?, ?> data2 = ingestDocument2.getFieldValue(TARGET_FIELD, Map.class);
 
-        // With forceContent=false, the text should be directly assigned to the element
-        assertThat(data2.get("foo"), equalTo("simple text"));
+        Map<String, Object> expectedDataWithoutForceContent = Map.of("foo", "simple text");
+        assertThat(data2, equalTo(expectedDataWithoutForceContent));
     }
 }

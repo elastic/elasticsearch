@@ -357,7 +357,8 @@ public class TransportVersions {
     public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);
     public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_150_0_00);
-    public static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = def(9_151_0_00);
+    public static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = def(9_151_0_00);
+    public static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = def(9_152_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

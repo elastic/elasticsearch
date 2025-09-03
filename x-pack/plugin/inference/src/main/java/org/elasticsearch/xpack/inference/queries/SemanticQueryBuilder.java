@@ -177,6 +177,43 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return PARSER.apply(parser, null);
     }
 
+    public static void registerInferenceAsyncAction(
+        QueryRewriteContext queryRewriteContext,
+        Map<String, InferenceResults> inferenceResultsMap,
+        String fieldName,
+        String query,
+        String inferenceId
+    ) {
+        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+            TaskType.ANY,
+            inferenceId,
+            null,
+            null,
+            null,
+            List.of(query),
+            Map.of(),
+            InputType.INTERNAL_SEARCH,
+            null,
+            false
+        );
+
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferenceAction.INSTANCE,
+                inferenceRequest,
+                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                    inferenceResultsMap.put(
+                        inferenceId,
+                        validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
+                    );
+                    l.onResponse(null);
+                })
+            )
+        );
+    }
+
     /**
      * Build an inference results map to store a single inference result that is not associated with an inference ID.
      *
@@ -278,34 +315,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
         Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
         for (String inferenceId : inferenceIds) {
-            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                TaskType.ANY,
-                inferenceId,
-                null,
-                null,
-                null,
-                List.of(query),
-                Map.of(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                false
-            );
-
-            queryRewriteContext.registerAsyncAction(
-                (client, listener) -> executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    inferenceRequest,
-                    listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                        inferenceResultsMap.put(
-                            inferenceId,
-                            validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
-                        );
-                        l.onResponse(null);
-                    })
-                )
-            );
+            registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, fieldName, query, inferenceId);
         }
 
         return new SemanticQueryBuilder(this, inferenceResultsMap);

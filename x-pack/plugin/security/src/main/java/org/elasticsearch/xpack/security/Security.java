@@ -1081,6 +1081,7 @@ public class Security extends Plugin
         }
 
         final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
+        components.addAll(customAuthenticators);
 
         authcService.set(
             new AuthenticationService(

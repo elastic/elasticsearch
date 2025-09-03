@@ -1381,9 +1381,9 @@ public final class Authentication implements ToXContentObject {
         Authentication.RealmRef realmRef
     ) {
         assert authResult.isAuthenticated() : "cloud access token authn result must be successful";
-        final User apiKeyUser = authResult.getValue();
+        final User user = authResult.getValue();
         return new Authentication(
-            new Subject(apiKeyUser, realmRef, TransportVersion.current(), authResult.getMetadata()),
+            new Subject(user, realmRef, TransportVersion.current(), authResult.getMetadata()),
             AuthenticationType.TOKEN
         );
     }

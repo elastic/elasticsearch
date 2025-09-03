@@ -14,15 +14,14 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 
 import java.util.List;
+import java.util.Objects;
 
 public class PluggableAuthenticatorChain implements Authenticator {
-
-    public static final PluggableAuthenticatorChain EMPTY = new PluggableAuthenticatorChain(List.of());
 
     private final List<CustomAuthenticator> customAuthenticators;
 
     public PluggableAuthenticatorChain(List<CustomAuthenticator> customAuthenticators) {
-        this.customAuthenticators = customAuthenticators;
+        this.customAuthenticators = Objects.requireNonNull(customAuthenticators);
     }
 
     @Override
@@ -56,6 +55,7 @@ public class PluggableAuthenticatorChain implements Authenticator {
         }
         AuthenticationToken token = context.getMostRecentAuthenticationToken();
         if (token != null) {
+            //TODO switch to IteratingActionListener
             for (CustomAuthenticator customAuthenticator : customAuthenticators) {
                 if (customAuthenticator.supports(token)) {
                     customAuthenticator.authenticate(token, ActionListener.wrap(response -> {

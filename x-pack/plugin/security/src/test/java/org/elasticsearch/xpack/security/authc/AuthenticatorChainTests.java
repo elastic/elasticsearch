@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -91,7 +92,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
-        PluggableAuthenticatorChain pluggableAuthenticatorChain = PluggableAuthenticatorChain.EMPTY;
+        PluggableAuthenticatorChain pluggableAuthenticatorChain = new PluggableAuthenticatorChain(Collections.emptyList());
 
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());

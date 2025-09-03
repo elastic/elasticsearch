@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedEx
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.TimeSeriesDimensionsMetadataAccessor;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -483,11 +482,10 @@ public class ResolveIndexTests extends ESTestCase {
             .put("index.mode", mode.toString());
 
         if (mode == IndexMode.TIME_SERIES) {
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dummy");
-            } else {
-                TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(indexBuilder::putCustom, List.of("dummy"));
-            }
+            settingsBuilder.put(
+                randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+                "dummy_value"
+            );
         }
 
         indexBuilder.settings(settingsBuilder)

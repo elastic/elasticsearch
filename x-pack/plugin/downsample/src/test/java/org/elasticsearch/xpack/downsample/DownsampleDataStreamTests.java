@@ -190,7 +190,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
         final TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        boolean manuallyAddedRoutingPathSetting = true;
+        boolean manuallyAddedRoutingPathSetting = randomBoolean();
         if (manuallyAddedRoutingPathSetting) {
             settings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"));
         }

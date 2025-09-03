@@ -726,7 +726,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new HashMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            var shard = initialRouting.indexShard("dummy", routing, null, null, null);
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }
@@ -806,7 +806,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new TreeMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            var shard = initialRouting.indexShard("dummy", routing, null, null, null);
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }
@@ -913,31 +913,26 @@ public class IndexRoutingTests extends ESTestCase {
     private IndexRouting indexRoutingForPath(IndexVersion indexVersion, int shards, String path) {
         // old way of routing paths created during routing
         // current way of routing paths created during routing via tsid
-        return randomBoolean()
-            ? indexRoutingForRoutingPath(indexVersion, shards, path)
-            : indexRoutingForTimeSeriesDimensions(indexVersion, shards, path);
+        String setting = randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey();
+        return getIndexRoutingWithSetting(indexVersion, shards, path, setting);
     }
 
     private IndexRouting indexRoutingForRoutingPath(IndexVersion createdVersion, int shards, String path) {
+        return getIndexRoutingWithSetting(createdVersion, shards, path, IndexMetadata.INDEX_ROUTING_PATH.getKey());
+    }
+
+    private IndexRouting indexRoutingForTimeSeriesDimensions(IndexVersion createdVersion, int shards, String path) {
+        return getIndexRoutingWithSetting(createdVersion, shards, path, IndexMetadata.INDEX_DIMENSIONS.getKey());
+    }
+
+    private static IndexRouting getIndexRoutingWithSetting(IndexVersion indexVersion, int shards, String path, String setting) {
         return IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
-                .settings(
-                    settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                )
+                .settings(settings(indexVersion).put(setting, path).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES))
                 .numberOfShards(shards)
                 .numberOfReplicas(1)
                 .build()
         );
-    }
-
-    private IndexRouting indexRoutingForTimeSeriesDimensions(IndexVersion createdVersion, int shards, String path) {
-        IndexMetadata.Builder builder = IndexMetadata.builder("test")
-            .settings(settings(createdVersion).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES))
-            .numberOfShards(shards)
-            .numberOfReplicas(1);
-        TimeSeriesDimensionsMetadataAccessor.addToCustomMetadata(builder::putCustom, List.of(path));
-        return IndexRouting.fromIndexMetadata(builder.build());
     }
 
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, List<Object> keysAndValues, int shards)

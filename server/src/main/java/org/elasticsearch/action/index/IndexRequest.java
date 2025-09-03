@@ -364,7 +364,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * When {@link IndexMetadata#getTimeSeriesDimensions()} is populated,
+     * When {@link IndexMetadata#INDEX_DIMENSIONS} is populated,
      * the coordinating node will calculate _tsid during routing and set it on the request.
      * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
      * <p>

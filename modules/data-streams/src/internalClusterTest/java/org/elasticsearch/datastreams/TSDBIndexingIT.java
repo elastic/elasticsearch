@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -300,10 +301,10 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     .build()
             );
             var e = expectThrows(
-                IllegalArgumentException.class,
+                InvalidIndexTemplateException.class,
                 () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
             );
-            assertThat(e.getCause().getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+            assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
     }
 

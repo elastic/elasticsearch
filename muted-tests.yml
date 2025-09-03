@@ -532,7 +532,7 @@ tests:
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:inlinestats.MultiIndexInlinestats OfMultiTypedField}
+  method: test {csv-spec:inlinestats.MultiIndexInlinestatsOfMultiTypedField}
   issue: https://github.com/elastic/elasticsearch/issues/133973
 
 # Examples:

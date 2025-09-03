@@ -28,6 +28,7 @@ import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitStateAction;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -73,6 +75,9 @@ import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,6 +93,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -325,6 +331,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchDuringReshard() throws Exception {
+        runSearchTest(false);
+    }
+
+    public void testEsqlSearchDuringReshard() throws Exception {
+        runSearchTest(true);
+    }
+
+    private void runSearchTest(boolean useEsql) throws Exception {
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -338,42 +352,47 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        final int initialIndexedDocuments = randomIntBetween(10, 100);
+        int initialIndexedDocuments = randomIntBetween(10, 100);
         indexDocs(indexName, initialIndexedDocuments);
 
         var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         assertNoFailures(flushResponse);
 
-        int totalNumberOfDocumentsInIndex = initialIndexedDocuments;
+        long totalNumberOfDocumentsInIndex = initialIndexedDocuments;
 
-        // search works before resharding
+        // works before resharding
         refresh(indexName);
 
-        var initialSearch = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
-        assertHitCount(initialSearch, totalNumberOfDocumentsInIndex);
+        long initialSearchExpected = totalNumberOfDocumentsInIndex;
+        var initialSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals(initialSearchExpected, documentCount);
+            }
+
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(1, response.getTotalShards());
+                assertEquals(initialSearchExpected, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, initialSearchAssertion, useEsql);
 
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
         ActionFuture<ReshardIndexResponse> reshardOperation = client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest);
 
-        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + test itself
-        CyclicBarrier resetStateTransitionBlock = new CyclicBarrier(multiple);
+        CyclicBarrier startStateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple);
 
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
-                    // line up all targets and block them from state transition
+                    // Line up all targets here to make sure that we can properly reset `stateTransitionBlock` below.
+                    startStateTransitionBlock.await();
                     stateTransitionBlock.await();
                 }
                 connection.sendRequest(requestId, action, request, options);
-
-                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
-                    // wait and exit only after `targetsAttemptToChangeState` was properly reset
-                    resetStateTransitionBlock.await();
-                }
             } catch (InterruptedException | BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
@@ -381,59 +400,87 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         Index index = resolveIndex(indexName);
 
-        assertBusy(() -> {
-            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
-            if (metadata.getReshardingMetadata() == null) {
-                throw new AssertionError("Waiting for search coordinator to see resharding metadata");
+        awaitClusterState(
+            searchCoordinator,
+            clusterState -> clusterState.getMetadata().indexMetadata(index).getReshardingMetadata() != null
+        );
+
+        // wait for all target shards to arrive at handoff point
+        startStateTransitionBlock.await();
+
+        // All target shards are in CLONE state.
+        // At this point the handoff is in progress, all target shards received handoff requests
+        // but didn't respond to them due to the `stateTransitionBlock`.
+        // Since handoff is in progress, source acquired all primary operation permits
+        // meaning that refresh below will not complete until the handoff completes
+        // (which in this test means never since we blocked handoff).
+        try {
+            client(searchCoordinator).admin().indices().prepareRefresh(indexName).get(TimeValue.timeValueMillis(500));
+            fail("It is possible to perform refresh while handoff is in progress");
+        } catch (Exception e) {
+            assertTrue(e instanceof ElasticsearchTimeoutException);
+        }
+
+        // We can still perform search on the source shard and see all previous writes due to the pre-reshard refresh.
+        long cloneSearchExpected = totalNumberOfDocumentsInIndex;
+        var cloneSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals(cloneSearchExpected, documentCount);
             }
-        });
 
-        // transition to HANDOFF is blocked, all targets are CLONE, search uses source shard only, refresh uses source shard only
-        var cloneRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        assertEquals(1, cloneRefresh.getTotalShards());
-        assertEquals(1, cloneRefresh.getSuccessfulShards());
-
-        var cloneSearch = client(searchCoordinator).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
-        assertHitCount(cloneSearch, totalNumberOfDocumentsInIndex);
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(1, response.getTotalShards());
+                assertEquals(cloneSearchExpected, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, cloneSearchAssertion, useEsql);
 
         // TODO write more data here.
         // Writes to source shard at this point will not be copied to the target
         // because they happen after commit copy logic is already disabled.
-        // Eventually we'll take indexing permits here and forward such writes to the target.
+        // Eventually we'll forward such writes to the target.
         // But for now we can't write here because eventually we remove some documents written here
         // as unowned but they are also not copied to the target.
         // That of course leads to incorrect search results.
 
         // unblock HANDOFF transition
         stateTransitionBlock.await();
-        stateTransitionBlock.reset();
-        resetStateTransitionBlock.await();
 
-        assertBusy(() -> {
-            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
-            if (metadata.getReshardingMetadata()
+        awaitClusterState(
+            searchCoordinator,
+            clusterState -> clusterState.getMetadata()
+                .indexMetadata(index)
+                .getReshardingMetadata()
                 .getSplit()
                 .targetStates()
-                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
-                throw new AssertionError("Waiting for search coordinator to see target shards transition to HANDOFF");
-            }
-        });
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
 
-        // transition to SPLIT is blocked, all targets are HANDOFF, search uses source shard, refresh uses target shards
+        stateTransitionBlock.reset();
+        startStateTransitionBlock.await();
+
+        // Transition of target shards to SPLIT state is blocked, all targets are in HANDOFF state.
+        // Refresh includes target shards, search only uses the source shard.
         var handoffRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
         assertEquals(multiple, handoffRefresh.getTotalShards());
         assertEquals(multiple, handoffRefresh.getSuccessfulShards());
 
-        var handoffSearch = client(searchCoordinator).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
-        assertHitCount(handoffSearch, totalNumberOfDocumentsInIndex);
+        long handoffSearchExpected = totalNumberOfDocumentsInIndex;
+        var handoffSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals(handoffSearchExpected, documentCount);
+            }
+
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(1, response.getTotalShards());
+                assertEquals(handoffSearchExpected, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, handoffSearchAssertion, useEsql);
 
         // indexing new data and searching for it works
         final int handoffIndexedDocuments = randomIntBetween(10, 20);
@@ -441,82 +488,105 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         totalNumberOfDocumentsInIndex += handoffIndexedDocuments;
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        var handoffNewDocsSearch = client(searchCoordinator).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
 
-        // TODO this is a gap - we can write to target shards and refresh them but we won't see our writes.
-        // Refresh block will solve this.
-        int handoffNewDocsSearchExpected = totalNumberOfDocumentsInIndex - handoffIndexedDocuments;
-        assertResponse(handoffNewDocsSearch, r -> {
-            assertEquals(1, r.getTotalShards());
-            assertTrue("Lost documents during reshard", r.getHits().getTotalHits().value() >= handoffNewDocsSearchExpected);
-        });
+        // TODO this is a gap - we can write to target shards and refresh them but we won't see our writes
+        // because only the source shard is used for search.
+        // Refresh block on target shard will solve this.
+        long handoffNewDocsTotalDocuments = totalNumberOfDocumentsInIndex;
+        var handoffNewDocsSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertTrue(
+                    "Lost documents during reshard",
+                    documentCount >= handoffNewDocsTotalDocuments - handoffIndexedDocuments && documentCount <= handoffNewDocsTotalDocuments
+                );
+            }
+
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(1, response.getTotalShards());
+                assertTrue(
+                    "Lost documents during reshard",
+                    response.getHits().getTotalHits().value() >= handoffNewDocsTotalDocuments - handoffIndexedDocuments
+                        && response.getHits().getTotalHits().value() <= handoffNewDocsTotalDocuments
+                );
+            }
+        };
+        assertSearch(searchCoordinator, indexName, handoffNewDocsSearchAssertion, useEsql);
 
         // unblock SPLIT transition
         stateTransitionBlock.await();
-        stateTransitionBlock.reset();
-        resetStateTransitionBlock.await();
 
-        assertBusy(() -> {
-            var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
-            if (metadata.getReshardingMetadata()
+        awaitClusterState(
+            searchCoordinator,
+            clusterState -> clusterState.getMetadata()
+                .indexMetadata(index)
+                .getReshardingMetadata()
                 .getSplit()
                 .targetStates()
-                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT) == false) {
-                throw new AssertionError("Waiting for search coordinator to see target shards transition to SPLIT");
-            }
-        });
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
+        );
 
-        // transition to DONE is blocked, all targets are SPLIT, search uses target shards, refresh uses target shards
+        stateTransitionBlock.reset();
+        startStateTransitionBlock.await();
+
+        // Transition of target shards to DONE state is blocked, all targets are in SPLIT state.
+        // Refresh includes target shards, search includes target shards.
         var splitRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
 
-        var splitSearch = client(searchCoordinator).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
+        // TODO this is a gap - search filters do not exist yet
+        // and we'll see previously indexed documents that are moved to the target shard twice.
+        long splitTotalDocuments = totalNumberOfDocumentsInIndex;
 
-        // TODO this is a gap - search filters do not exist yet and we'll see documents from the source shard twice.
-        int splitSearchExpected = totalNumberOfDocumentsInIndex;
-        assertResponse(splitSearch, r -> {
-            assertEquals(multiple, r.getTotalShards());
-            assertTrue("Lost documents during reshard", r.getHits().getTotalHits().value() >= splitSearchExpected);
-        });
+        var splitActualCount = new AtomicLong();
+        var splitSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                splitActualCount.set(documentCount);
+                assertTrue("Lost documents during reshard", splitActualCount.get() >= splitTotalDocuments);
+            }
 
-        // indexing new data and searching for it works
+            @Override
+            public void assertSearch(SearchResponse response) {
+                splitActualCount.set(response.getHits().getTotalHits().value());
+                assertEquals(multiple, response.getTotalShards());
+                assertTrue("Lost documents during reshard", splitActualCount.get() >= splitTotalDocuments);
+            }
+        };
+        assertSearch(searchCoordinator, indexName, splitSearchAssertion, useEsql);
+
         final int splitIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, splitIndexedDocuments);
         totalNumberOfDocumentsInIndex += splitIndexedDocuments;
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        var splitNewDocsSearch = client(searchCoordinator).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
+        // We still see old documents belonging to the target shard twice.
+        // But newly indexed documents are indexed correctly and returned in search results only once.
+        long splitNewDocsTotalDocuments = splitActualCount.get() + splitIndexedDocuments;
+        var splitNewDocsSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals(splitNewDocsTotalDocuments, documentCount);
+            }
 
-        // TODO this is a gap - search filters do not exist yet and we'll see documents from the source shard twice.
-        int splitNewDocsSearchExpected = totalNumberOfDocumentsInIndex;
-        assertResponse(splitNewDocsSearch, r -> {
-            assertEquals(multiple, r.getTotalShards());
-            assertTrue("Lost documents during reshard", r.getHits().getTotalHits().value() >= splitNewDocsSearchExpected);
-        });
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(multiple, response.getTotalShards());
+                assertEquals(splitNewDocsTotalDocuments, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, splitNewDocsSearchAssertion, useEsql);
 
         // unblock DONE transition
         stateTransitionBlock.await();
-        stateTransitionBlock.reset();
-        resetStateTransitionBlock.await();
 
-        assertBusy(() -> {
+        awaitClusterState(searchCoordinator, clusterState -> {
             var metadata = internalCluster().clusterService(searchCoordinator).state().getMetadata().indexMetadata(index);
             if (metadata.getReshardingMetadata() == null) {
                 // all shards are DONE so resharding metadata is removed by master
-                return;
+                return true;
             }
 
             boolean targetsDone = metadata.getReshardingMetadata()
@@ -527,28 +597,29 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 .getSplit()
                 .sourceStates()
                 .allMatch(s -> s == IndexReshardingState.Split.SourceShardState.DONE);
-            if (targetsDone == false || sourceDone == false) {
-                throw new AssertionError("Waiting for search coordinator to see all shards transition to DONE");
-            }
+            return targetsDone && sourceDone;
         });
 
-        // all target shards and source shards are DONE
+        // All target shards and the source shard are DONE.
         var doneRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
         assertEquals(multiple, doneRefresh.getTotalShards());
         assertEquals(multiple, doneRefresh.getSuccessfulShards());
 
-        var doneSearch = client(searchCoordinator).prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
-            .setTrackTotalHits(true)
-            .setAllowPartialSearchResults(false);
-
         // all unowned documents should be deleted now so we should get the exact count
-        int doneSearchExpected = totalNumberOfDocumentsInIndex;
-        assertResponse(doneSearch, r -> {
-            assertEquals(multiple, r.getTotalShards());
-            assertEquals(doneSearchExpected, r.getHits().getTotalHits().value());
-        });
+        long doneExpected = totalNumberOfDocumentsInIndex;
+        var doneSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals(doneExpected, documentCount);
+            }
+
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(multiple, response.getTotalShards());
+                assertEquals(doneExpected, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, doneSearchAssertion, useEsql);
 
         // indexing new data and searching for it works
         final int doneIndexedDocuments = randomIntBetween(10, 20);
@@ -556,19 +627,52 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         totalNumberOfDocumentsInIndex += doneIndexedDocuments;
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        var doneNewDocsSearch = client(searchCoordinator).prepareSearch(indexName)
+
+        long doneNewDocsExpected = totalNumberOfDocumentsInIndex;
+        var doneNewDocsSearchAssertion = new SearchAssertion() {
+            @Override
+            public void assertEsql(long documentCount) {
+                assertEquals(doneNewDocsExpected, documentCount);
+            }
+
+            @Override
+            public void assertSearch(SearchResponse response) {
+                assertEquals(multiple, response.getTotalShards());
+                assertEquals(doneNewDocsExpected, response.getHits().getTotalHits().value());
+            }
+        };
+        assertSearch(searchCoordinator, indexName, doneNewDocsSearchAssertion, useEsql);
+
+        reshardOperation.actionGet(SAFE_AWAIT_TIMEOUT);
+    }
+
+    private interface SearchAssertion {
+        void assertEsql(long documentCount);
+
+        void assertSearch(SearchResponse response);
+    }
+
+    private void assertSearch(String searchNode, String indexName, SearchAssertion assertion, boolean useEsql) {
+        if (useEsql) {
+            assertion.assertEsql(countDocsWithEsql(searchNode, indexName));
+        }
+
+        var search = client(searchNode).prepareSearch(indexName)
             .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(totalNumberOfDocumentsInIndex)
+            .setSize(10000)
             .setTrackTotalHits(true)
             .setAllowPartialSearchResults(false);
 
-        int doneNewDocsSearchExpected = totalNumberOfDocumentsInIndex;
-        assertResponse(doneNewDocsSearch, r -> {
-            assertEquals(multiple, r.getTotalShards());
-            assertEquals(doneNewDocsSearchExpected, r.getHits().getTotalHits().value());
-        });
+        assertResponse(search, assertion::assertSearch);
+    }
 
-        reshardOperation.actionGet(SAFE_AWAIT_TIMEOUT);
+    private long countDocsWithEsql(String searchNode, String indexName) {
+        var query = "FROM $index | STATS COUNT(*)".replace("$index", indexName);
+        var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
+
+        try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
+            return (long) response.column(0).next();
+        }
     }
 
     public void testSearchWithCustomRoutingDuringReshard() throws Exception {
@@ -1842,6 +1946,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
+        plugins.add(EsqlPlugin.class);
         return plugins;
     }
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.googlevertexai.request;
+package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;

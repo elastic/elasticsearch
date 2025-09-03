@@ -106,7 +106,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             "google-vertex-ai-chat-test-id",
             TaskType.CHAT_COMPLETION,
             "google_vertex_ai",
-            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, rateLimitSettings),
+            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, null, null, null, rateLimitSettings),
             new EmptyTaskSettings(),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
         );

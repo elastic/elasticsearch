@@ -5,17 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.googlevertexai.request;
+package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -36,8 +38,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     @Override
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(uri);
-
-        var requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        ToXContentObject requestEntity;
+        switch (model.getServiceSettings().provider()) {
+            case ANTHROPIC -> requestEntity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
+            default -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        }
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);

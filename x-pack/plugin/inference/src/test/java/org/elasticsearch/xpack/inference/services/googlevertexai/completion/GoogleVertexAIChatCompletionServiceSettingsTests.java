@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
@@ -29,11 +32,18 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
 
     @Override
     protected GoogleVertexAiChatCompletionServiceSettings createTestInstance() {
-        return new GoogleVertexAiChatCompletionServiceSettings(
-            randomString(),
-            randomString(),
-            randomString(),
-            new RateLimitSettings(randomIntBetween(1, 1000))
-        );
+        try {
+            return new GoogleVertexAiChatCompletionServiceSettings(
+                randomString(),
+                randomString(),
+                randomString(),
+                new URI(randomString()),
+                new URI(randomString()),
+                GoogleModelGardenProvider.ANTHROPIC,
+                new RateLimitSettings(randomIntBetween(1, 1000))
+            );
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

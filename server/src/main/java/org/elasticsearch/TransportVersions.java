@@ -215,6 +215,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_3 = def(8_841_0_67);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19 = def(8_841_0_69);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -357,6 +358,7 @@ public class TransportVersions {
     public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);
     public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_150_0_00);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED = def(9_151_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

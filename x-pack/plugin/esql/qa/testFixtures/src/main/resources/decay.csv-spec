@@ -91,16 +91,17 @@ decay_result:double
 ;
 
 intMultipleRows
-FROM integers
-| EVAL decay_result = decay(value, 0, 10, {"offset": 5, "decay": 0.5, "type": "linear"})
-| KEEP decay_result;
+FROM employees
+| EVAL decay_result = decay(salary, 0, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
+| KEEP decay_result
+| LIMIT 5;
 
 decay_result:double
-1.0
-0.75
-0.0
-0.0
-0.0
+0.7135
+0.71817
+0.691
+0.819155
+0.682385
 ;
 
 doubleLinear

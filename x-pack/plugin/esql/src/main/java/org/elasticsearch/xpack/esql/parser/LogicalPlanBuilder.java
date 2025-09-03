@@ -722,7 +722,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };

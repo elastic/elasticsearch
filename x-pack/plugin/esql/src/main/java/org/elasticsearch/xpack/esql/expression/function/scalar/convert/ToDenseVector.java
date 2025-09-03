@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,9 +26,10 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
-public class ToDenseVector extends AbstractConvertFunction {
+public class ToDenseVector extends AbstractConvertFunction implements PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToDenseVector",
@@ -38,20 +40,21 @@ public class ToDenseVector extends AbstractConvertFunction {
         Map.entry(DENSE_VECTOR, (source, fieldEval) -> fieldEval),
         Map.entry(LONG, ToDenseVectorFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToDenseVectorFromIntEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToDenseVectorFromDoubleEvaluator.Factory::new)
+        Map.entry(DOUBLE, ToDenseVectorFromDoubleEvaluator.Factory::new),
+        Map.entry(KEYWORD, ToDenseVectorFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Converts a multi-valued input of numbers to a dense_vector.",
+        description = "Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.",
         examples = @Example(file = "dense_vector", tag = "to_dense_vector-ints")
     )
     public ToDenseVector(
         Source source,
         @Param(
             name = "field",
-            type = {"double", "long", "integer"},
-            description = "multi-valued input of numbers to convert."
+            type = {"double", "long", "integer", "keyword"},
+            description = "multi-valued input of numbers or hexadecimal string to convert."
         ) Expression field
     ) {
         super(source, field);

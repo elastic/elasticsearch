@@ -111,7 +111,6 @@ setup:
   - match: {esql.features.change_point: $change_point_counter}
   - match: {esql.features.inlinestats: $inlinestats_counter}
   - match: {esql.features.rerank: $rerank_counter}
-  - match: {esql.features.dedup: $dedup_counter}
   - match: {esql.features.insist: $insist_counter}
   - match: {esql.features.fork: $fork_counter}
   - match: {esql.features.fuse: $fuse_counter}

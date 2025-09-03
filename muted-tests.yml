@@ -495,24 +495,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testIntBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133596
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testDoubleBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133606
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testBooleanBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133608
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testLongBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133618
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testFloatBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133621
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077

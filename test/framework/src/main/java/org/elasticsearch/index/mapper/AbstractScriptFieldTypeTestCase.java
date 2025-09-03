@@ -443,6 +443,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext c = createSearchExecutionContext(mapperService);
         {
+            // The field_source uses parseFromSource(...) in compileScript(...) method in this class.
+            // This triggers calling SearchLookup#optimizedSourceProvider(...) which should return more optimized source.
             var fieldType = (AbstractScriptFieldType) c.getFieldType("field_source");
             SearchLookup searchLookup = mock(SearchLookup.class);
             when(searchLookup.optimizedSourceProvider(any())).thenReturn(searchLookup);
@@ -451,6 +453,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             verify(searchLookup, times(1)).optimizedSourceProvider(any());
         }
         {
+            // The field uses normal scripts and that should never cause SearchLookup#optimizedSourceProvider(...) to be invoked:
             var fieldType = (AbstractScriptFieldType) c.getFieldType("field");
             SearchLookup searchLookup = mock(SearchLookup.class);
             when(searchLookup.optimizedSourceProvider(any())).thenReturn(searchLookup);

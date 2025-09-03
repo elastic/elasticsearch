@@ -33,6 +33,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -585,6 +586,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Datenanos random
+        testCaseSuppliers.addAll(dateNanosRandomTestCases());
+
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
 
@@ -1120,6 +1124,69 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ).withoutEvaluator()
             )
         );
+    }
+
+    private static List<TestCaseSupplier> dateNanosRandomTestCases() {
+        return List.of(
+            new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS, DataType.TIME_DURATION, DataType.SOURCE), () -> {
+                // 1970-01-01 in nanos
+                long minEpochNanos = 0L;
+                // 2070-01-01 in nanos
+                long maxEpochNanos = 3155673600000L * 1_000_000L;
+                long randomValue = randomLongBetween(minEpochNanos, maxEpochNanos);
+                long randomOrigin = randomLongBetween(minEpochNanos, maxEpochNanos);
+
+                // Max 1 year in milliseconds
+                long randomScaleMillis = randomNonNegativeLong() % (365L * 24 * 60 * 60 * 1000);
+                // Max 30 days in milliseconds
+                long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
+                Duration randomScale = Duration.ofMillis(randomScaleMillis);
+                Duration randomOffset = Duration.ofMillis(randomOffsetMillis);
+
+                double randomDecay = randomDouble();
+                String randomType = randomFrom("linear", "gauss", "exp");
+
+                double scoreScriptNumericResult = dateNanosDecayWithScoreScript(
+                    randomValue,
+                    randomOrigin,
+                    randomScale.toMillis(),
+                    randomOffset.toMillis(),
+                    randomDecay,
+                    randomType
+                );
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomValue, DataType.DATE_NANOS, "value"),
+                        new TestCaseSupplier.TypedData(randomOrigin, DataType.DATE_NANOS, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(randomScale, DataType.TIME_DURATION, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                            .forceLiteral()
+                    ),
+                    startsWith("DecayDateNanosEvaluator["),
+                    DataType.DOUBLE,
+                    closeTo(scoreScriptNumericResult, 1e-10)
+                );
+            })
+        );
+    }
+
+    private static double dateNanosDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        long valueMillis = value / 1_000_000L;
+        long originMillis = origin / 1_000_000L;
+
+        String originStr = String.valueOf(originMillis);
+        String scaleStr = scale + "ms";
+        String offsetStr = offset + "ms";
+
+        ZonedDateTime valueDateTime = Instant.ofEpochMilli(valueMillis).atZone(ZoneId.of("UTC"));
+
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayDateLinear(originStr, scaleStr, offsetStr, decay).decayDateLinear(valueDateTime);
+            case "gauss" -> new ScoreScriptUtils.DecayDateGauss(originStr, scaleStr, offsetStr, decay).decayDateGauss(valueDateTime);
+            case "exp" -> new ScoreScriptUtils.DecayDateExp(originStr, scaleStr, offsetStr, decay).decayDateExp(valueDateTime);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
     }
 
     private static MapExpression createOptionsMap(Object offset, Double decay, String functionType) {

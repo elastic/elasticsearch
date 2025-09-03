@@ -202,7 +202,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -1083,9 +1083,8 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
-
-        components.add(customApiKeyAuthenticator);
+        final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
+        components.addAll(customAuthenticators);
 
         authcService.set(
             new AuthenticationService(
@@ -1099,7 +1098,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customApiKeyAuthenticator,
+                customAuthenticators,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1236,45 +1235,48 @@ public class Security extends Plugin
         return components;
     }
 
-    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
-        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
-        for (final SecurityExtension extension : securityExtensions) {
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
-            if (customApiKeyAuthenticator != null) {
-                if (false == isInternalExtension(extension)) {
+    private List<CustomAuthenticator> getCustomAuthenticatorFromExtensions(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, List<CustomAuthenticator>> customAuthenticatorsByExtension = new HashMap<>();
+        for (final SecurityExtension securityExtension : securityExtensions) {
+            final List<CustomAuthenticator> customAuthenticators = securityExtension.getCustomAuthenticators(extensionComponents);
+            if (customAuthenticators != null) {
+                if (false == isInternalExtension(securityExtension)) {
                     throw new IllegalStateException(
                         "The ["
-                            + extension.extensionName()
-                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
+                            + securityExtension.extensionName()
+                            + "] extension tried to install a  "
+                            + CustomAuthenticator.class.getSimpleName()
+                            + ". "
                             + "This functionality is not available to external extensions."
                     );
                 }
-                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
+                customAuthenticatorsByExtension.put(securityExtension.extensionName(), customAuthenticators);
             }
         }
 
-        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
+        if (customAuthenticatorsByExtension.isEmpty()) {
             logger.debug(
-                "No custom implementation for [{}]. Falling-back to noop implementation.",
-                CustomApiKeyAuthenticator.class.getCanonicalName()
+                "No custom implementations for [{}] provided by security extensions.",
+                CustomAuthenticator.class.getCanonicalName()
             );
-            return new CustomApiKeyAuthenticator.Noop();
-
-        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
+            return List.of();
+        } else if (customAuthenticatorsByExtension.size() > 1) {
             throw new IllegalStateException(
-                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
+                "Multiple extensions tried to install custom authenticators: " + customAuthenticatorsByExtension.keySet()
             );
-
         } else {
-            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final var authenticatorByExtensionEntry = customAuthenticatorsByExtension.entrySet().iterator().next();
+            final List<CustomAuthenticator> customAuthenticators = authenticatorByExtensionEntry.getValue();
             final String extensionName = authenticatorByExtensionEntry.getKey();
-            logger.debug(
-                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
-                customApiKeyAuthenticator.getClass().getCanonicalName(),
-                extensionName
-            );
-            return customApiKeyAuthenticator;
+            for (CustomAuthenticator authenticator : customAuthenticators) {
+                logger.debug(
+                    "{} implementation [{}] provided by extension [{}]",
+                    CustomAuthenticator.class.getSimpleName(),
+                    authenticator.getClass().getCanonicalName(),
+                    extensionName
+                );
+            }
+            return customAuthenticators;
         }
     }
 

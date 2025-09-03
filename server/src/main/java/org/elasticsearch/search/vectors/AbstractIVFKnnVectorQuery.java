@@ -11,15 +11,18 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.HitQueue;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -27,9 +30,12 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -192,7 +198,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         }
 
-        Scorer scorer = filterWeight.scorer(ctx);
+        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+        if (supplier == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        int filterCost = (int) supplier.cost();
+        FloatVectorValues fvv = reader.getFloatVectorValues(field);
+        if (fvv == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        // we have filtered so much that it's not worth doing an approximate search
+        if (filterCost <= fvv.size() || filterCost < k) {
+            return exactSearch(ctx, liveDocs, supplier);
+        }
+
+        Scorer scorer = supplier.get(Long.MAX_VALUE);
         if (scorer == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
@@ -209,6 +229,56 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IVFCollectorManager knnCollectorManager,
         float visitRatio
     ) throws IOException;
+
+    abstract VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException;
+
+    TopDocs exactSearch(LeafReaderContext ctx, Bits liveDocs, ScorerSupplier supplier) throws IOException {
+        Scorer filterScorer = supplier.get(Long.MAX_VALUE);
+        assert filterScorer != null;
+        if (filterScorer == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        VectorScorer vectorScorer = createVectorScorer(ctx, ctx.reader().getFieldInfos().fieldInfo(field));
+        if (vectorScorer == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        DocIdSetIterator filterIterator = liveDocs == null
+            ? filterScorer.iterator()
+            : new FilteredDocIdSetIterator(filterScorer.iterator()) {
+                @Override
+                protected boolean match(int doc) throws IOException {
+                    return liveDocs.get(doc);
+                }
+            };
+        DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(filterIterator, vectorScorer.iterator()));
+        // iterate through the conjunction to produce top k results, calling vectorScorer.score() for each match
+        final int queueSize = Math.min(k, Math.toIntExact(filterIterator.cost()));
+        HitQueue queue = new HitQueue(queueSize, true);
+        TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
+        ScoreDoc topDoc = queue.top();
+        int doc;
+        int scored = 0;
+        while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            scored++;
+            float score = vectorScorer.score();
+            if (score > topDoc.score) {
+                topDoc.score = score;
+                topDoc.doc = doc;
+                topDoc = queue.updateTop();
+            }
+        }
+        // Remove any remaining sentinel values
+        while (queue.size() > 0 && queue.top().score < 0) {
+            queue.pop();
+        }
+        ScoreDoc[] topScoreDocs = new ScoreDoc[queue.size()];
+        for (int i = topScoreDocs.length - 1; i >= 0; i--) {
+            topScoreDocs[i] = queue.pop();
+        }
+
+        TotalHits totalHits = new TotalHits(scored, relation);
+        return new TopDocs(totalHits, topScoreDocs);
+    }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);

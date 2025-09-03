@@ -39,15 +39,14 @@ public class VectorsFormatReflectionUtils {
 
         } catch (IllegalAccessException e) {
             throw new AssertionError("should not happen, check opens", e);
-        }
-        catch (ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
     }
 
     public static IndexOutput getVectorDataIndexOutput(FlatVectorsWriter flatVectorWriter) {
         assert flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter;
-        var delegate = (Lucene99ScalarQuantizedVectorsWriter)DELEGATE_WRITER_HANDLE.get(flatVectorWriter);
+        var delegate = (Lucene99ScalarQuantizedVectorsWriter) DELEGATE_WRITER_HANDLE.get(flatVectorWriter);
         return (IndexOutput) QUANTIZED_VECTOR_DATA_HANDLE.get(delegate);
     }
 

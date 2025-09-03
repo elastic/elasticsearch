@@ -14,7 +14,6 @@ import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
@@ -108,7 +107,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
@@ -127,6 +125,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(versionProperties.get("minimumCompilerJava"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(versionProperties.get("minimumRuntimeJava"));
+
+        Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
         RuntimeJava runtimeJavaHome = findRuntimeJavaHome();
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
@@ -356,59 +356,65 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private RuntimeJava findRuntimeJavaHome() {
+        Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
+        String bundledJdkVersion = versionProperties.getProperty("bundled_jdk");
+        String bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
+
         String runtimeJavaProperty = System.getProperty("runtime.java");
         if (runtimeJavaProperty != null) {
             if (runtimeJavaProperty.toLowerCase().endsWith("-pre")) {
                 // handle pre-release builds differently due to lack of support in Gradle toolchain service
                 // we resolve them using JdkDownloadPlugin for now.
-                return resolvePreReleaseRuntimeJavaHome(runtimeJavaProperty);
+                return resolvePreReleaseRuntimeJavaHome(runtimeJavaProperty, bundledJdkMajorVersion);
             } else {
-                return runtimeJavaHome(resolveJavaHomeFromToolChainService(runtimeJavaProperty), true);
+                return runtimeJavaHome(resolveJavaHomeFromToolChainService(runtimeJavaProperty), true, bundledJdkMajorVersion);
             }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
-            return runtimeJavaHome(providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME"))), true);
+            return runtimeJavaHome(providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME"))), true, bundledJdkVersion);
         }
         // fall back to tool chain if set.
         String env = System.getenv("JAVA_TOOLCHAIN_HOME");
         boolean explicitlySet = env != null;
         Provider<File> javaHome = explicitlySet
             ? providers.provider(() -> new File(env))
-            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
-        return runtimeJavaHome(javaHome, explicitlySet);
+            : resolveJavaHomeFromToolChainService(bundledJdkMajorVersion);
+        return runtimeJavaHome(javaHome, explicitlySet, bundledJdkMajorVersion);
     }
 
-    private RuntimeJava runtimeJavaHome(Provider<File> fileProvider, boolean explicitlySet) {
-        return runtimeJavaHome(fileProvider, explicitlySet, null);
+    private RuntimeJava runtimeJavaHome(Provider<File> fileProvider, boolean explicitlySet, String bundledJdkMajorVersion) {
+        return runtimeJavaHome(fileProvider, explicitlySet, null, null, bundledJdkMajorVersion);
     }
 
-    private RuntimeJava runtimeJavaHome(Provider<File> fileProvider, boolean explicitlySet, String preReleasePostfix) {
+    private RuntimeJava runtimeJavaHome(
+        Provider<File> fileProvider,
+        boolean explicitlySet,
+        String preReleasePostfix,
+        Integer buildNumber,
+        String bundledJdkMajorVersion
+    ) {
         Provider<JavaVersion> javaVersion = fileProvider.map(
             javaHome -> determineJavaVersion(
                 "runtime java.home",
                 javaHome,
                 fileProvider.isPresent()
                     ? JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"))
-                    : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
+                    : JavaVersion.toVersion(bundledJdkMajorVersion)
             )
         );
 
         Provider<String> vendorDetails = fileProvider.map(j -> metadataDetector.getMetadata(getJavaInstallation(j)))
             .map(m -> formatJavaVendorDetails(m));
 
-        return new RuntimeJava(fileProvider, javaVersion, vendorDetails, explicitlySet, preReleasePostfix);
+        return new RuntimeJava(fileProvider, javaVersion, vendorDetails, explicitlySet, preReleasePostfix, buildNumber);
     }
 
-    private RuntimeJava resolvePreReleaseRuntimeJavaHome(String runtimeJavaProperty) {
+    private RuntimeJava resolvePreReleaseRuntimeJavaHome(String runtimeJavaProperty, String bundledJdkMajorVersion) {
         var major = JavaLanguageVersion.of(Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 4)));
         Integer buildNumber = Integer.getInteger("runtime.java.build");
         var jdkbuild = buildNumber == null ? findLatestPreReleaseBuild(major) : findPreReleaseBuild(major, buildNumber);
-        String prVersionString = String.format("%d-%s+%d", major.asInt(), jdkbuild.type(), jdkbuild.buildNumber());
-        return resolveJavaHomeFromJdkDownloadPlugin(jdkbuild.type(), major, prVersionString);
-
-    }
-
-    private RuntimeJava resolveJavaHomeFromJdkDownloadPlugin(String preReleaseType, JavaLanguageVersion major, String prVersionString) {
+        String preReleaseType = jdkbuild.type();
+        String prVersionString = String.format("%d-%s+%d", major.asInt(), preReleaseType, jdkbuild.buildNumber());
         NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
         Jdk jdk = container.create(preReleaseType + "_" + major.asInt(), j -> {
             j.setVersion(prVersionString);
@@ -420,7 +426,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // We on purpose resolve this here eagerly to ensure we resolve the jdk configuration in the context of the root project.
         // If we keep this lazy we can not guarantee in which project context this is resolved which will fail the build.
         File file = new File(jdk.getJavaHomePath().toString());
-        return runtimeJavaHome(providers.provider(() -> file), true, preReleaseType);
+        return runtimeJavaHome(providers.provider(() -> file), true, preReleaseType, jdkbuild.buildNumber(), bundledJdkMajorVersion);
     }
 
     private Provider<File> resolveJavaHomeFromToolChainService(String version) {

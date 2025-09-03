@@ -543,12 +543,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/134019
-- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
-  method: testDesiredNodesAreTakenIntoAccountInAutoExpandReplicas
-  issue: https://github.com/elastic/elasticsearch/issues/134049
-- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
-  method: testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState
-  issue: https://github.com/elastic/elasticsearch/issues/134050
 
 # Examples:
 #

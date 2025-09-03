@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -41,13 +43,26 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument {
     private final Expression str;
     private final Expression substr;
 
-    @FunctionInfo(returnType = "boolean", description = """
-        Returns true if a keyword substring is within another string.
-        Returns false if the substring cannot be found.""", examples = @Example(file = "string", tag = "contains"))
+    @FunctionInfo(
+        returnType = "boolean",
+        description = """
+            Returns a boolean that indicates whether a keyword substring is within another string.
+            Returns `null` if either parameter is null.""",
+        examples = @Example(file = "string", tag = "contains"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
+    )
     public Contains(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
-        @Param(name = "substring", type = { "keyword", "text" }, description = "A substring to find in the input string") Expression substr
+        @Param(
+            name = "string",
+            type = { "keyword", "text" },
+            description = "String expression: input string to check against. If `null`, the function returns `null`."
+        ) Expression str,
+        @Param(
+            name = "substring",
+            type = { "keyword", "text" },
+            description = "String expression: A substring to find in the input string. If `null`, the function returns `null`."
+        ) Expression substr
     ) {
         super(source, Arrays.asList(str, substr));
         this.str = str;

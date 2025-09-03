@@ -497,7 +497,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             var compression = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return new RemoteClusterStats(
                 remoteConnectionInfo.getModeInfo().modeName(),
-                remoteConnection.isSkipUnavailable(),
+                remoteClusterService.isSkipUnavailable(clusterAlias),
                 compression.toString()
             );
         }

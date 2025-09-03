@@ -66,7 +66,6 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -758,13 +757,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (Map.Entry<List<DocsV3Support.Param>, DataType> entry : signatures(testClass).entrySet()) {
-            List<DocsV3Support.Param> types = entry.getKey();
+        for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
+            List<DocsV3Support.Param> types = entry.argTypes();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).dataType().esNameIfPossible());
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.getValue()) == false) {
-                returnFromSignature.add(entry.getValue().esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.returnType()) == false) {
+                returnFromSignature.add(entry.returnType().esNameIfPossible());
             }
         }
 
@@ -838,8 +837,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         TestCheckLicense checkLicense = new TestCheckLicense();
 
         // Go through all signatures and assert that the license is as expected
-        signatures(testClass).forEach((signature, returnType) -> {
+        signatures(testClass).forEach((signatureItem) -> {
             try {
+                List<DocsV3Support.Param> signature = signatureItem.argTypes();
                 License.OperationMode license = licenseChecker.invoke(signature.stream().map(DocsV3Support.Param::dataType).toList());
                 assertNotNull("License should not be null", license);
 
@@ -933,14 +933,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Unique signatures in this test’s parameters.
      */
-    private static Map<List<DocsV3Support.Param>, DataType> signatures;
+    private static Set<DocsV3Support.TypeSignature> signatures;
 
-    public static Map<List<DocsV3Support.Param>, DataType> signatures(Class<?> testClass) {
+    public static Set<DocsV3Support.TypeSignature> signatures(Class<?> testClass) {
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }
         classGeneratingSignatures = testClass;
-        signatures = new HashMap<>();
+        signatures = new HashSet<>();
         Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
         assertThat(paramsFactories, hasSize(1));
         Method paramsFactory = paramsFactories.iterator().next();
@@ -960,7 +960,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue;
             }
             List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
-            signatures.putIfAbsent(signatureTypes(testClass, sig), tc.expectedType());
+            signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
         }
         return signatures;
     }

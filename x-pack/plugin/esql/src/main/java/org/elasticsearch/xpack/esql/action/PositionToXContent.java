@@ -29,6 +29,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
@@ -134,6 +135,14 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(spatialToString(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
+                }
+            };
+            case GEOHASH, GEOTILE, GEOHEX -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    long longVal = ((LongBlock) block).getLong(valueIndex);
+                    return builder.value(geoGridToString(longVal, columnInfo.type()));
                 }
             };
             case BOOLEAN -> new PositionToXContent(block) {

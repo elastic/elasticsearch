@@ -90,7 +90,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int numCentroids,
         IndexInput centroids,
         float[] target,
-        IndexInput postingListSlice
+        IndexInput postingListSlice,
+        float visitRatio
     ) throws IOException;
 
     private static IndexInput openDataInput(
@@ -252,7 +253,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             entry.numCentroids,
             entry.centroidSlice(ivfCentroids),
             target,
-            postListSlice
+            postListSlice,
+            visitRatio
         );
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
         long expectedDocs = 0;
@@ -269,6 +271,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // is enough?
             expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
             actualDocs += scorer.visit(knnCollector);
+            if (knnCollector.getSearchStrategy() != null) {
+                knnCollector.getSearchStrategy().nextVectorsBlock();
+            }
         }
         if (acceptDocs != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
@@ -278,6 +283,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
                 scorer.resetPostingsScorer(offsetAndLength.offset());
                 actualDocs += scorer.visit(knnCollector);
+                if (knnCollector.getSearchStrategy() != null) {
+                    knnCollector.getSearchStrategy().nextVectorsBlock();
+                }
             }
         }
     }

@@ -22,6 +22,8 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.VerificationTask;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +40,7 @@ import java.util.regex.Pattern;
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionResourcesTask extends DefaultTask {
+public abstract class ValidateTransportVersionResourcesTask extends DefaultTask implements VerificationTask {
 
     @InputDirectory
     @Optional
@@ -62,17 +64,17 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     public void validateTransportVersions() throws IOException {
         TransportVersionResourcesService resources = getResources().get();
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
-        Map<String, TransportVersionDefinition> namedDefinitions = resources.getNamedDefinitions();
-        Map<String, TransportVersionDefinition> unreferencedDefinitions = resources.getUnreferencedDefinitions();
-        Map<String, TransportVersionDefinition> allDefinitions = collectAllDefinitions(namedDefinitions, unreferencedDefinitions);
+        Map<String, TransportVersionDefinition> referableDefinitions = resources.getReferableDefinitions();
+        Map<String, TransportVersionDefinition> unreferableDefinitions = resources.getUnreferableDefinitions();
+        Map<String, TransportVersionDefinition> allDefinitions = collectAllDefinitions(referableDefinitions, unreferableDefinitions);
         Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(allDefinitions.values());
-        Map<String, TransportVersionLatest> latestByReleaseBranch = resources.getLatestByReleaseBranch();
+        Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
 
-        for (var definition : namedDefinitions.values()) {
+        for (var definition : referableDefinitions.values()) {
             validateNamedDefinition(definition, referencedNames);
         }
 
-        for (var definition : unreferencedDefinitions.values()) {
+        for (var definition : unreferableDefinitions.values()) {
             validateUnreferencedDefinition(definition);
         }
 
@@ -80,21 +82,23 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             validateBase(entry.getKey(), entry.getValue());
         }
 
-        for (var latest : latestByReleaseBranch.values()) {
-            validateLatest(latest, allDefinitions, idsByBase);
+        for (var upperBound : upperBounds.values()) {
+            validateUpperBound(upperBound, allDefinitions, idsByBase);
         }
+
+        validateLargestIdIsUsed(upperBounds, allDefinitions);
     }
 
     private Map<String, TransportVersionDefinition> collectAllDefinitions(
-        Map<String, TransportVersionDefinition> namedDefinitions,
-        Map<String, TransportVersionDefinition> unreferencedDefinitions
+        Map<String, TransportVersionDefinition> referableDefinitions,
+        Map<String, TransportVersionDefinition> unreferableDefinitions
     ) {
-        Map<String, TransportVersionDefinition> allDefinitions = new HashMap<>(namedDefinitions);
-        for (var entry : unreferencedDefinitions.entrySet()) {
+        Map<String, TransportVersionDefinition> allDefinitions = new HashMap<>(referableDefinitions);
+        for (var entry : unreferableDefinitions.entrySet()) {
             TransportVersionDefinition existing = allDefinitions.put(entry.getKey(), entry.getValue());
             if (existing != null) {
-                Path unreferencedPath = getResources().get().getUnreferencedDefinitionRepositoryPath(entry.getValue());
-                throwDefinitionFailure(existing, "has same name as unreferenced definition [" + unreferencedPath + "]");
+                Path unreferablePath = getResources().get().getUnreferableDefinitionRepositoryPath(entry.getValue());
+                throwDefinitionFailure(existing, "has same name as unreferable definition [" + unreferablePath + "]");
             }
         }
         return allDefinitions;
@@ -123,7 +127,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
         // validate any modifications
         Map<Integer, TransportVersionId> existingIdsByBase = new HashMap<>();
-        TransportVersionDefinition originalDefinition = getResources().get().getNamedDefinitionFromMain(definition.name());
+        TransportVersionDefinition originalDefinition = getResources().get().getReferableDefinitionFromMain(definition.name());
         if (originalDefinition != null) {
             validateIdenticalPrimaryId(definition, originalDefinition);
             originalDefinition.ids().forEach(id -> existingIdsByBase.put(id.base(), id));
@@ -163,7 +167,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     }
 
     private void validateUnreferencedDefinition(TransportVersionDefinition definition) {
-        TransportVersionDefinition originalDefinition = getResources().get().getUnreferencedDefinitionFromMain(definition.name());
+        TransportVersionDefinition originalDefinition = getResources().get().getUnreferableDefinitionFromMain(definition.name());
         if (originalDefinition != null) {
             validateIdenticalPrimaryId(definition, originalDefinition);
         }
@@ -186,31 +190,31 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-    private void validateLatest(
-        TransportVersionLatest latest,
+    private void validateUpperBound(
+        TransportVersionUpperBound upperBound,
         Map<String, TransportVersionDefinition> definitions,
         Map<Integer, List<IdAndDefinition>> idsByBase
     ) {
-        TransportVersionDefinition latestDefinition = definitions.get(latest.name());
-        if (latestDefinition == null) {
-            throwLatestFailure(latest, "contains transport version name [" + latest.name() + "] which is not defined");
+        TransportVersionDefinition upperBoundDefinition = definitions.get(upperBound.name());
+        if (upperBoundDefinition == null) {
+            throwUpperBoundFailure(upperBound, "contains transport version name [" + upperBound.name() + "] which is not defined");
         }
-        if (latestDefinition.ids().contains(latest.id()) == false) {
-            Path relativePath = getResources().get().getNamedDefinitionRepositoryPath(latestDefinition);
-            throwLatestFailure(latest, "has id " + latest.id() + " which is not in definition [" + relativePath + "]");
+        if (upperBoundDefinition.ids().contains(upperBound.id()) == false) {
+            Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(upperBoundDefinition);
+            throwUpperBoundFailure(upperBound, "has id " + upperBound.id() + " which is not in definition [" + relativePath + "]");
         }
 
-        List<IdAndDefinition> baseIds = idsByBase.get(latest.id().base());
+        List<IdAndDefinition> baseIds = idsByBase.get(upperBound.id().base());
         IdAndDefinition lastId = baseIds.getLast();
-        if (lastId.id().complete() != latest.id().complete()) {
-            throwLatestFailure(
-                latest,
+        if (lastId.id().complete() != upperBound.id().complete()) {
+            throwUpperBoundFailure(
+                upperBound,
                 "has id "
-                    + latest.id()
+                    + upperBound.id()
                     + " from ["
-                    + latest.name()
+                    + upperBound.name()
                     + "] with base "
-                    + latest.id().base()
+                    + upperBound.id().base()
                     + " but another id "
                     + lastId.id().complete()
                     + " from ["
@@ -219,10 +223,13 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionLatest existingLatest = getResources().get().getLatestFromMain(latest.branch());
-        if (existingLatest != null) {
-            if (latest.id().patch() != 0 && latest.id().base() != existingLatest.id().base()) {
-                throwLatestFailure(latest, "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base());
+        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.branch());
+        if (existingUpperBound != null) {
+            if (upperBound.id().patch() != 0 && upperBound.id().base() != existingUpperBound.id().base()) {
+                throwUpperBoundFailure(
+                    upperBound,
+                    "modifies base id from " + existingUpperBound.id().base() + " to " + upperBound.id().base()
+                );
             }
         }
     }
@@ -234,7 +241,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             IdAndDefinition current = ids.get(ndx);
 
             if (previous.id().equals(current.id())) {
-                Path existingDefinitionPath = getResources().get().getNamedDefinitionRepositoryPath(previous.definition);
+                Path existingDefinitionPath = getResources().get().getReferableDefinitionRepositoryPath(previous.definition);
                 throwDefinitionFailure(
                     current.definition(),
                     "contains id " + current.id + " already defined in [" + existingDefinitionPath + "]"
@@ -250,13 +257,34 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-    private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {
-        Path relativePath = getResources().get().getNamedDefinitionRepositoryPath(definition);
-        throw new IllegalStateException("Transport version definition file [" + relativePath + "] " + message);
+    private void validateLargestIdIsUsed(
+        Map<String, TransportVersionUpperBound> upperBounds,
+        Map<String, TransportVersionDefinition> allDefinitions
+    ) {
+        // first id is always the highest within a definition, and validated earlier
+        // note we use min instead of max because the id comparator is in descending order
+        var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
+        var highestId = highestDefinition.ids().get(0);
+
+        for (var upperBound : upperBounds.values()) {
+            if (upperBound.id().equals(highestId)) {
+                return;
+            }
+        }
+
+        throwDefinitionFailure(
+            highestDefinition,
+            "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
+        );
     }
 
-    private void throwLatestFailure(TransportVersionLatest latest, String message) {
-        Path relativePath = getResources().get().getLatestRepositoryPath(latest);
-        throw new IllegalStateException("Latest transport version file [" + relativePath + "] " + message);
+    private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {
+        Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(definition);
+        throw new VerificationException("Transport version definition file [" + relativePath + "] " + message);
+    }
+
+    private void throwUpperBoundFailure(TransportVersionUpperBound upperBound, String message) {
+        Path relativePath = getResources().get().getUpperBoundRepositoryPath(upperBound);
+        throw new VerificationException("Transport version upper bound file [" + relativePath + "] " + message);
     }
 }

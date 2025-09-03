@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -70,6 +69,10 @@ public abstract class LuceneOperator extends SourceOperator {
     private int sliceIndex;
 
     private LuceneScorer currentScorer;
+    /**
+     * The {@link ShardRefCounted} for the current scorer.
+     */
+    private ShardRefCounted.Single currentScorerShardRefCounted;
 
     long processingNanos;
     int pagesEmitted;
@@ -192,6 +195,10 @@ public abstract class LuceneOperator extends SourceOperator {
                 return null;
             }
             processedSlices++;
+            int shardId = currentSlice.shardContext().index();
+            if (currentScorerShardRefCounted == null || currentScorerShardRefCounted.index() != shardId) {
+                currentScorerShardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
+            }
             processedShards.add(currentSlice.shardContext().shardIdentifier());
         }
         return currentSlice.getLeaf(sliceIndex++);
@@ -212,6 +219,13 @@ public abstract class LuceneOperator extends SourceOperator {
         assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
         currentScorer.maxPosition = partialLeaf.maxDoc();
         currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
+    }
+
+    /**
+     * The {@link ShardRefCounted} for the current scorer.
+     */
+    ShardRefCounted currentScorerShardRefCounted() {
+        return currentScorerShardRefCounted;
     }
 
     /**
@@ -289,18 +303,12 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("shards = ").append(sortedUnion(processedShards, sliceQueue.remainingShardsIdentifiers()));
+        sb.append("shards = ")
+            .append(sliceQueue.partitioningStrategies().keySet().stream().sorted().collect(Collectors.joining(",", "[", "]")));
         sb.append(", maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
         return sb.toString();
-    }
-
-    private static Set<String> sortedUnion(Collection<String> a, Collection<String> b) {
-        var result = new TreeSet<String>();
-        result.addAll(a);
-        result.addAll(b);
-        return result;
     }
 
     protected abstract void describe(StringBuilder sb);

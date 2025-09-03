@@ -1691,7 +1691,6 @@ required_capability: union_types
 required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_numeric_widening
-required_capability: fork_union_types
 
 FROM apps, apps_short METADATA _index
 | EVAL id = id::integer

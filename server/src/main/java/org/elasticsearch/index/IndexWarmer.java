@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -46,7 +47,7 @@ public final class IndexWarmer {
         this.listeners = Collections.unmodifiableList(list);
     }
 
-    void warm(ElasticsearchDirectoryReader reader, IndexShard shard, IndexSettings settings) {
+    void warm(DirectoryReader reader, IndexShard shard, IndexSettings settings) {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
@@ -92,7 +93,7 @@ public final class IndexWarmer {
     public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
-        TerminationHandle warmReader(IndexShard indexShard, ElasticsearchDirectoryReader reader);
+        TerminationHandle warmReader(IndexShard indexShard, DirectoryReader reader);
     }
 
     private static class FieldDataWarmer implements IndexWarmer.Listener {
@@ -106,7 +107,7 @@ public final class IndexWarmer {
         }
 
         @Override
-        public TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
+        public TerminationHandle warmReader(final IndexShard indexShard, final DirectoryReader reader) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (MappedFieldType fieldType : mapperService.getEagerGlobalOrdinalsFields()) {

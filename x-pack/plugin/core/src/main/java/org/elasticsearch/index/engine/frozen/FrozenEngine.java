@@ -272,8 +272,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     canMatchReader::decRef
                 );
             } else {
-                ReferenceManager<ElasticsearchDirectoryReader> manager = getReferenceManager(scope);
-                ElasticsearchDirectoryReader acquire = manager.acquire();
+                ReferenceManager<DirectoryReader> manager = getReferenceManager(scope);
+                DirectoryReader acquire = manager.acquire();
                 return new Searcher(
                     source,
                     acquire,

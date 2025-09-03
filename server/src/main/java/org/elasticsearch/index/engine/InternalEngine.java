@@ -475,14 +475,14 @@ public class InternalEngine extends Engine {
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
      */
     @SuppressForbidden(reason = "reference counting is required here")
-    private static final class ExternalReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
-        private final BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener;
+    private static final class ExternalReaderManager extends ReferenceManager<DirectoryReader> {
+        private final BiConsumer<DirectoryReader, DirectoryReader> refreshListener;
         private final ElasticsearchReaderManager internalReaderManager;
         private boolean isWarmedUp; // guarded by refreshLock
 
         ExternalReaderManager(
             ElasticsearchReaderManager internalReaderManager,
-            BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener
+            BiConsumer<DirectoryReader, DirectoryReader> refreshListener
         ) throws IOException {
             this.refreshListener = refreshListener;
             this.internalReaderManager = internalReaderManager;
@@ -490,12 +490,12 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
+        protected DirectoryReader refreshIfNeeded(DirectoryReader referenceToRefresh) throws IOException {
             // we simply run a blocking refresh on the internal reference manager and then steal it's reader
             // it's a save operation since we acquire the reader which incs it's reference but then down the road
             // steal it by calling incRef on the "stolen" reader
             internalReaderManager.maybeRefreshBlocking();
-            final ElasticsearchDirectoryReader newReader = internalReaderManager.acquire();
+            final DirectoryReader newReader = internalReaderManager.acquire();
             if (isWarmedUp == false || newReader != referenceToRefresh) {
                 boolean success = false;
                 try {
@@ -518,17 +518,17 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected boolean tryIncRef(ElasticsearchDirectoryReader reference) {
+        protected boolean tryIncRef(DirectoryReader reference) {
             return reference.tryIncRef();
         }
 
         @Override
-        protected int getRefCount(ElasticsearchDirectoryReader reference) {
+        protected int getRefCount(DirectoryReader reference) {
             return reference.getRefCount();
         }
 
         @Override
-        protected void decRef(ElasticsearchDirectoryReader reference) throws IOException {
+        protected void decRef(DirectoryReader reference) throws IOException {
             reference.decRef();
         }
     }
@@ -829,7 +829,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
+    protected ElasticsearchReaderManager createInternalReaderManager(DirectoryReader directoryReader) {
         return new ElasticsearchReaderManager(directoryReader);
     }
 
@@ -2084,7 +2084,7 @@ public class InternalEngine extends Engine {
                 try {
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
-                    ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+                    ReferenceManager<DirectoryReader> referenceManager = getReferenceManager(scope);
                     long generationBeforeRefresh = lastCommittedSegmentInfos.getGeneration();
 
                     // The shard uses a reentrant read/write lock to guard again engine changes, a type of lock that prioritizes the threads
@@ -2151,12 +2151,12 @@ public class InternalEngine extends Engine {
     }
 
     private long segmentGenerationAfterRefresh(
-        ReferenceManager<ElasticsearchDirectoryReader> referenceManager,
+        ReferenceManager<DirectoryReader> referenceManager,
         long generationBeforeRefresh
     ) throws IOException {
         assert store.hasReferences();
         assert engineConfig.getEngineResetLock().isReadLockedByCurrentThread() : "prevent concurrent engine resets";
-        final ElasticsearchDirectoryReader current = referenceManager.acquire();
+        final DirectoryReader current = referenceManager.acquire();
         try {
             // Just use the generation from the reader when https://github.com/apache/lucene/pull/12177 is included.
             return Math.max(current.getIndexCommit().getGeneration(), generationBeforeRefresh);
@@ -2737,7 +2737,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected final ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    protected final ReferenceManager<DirectoryReader> getReferenceManager(SearcherScope scope) {
         return switch (scope) {
             case INTERNAL -> internalReaderManager;
             case EXTERNAL -> externalReaderManager;
@@ -2837,7 +2837,7 @@ public class InternalEngine extends Engine {
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */
-    static final class RefreshWarmerListener implements BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> {
+    static final class RefreshWarmerListener implements BiConsumer<DirectoryReader, DirectoryReader> {
         private final Warmer warmer;
         private final Logger logger;
         private final AtomicBoolean isEngineClosed;
@@ -2849,7 +2849,7 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        public void accept(ElasticsearchDirectoryReader reader, ElasticsearchDirectoryReader previousReader) {
+        public void accept(DirectoryReader reader, DirectoryReader previousReader) {
             if (warmer != null) {
                 try {
                     warmer.warm(reader);
@@ -3631,8 +3631,8 @@ public class InternalEngine extends Engine {
             throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
         }
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ReferenceManager<DirectoryReader> referenceManager = getReferenceManager(scope);
+            DirectoryReader acquire = referenceManager.acquire();
             try {
                 return action.apply(acquire);
             } finally {

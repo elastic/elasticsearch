@@ -11,6 +11,7 @@ package org.elasticsearch.index.cache.bitset;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -266,7 +267,7 @@ public final class BitsetFilterCache
         }
 
         @Override
-        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
+        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final DirectoryReader reader) {
             if (index.equals(indexShard.indexSettings().getIndex()) == false) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;

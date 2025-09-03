@@ -26,7 +26,7 @@ import java.io.IOException;
  *
  */
 @SuppressForbidden(reason = "reference counting is required here")
-public class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
+public class ElasticsearchReaderManager extends ReferenceManager<DirectoryReader> {
 
     /**
      * Creates and returns a new ElasticsearchReaderManager from the given
@@ -35,27 +35,27 @@ public class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDi
      *
      * @param reader            the directoryReader to use for future reopens
      */
-    public ElasticsearchReaderManager(ElasticsearchDirectoryReader reader) {
+    public ElasticsearchReaderManager(DirectoryReader reader) {
         this.current = reader;
     }
 
     @Override
-    protected void decRef(ElasticsearchDirectoryReader reference) throws IOException {
+    protected void decRef(DirectoryReader reference) throws IOException {
         reference.decRef();
     }
 
     @Override
-    protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
-        return (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
+    protected DirectoryReader refreshIfNeeded(DirectoryReader referenceToRefresh) throws IOException {
+        return DirectoryReader.openIfChanged(referenceToRefresh);
     }
 
     @Override
-    protected boolean tryIncRef(ElasticsearchDirectoryReader reference) {
+    protected boolean tryIncRef(DirectoryReader reference) {
         return reference.tryIncRef();
     }
 
     @Override
-    protected int getRefCount(ElasticsearchDirectoryReader reference) {
+    protected int getRefCount(DirectoryReader reference) {
         return reference.getRefCount();
     }
 }

@@ -136,6 +136,11 @@ public interface CuVSResourceManager {
         }
 
         @Override
+        public int deviceId() {
+            return delegate.deviceId();
+        }
+
+        @Override
         public void close() {
             throw new UnsupportedOperationException("this resource is managed, cannot be closed by clients");
         }

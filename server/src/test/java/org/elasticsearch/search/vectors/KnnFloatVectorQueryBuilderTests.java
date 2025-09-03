@@ -22,7 +22,7 @@ public class KnnFloatVectorQueryBuilderTests extends AbstractKnnVectorQueryBuild
         String fieldName,
         int k,
         int numCands,
-        float visitPercentage,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {

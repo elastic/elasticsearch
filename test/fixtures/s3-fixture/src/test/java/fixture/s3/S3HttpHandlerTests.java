@@ -400,7 +400,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             tasks.forEach(task -> executor.submit(task.consumer));
             executor.shutdown();
-            var done = executor.awaitTermination(1, TimeUnit.SECONDS);
+            var done = executor.awaitTermination(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
             assertTrue(done);
         }
 

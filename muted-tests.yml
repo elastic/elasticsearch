@@ -495,33 +495,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testIntBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133596
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testDoubleBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133606
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testBooleanBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133608
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testLongBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133618
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testFloatBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133621
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
-  method: testHighNodeWriteLoadPreventsNewShardAllocation
-  issue: https://github.com/elastic/elasticsearch/issues/133857
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseOrQuery
   issue: https://github.com/elastic/elasticsearch/issues/133863
@@ -531,18 +513,21 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
-- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
-  method: testRouteOnSortFields
-  issue: https://github.com/elastic/elasticsearch/issues/133993
-- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
-  method: testShrink
-  issue: https://github.com/elastic/elasticsearch/issues/133875
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/131481
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithCustomFeatureProcessors
   issue: https://github.com/elastic/elasticsearch/issues/134001
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/134019
+- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
+  method: testDesiredNodesAreTakenIntoAccountInAutoExpandReplicas
+  issue: https://github.com/elastic/elasticsearch/issues/134049
+- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
+  method: testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState
+  issue: https://github.com/elastic/elasticsearch/issues/134050
 
 # Examples:
 #

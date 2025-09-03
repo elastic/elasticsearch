@@ -1278,6 +1278,12 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
 
         /**
+         * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129372">java.lang.ClassCastException when combining LOOKUP JOIN and remote ENRICH</a>
+         */
+        REMOTE_ENRICH_AFTER_LOOKUP_JOIN,
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION,
@@ -1285,7 +1291,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V3(Build.current().isSnapshot()),
+        KNN_FUNCTION_V4(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1421,7 +1427,12 @@ public class EsqlCapabilities {
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot());
+        URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * FORK with remote indices
+         */
+        ENABLE_FORK_FOR_REMOTE_INDICES;
 
         private final boolean enabled;
 

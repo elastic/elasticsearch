@@ -182,4 +182,25 @@ public class IgnoreNullMetricsTests extends ESTestCase {
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());
     }
+
+    /**
+     * check that stats blocks after the first are not sourced for adding metrics to the filter
+     */
+    public void testMultipleStats() {
+        LogicalPlan actual = analyze("""
+            TS test
+            | STATS m = max(max_over_time(metric_1))
+            | STATS sum(m)
+            | LIMIT 10
+            """);
+        Limit limit = as(actual, Limit.class);
+        Aggregate sumAgg = as(limit.child(), Aggregate.class);
+        Aggregate outerAgg = as(sumAgg.child(), Aggregate.class);
+        Aggregate tsAgg = as(outerAgg.child(), Aggregate.class);
+        Filter filter = as(tsAgg.child(), Filter.class);
+        IsNotNull condition = as(filter.condition(), IsNotNull.class);
+        FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
+        assertEquals("metric_1", attribute.fieldName().string());
+
+    }
 }

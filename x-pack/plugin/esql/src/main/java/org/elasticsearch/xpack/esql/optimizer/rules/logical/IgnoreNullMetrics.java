@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -58,7 +59,7 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
     private Set<Attribute> collectMetrics(LogicalPlan logicalPlan) {
         Set<Attribute> metrics = new HashSet<>();
         logicalPlan.forEachDown(p -> {
-            if (p instanceof Aggregate) {
+            if (p instanceof TimeSeriesAggregate) {
                 p.forEachExpression(Attribute.class, attr -> {
                     if (attr.isMetric()) {
                         metrics.add(attr);

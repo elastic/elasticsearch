@@ -167,17 +167,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES;
         List<String> newIndexDimensions = new ArrayList<>(indexDimensions.size());
         boolean matchesAllDimensions = findDimensionFields(newIndexDimensions, documentMapper);
-        if (indexDimensions.size() == newIndexDimensions.size()
-            && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions))) {
-            return;
-        }
-        if (matchesAllDimensions) {
-            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
-        } else {
+        boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()
+            && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
+        if (matchesAllDimensions == false) {
             // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
             // so that index.routing_path is used instead.
             // This can happen if a new dynamic template is added to an existing index that matches by mapping type instead of path_match.
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
+        } else if (hasChanges) {
+            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         }
     }
 

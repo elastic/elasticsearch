@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -20,7 +20,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -35,6 +38,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstanc
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
@@ -87,7 +91,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -98,7 +101,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent(mapping)),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -138,7 +141,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -149,7 +151,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent(mapping)),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -159,7 +161,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsMappingsMerging() throws Exception {
@@ -214,7 +215,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -225,7 +225,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3)),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -245,7 +245,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         Settings settings = Settings.EMPTY;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -256,7 +255,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -266,7 +265,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {
@@ -276,7 +274,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -287,7 +284,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent("{}")),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -297,7 +294,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsLookBackTime() throws Exception {
@@ -307,7 +303,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookBackTime = TimeValue.timeValueHours(12);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -318,7 +313,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent("{}")),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -328,7 +323,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookBackTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() throws Exception {
@@ -346,7 +340,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
@@ -356,7 +349,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent("{}")),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         var result = additionalSettings.build();
         assertThat(result.size(), equalTo(2));
@@ -365,7 +358,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
             equalTo(FORMATTER.format(now.plusMillis(lookAheadTime.getMillis())))
         );
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreatedTimeSettingsMissing() {
@@ -416,7 +408,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
 
         Settings settings = Settings.EMPTY;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -427,11 +418,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             null,
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsMigrateToTsdb() {
@@ -444,7 +434,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             .build();
 
         Settings settings = Settings.EMPTY;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
@@ -455,7 +444,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -465,7 +454,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromTsdb() {
@@ -480,7 +468,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder additionalSettings = builder();
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
@@ -490,11 +477,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             Settings.EMPTY,
             List.of(),
             additionalSettings,
-            customMetadataBuilder::put
+            (k, v) -> {}
         );
         Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
-        assertThat(customMetadataBuilder.build().isEmpty(), equalTo(true));
     }
 
     public void testGenerateRoutingPathFromDynamicTemplate() throws Exception {
@@ -529,8 +515,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
+        Settings result = generateTsdbSettings(mapping, now);
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
@@ -571,8 +556,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
+        Settings result = generateTsdbSettings(mapping, now);
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
@@ -624,8 +608,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
+        Settings result = generateTsdbSettings(mapping, now);
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
@@ -681,8 +664,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
+        Settings result = generateTsdbSettings(mapping, now);
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
@@ -732,8 +714,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
+        Settings result = generateTsdbSettings(mapping, now);
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
@@ -766,8 +747,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
-        Settings result = generateTsdbSettings(mapping, now, customMetadataBuilder);
+        Settings result = generateTsdbSettings(mapping, now);
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
@@ -776,8 +756,112 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("labels.*"));
     }
 
-    private Settings generateTsdbSettings(String mapping, Instant now, ImmutableOpenMap.Builder<String, Map<String, String>> builder)
-        throws IOException {
+    public void testAddNewDimension() throws Exception {
+        String newMapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field1": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "field2": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = onUpdateMappings("field1", "field1", newMapping);
+        assertThat(result.size(), equalTo(1));
+        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field2"));
+    }
+
+    public void testAddNewDimensionIndexDimensionsUnset() throws Exception {
+        String newMapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field1": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "field2": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = onUpdateMappings("field1", null, newMapping);
+        assertThat(result.size(), equalTo(0));
+    }
+
+    public void testAddPassthroughChildField() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "labels": {
+                            "type": "passthrough",
+                            "time_series_dimension": true,
+                            "priority": 2,
+                             "properties": {
+                                "label1": {
+                                    "type": "keyword"
+                                }
+                             }
+                        },
+                        "metrics": {
+                            "type": "passthrough",
+                            "priority": 1
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        // the new labels.label1 field already matches labels.*, so no change
+        Settings result = onUpdateMappings("labels.*", "labels.*", mapping);
+        assertThat(result.size(), equalTo(0));
+    }
+
+    public void testAddDynamicTemplate() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "string_as_dimensions": {
+                                "match_mapping_type": "string",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "labels": {
+                            "type": "passthrough",
+                            "time_series_dimension": true,
+                            "priority": 1
+                        }
+                    }
+                }
+            }
+            """;
+        // the new labels.label1 field already matches labels.*, so no change
+        Settings result = onUpdateMappings("labels.*", "labels.*", mapping);
+        assertThat(result.size(), equalTo(1));
+        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+    }
+
+    private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {
         ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
         Settings settings = Settings.EMPTY;
@@ -792,12 +876,47 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent(mapping)),
             additionalSettings,
-            builder::put
+            (k, v) -> {}
         );
         var result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         return builder().put(result).put("index.mode", "time_series").build();
+    }
+
+    private Settings onUpdateMappings(String routingPath, String dimensions, String newMapping) throws IOException {
+        String dataStreamName = "logs-app1";
+        Settings.Builder currentSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+
+        IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(currentSettings)
+            .build();
+
+        DocumentMapper documentMapper;
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            createTempDir(),
+            im.getSettings(),
+            im.getIndex().getName()
+        );
+        try (mapperService) {
+            mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                List.of(new CompressedXContent(newMapping)),
+                MapperService.MergeReason.INDEX_TEMPLATE
+            );
+            documentMapper = mapperService.documentMapper();
+        }
+        Settings.Builder additionalSettings = builder();
+        provider.onUpdateMappings(im, documentMapper, additionalSettings, (k, v) -> {});
+        return additionalSettings.build();
     }
 
 }

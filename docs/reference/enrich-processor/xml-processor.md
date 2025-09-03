@@ -1,5 +1,7 @@
 ---
 navigation_title: "XML"
+applies_to:
+  stack: ga 9.2
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/xml-processor.html
 ---

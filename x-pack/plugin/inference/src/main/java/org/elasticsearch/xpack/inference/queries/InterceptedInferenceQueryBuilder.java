@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
@@ -111,8 +110,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // Use 8.15 here to indicate compatibility since the semantic query was introduced
-        return TransportVersions.V_8_15_0;
+        return originalQuery.getMinimalSupportedVersion();
     }
 
     @Override

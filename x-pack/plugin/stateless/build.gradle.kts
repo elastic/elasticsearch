@@ -41,6 +41,8 @@ dependencies {
     internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")
     internalClusterTestImplementation(project(":modules:serverless-multi-project"))
     internalClusterTestImplementation(project(":modules:secure-settings"))
+    internalClusterTestImplementation(xpackModule("esql"))
+    internalClusterTestImplementation(xpackModule("esql-core"))
     testImplementation(project(":libs:serverless-shared-constants"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core:1.12.684")

@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -19,8 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -65,6 +70,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Int defaults
         testCaseSuppliers.addAll(intTestCase(10, 0, 10, null, null, null, 0.5));
 
+        // Int random
+        testCaseSuppliers.addAll(intRandomTestCases());
+
         // Long Linear
         testCaseSuppliers.addAll(longTestCase(0L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
         testCaseSuppliers.addAll(longTestCase(10L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
@@ -89,6 +97,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Long defaults
         testCaseSuppliers.addAll(longTestCase(10L, 0L, 10L, null, null, null, 0.5));
 
+        // Long random
+        testCaseSuppliers.addAll(longRandomTestCases());
+
         // Double Linear
         testCaseSuppliers.addAll(doubleTestCase(0.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
         testCaseSuppliers.addAll(doubleTestCase(10.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
@@ -112,6 +123,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // Double defaults
         testCaseSuppliers.addAll(doubleTestCase(10.0, 0.0, 10.0, null, null, null, 0.5));
+
+        // Double random
+        testCaseSuppliers.addAll(doubleRandomTestCases());
 
         // GeoPoint Linear
         testCaseSuppliers.addAll(geoPointTestCase("POINT (1.0 1.0)", "POINT (1 1)", "10000km", "10km", 0.33, "linear", 1.0));
@@ -154,6 +168,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // GeoPoint defaults
         testCaseSuppliers.addAll(geoPointTestCase("POINT (12.3 45.6)", "POINT (1 1)", "10000km", null, null, null, 0.7459413262379005));
+
+        // GeoPoint random
+        testCaseSuppliers.addAll(geoPointRandomTestCases());
 
         // CartesianPoint Linear
         testCaseSuppliers.addAll(cartesianPointTestCase("POINT (0 0)", "POINT (1 1)", 10000.0, 10.0, 0.33, "linear", 1.0));
@@ -381,6 +398,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Datetime random
+        testCaseSuppliers.addAll(datetimeRandomTestCases());
+
         // Datenanos Linear
         testCaseSuppliers.addAll(
             dateNanosTestCase(
@@ -606,6 +626,52 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
+    private static List<TestCaseSupplier> intRandomTestCases() {
+        return List.of(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER, DataType.INTEGER, DataType.SOURCE), () -> {
+            int randomValue = randomInt();
+            int randomOrigin = randomInt();
+            int randomScale = randomInt();
+            int randomOffset = randomInt();
+            double randomDecay = randomDouble();
+            String randomType = getRandomType();
+
+            double scoreScriptNumericResult = intDecayWithScoreScript(
+                randomValue,
+                randomOrigin,
+                randomScale,
+                randomOffset,
+                randomDecay,
+                randomType
+            );
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(randomValue, DataType.INTEGER, "value"),
+                    new TestCaseSupplier.TypedData(randomOrigin, DataType.INTEGER, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(randomScale, DataType.INTEGER, "scale").forceLiteral(),
+                    new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                        .forceLiteral()
+                ),
+                startsWith("DecayIntEvaluator["),
+                DataType.DOUBLE,
+                equalTo(scoreScriptNumericResult)
+            );
+        }));
+    }
+
+    private static String getRandomType() {
+        return randomFrom("linear", "gauss", "exp");
+    }
+
+    private static double intDecayWithScoreScript(int value, int origin, int scale, int offset, double decay, String type) {
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
+    }
+
     private static List<TestCaseSupplier> longTestCase(
         long value,
         long origin,
@@ -634,6 +700,48 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
+    private static List<TestCaseSupplier> longRandomTestCases() {
+        return List.of(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG, DataType.LONG, DataType.SOURCE), () -> {
+            long randomValue = randomLong();
+            long randomOrigin = randomLong();
+            long randomScale = randomLong();
+            long randomOffset = randomLong();
+            double randomDecay = randomDouble();
+            String randomType = randomFrom("linear", "gauss", "exp");
+
+            double scoreScriptNumericResult = longDecayWithScoreScript(
+                randomValue,
+                randomOrigin,
+                randomScale,
+                randomOffset,
+                randomDecay,
+                randomType
+            );
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(randomValue, DataType.LONG, "value"),
+                    new TestCaseSupplier.TypedData(randomOrigin, DataType.LONG, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(randomScale, DataType.LONG, "scale").forceLiteral(),
+                    new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                        .forceLiteral()
+                ),
+                startsWith("DecayLongEvaluator["),
+                DataType.DOUBLE,
+                equalTo(scoreScriptNumericResult)
+            );
+        }));
+    }
+
+    private static double longDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
+    }
+
     private static List<TestCaseSupplier> doubleTestCase(
         double value,
         double origin,
@@ -660,6 +768,48 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
+    }
+
+    private static List<TestCaseSupplier> doubleRandomTestCases() {
+        return List.of(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.DOUBLE, DataType.SOURCE), () -> {
+            double randomValue = randomLong();
+            double randomOrigin = randomLong();
+            double randomScale = randomLong();
+            double randomOffset = randomLong();
+            double randomDecay = randomDouble();
+            String randomType = randomFrom("linear", "gauss", "exp");
+
+            double scoreScriptNumericResult = doubleDecayWithScoreScript(
+                randomValue,
+                randomOrigin,
+                randomScale,
+                randomOffset,
+                randomDecay,
+                randomType
+            );
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(randomValue, DataType.DOUBLE, "value"),
+                    new TestCaseSupplier.TypedData(randomOrigin, DataType.DOUBLE, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(randomScale, DataType.DOUBLE, "scale").forceLiteral(),
+                    new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                        .forceLiteral()
+                ),
+                startsWith("DecayDoubleEvaluator["),
+                DataType.DOUBLE,
+                equalTo(scoreScriptNumericResult)
+            );
+        }));
+    }
+
+    private static double doubleDecayWithScoreScript(double value, double origin, double scale, double offset, double decay, String type) {
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
     }
 
     private static List<TestCaseSupplier> geoPointTestCase(
@@ -716,6 +866,91 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
+    }
+
+    private static List<TestCaseSupplier> geoPointRandomTestCases() {
+        return List.of(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.KEYWORD, DataType.SOURCE), () -> {
+            GeoPoint randomValue = randomGeoPoint();
+            GeoPoint randomOrigin = randomGeoPoint();
+            String randomScale = randomDistance();
+            String randomOffset = randomDistance();
+            double randomDecay = randomDouble();
+            String randomType = randomDecayType();
+
+            double scoreScriptNumericResult = geoPointDecayWithScoreScript(
+                randomValue,
+                randomOrigin,
+                randomScale,
+                randomOffset,
+                randomDecay,
+                randomType
+            );
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(GEO.wktToWkb(randomValue.toWKT()), DataType.GEO_POINT, "value"),
+                    new TestCaseSupplier.TypedData(GEO.wktToWkb(randomOrigin.toWKT()), DataType.GEO_POINT, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(randomScale, DataType.KEYWORD, "scale").forceLiteral(),
+                    new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                        .forceLiteral()
+                ),
+                startsWith("DecayGeoPointEvaluator["),
+                DataType.DOUBLE,
+                equalTo(scoreScriptNumericResult)
+            );
+        }));
+    }
+
+    private static String randomDecayType() {
+        return randomFrom("linear", "gauss", "exp");
+    }
+
+    private static GeoPoint randomGeoPoint() {
+        return new GeoPoint(randomLatitude(), randomLongitude());
+    }
+
+    private static double randomLongitude() {
+        return randomDoubleBetween(-180.0, 180.0, true);
+    }
+
+    private static double randomLatitude() {
+        return randomDoubleBetween(-90.0, 90.0, true);
+    }
+
+    private static String randomDistance() {
+        return String.format(
+            "%d%s",
+            randomNonNegativeInt(),
+            randomFrom(
+                DistanceUnit.INCH,
+                DistanceUnit.YARD,
+                DistanceUnit.FEET,
+                DistanceUnit.KILOMETERS,
+                DistanceUnit.NAUTICALMILES,
+                DistanceUnit.MILLIMETERS,
+                DistanceUnit.CENTIMETERS,
+                DistanceUnit.MILES,
+                DistanceUnit.METERS
+            )
+        );
+    }
+
+    private static double geoPointDecayWithScoreScript(
+        GeoPoint value,
+        GeoPoint origin,
+        String scale,
+        String offset,
+        double decay,
+        String type
+    ) {
+        String originStr = origin.getX() + "," + origin.getY();
+
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayGeoLinear(originStr, scale, offset, decay).decayGeoLinear(value);
+            case "gauss" -> new ScoreScriptUtils.DecayGeoGauss(originStr, scale, offset, decay).decayGeoGauss(value);
+            case "exp" -> new ScoreScriptUtils.DecayGeoExp(originStr, scale, offset, decay).decayGeoExp(value);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
     }
 
     private static List<TestCaseSupplier> geoPointOffsetKeywordTestCase(
@@ -800,6 +1035,63 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ).withoutEvaluator()
             )
         );
+    }
+
+    private static List<TestCaseSupplier> datetimeRandomTestCases() {
+        return List.of(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME, DataType.TIME_DURATION, DataType.SOURCE), () -> {
+            // 1970-01-01
+            long minEpoch = 0L;
+            // 2070-01-01
+            long maxEpoch = 3155673600000L;
+            long randomValue = randomLongBetween(minEpoch, maxEpoch);
+            long randomOrigin = randomLongBetween(minEpoch, maxEpoch);
+
+            // Max 1 year
+            long randomScaleMillis = randomNonNegativeLong() % (365L * 24 * 60 * 60 * 1000);
+            // Max 30 days
+            long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
+            Duration randomScale = Duration.ofMillis(randomScaleMillis);
+            Duration randomOffset = Duration.ofMillis(randomOffsetMillis);
+            double randomDecay = randomDouble();
+            String randomType = randomFrom("linear", "gauss", "exp");
+
+            double scoreScriptNumericResult = datetimeDecayWithScoreScript(
+                randomValue,
+                randomOrigin,
+                randomScale.toMillis(),
+                randomOffset.toMillis(),
+                randomDecay,
+                randomType
+            );
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(randomValue, DataType.DATETIME, "value"),
+                    new TestCaseSupplier.TypedData(randomOrigin, DataType.DATETIME, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(randomScale, DataType.TIME_DURATION, "scale").forceLiteral(),
+                    new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                        .forceLiteral()
+                ),
+                startsWith("DecayDatetimeEvaluator["),
+                DataType.DOUBLE,
+                equalTo(scoreScriptNumericResult)
+            );
+        }));
+    }
+
+    private static double datetimeDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        String originStr = String.valueOf(origin);
+        String scaleStr = scale + "ms";
+        String offsetStr = offset + "ms";
+
+        ZonedDateTime valueDateTime = Instant.ofEpochMilli(value).atZone(ZoneId.of("UTC"));
+
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayDateLinear(originStr, scaleStr, offsetStr, decay).decayDateLinear(valueDateTime);
+            case "gauss" -> new ScoreScriptUtils.DecayDateGauss(originStr, scaleStr, offsetStr, decay).decayDateGauss(valueDateTime);
+            case "exp" -> new ScoreScriptUtils.DecayDateExp(originStr, scaleStr, offsetStr, decay).decayDateExp(valueDateTime);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
     }
 
     private static List<TestCaseSupplier> dateNanosTestCase(

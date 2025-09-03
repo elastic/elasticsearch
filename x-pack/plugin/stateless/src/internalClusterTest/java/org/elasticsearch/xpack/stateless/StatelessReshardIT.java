@@ -134,9 +134,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         int startingNumShards = 1;
         int targetNumShards = multiple2 * startingNumShards;
         logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
-        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2));
-
-        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2)).actionGet();
+        waitForReshardCompletion(indexName);
         checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
 
         // Now lets try to go from 2 shards to 6 shards (this is not allowed)
@@ -156,8 +155,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
         targetNumShards = multiple2 * startingNumShards;
         logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
-        reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2));
-        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2)).actionGet();
+        waitForReshardCompletion(indexName);
         checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
     }
 
@@ -241,7 +240,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
 
         logger.info("starting reshard");
-        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple));
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet());
 
         logger.info("getting reshard metadata");
         var reshardingMetadata = splitState.actionGet(SAFE_AWAIT_TIMEOUT)
@@ -268,7 +267,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         logger.info("allowing handoff after post-copy index");
         preHandoffLatch.countDown();
 
-        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
 
         // resharding metadata should eventually be removed after split executes
         var indexMetadata = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null)
@@ -379,7 +378,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertSearch(searchCoordinator, indexName, initialSearchAssertion, useEsql);
 
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
-        ActionFuture<ReshardIndexResponse> reshardOperation = client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest);
+        assertAcked(client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet());
 
         CyclicBarrier startStateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
         CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple);
@@ -643,7 +642,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         };
         assertSearch(searchCoordinator, indexName, doneNewDocsSearchAssertion, useEsql);
 
-        reshardOperation.actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
     }
 
     private interface SearchAssertion {
@@ -755,8 +754,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         });
 
         // Start split and block transition to HANDOFF.
-        ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
-        ActionFuture<ReshardIndexResponse> reshardOperation = client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet());
 
         CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + test itself
         CyclicBarrier resetStateTransitionBlock = new CyclicBarrier(multiple);
@@ -914,7 +912,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
         });
 
-        reshardOperation.actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
     }
 
     public void testReshardEmptyIndex() {
@@ -931,7 +929,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         final int multiple = randomIntBetween(2, 10);
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)));
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet());
+        waitForReshardCompletion(indexName);
+
         checkNumberOfShardsSetting(indexNode, indexName, multiple);
 
         assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 0);
@@ -971,8 +971,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> executed = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         assertBusy(() -> {
             GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -1019,7 +1018,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
             .get();
 
-        executed.actionGet();
+        waitForReshardCompletion(indexName);
     }
 
     public void testReshardFailsWithNullIndex() {
@@ -1165,9 +1164,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
 
         logger.info("starting reshard");
-        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2));
-
-        reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        waitForReshardCompletion(indexName);
 
         checkNumberOfShardsSetting(indexNode, indexName, 2);
         ensureGreen(indexName);
@@ -1234,7 +1232,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 try {
                     Thread.sleep(randomIntBetween(0, 200));
 
-                    client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+                    assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+                    waitForReshardCompletion(indexName);
                     success.set(true);
                 } catch (Exception e) {
                     // IndexNotFoundException is possible if closed index is already removed from the node at this time.
@@ -1334,8 +1333,8 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
         }
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet();
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        waitForReshardCompletion(indexName);
         ensureGreen(indexName);
 
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
@@ -1377,8 +1376,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         handoffAttemptedLatch.await();
 
@@ -1402,7 +1400,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
             // has advanced.
             handoffLatch.countDown();
-            reshard.actionGet();
+            waitForReshardCompletion(indexName);
         },
             ReshardIndexService.class,
             new MockLog.PatternSeenEventExpectation(
@@ -1467,8 +1465,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         stateChangeAttemptedLatch.await();
 
@@ -1494,7 +1491,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             // When we release the handoff block the recovery will progress. However, it will fail because the target shard primary term
             // has advanced.
             proceedAfterShardFailure.countDown();
-            reshard.actionGet();
+            waitForReshardCompletion(indexName);
         },
             ReshardIndexService.class,
             new MockLog.PatternSeenEventExpectation(
@@ -1543,8 +1540,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         handoffAttemptedLatch.await();
 
@@ -1552,7 +1548,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // Allow handoff to proceed
         handoffLatch.countDown();
-        reshard.actionGet();
+        waitForReshardCompletion(indexName);
 
         ensureGreen(indexName);
 
@@ -1577,8 +1573,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> executed = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         assertBusy(() -> {
             GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -1632,7 +1627,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
             .get();
 
-        executed.actionGet();
+        waitForReshardCompletion(indexName);
     }
 
     public void testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut() throws Exception {
@@ -1655,8 +1650,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> executed = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         assertBusy(() -> {
             GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -1671,7 +1665,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // TODO: At this point we finish the reshard once all the target states are DONE. In the future we maybe need to switch this
         // assertion to reflect the usage of additional states
-        executed.actionGet();
+        waitForReshardCompletion(indexName);
 
         final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
             .setShard(1)
@@ -1710,7 +1704,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // start first resharding operation
         var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
-        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2));
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         // wait until we know it's in progress
         var ignored = splitState.actionGet(SAFE_AWAIT_TIMEOUT).projectState().metadata().index(indexName).getReshardingMetadata();
@@ -1725,12 +1719,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // unblock allocation to allow operations to proceed
         updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
 
-        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
 
         checkNumberOfShardsSetting(indexNode, indexName, 2);
 
         // now we should be able to resplit
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        waitForReshardCompletion(indexName);
         checkNumberOfShardsSetting(indexNode, indexName, 4);
     }
 
@@ -1763,8 +1758,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         disruption.stopDisrupting();
 
-        for (var future : futures) {
-            future.actionGet();
+        for (int i = 0; i < indexCount; i++) {
+            assertAcked(futures.get(i).actionGet());
+            waitForReshardCompletion(indexNameTemplate + i);
         }
 
         for (int i = 0; i < indexCount; i++) {
@@ -1821,8 +1817,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         handoffAttemptedLatch.await();
 
@@ -1833,7 +1828,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // Allow handoff to proceed
         handoffLatch.countDown();
-        reshard.actionGet();
+        waitForReshardCompletion(indexName);
         indexMetadata = clusterService().state().projectState().metadata().index(indexName);
         // Again index a document that belongs to the target shard and verify that it goes to the target shard id.
         shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
@@ -1898,8 +1893,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             }
         });
 
-        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
-        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
 
         preHandoffEnteredLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
 
@@ -1912,7 +1906,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // Allow handoff to proceed
         preHandoffLatch.countDown();
-        reshard.actionGet();
+        waitForReshardCompletion(indexName);
 
         // verify that the index metadata returned matches the expected multiple of shards
         GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -2067,5 +2061,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             case 2 -> indexRouting.deleteShard(id, routing);
             default -> throw new AssertionError("invalid option");
         };
+    }
+
+    private void waitForReshardCompletion(String indexName) {
+        awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
     }
 }

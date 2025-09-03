@@ -24,8 +24,7 @@ public record LuceneSlice(
     ShardContext shardContext,
     List<PartialLeafReaderContext> leaves,
     ScoreMode scoreMode,
-    Query query,
-    List<Object> tags
+    LuceneSliceQueue.QueryAndTags queryAndTags
 ) {
 
     int numLeaves() {
@@ -36,10 +35,18 @@ public record LuceneSlice(
         return leaves.get(index);
     }
 
+    Query query() {
+        return queryAndTags.query();
+    }
+
+    List<Object> tags() {
+        return queryAndTags.tags();
+    }
+
     Weight createWeight() {
         var searcher = shardContext.searcher();
         try {
-            return searcher.createWeight(query, scoreMode, 1);
+            return searcher.createWeight(queryAndTags.query(), scoreMode, 1);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

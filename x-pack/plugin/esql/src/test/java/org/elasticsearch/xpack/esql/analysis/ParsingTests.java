@@ -122,15 +122,15 @@ public class ParsingTests extends ESTestCase {
     public void testJoinOnConstant() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [123]",
+            "1:58: mismatched input '<EOF>' expecting {'::', '==', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/', '%'}",
             error("row languages = 1, gender = \"f\" | lookup join test on 123")
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [\"abc\"]",
+            "1:60: mismatched input '<EOF>' expecting {'::', '==', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/', '%'}",
             error("row languages = 1, gender = \"f\" | lookup join test on \"abc\"")
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [false]",
+            "1:60: mismatched input '<EOF>' expecting {'::', '==', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/', '%'}",
             error("row languages = 1, gender = \"f\" | lookup join test on false")
         );
     }

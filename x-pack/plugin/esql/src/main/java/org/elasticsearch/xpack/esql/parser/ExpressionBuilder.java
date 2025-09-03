@@ -608,6 +608,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitComparison(EsqlBaseParser.ComparisonContext ctx) {
+        return expression(ctx.comparisonExpression());
+    }
+
+    @Override
+    public Expression visitComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx) {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);

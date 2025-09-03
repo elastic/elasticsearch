@@ -461,5 +461,5 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
     }
 
-    protected record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
+    public record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
 }

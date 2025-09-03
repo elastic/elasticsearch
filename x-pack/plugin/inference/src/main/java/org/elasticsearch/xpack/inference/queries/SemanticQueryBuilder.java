@@ -180,7 +180,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     public static void registerInferenceAsyncAction(
         QueryRewriteContext queryRewriteContext,
         Map<String, InferenceResults> inferenceResultsMap,
-        String fieldName,
         String query,
         String inferenceId
     ) {
@@ -204,10 +203,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 InferenceAction.INSTANCE,
                 inferenceRequest,
                 listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                    inferenceResultsMap.put(
-                        inferenceId,
-                        validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
-                    );
+                    inferenceResultsMap.put(inferenceId, validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId));
                     l.onResponse(null);
                 })
             )
@@ -315,7 +311,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
         Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
         for (String inferenceId : inferenceIds) {
-            registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, fieldName, query, inferenceId);
+            registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
         }
 
         return new SemanticQueryBuilder(this, inferenceResultsMap);
@@ -323,27 +319,19 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private static InferenceResults validateAndConvertInferenceResults(
         InferenceServiceResults inferenceServiceResults,
-        String fieldName,
         String inferenceId
     ) {
         List<? extends InferenceResults> inferenceResultsList = inferenceServiceResults.transformToCoordinationFormat();
         if (inferenceResultsList.isEmpty()) {
             return new ErrorInferenceResults(
-                new IllegalArgumentException(
-                    "No inference results retrieved for field [" + fieldName + "] with inference ID [" + inferenceId + "]"
-                )
+                new IllegalArgumentException("No query inference results retrieved for inference ID [" + inferenceId + "]")
             );
         } else if (inferenceResultsList.size() > 1) {
             // We don't chunk queries, so there should always be one inference result.
             // Thus, if we receive more than one inference result, it is a server-side error.
             return new ErrorInferenceResults(
                 new IllegalStateException(
-                    inferenceResultsList.size()
-                        + " inference results retrieved for field ["
-                        + fieldName
-                        + "] with inference ID ["
-                        + inferenceId
-                        + "]"
+                    inferenceResultsList.size() + " query inference results retrieved for inference ID [" + inferenceId + "]"
                 )
             );
         }
@@ -355,17 +343,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             && inferenceResults instanceof WarningInferenceResults == false) {
             return new ErrorInferenceResults(
                 new IllegalArgumentException(
-                    "Field ["
-                        + fieldName
-                        + "] with inference ID ["
-                        + inferenceId
-                        + "] expected query inference results to be of type ["
+                    "Expected query inference results to be of type ["
                         + TextExpansionResults.NAME
                         + "] or ["
                         + MlTextEmbeddingResults.NAME
                         + "], got ["
                         + inferenceResults.getWriteableName()
-                        + "]. Has the inference endpoint configuration changed?"
+                        + "]. Has the inference endpoint ["
+                        + inferenceId
+                        + "] configuration changed?"
                 )
             );
         }

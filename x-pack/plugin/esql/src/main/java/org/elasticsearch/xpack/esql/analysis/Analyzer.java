@@ -1669,7 +1669,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
-            // Only the first vector arguments are vectors and considered for casting
+            // Perform explicit casting for vector arguments. This is done instead of using TO_DENSE_VECTOR function for better error
+            // handling. Otherwise, a failure in TO_DENSE_VECTOR will be returned as null, and the user will be confused as to why
+            // the original function has a null parameter when one has been provided.
             int vectorArgsCount = ((VectorFunction) vectorFunction).vectorArgumentsCount();
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
@@ -1678,7 +1680,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         Object folded = arg.fold(FoldContext.small());
                         List<Float> floatVector = null;
                         if (folded instanceof List && arg.dataType().isNumeric()) {
-                            // Convert to floats so blocks are created accordingly
                             if (arg.dataType() == FLOAT) {
                                 floatVector = (List<Float>) folded;
                             } else {

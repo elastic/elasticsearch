@@ -20,12 +20,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.HexFormat;
 
-public class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+/**
+ * String evaluator for to_dense_vector function. Converts a hexadecimal string to a dense_vector of bytes.
+ * Cannot be automatically generated as it generates multivalues for a single hex string, representing the dense_vector byte array.
+ */
+class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDenseVectorFromStringEvaluator.class);
 
     private final EvalOperator.ExpressionEvaluator field;
 
-    public ToDenseVectorFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+    ToDenseVectorFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
         super(driverContext, source);
         this.field = field;
     }

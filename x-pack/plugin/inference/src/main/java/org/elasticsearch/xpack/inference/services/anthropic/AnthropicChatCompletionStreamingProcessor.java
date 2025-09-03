@@ -120,19 +120,12 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-
             String id = parseStringField(jsonParser, ID_FIELD);
-
             String role = parseStringField(jsonParser, ROLE_FIELD);
-
             String model = parseStringField(jsonParser, MODEL_FIELD);
-
             String finishReason = parseStringField(jsonParser, STOP_REASON_FIELD);
-
             int promptTokens = parseNumberField(jsonParser, INPUT_TOKENS_FIELD);
-
             int completionTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
-
             int totalTokens = completionTokens + promptTokens;
 
             var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(completionTokens, promptTokens, totalTokens);
@@ -149,9 +142,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-
             int index = parseNumberField(jsonParser, INDEX_FIELD);
-
             String text = parseStringField(jsonParser, TEXT_FIELD);
 
             var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
@@ -167,9 +158,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-
             int index = parseNumberField(jsonParser, INDEX_FIELD);
-
             String text = parseStringField(jsonParser, TEXT_FIELD);
 
             var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
@@ -186,7 +175,6 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
             String finishReason = parseStringField(jsonParser, STOP_REASON_FIELD);
-
             int totalTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
 
             var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(totalTokens, 0, totalTokens);

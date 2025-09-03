@@ -281,9 +281,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testOneRemoteClusterPartial
-  issue: https://github.com/elastic/elasticsearch/issues/124055
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
@@ -387,9 +384,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/131248
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/131481
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376
@@ -417,9 +411,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/132382
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/132558
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/132349
@@ -462,9 +453,6 @@ tests:
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggsWithProfile
   issue: https://github.com/elastic/elasticsearch/issues/132880
-- class: org.elasticsearch.cluster.ClusterInfoServiceIT
-  method: testMaxQueueLatenciesInClusterInfo
-  issue: https://github.com/elastic/elasticsearch/issues/132957
 - class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
   method: testAsyncSearchFailingQueryErrorTraceDefault
   issue: https://github.com/elastic/elasticsearch/issues/133010
@@ -483,9 +471,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:change_point.Values null column}
   issue: https://github.com/elastic/elasticsearch/issues/133334
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/133364
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
@@ -510,15 +495,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/133507
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testIntBlock
   issue: https://github.com/elastic/elasticsearch/issues/133596
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
-  method: testSyntheticSourceMany
-  issue: https://github.com/elastic/elasticsearch/issues/133598
 - class: org.elasticsearch.compute.data.BasicBlockTests
   method: testDoubleBlock
   issue: https://github.com/elastic/elasticsearch/issues/133606
@@ -540,15 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncSubmitAndFetchIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/133840
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/133841
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/133842
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testHighNodeWriteLoadPreventsNewShardAllocation
   issue: https://github.com/elastic/elasticsearch/issues/133857
@@ -562,8 +532,20 @@ tests:
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
 - class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
+  method: testRouteOnSortFields
+  issue: https://github.com/elastic/elasticsearch/issues/133993
+- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
   method: testShrink
   issue: https://github.com/elastic/elasticsearch/issues/133875
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/131481
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithCustomFeatureProcessors
+  issue: https://github.com/elastic/elasticsearch/issues/134001
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/134019
 
 # Examples:
 #

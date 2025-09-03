@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -239,7 +240,7 @@ public class SourceContext implements Writeable, Releasable {
     private void setSource(BytesReference source, XContentType contentType, Releasable sourceReleasable) {
         this.source = source;
         this.contentType = contentType;
-        this.sourceReleasable.close();
+        Releasables.close(sourceReleasable);
         this.sourceReleasable = sourceReleasable;
     }
 }

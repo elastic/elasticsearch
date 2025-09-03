@@ -251,6 +251,12 @@ public class EsqlCapabilities {
         FN_MONTH_NAME,
 
         /**
+         * support for MV_CONTAINS function
+         * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
+         */
+        FN_MV_CONTAINS,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -409,6 +415,11 @@ public class EsqlCapabilities {
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
         SPATIAL_GRID(Build.current().isSnapshot()),
+
+        /**
+         * Support geohash, geotile and geohex data types. Done in #129581
+         */
+        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -972,7 +983,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V10(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1267,6 +1278,12 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
 
         /**
+         * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129372">java.lang.ClassCastException when combining LOOKUP JOIN and remote ENRICH</a>
+         */
+        REMOTE_ENRICH_AFTER_LOOKUP_JOIN,
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION,
@@ -1405,7 +1422,12 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot());
+        URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL decoding function.
+         */
+        URL_DECODE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -142,7 +142,6 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode node = mapper.readTree(is);
                 ObjectNode majors = (ObjectNode) node.get("majors");
-                System.out.println(majors.getClass());
                 ObjectNode perVersion = (ObjectNode) majors.get("" + languageVersion.asInt());
                 ArrayNode buildsNode = (ArrayNode) perVersion.get("builds");
                 List<JsonNode> buildsList = new ArrayList<>();

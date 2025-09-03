@@ -161,14 +161,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
             if (query != null) {
                 for (String inferenceId : inferenceIds) {
-                    // TODO: Register inference async action
-                    // SemanticQueryBuilder.registerInferenceAsyncAction(
-                    // queryRewriteContext,
-                    // inferenceResultsMap,
-                    // getFieldName(),
-                    // query,
-                    // inferenceId
-                    // );
+                    SemanticQueryBuilder.registerInferenceAsyncAction(
+                        queryRewriteContext,
+                        inferenceResultsMap,
+                        getFieldName(),
+                        query,
+                        inferenceId
+                    );
                 }
             }
 

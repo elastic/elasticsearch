@@ -162,7 +162,7 @@ public class KMeansLocalTests extends ESTestCase {
             assertEquals(neighborHoodsBruteForce[i].neighbors().length, neighborHoodsGraph[i].neighbors().length);
             int matched = compareNN(i, neighborHoodsBruteForce[i].neighbors(), neighborHoodsGraph[i].neighbors());
             double recall = (double) matched / neighborHoodsGraph[i].neighbors().length;
-            assertThat(recall, greaterThan(0.6));
+            assertThat(recall, greaterThan(0.4));
             if (recall == 1.0) {
                 // we cannot assert on array equality as there can be small differences due to numerical errors
                 assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-5f);

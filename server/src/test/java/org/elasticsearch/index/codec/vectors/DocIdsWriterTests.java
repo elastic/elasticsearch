@@ -38,7 +38,6 @@ import java.util.Set;
 
 import static org.elasticsearch.index.codec.vectors.DocIdsWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class DocIdsWriterTests extends LuceneTestCase {
 
     public void testNoDocs() throws Exception {

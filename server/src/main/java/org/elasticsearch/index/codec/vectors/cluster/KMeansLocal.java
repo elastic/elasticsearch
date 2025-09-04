@@ -10,9 +10,18 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.SampleReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -210,9 +219,92 @@ class KMeansLocal {
         return bestCentroidOffset;
     }
 
-    private NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) {
+    private NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
+        assert centers.length > clustersPerNeighborhood;
+        // experiments shows that below 20k, we better use brute force, otherwise hnsw gives us a nice speed up
+        if (centers.length < 20_000) {
+            return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
+        } else {
+            return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
+        }
+    }
+
+    static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
+        final UpdateableRandomVectorScorer scorer = new UpdateableRandomVectorScorer() {
+            int scoringOrdinal;
+
+            @Override
+            public float score(int node) {
+                return VectorSimilarityFunction.EUCLIDEAN.compare(centers[scoringOrdinal], centers[node]);
+            }
+
+            @Override
+            public int maxOrd() {
+                return centers.length;
+            }
+
+            @Override
+            public void setScoringOrdinal(int node) {
+                scoringOrdinal = node;
+            }
+        };
+        final RandomVectorScorerSupplier supplier = new RandomVectorScorerSupplier() {
+            @Override
+            public UpdateableRandomVectorScorer scorer() {
+                return scorer;
+            }
+
+            @Override
+            public RandomVectorScorerSupplier copy() {
+                return this;
+            }
+        };
+        final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, 16, 100, 42L).build(centers.length);
+        final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
+        final SingleBit singleBit = new SingleBit(centers.length);
+        for (int i = 0; i < centers.length; i++) {
+            scorer.setScoringOrdinal(i);
+            singleBit.indexSet = i;
+            final KnnCollector collector = HnswGraphSearcher.search(scorer, clustersPerNeighborhood, graph, singleBit, Integer.MAX_VALUE);
+            final ScoreDoc[] scoreDocs = collector.topDocs().scoreDocs;
+            if (scoreDocs.length == 0) {
+                // no neighbors, skip
+                neighborhoods[i] = NeighborHood.EMPTY;
+                continue;
+            }
+            final int[] neighbors = new int[scoreDocs.length];
+            for (int j = 0; j < neighbors.length; j++) {
+                neighbors[j] = scoreDocs[j].doc;
+                assert neighbors[j] != i;
+            }
+            final float minCompetitiveSimilarity = (1f / scoreDocs[neighbors.length - 1].score) - 1;
+            neighborhoods[i] = new NeighborHood(neighbors, minCompetitiveSimilarity);
+        }
+        return neighborhoods;
+    }
+
+    private static class SingleBit implements Bits {
+
+        private final int length;
+        private int indexSet;
+
+        SingleBit(int length) {
+            this.length = length;
+        }
+
+        @Override
+        public boolean get(int index) {
+            return index != indexSet;
+        }
+
+        @Override
+        public int length() {
+            return length;
+        }
+    }
+
+    static NeighborHood[] computeNeighborhoodsBruteForce(float[][] centers, int clustersPerNeighborhood) {
         int k = centers.length;
-        assert k > clustersPerNeighborhood;
         NeighborQueue[] neighborQueues = new NeighborQueue[k];
         for (int i = 0; i < k; i++) {
             neighborQueues[i] = new NeighborQueue(clustersPerNeighborhood, true);

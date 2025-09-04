@@ -74,20 +74,39 @@ final class DocIdsWriter {
         if (count == 0) {
             return CONTINUOUS_IDS;
         }
-        byte encoding = CONTINUOUS_IDS;
         int iterationLimit = count - blockSize + 1;
         int i = 0;
+        int maxValue = 0;
+        int maxMin2Max = 0;
+        boolean continuousIds = true;
         for (; i < iterationLimit; i += blockSize) {
             int offset = i;
-            encoding = (byte) Math.max(encoding, blockEncoding(d -> docIds.apply(offset + d), blockSize));
+            var r = sortedAndMaxAndMin2Max(d -> docIds.apply(offset + d), blockSize);
+            continuousIds &= r[0] == 1;
+            maxValue = Math.max(maxValue, r[1]);
+            maxMin2Max = Math.max(maxMin2Max, r[2]);
         }
         // check the tail
-        if (i == count) {
-            return encoding;
+        if (i < count) {
+            int offset = i;
+            var r = sortedAndMaxAndMin2Max(d -> docIds.apply(offset + d), count - i);
+            continuousIds &= r[0] == 1;
+            maxValue = Math.max(maxValue, r[1]);
+            maxMin2Max = Math.max(maxMin2Max, r[2]);
         }
-        int offset = i;
-        encoding = (byte) Math.max(encoding, blockEncoding(d -> docIds.apply(offset + d), count - i));
-        return encoding;
+        if (continuousIds) {
+            return CONTINUOUS_IDS;
+        } else if (maxMin2Max <= 0xFFFF) {
+            return DELTA_BPV_16;
+        } else {
+            if (maxValue <= 0x1FFFFF) {
+                return BPV_21;
+            } else if (maxValue <= 0xFFFFFF) {
+                return BPV_24;
+            } else {
+                return BPV_32;
+            }
+        }
     }
 
     void writeDocIds(IntToIntFunction docIds, int count, byte encoding, DataOutput out) throws IOException {
@@ -197,7 +216,7 @@ final class DocIdsWriter {
         }
     }
 
-    private static byte blockEncoding(IntToIntFunction docIds, int count) {
+    private static int[] sortedAndMaxAndMin2Max(IntToIntFunction docIds, int count) {
         // docs can be sorted either when all docs in a block have the same value
         // or when a segment is sorted
         boolean strictlySorted = true;
@@ -214,20 +233,7 @@ final class DocIdsWriter {
         }
 
         int min2max = max - min + 1;
-        if (strictlySorted && min2max == count) {
-            return CONTINUOUS_IDS;
-        }
-        if (min2max <= 0xFFFF) {
-            return DELTA_BPV_16;
-        } else {
-            if (max <= 0x1FFFFF) {
-                return BPV_21;
-            } else if (max <= 0xFFFFFF) {
-                return BPV_24;
-            } else {
-                return BPV_32;
-            }
-        }
+        return new int[] { (strictlySorted && min2max == count) ? 1 : 0, max, min2max };
     }
 
     void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {

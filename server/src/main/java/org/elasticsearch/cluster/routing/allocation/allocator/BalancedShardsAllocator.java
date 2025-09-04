@@ -787,9 +787,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
-            // TODO NOMERGE: how do we ensure that rebalancing doesn't return the hot shard back to the overloaded node?
-            // This might be the other ticket's problem
-            // NOMERGE NOTE: the MoveDecision may have a targetNode set.
             MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
@@ -820,7 +817,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
                     if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
-                        // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation, so skip it.
+                        // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation.
                         continue;
                     }
                     if (allocationDecision.type().higherThan(bestDecision)) {
@@ -834,7 +831,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
                             assert remainDecision.type() != Type.NOT_PREFERRED;
-                            // If we don't ever get a YES decision, we'll go with NOT_PREFERRED.
+                            // If we don't ever find a YES decision, we'll settle for NOT_PREFERRED as preferable to NO.
                             targetNode = target;
                         }
                     }

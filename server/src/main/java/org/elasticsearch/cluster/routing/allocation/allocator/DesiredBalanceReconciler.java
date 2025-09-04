@@ -502,10 +502,9 @@ public class DesiredBalanceReconciler {
                 }
 
                 final var routingNode = routingNodes.node(shardRouting.currentNodeId());
-                final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);                                         ////////// CAN-REMAIN
-                if (canRemainDecision.type() != Decision.Type.NO) {
-                    // it's desired elsewhere but technically it can remain on its current node. Defer its movement until later on to give
-                    // priority to shards that _must_ move.
+                final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                    // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                     continue;
                 }
 

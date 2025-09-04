@@ -24,12 +24,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -1605,4 +1607,106 @@ public class SettingTests extends ESTestCase {
             equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808")
         );
     }
+
+    public void testRecordSetting() {
+        record TestSetting(int intSetting) {}
+        Setting<TestSetting> setting = Setting.recordSetting("record.setting", TestSetting.class, MethodHandles.lookup(), List.of());
+        Settings settings123 = Settings.builder().put("record.setting.int_setting", 123).build(); // automatic snake-case for names
+        Settings settings456 = Settings.builder().put("record.setting.int_setting", 456).build();
+
+        assertEquals(new TestSetting(123), setting.get(settings123));
+        assertThrows(IllegalStateException.class, () -> setting.get(Settings.EMPTY));
+
+        var watcher = new AtomicReference<TestSetting>(null);
+        var updater = setting.newUpdater(watcher::set, logger);
+        assertNull("Creating an updater does not call set", watcher.get());
+        updater.apply(settings456, settings123);
+        assertEquals("Updater called when value changed", new TestSetting(456), watcher.get());
+        assertThrows("Throws when there's no default", IllegalStateException.class, () -> updater.apply(Settings.EMPTY, settings456));
+
+        watcher.set(null);
+        updater.apply(settings123, settings123);
+        assertNull("Updater NOT called when value unchanged", watcher.get());
+        updater.apply(settings456, settings456);
+        assertNull("Updater again not called when value unchanged", watcher.get());
+    }
+
+    public void testRecordWithDefaults() {
+        record TestSetting(int i1, int i2) {}
+        Setting<Integer> i1Setting = Setting.intSetting("record.setting.i1", -1);
+        Setting<Integer> i2Setting = Setting.intSetting("record.setting.i2", -2);
+        Setting<TestSetting> setting = Setting.recordSetting(
+            "record.setting",
+            TestSetting.class,
+            MethodHandles.lookup(),
+            List.of(i1Setting, i2Setting)
+        );
+        Settings settings123 = Settings.builder().put("record.setting.i1", 123).build();
+
+        assertEquals(
+            new TestSetting(123, 456),
+            setting.get(Settings.builder().put("record.setting.i1", 123).put("record.setting.i2", 456).build())
+        );
+        assertEquals(new TestSetting(-1, 456), setting.get(Settings.builder().put("record.setting.i2", 456).build()));
+        assertEquals(new TestSetting(-1, -2), setting.get(Settings.EMPTY));
+
+        var watcher = new AtomicReference<TestSetting>(null);
+        var updater = setting.newUpdater(watcher::set, logger);
+        updater.apply(settings123, Settings.EMPTY);
+        assertEquals(new TestSetting(123, -2), watcher.get());
+        updater.apply(Settings.EMPTY, settings123);
+        assertEquals(new TestSetting(-1, -2), watcher.get());
+
+        Settings explicitDefaults = Settings.builder().put("record.setting.i1", -1).put("record.setting.i2", -2).build();
+        watcher.set(null);
+        updater.apply(Settings.EMPTY, explicitDefaults);
+        assertNull("Updater NOT called when value deleted from the default", watcher.get());
+        updater.apply(explicitDefaults, Settings.EMPTY);
+        assertNull("Updater NOT called when value 'changed' to the default from nothing", watcher.get());
+    }
+
+    public void testAffixRecordSetting() {
+        record TestSetting(int intSetting) {}
+        var componentSetting = Setting.affixKeySetting("things.", "config.int_setting", (n, key) -> Setting.intSetting(key, -1));
+        var setting = Setting.affixKeySetting(
+            "things.",
+            "config",
+            (namespace, key) -> Setting.recordSetting(
+                key,
+                TestSetting.class,
+                MethodHandles.lookup(),
+                List.of(componentSetting.getConcreteSettingForNamespace(namespace))
+            )
+        );
+        Settings settings = Settings.builder()
+            .put("things.thing1.config.int_setting", 123)
+            .put("things.thing2.config.int_setting", 456)
+            .build();
+        assertEquals(new TestSetting(123), setting.getConcreteSetting("things.thing1.config").get(settings));
+        assertEquals(new TestSetting(456), setting.getConcreteSetting("things.thing2.config").get(settings));
+
+        Settings settings1 = Settings.builder().put("things.thing1.config.int_setting", 123).build();
+        assertEquals(new TestSetting(123), setting.getConcreteSetting("things.thing1.config").get(settings));
+        assertEquals("Default", new TestSetting(-1), setting.getConcreteSetting("things.thing2.config").get(settings1));
+
+        Map<String, TestSetting> watcher = new ConcurrentHashMap<>();
+        var updater = setting.newAffixUpdater(watcher::put, logger, (k, s) -> {});
+
+        // Test the obvious state transitions
+        updater.apply(settings1, Settings.EMPTY);
+        assertEquals(Map.of("thing1", new TestSetting(123)), watcher);
+        updater.apply(settings, settings1);
+        assertEquals(Map.of("thing1", new TestSetting(123), "thing2", new TestSetting(456)), watcher);
+        updater.apply(Settings.EMPTY, settings);
+        assertEquals("Values set to defaults", Map.of("thing1", new TestSetting(-1), "thing2", new TestSetting(-1)), watcher);
+
+        // Test that only the changed keys are updated
+        watcher.clear();
+        updater.apply(settings, settings1);
+        assertEquals("Only thing2 updated", Map.of("thing2", new TestSetting(456)), watcher);
+        watcher.clear();
+        updater.apply(Settings.EMPTY, settings1);
+        assertEquals("thing1 set to default", Map.of("thing1", new TestSetting(-1)), watcher);
+    }
+
 }

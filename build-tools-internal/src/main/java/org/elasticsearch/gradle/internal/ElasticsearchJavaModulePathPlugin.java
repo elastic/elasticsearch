@@ -76,18 +76,13 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
             it.extendsFrom(compileClasspath);
             it.setCanBeResolved(true);
             it.setCanBeConsumed(false); // we don't want this configuration used by dependent projects
-            it.attributes(
-                attrs -> {
-                    attrs.attribute(
-                        LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
-                        project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
-                    );
-                    attrs.attribute(
-                        Usage.USAGE_ATTRIBUTE,
-                        project.getObjects().named(Usage.class, Usage.JAVA_API)
-                    );
-                }
-            );
+            it.attributes(attrs -> {
+                attrs.attribute(
+                    LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                    project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
+                );
+                attrs.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+            });
         }).getIncoming().artifactView(it -> {
             it.componentFilter(cf -> {
                 var visited = new HashSet<ComponentIdentifier>();

@@ -25,9 +25,7 @@ public class DependencyRemovalByNameRule implements ComponentMetadataRule {
     @Override
     public void execute(ComponentMetadataContext context) {
         context.getDetails().allVariants(variants -> {
-            variants.withDependencies(dependencies -> {
-                dependencies.removeIf(metadata -> modulesToRemove.contains(metadata.getName()));
-            });
+            variants.withDependencies(dependencies -> { dependencies.removeIf(metadata -> modulesToRemove.contains(metadata.getName())); });
         });
     }
 }

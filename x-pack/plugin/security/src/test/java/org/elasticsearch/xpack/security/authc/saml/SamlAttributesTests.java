@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.core.NameID;
 
@@ -29,6 +30,13 @@ public class SamlAttributesTests extends SamlTestCase {
                     "groups",
                     List.of("employees", "engineering", "managers")
                 )
+            ),
+            List.of(
+                new SamlAttributes.SamlPrivateAttribute(
+                    "urn:oid:0.9.2342.19200300.100.1.3",
+                    "mail",
+                    List.of(new SecureString("peter@ng.com".toCharArray()))
+                )
             )
         );
         assertThat(
@@ -44,6 +52,9 @@ public class SamlAttributesTests extends SamlTestCase {
                     + "name(urn:oid:2.5.4.3)=[Peter Ng](len=1)"
                     + ", "
                     + "groups(urn:oid:1.3.6.1.4.1.5923.1.5.1.1)=[employees, engineering, managers](len=3)"
+                    + "]}"
+                    + "{["
+                    + "mail(urn:oid:0.9.2342.19200300.100.1.3)=[1 value(s)]"
                     + "]}"
             )
         );

@@ -201,7 +201,10 @@ public final class DefBootstrap {
                     try {
                         return lookup(flavor, name, receiverType).asType(type);
                     } catch (Throwable t) {
-                        Def.rethrow(t);
+                        // ClassValue.getFromHashMap wraps checked exceptions as Error, so we
+                        // use a sentinel class [PainlessWrappedException] here to work around
+                        // this issue and later unwrap the original exception
+                        Def.rethrow(t instanceof Exception ? new PainlessWrappedException((Exception) t) : t);
                         throw new AssertionError();
                     }
                 }

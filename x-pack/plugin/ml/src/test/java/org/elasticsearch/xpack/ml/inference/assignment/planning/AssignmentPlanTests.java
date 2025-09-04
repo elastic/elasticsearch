@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -131,7 +132,7 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 1);
 
             assertThat(builder.getRemainingCores(n), equalTo(2));
-            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(350).getBytes()));
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(50).getBytes()));
             assertThat(builder.getRemainingAllocations(m), equalTo(1));
             assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -160,7 +161,7 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 1);
 
             assertThat(builder.getRemainingCores(n), equalTo(2));
-            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(325).getBytes()));
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(0).getBytes()));
             assertThat(builder.getRemainingAllocations(m), equalTo(1));
             assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -184,7 +185,9 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 1);
 
             assertThat(builder.getRemainingCores(n), equalTo(2));
-            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(300).getBytes()));
+            // Since perDeployment memory is not specified, we compute the base memory usage.
+            // The remaining memory is 300MB - (240 MB + 2*30 MB) = 0MB
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(0).getBytes()));
             assertThat(builder.getRemainingAllocations(m), equalTo(1));
             assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -214,7 +217,11 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 1);
 
             assertThat(builder.getRemainingCores(n), equalTo(2));
-            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(275).getBytes()));
+            // base memory: 240+2*25 = 290MB
+            // since perDeployment memory is specified, we compute the new memory format usage:
+            // 250 (perDeployment) + 1*25 (perAllocation) + 25 (modelDefinition) = 300MB
+            // Then we take the maximum of 290 and 300, which is 300MB
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(0).getBytes()));
             assertThat(builder.getRemainingAllocations(m), equalTo(1));
             assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -254,12 +261,8 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-            builder.assignModelToNode(m, n, 2);
-            AssignmentPlan plan = builder.build();
-
-            assertThat(plan.deployments(), contains(m));
-            assertThat(plan.satisfiesCurrentAssignments(), is(true));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 2));
+            assertThat(e.getMessage(), containsString("not enough memory on node"));
         }
         { // new memory format
             Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
@@ -278,12 +281,8 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-            builder.assignModelToNode(m, n, 2);
-            AssignmentPlan plan = builder.build();
-
-            assertThat(plan.deployments(), contains(m));
-            assertThat(plan.satisfiesCurrentAssignments(), is(true));
-            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 2));
+            assertThat(e.getMessage(), containsString("not enough memory on node"));
         }
     }
 
@@ -384,7 +383,9 @@ public class AssignmentPlanTests extends ESTestCase {
             // old memory format
             Deployment m = new Deployment("m_1", "m_1", ByteSizeValue.ofMb(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, null, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-            assertThat(builder.canAssign(m, n, 1), is(true));
+            // 240 + 2*31 = 302MB, this doesn't fit in 300MB. We don't care that the deployment is currently allocated since
+            // only previous assignments should be considered
+            assertThat(builder.canAssign(m, n, 1), is(false));
         }
         {
             // new memory format
@@ -397,11 +398,15 @@ public class AssignmentPlanTests extends ESTestCase {
                 Map.of("n_1", 1),
                 0,
                 null,
-                ByteSizeValue.ofMb(300).getBytes(),
+                ByteSizeValue.ofMb(265).getBytes(),
                 ByteSizeValue.ofMb(10).getBytes()
             );
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+            // 265 + 1*10 + 25 = 300MB, this doesn't fit in 300MB. We don't care that the deployment is currently allocated since
             assertThat(builder.canAssign(m, n, 1), is(true));
+            builder.assignModelToNode(m, n, 1);
+            // After assignment, no more memory is available
+            assertThat(builder.canAssign(m, n, 1), is(false));
         }
     }
 

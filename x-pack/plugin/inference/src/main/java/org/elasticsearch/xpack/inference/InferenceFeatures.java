@@ -11,6 +11,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
 import java.util.HashSet;
@@ -19,6 +20,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
@@ -46,6 +48,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
     private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
+    private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -78,7 +81,10 @@ public class InferenceFeatures implements FeatureSpecification {
                 COHERE_V2_API,
                 SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS,
                 SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX,
-                SEMANTIC_TEXT_HIGHLIGHTING_FLAT
+                SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
+                SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
+                SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
+                SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS
             )
         );
         if (RERANK_SNIPPETS.isEnabled()) {

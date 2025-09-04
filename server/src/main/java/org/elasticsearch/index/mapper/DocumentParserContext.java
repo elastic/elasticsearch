@@ -300,7 +300,7 @@ public abstract class DocumentParserContext {
         return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
     }
 
-    public final List<VectorsFormatProvider> getVectorFormatProviers() {
+    public final List<VectorsFormatProvider> getVectorFormatProviders() {
         return mappingParserContext.getVectorsFormatProviders();
     }
 
@@ -337,12 +337,6 @@ public abstract class DocumentParserContext {
         if (canAddIgnoredField()) {
             // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
-        }
-    }
-
-    final void removeLastIgnoredField(String name) {
-        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
-            ignoredFieldValues.removeLast();
         }
     }
 

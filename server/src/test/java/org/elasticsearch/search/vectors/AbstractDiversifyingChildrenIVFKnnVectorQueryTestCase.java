@@ -93,7 +93,10 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        format = new IVFVectorsFormat(random().nextInt(IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER));
+        format = new IVFVectorsFormat(
+            random().nextInt(IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER),
+            random().nextInt(IVFVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER, IVFVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
+        );
     }
 
     abstract Query getDiversifyingChildrenKnnQuery(

@@ -1,5 +1,0 @@
-pr: 131677
-summary: Throw better exception if verifying empty repo
-area: Snapshot/Restore
-type: bug
-issues: []

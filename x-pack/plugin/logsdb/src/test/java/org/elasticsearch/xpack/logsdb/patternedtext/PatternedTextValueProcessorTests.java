@@ -10,13 +10,17 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class PatternedTextValueProcessorTests extends ESTestCase {
 
-    public void testEmpty() {
+    public void testEmpty() throws IOException {
         String text = "";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals(text, parts.template());
@@ -24,7 +28,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testWhitespace() {
+    public void testWhitespace() throws IOException {
         String text = " ";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals(text, parts.template());
@@ -32,43 +36,48 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testWithoutTimestamp() {
+    public void testWithoutTimestamp() throws IOException {
         String text = " some text with arg1 and 2arg2 and 333 ";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" some text with %W and %W and %W ", parts.template());
+        assertEquals(" some text with  and  and  ", parts.template());
         assertThat(parts.args(), Matchers.contains("arg1", "2arg2", "333"));
+        assertThat(parts.argsInfo(), equalTo(info(16, 21, 26)));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testWithTimestamp() {
+    public void testWithTimestamp() throws IOException {
         String text = " 2021-04-13T13:51:38.000Z some text with arg1 and arg2 and arg3";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" %W some text with %W and %W and %W", parts.template());
+        assertEquals("  some text with  and  and ", parts.template());
         assertThat(parts.args(), Matchers.contains("2021-04-13T13:51:38.000Z", "arg1", "arg2", "arg3"));
+        assertThat(parts.argsInfo(), equalTo(info(1, 17, 22, 27)));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testWithDateSpaceTime() {
+    public void testWithDateSpaceTime() throws IOException {
         String text = " 2021-04-13 13:51:38 some text with arg1 and arg2 and arg3";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals(" %W %W some text with %W and %W and %W", parts.template());
+        assertEquals("   some text with  and  and ", parts.template());
+        assertThat(parts.argsInfo(), equalTo(info(1, 2, 18, 23, 28)));
         assertThat(parts.args(), Matchers.contains("2021-04-13", "13:51:38", "arg1", "arg2", "arg3"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testMalformedDate() {
+    public void testMalformedDate() throws IOException {
         String text = "2020/09/06 10:11:38 Using namespace: kubernetes-dashboard' | HTTP status: 400, message: [1:395]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("%W %W Using namespace: kubernetes-dashboard' | HTTP status: %W message: [%W]", parts.template());
+        assertEquals("  Using namespace: kubernetes-dashboard' | HTTP status:  message: []", parts.template());
+        assertThat(parts.argsInfo(), equalTo(info(0, 1, 56, 67)));
         assertThat(parts.args(), Matchers.contains("2020/09/06", "10:11:38", "400,", "1:395"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testUUID() {
+    public void testUUID() throws IOException {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: [18be2355-6306-4a00-9db9-f0696aa1a225] "
             + "some text with arg1 and arg2";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W][%W][%W][action_controller][INFO]: [%W] some text with %W and %W", parts.template());
+        assertEquals("[][][][action_controller][INFO]: [] some text with  and ", parts.template());
+        assertThat(parts.argsInfo(), equalTo(info(1, 3, 5, 34, 51, 56)));
         assertThat(
             parts.args(),
             Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2")
@@ -76,18 +85,20 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testIP() {
+    public void testIP() throws IOException {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: from 94.168.152.150 and arg1";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W][%W][%W][action_controller][INFO]: from %W and %W", parts.template());
+        assertEquals("[][][][action_controller][INFO]: from  and ", parts.template());
+        assertThat(parts.argsInfo(), equalTo(info(1, 3, 5, 38, 43)));
         assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "94.168.152.150", "arg1"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testSecondDate() {
+    public void testSecondDate() throws IOException {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: at 2020-08-18 00:58:56 +0000 and arg1";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W][%W][%W][action_controller][INFO]: at %W %W %W and %W", parts.template());
+        assertEquals("[][][][action_controller][INFO]: at    and ", parts.template());
+        assertThat(parts.argsInfo(), equalTo(info(1, 3, 5, 36, 37, 38, 43)));
         assertThat(
             parts.args(),
             Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "2020-08-18", "00:58:56", "+0000", "arg1")
@@ -95,27 +106,28 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testWithTimestamp1() {
+    public void testWithTimestampStartBrackets() throws IOException {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("[%W] Found %W errors for service [%W]", parts.template());
+        assertEquals("[] Found  errors for service []", parts.template());
+        assertThat(parts.argsInfo(), equalTo(info(1, 9, 30)));
         assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56", "123", "cheddar1"));
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
-    public void testTemplateIdIsExpectedShape() {
+    public void testTemplateIdIsExpectedShape() throws IOException {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("vSr1YMYPups", parts.templateId());
+        assertEquals("1l_PtCLQ5xY", parts.templateId());
     }
 
-    public void testTemplateIdHasVeryFewCollisions() {
+    public void testTemplateIdHasVeryFewCollisions() throws IOException {
         Set<String> templates = new HashSet<>();
         Set<String> ids = new HashSet<>();
 
         for (int i = 0; i < 1000; i++) {
             var template = randomTemplate();
-            var parts = new PatternedTextValueProcessor.Parts(template, List.of());
+            var parts = new PatternedTextValueProcessor.Parts(template, List.of(), List.of());
             templates.add(template);
             ids.add(parts.templateId());
         }
@@ -127,18 +139,18 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         StringBuilder sb = new StringBuilder();
         int numTokens = randomIntBetween(1, 20);
         for (int i = 0; i < numTokens; i++) {
-            var token = randomBoolean() ? randomAlphaOfLength(between(1, 10)) : randomPlaceholder();
+            var token = randomBoolean() ? randomAlphaOfLength(between(1, 10)) : "";
             sb.append(token);
             sb.append(randomDelimiter());
         }
         return sb.toString();
     }
 
-    private static String randomPlaceholder() {
-        return randomFrom(List.of("%W", "%D", "%I", "%U", "%T"));
-    }
-
     private static String randomDelimiter() {
         return randomFrom(List.of(" ", "\n", "\t", "[", "]"));
+    }
+
+    private static List<Arg.Info> info(int... offsets) throws IOException {
+        return Arrays.stream(offsets).mapToObj(o -> new Arg.Info(Arg.Type.GENERIC, o)).toList();
     }
 }

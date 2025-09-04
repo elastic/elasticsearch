@@ -12,7 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -38,11 +39,15 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -65,6 +70,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -76,7 +84,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -161,8 +169,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -207,7 +215,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -215,7 +223,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean(), EsField.TimeSeriesFieldType.NONE));
     }
 
     public static Literal of(Object value) {
@@ -415,25 +423,26 @@ public final class EsqlTestUtils {
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
-        mock(TransportService.class),
+        createMockTransportService(),
         mock(SearchService.class),
         null,
         mock(ClusterService.class),
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        mockInferenceRunner()
+        new InferenceService(mock(Client.class))
     );
 
-    @SuppressWarnings("unchecked")
-    private static InferenceRunner mockInferenceRunner() {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(i -> {
-            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
-            return null;
-        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+    private static TransportService createMockTransportService() {
+        var service = mock(TransportService.class);
+        doReturn(createMockThreadPool()).when(service).getThreadPool();
+        return service;
+    }
 
-        return inferenceRunner;
+    private static ThreadPool createMockThreadPool() {
+        var threadPool = mock(ThreadPool.class);
+        doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
+        return threadPool;
     }
 
     private EsqlTestUtils() {}
@@ -851,6 +860,15 @@ public final class EsqlTestUtils {
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
             case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case GEOHASH -> StGeohash.unboundedGrid.calculateGridId(
+                GeometryTestUtils.randomPoint(),
+                randomIntBetween(1, Geohash.PRECISION)
+            );
+            case GEOTILE -> StGeotile.unboundedGrid.calculateGridId(
+                GeometryTestUtils.randomPoint(),
+                randomIntBetween(0, GeoTileUtils.MAX_ZOOM)
+            );
+            case GEOHEX -> StGeohex.unboundedGrid.calculateGridId(GeometryTestUtils.randomPoint(), randomIntBetween(0, H3.MAX_H3_RES));
             case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
                 randomDouble(),
                 randomDouble(),

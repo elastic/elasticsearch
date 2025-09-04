@@ -54,7 +54,7 @@ public class PolicyManager {
      */
     static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop", "java.xml");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
@@ -367,9 +367,7 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     boolean isTriviallyAllowed(Class<?> requestingClass) {
-        if (generalLogger.isTraceEnabled()) {
-            generalLogger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
-        }
+        // note: do not log exceptions in here, this could interfere with loading of additionally necessary classes such as ThrowableProxy
         if (requestingClass == null) {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;

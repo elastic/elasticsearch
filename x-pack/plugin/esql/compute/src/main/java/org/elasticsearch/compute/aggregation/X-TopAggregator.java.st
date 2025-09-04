@@ -7,29 +7,23 @@
 
 package org.elasticsearch.compute.aggregation;
 
-$if(BytesRef || Ip)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-$endif$
-$if(BytesRef)$
 import org.elasticsearch.common.breaker.CircuitBreaker;
-$endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(!long)$
 import org.elasticsearch.compute.data.$Type$Block;
-$endif$
 import org.elasticsearch.compute.data.IntVector;
-$if(long)$
 import org.elasticsearch.compute.data.$Type$Block;
-$endif$
 import org.elasticsearch.compute.data.sort.$Name$BucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
+// end generated imports
 
 /**
  * Aggregates the top N field values for $type$.
@@ -90,8 +84,8 @@ $else$
 $endif$
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(ctx.blockFactory(), selected);
     }
 
     public static class GroupingState implements GroupingAggregatorState {

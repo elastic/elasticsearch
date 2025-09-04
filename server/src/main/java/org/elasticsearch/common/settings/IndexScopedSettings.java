@@ -49,8 +49,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
-
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
@@ -243,9 +241,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
         }
-        if (SYNTHETIC_VECTORS) {
-            settings.add(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING);
-        }
+        settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         settings.add(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

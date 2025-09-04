@@ -24,8 +24,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -47,7 +45,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -131,10 +128,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaults() throws IOException {
-        boolean enabledDocValuesSkipper = randomBoolean();
-        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), enabledDocValuesSkipper).build();
-
-        DocumentMapper mapper = createMapperService(indexSettings, fieldMapping(this::minimalMapping)).documentMapper();
+        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
@@ -157,12 +151,13 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         {
             List<IndexableField> fields = doc.rootDoc().getFields("field.template_id");
             assertEquals(1, fields.size());
-            assertEquals("D3OycqSEnDM", fields.get(0).binaryValue().utf8ToString());
+            // Template is an empty string, so the templateId hash has value AAAAAAAAAAA
+            assertEquals("AAAAAAAAAAA", fields.get(0).binaryValue().utf8ToString());
             IndexableFieldType fieldType = fields.get(0).fieldType();
             assertThat(fieldType.omitNorms(), equalTo(true));
             assertFalse(fieldType.tokenized());
             assertFalse(fieldType.stored());
-            assertThat(fieldType.indexOptions(), equalTo(enabledDocValuesSkipper ? IndexOptions.NONE : IndexOptions.DOCS));
+            assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
             assertThat(fieldType.storeTermVectors(), equalTo(false));
             assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
             assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
@@ -257,25 +252,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            StringBuilder builder = new StringBuilder();
-            if (randomBoolean()) {
-                builder.append(randomAlphaOfLength(5));
-            } else {
-                String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-                builder.append(timestamp);
-            }
-            for (int i = 0; i < randomIntBetween(0, 9); i++) {
-                builder.append(" ");
-                int rand = randomIntBetween(0, 4);
-                switch (rand) {
-                    case 0 -> builder.append(randomAlphaOfLength(5));
-                    case 1 -> builder.append(randomAlphanumericOfLength(5));
-                    case 2 -> builder.append(UUID.randomUUID());
-                    case 3 -> builder.append(randomIp(true));
-                    case 4 -> builder.append(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()));
-                }
-            }
-            String value = builder.toString();
+            var value = PatternedTextVsMatchOnlyTextTests.randomMessage();
             return Tuple.tuple(value, value);
         }
 

@@ -1,8 +1,8 @@
 {
   "inference.put_elasticsearch": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html",
-      "description": "Configure an Elasticsearch inference endpoint"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-elasticsearch",
+      "description": "Create an Elasticsearch inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",

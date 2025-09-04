@@ -174,6 +174,7 @@ public final class BlockUtils {
 
     /** Returns a deep copy of the given block, using the blockFactory for creating the copy block. */
     public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
+        // TODO preserve constants here.
         try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
             builder.copyFrom(block, 0, block.getPositionCount());
             builder.mvOrdering(block.mvOrdering());

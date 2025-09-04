@@ -1,7 +1,0 @@
-pr: 130638
-summary: Prevent search functions work with a non-STANDARD index
-area: ES|QL
-type: bug
-issues:
- - 130561
- - 129778

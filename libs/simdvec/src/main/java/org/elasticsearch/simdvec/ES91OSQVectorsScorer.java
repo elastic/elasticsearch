@@ -141,7 +141,7 @@ public class ES91OSQVectorsScorer {
      *
      * <p>The results are stored in the provided scores array.
      */
-    public void scoreBulk(
+    public float scoreBulk(
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -158,6 +158,7 @@ public class ES91OSQVectorsScorer {
             targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
         }
         in.readFloats(additionalCorrections, 0, BULK_SIZE);
+        float maxScore = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < BULK_SIZE; i++) {
             scores[i] = score(
                 queryLowerInterval,
@@ -172,6 +173,10 @@ public class ES91OSQVectorsScorer {
                 additionalCorrections[i],
                 scores[i]
             );
+            if (scores[i] > maxScore) {
+                maxScore = scores[i];
+            }
         }
+        return maxScore;
     }
 }

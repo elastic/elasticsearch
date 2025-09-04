@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -56,7 +57,8 @@ public class SegmentCountStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        Index index = indexMetadata.getIndex();
         getClient(state.projectId()).admin()
             .indices()
             .segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {

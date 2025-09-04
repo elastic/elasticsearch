@@ -8,6 +8,8 @@
  */
 
 import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.build'
@@ -55,6 +57,16 @@ tasks.register("checkVec", JavaExec) {
   }
   if (System.getenv("DO_PROFILING") != null) {
     jvmArgs '-XX:StartFlightRecording=dumponexit=true,maxsize=250M,filename=knn.jfr,settings=profile.jfc'
+  }
+  if (buildParams.getIsRuntimeJavaHomeSet()) {
+    executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+  } else {
+    javaLauncher = javaToolchains.launcherFor {
+      languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+      vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+        JvmVendorSpec.ORACLE :
+        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
+    }
   }
 }
 

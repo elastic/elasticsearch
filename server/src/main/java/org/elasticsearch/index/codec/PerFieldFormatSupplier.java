@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -32,6 +34,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * vectors.
  */
 public class PerFieldFormatSupplier {
+
+    private static final FeatureFlag SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT = new FeatureFlag("seqno_field_use_tsdb_doc_values_format");
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
@@ -122,9 +126,13 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
+        // TODO: should we just allow all fields to use tsdb doc values codec?
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
         // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
+        return fieldName.startsWith("_")
+            && fieldName.equals("_tsid") == false
+            && fieldName.equals("_ts_routing_hash") == false
+            && (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled() && fieldName.equals(SeqNoFieldMapper.NAME) == false);
     }
 
     private boolean isTimeSeriesModeIndex() {

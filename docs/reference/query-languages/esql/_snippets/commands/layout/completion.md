@@ -1,4 +1,3 @@
-## `COMPLETION` [esql-completion]
 
 ```yaml {applies_to}
 serverless: preview
@@ -9,9 +8,25 @@ The `COMPLETION` command allows you to send prompts and context to a Large Langu
 
 **Syntax**
 
+::::{tab-set}
+
+:::{tab-item} 9.2.0+
+
 ```esql
-COMPLETION [column =] prompt WITH inference_id
+COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
 ```
+
+:::
+
+:::{tab-item} 9.1.x only
+
+```esql
+COMPLETION [column =] prompt WITH my_inference_endpoint
+```
+
+:::
+
+::::
 
 **Parameters**
 
@@ -24,7 +39,7 @@ COMPLETION [column =] prompt WITH inference_id
 :   The input text or expression used to prompt the LLM.
     This can be a string literal or a reference to a column containing text.
 
-`inference_id`
+`my_inference_endpoint`
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
@@ -46,8 +61,38 @@ including:
 **Requirements**
 
 To use this command, you must deploy your LLM model in Elasticsearch as
-an [≈inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
+an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
+
+#### Handling timeouts
+
+`COMPLETION` commands may time out when processing large datasets or complex prompts. The default timeout is 10 minutes, but you can increase this limit if necessary.
+
+How you increase the timeout depends on your deployment type:
+
+::::{tab-set}
+:::{tab-item} {{ech}}
+* You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
+* You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+:::
+
+:::{tab-item} Self-managed
+* You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
+* You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+* Alternatively, you can add timeout parameters to individual queries
+:::
+
+:::{tab-item} {{serverless-full}}
+* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
+:::
+::::
+
+If you don't want to increase the timeout limit, try the following:
+
+* Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
+* Split complex operations into multiple simpler queries
+* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
+
 
 **Examples**
 
@@ -55,7 +100,7 @@ Use the default column name (results stored in `completion` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
-| COMPLETION question WITH test_completion_model
+| COMPLETION question WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP question, completion
 ```
 
@@ -67,7 +112,7 @@ Specify the output column (results stored in `answer` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
-| COMPLETION answer = question WITH test_completion_model
+| COMPLETION answer = question WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP question, answer
 ```
 
@@ -87,10 +132,9 @@ FROM movies
    "Synopsis: ", synopsis, "\n",
    "Actors: ", MV_CONCAT(actors, ", "), "\n",
   )
-| COMPLETION summary = prompt WITH test_completion_model
+| COMPLETION summary = prompt WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP title, summary, rating
 ```
-
 
 | title:keyword | summary:keyword | rating:double |
 | --- | --- | --- |

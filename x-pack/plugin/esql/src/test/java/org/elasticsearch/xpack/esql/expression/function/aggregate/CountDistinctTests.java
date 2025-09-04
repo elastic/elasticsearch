@@ -80,7 +80,14 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             DataType.KEYWORD,
             DataType.TEXT
         )) {
-            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier("No rows (" + dataType + ")", List::of, dataType, false, true);
+            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier(
+                "No rows (" + dataType + ")",
+                List::of,
+                dataType,
+                false,
+                true,
+                List.of()
+            );
 
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -120,7 +127,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, precisionTypedData),
-                "CountDistinct[field=Attribute[channel=0],precision=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );
@@ -142,7 +149,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "CountDistinct[field=Attribute[channel=0]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );

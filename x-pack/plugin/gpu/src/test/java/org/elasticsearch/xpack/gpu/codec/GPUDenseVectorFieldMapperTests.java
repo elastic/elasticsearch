@@ -13,8 +13,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.mapper.AbstractDenseVectorFieldMapperTestcase;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.gpu.GPUSupport;
@@ -26,7 +26,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapperTestcase {
+public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
     @Before
     public void setup() {
@@ -39,14 +39,18 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
         return Collections.singletonList(plugin);
     }
 
-    public void testESGPUHnswVectorsFormat() throws IOException {
+    @Override
+    public void testKnnVectorsFormat() throws IOException {
+        // TODO improve test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
         String expectedStr = "ESGpuHnswVectorsFormat(name=ESGpuHnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());
     }
 
-    public void testESGpuHnswScalarQuantizedVectorsFormat() throws IOException {
+    @Override
+    public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
+        // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "ESGPUHnswScalarQuantizedVectorsFormat(name=ESGPUHnswScalarQuantizedVectorsFormat, "
             + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";

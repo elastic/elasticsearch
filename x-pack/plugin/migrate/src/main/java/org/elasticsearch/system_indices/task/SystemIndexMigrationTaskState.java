@@ -9,7 +9,7 @@ package org.elasticsearch.system_indices.task;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -80,8 +80,8 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
 
     /**
      * Retrieves metadata stored by the pre-upgrade hook, intended for consumption by the post-migration hook.
-     * See {@link org.elasticsearch.plugins.SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)} and
-     * {@link org.elasticsearch.plugins.SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)} for
+     * See {@link org.elasticsearch.plugins.SystemIndexPlugin#prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)} and
+     * {@link org.elasticsearch.plugins.SystemIndexPlugin#indicesMigrationComplete(Map, Client, ActionListener)} for
      * details on the pre- and post-migration hooks.
      */
     public Map<String, Object> getFeatureCallbackMetadata() {

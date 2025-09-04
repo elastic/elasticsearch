@@ -16,8 +16,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -30,7 +28,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -61,11 +58,9 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -112,7 +107,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -206,7 +201,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -224,10 +219,10 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
@@ -310,6 +305,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticateResponseHandler;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
@@ -419,8 +415,6 @@ import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
@@ -449,7 +443,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -486,8 +479,6 @@ public class Security extends Plugin
         PersistentTaskPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
-
-    private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE = LicensedFeature.momentaryLenient(
@@ -628,7 +619,6 @@ public class Security extends Plugin
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
 
-    private final SetOnce<PersistentTasksService> persistentTasksService = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -640,13 +630,9 @@ public class Security extends Plugin
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
-    private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
+    private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
 
-    // Node local retry count for migration jobs that's checked only on the master node to make sure
-    // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
-    // restart or master node change.
-    private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
-
+    private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -675,7 +661,7 @@ public class Security extends Plugin
 
     private void ensureNoRemoteClusterCredentialsOnDisabledSecurity(Settings settings) {
         assert false == enabled;
-        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
             settings
         ).map(Setting::getKey).sorted().toList();
         if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
@@ -796,23 +782,7 @@ public class Security extends Plugin
 
         systemIndices.init(client, featureService, clusterService, projectResolver);
 
-        this.securityMigrationExecutor.set(
-            new SecurityMigrationExecutor(
-                SecurityMigrationTaskParams.TASK_NAME,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                systemIndices.getMainIndexManager(),
-                client,
-                SecurityMigrations.MIGRATIONS_BY_VERSION
-            )
-        );
-        this.persistentTasksService.set(persistentTasksService);
-
-        systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
-            // Only consider applying migrations if it's the master node and the security index exists
-            if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(projectId, newState);
-            }
-        });
+        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, persistentTasksService, systemIndices));
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -955,7 +925,7 @@ public class Security extends Plugin
         components.add(privilegeStore);
 
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
-        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
@@ -990,6 +960,15 @@ public class Security extends Plugin
         if (fileRoleValidator.get() == null) {
             fileRoleValidator.set(new FileRoleValidator.Default());
         }
+        if (samlAuthenticateResponseHandlerFactory.get() == null) {
+            samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
+        }
+        components.add(
+            new PluginComponentBinding<>(
+                SamlAuthenticateResponseHandler.class,
+                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, getClock())
+            )
+        );
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
@@ -1037,6 +1016,7 @@ public class Security extends Plugin
         );
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
+            clusterService,
             roleProviders,
             privilegeStore,
             threadPool.getThreadContext(),
@@ -1100,9 +1080,8 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
-
-        components.add(customApiKeyAuthenticator);
+        final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
+        components.addAll(customAuthenticators);
 
         authcService.set(
             new AuthenticationService(
@@ -1116,7 +1095,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customApiKeyAuthenticator,
+                customAuthenticators,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1252,45 +1231,48 @@ public class Security extends Plugin
         return components;
     }
 
-    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
-        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
-        for (final SecurityExtension extension : securityExtensions) {
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
-            if (customApiKeyAuthenticator != null) {
-                if (false == isInternalExtension(extension)) {
+    private List<CustomAuthenticator> getCustomAuthenticatorFromExtensions(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, List<CustomAuthenticator>> customAuthenticatorsByExtension = new HashMap<>();
+        for (final SecurityExtension securityExtension : securityExtensions) {
+            final List<CustomAuthenticator> customAuthenticators = securityExtension.getCustomAuthenticators(extensionComponents);
+            if (customAuthenticators != null) {
+                if (false == isInternalExtension(securityExtension)) {
                     throw new IllegalStateException(
                         "The ["
-                            + extension.extensionName()
-                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
+                            + securityExtension.extensionName()
+                            + "] extension tried to install a  "
+                            + CustomAuthenticator.class.getSimpleName()
+                            + ". "
                             + "This functionality is not available to external extensions."
                     );
                 }
-                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
+                customAuthenticatorsByExtension.put(securityExtension.extensionName(), customAuthenticators);
             }
         }
 
-        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
+        if (customAuthenticatorsByExtension.isEmpty()) {
             logger.debug(
-                "No custom implementation for [{}]. Falling-back to noop implementation.",
-                CustomApiKeyAuthenticator.class.getCanonicalName()
+                "No custom implementations for [{}] provided by security extensions.",
+                CustomAuthenticator.class.getCanonicalName()
             );
-            return new CustomApiKeyAuthenticator.Noop();
-
-        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
+            return List.of();
+        } else if (customAuthenticatorsByExtension.size() > 1) {
             throw new IllegalStateException(
-                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
+                "Multiple extensions tried to install custom authenticators: " + customAuthenticatorsByExtension.keySet()
             );
-
         } else {
-            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
-            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final var authenticatorByExtensionEntry = customAuthenticatorsByExtension.entrySet().iterator().next();
+            final List<CustomAuthenticator> customAuthenticators = authenticatorByExtensionEntry.getValue();
             final String extensionName = authenticatorByExtensionEntry.getKey();
-            logger.debug(
-                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
-                customApiKeyAuthenticator.getClass().getCanonicalName(),
-                extensionName
-            );
-            return customApiKeyAuthenticator;
+            for (CustomAuthenticator authenticator : customAuthenticators) {
+                logger.debug(
+                    "{} implementation [{}] provided by extension [{}]",
+                    CustomAuthenticator.class.getSimpleName(),
+                    authenticator.getClass().getCanonicalName(),
+                    extensionName
+                );
+            }
+            return customAuthenticators;
         }
     }
 
@@ -1360,57 +1342,6 @@ public class Security extends Plugin
             return false;
         }
         return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
-    }
-
-    @FixForMultiProject
-    // TODO : The migration task needs to be project aware
-    private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
-        // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
-        if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
-            submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
-            return;
-        }
-
-        Map.Entry<Integer, SecurityMigrations.SecurityMigration> nextMigration = SecurityMigrations.MIGRATIONS_BY_VERSION.higherEntry(
-            newState.migrationsVersion
-        );
-
-        // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (nextMigration == null
-            || systemIndices.getMainIndexManager().getProject(projectId).isEligibleSecurityMigration(nextMigration.getValue()) == false) {
-            // Reset retry counter if all eligible migrations have been applied successfully
-            nodeLocalMigrationRetryCount.set(0);
-        } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
-            logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-        } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
-            submitPersistentMigrationTask(newState.migrationsVersion);
-        }
-    }
-
-    private void submitPersistentMigrationTask(int migrationsVersion) {
-        submitPersistentMigrationTask(migrationsVersion, true);
-    }
-
-    private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
-        nodeLocalMigrationRetryCount.incrementAndGet();
-        persistentTasksService.get()
-            .sendStartRequest(
-                SecurityMigrationTaskParams.TASK_NAME,
-                SecurityMigrationTaskParams.TASK_NAME,
-                new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
-                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
-                ActionListener.wrap((response) -> {
-                    logger.debug("Security migration task submitted");
-                }, (exception) -> {
-                    // Do nothing if the task is already in progress
-                    if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
-                        // Do not count ResourceAlreadyExistsException as failure
-                        nodeLocalMigrationRetryCount.decrementAndGet();
-                    } else {
-                        logger.warn("Submit security migration task failed: " + exception.getCause());
-                    }
-                })
-            );
     }
 
     private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
@@ -2114,10 +2045,11 @@ public class Security extends Plugin
         httpTransports.put(SecurityField.NAME4, () -> {
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
             final SSLService sslService = getSslService();
-            final SslConfiguration sslConfiguration;
             final BiConsumer<Channel, ThreadContext> populateClientCertificate;
+            final TLSConfig tlsConfig;
             if (ssl) {
-                sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
+                final SslConfiguration sslConfiguration = sslProfile.configuration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                     throw new IllegalArgumentException(
                         "a key must be provided to run as a server. the key should be configured using the "
@@ -2129,8 +2061,9 @@ public class Security extends Plugin
                 } else {
                     populateClientCertificate = (channel, threadContext) -> {};
                 }
+                tlsConfig = new TLSConfig(sslProfile::engine);
             } else {
-                sslConfiguration = null;
+                tlsConfig = TLSConfig.noTLS();
                 populateClientCertificate = (channel, threadContext) -> {};
             }
             final AuthenticationService authenticationService = this.authcService.get();
@@ -2144,7 +2077,7 @@ public class Security extends Plugin
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
                 telemetryProvider,
-                new TLSConfig(sslConfiguration, sslService::createSSLEngine),
+                tlsConfig,
                 acceptPredicate,
                 (httpRequest, channel, listener) -> {
                     HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
@@ -2502,6 +2435,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {
@@ -2558,7 +2492,8 @@ public class Security extends Plugin
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
+        final SecurityMigrations.Manager manager = this.migrationManager.get();
+        return manager == null ? List.of() : List.of(manager.getPersistentTasksExecutor(client, threadPool));
     }
 
     List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {

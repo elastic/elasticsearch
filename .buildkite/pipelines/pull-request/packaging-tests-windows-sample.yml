@@ -1,6 +1,7 @@
 config:
   skip-labels:
     - ">test-mute"
+    - test-gpu # TODO remove this once the non-gpu steps work correctly
     - ":Delivery/Packaging"
 steps:
   - group: packaging-tests-windows-sample

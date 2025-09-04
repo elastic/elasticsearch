@@ -72,7 +72,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     private final ES818BinaryFlatVectorsScorer vectorScorer;
 
     @SuppressWarnings("this-escape")
-    ES818BinaryQuantizedVectorsReader(
+    public ES818BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
         ES818BinaryFlatVectorsScorer vectorsScorer

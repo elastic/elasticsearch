@@ -461,6 +461,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es92.ES92BinaryQuantizedBFloat16VectorsFormat,
+            org.elasticsearch.index.codec.vectors.es92.ES92HnswBinaryQuantizedBFloat16VectorsFormat,
             org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
@@ -487,5 +489,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.perfield;
     exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors.es92 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
 }

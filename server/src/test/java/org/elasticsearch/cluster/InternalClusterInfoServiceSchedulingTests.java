@@ -142,8 +142,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
                 () -> ClusterState.builder(new ClusterName("cluster")).nodes(withJoiner).build(),
                 setFlagOnSuccess(nodeJoined)
             );
-            runUntilFlag(deterministicTaskQueue, nodeJoined);
+            // Don't use runUntilFlag because we don't want the scheduled task to run
             deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(nodeJoined.get());
+
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
@@ -159,8 +161,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
                 () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
                 setFlagOnSuccess(nodeLeft)
             );
-            runUntilFlag(deterministicTaskQueue, nodeLeft);
+            // Don't use runUntilFlag because we don't want the scheduled task to run
             deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(nodeLeft.get());
+
             // departing nodes don't trigger refreshes
             assertThat(client.requestCount, equalTo(initialRequestCount));
             verifyNoInteractions(mockEstimatedHeapUsageCollector);

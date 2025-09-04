@@ -22,6 +22,10 @@ public interface AuthorizedProjectsSupplier {
 
     AuthorizedProjectsSupplier DEFAULT = new Default();
 
+    default boolean runCps() {
+        return true; // ??
+    }
+
     class Default implements AuthorizedProjectsSupplier {
         @Override
         public AuthorizedProjects get() {

@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+// Represent flat -> canonical CPS rewrites
+// Represent local index expansion
+
 public final class ReplacedIndexExpression implements Writeable {
     public enum ResolutionResult {
         SUCCESS,

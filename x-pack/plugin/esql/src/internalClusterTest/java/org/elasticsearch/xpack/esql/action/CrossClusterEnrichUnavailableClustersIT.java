@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * This IT test is the dual of CrossClustersEnrichIT, which tests "happy path"
+ * This IT test is the dual of CrossClusterEnrichIT, which tests "happy path"
  * and this one tests unavailable cluster scenarios using (most of) the same tests.
  */
 public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBasedCrossClusterTestCase {

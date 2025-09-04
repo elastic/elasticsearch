@@ -29,23 +29,15 @@ import java.util.Map;
 
 public class SourceContext implements Writeable, Releasable {
 
-    private static final Releasable NOOP_RELEASABLE = () -> {};
-
     private XContentType contentType;
-    private BytesReference source;
-    private Releasable sourceReleasable;
+    private ReleasableBytesReference source;
     private boolean isClosed = false;
 
     public SourceContext() {}
 
     public SourceContext(XContentType contentType, BytesReference source) {
-        this(contentType, source, NOOP_RELEASABLE);
-    }
-
-    public SourceContext(XContentType contentType, BytesReference source, Releasable sourceReleasable) {
         this.contentType = contentType;
-        this.source = source;
-        this.sourceReleasable = sourceReleasable;
+        this.source = ReleasableBytesReference.wrap(source);
     }
 
     public SourceContext(StreamInput in) throws IOException {
@@ -55,7 +47,7 @@ public class SourceContext implements Writeable, Releasable {
         } else {
             contentType = null;
         }
-        source = in.readBytesReference();
+        source = ReleasableBytesReference.wrap(in.readBytesReference());
     }
 
     @Override
@@ -77,6 +69,10 @@ public class SourceContext implements Writeable, Releasable {
         return source;
     }
 
+    public ReleasableBytesReference retainedBytes() {
+        return source.retain();
+    }
+
     public boolean hasSource() {
         return source != null;
     }
@@ -89,7 +85,9 @@ public class SourceContext implements Writeable, Releasable {
     public void close() {
         assert isClosed == false;
         isClosed = true;
-        Releasables.close(sourceReleasable);
+        Releasables.close(source);
+        source = null;
+        contentType = null;
     }
 
     public Map<String, Object> sourceAsMap() {
@@ -207,7 +205,7 @@ public class SourceContext implements Writeable, Releasable {
     }
 
     public void source(ReleasableBytesReference source, XContentType contentType) {
-        setSource(source, contentType, source);
+        setSource(source, contentType);
     }
 
     /**
@@ -237,14 +235,13 @@ public class SourceContext implements Writeable, Releasable {
     }
 
     private void setSource(BytesReference source, XContentType contentType) {
-        setSource(source, contentType, NOOP_RELEASABLE);
+        setSource(ReleasableBytesReference.wrap(source), contentType);
     }
 
-    private void setSource(BytesReference source, XContentType contentType, Releasable sourceReleasable) {
+    private void setSource(ReleasableBytesReference source, XContentType contentType) {
+        Releasable toClose = this.source;
         this.source = source;
         this.contentType = contentType;
-        Releasable toClose = this.sourceReleasable;
-        this.sourceReleasable = sourceReleasable;
         Releasables.close(toClose);
     }
 }

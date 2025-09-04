@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -724,42 +725,43 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            BytesReference originalSource = indexRequest.sourceContext().bytes();
-            if (useLegacyFormat) {
-                var newDocMap = indexRequest.sourceAsMap();
-                for (var entry : inferenceFieldsMap.entrySet()) {
-                    XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
+            try (ReleasableBytesReference originalSource = indexRequest.sourceContext().retainedBytes()) {
+                if (useLegacyFormat) {
+                    var newDocMap = indexRequest.sourceAsMap();
+                    for (var entry : inferenceFieldsMap.entrySet()) {
+                        XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
+                    }
+                    indexRequest.source(newDocMap, indexRequest.getContentType());
+                } else {
+                    try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
+                        appendSourceAndInferenceMetadata(
+                            builder,
+                            indexRequest.sourceContext().bytes(),
+                            indexRequest.getContentType(),
+                            inferenceFieldsMap
+                        );
+                        indexRequest.source(builder);
+                    }
                 }
-                indexRequest.source(newDocMap, indexRequest.getContentType());
-            } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    appendSourceAndInferenceMetadata(
-                        builder,
-                        indexRequest.sourceContext().bytes(),
-                        indexRequest.getContentType(),
-                        inferenceFieldsMap
-                    );
-                    indexRequest.source(builder);
-                }
-            }
-            long modifiedSourceSize = indexRequest.sourceContext().bytes().length();
+                long modifiedSourceSize = indexRequest.sourceContext().bytes().length();
 
-            // Add the indexing pressure from the source modifications.
-            // Don't increment operation count because we count one source update as one operation, and we already accounted for those
-            // in addFieldInferenceRequests.
-            try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
-            } catch (EsRejectedExecutionException e) {
-                indexRequest.source(originalSource, indexRequest.getContentType());
-                item.abort(
-                    item.index(),
-                    new InferenceException(
-                        "Unable to insert inference results into document ["
-                            + indexRequest.id()
-                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
-                        e
-                    )
-                );
+                // Add the indexing pressure from the source modifications.
+                // Don't increment operation count because we count one source update as one operation, and we already accounted for those
+                // in addFieldInferenceRequests.
+                try {
+                    coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
+                } catch (EsRejectedExecutionException e) {
+                    indexRequest.source(originalSource, indexRequest.getContentType());
+                    item.abort(
+                        item.index(),
+                        new InferenceException(
+                            "Unable to insert inference results into document ["
+                                + indexRequest.id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
+                            e
+                        )
+                    );
+                }
             }
         }
     }

@@ -14,6 +14,7 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
@@ -22,6 +23,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -36,7 +38,6 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
     private static final String VECTOR_FIELD = "vector";
     private static final int VECTOR_DIMS = 128;
-    public static final String BULK_VECTOR_SCORING = "es.bulk_vector_scoring";
 
     public void testBulkProcessingWithScoreDocArray() throws IOException {
         // Create test index with vector documents
@@ -195,54 +196,72 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testParallelVectorLoading() throws IOException {
         // Test parallel vector loading functionality
-        float[] queryVector = randomVector(VECTOR_DIMS);
 
         try (Directory dir = new MMapDirectory(createTempDir())) {
             createTestIndex(dir, 50);
 
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+            Object[] results = new Object[2];
 
-                // Get initial documents
-                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
-                int[] docIds = Arrays.stream(topDocs.scoreDocs).mapToInt(scoreDoc -> scoreDoc.doc).toArray();
-
-                // Test parallel loading
+            loadVectors(dir, (leafReaderContext, docIds) -> {
+                // Load vectors in parallel
                 DirectIOVectorBatchLoader batchLoader = new DirectIOVectorBatchLoader();
+                results[0] = batchLoader.loadSegmentVectors(docIds, leafReaderContext, VECTOR_FIELD);
+            });
 
-                Map<Integer, float[]> parallelResult = batchLoader.loadSegmentVectors(docIds, reader.leaves().get(0), VECTOR_FIELD);
-
-                // use regular vector loader
+            loadVectors(dir, (leafReaderContext, docIds) -> {
+                // Load vectors in parallel
+                DirectIOVectorBatchLoader batchLoader = new DirectIOVectorBatchLoader();
                 Map<Integer, float[]> sequentialResult = new HashMap<>();
                 for (int docId : docIds) {
-                    sequentialResult.put(docId, batchLoader.loadSingleVector(docId, reader.leaves().get(0), VECTOR_FIELD));
+                    sequentialResult.put(docId, batchLoader.loadSingleVector(docId, leafReaderContext, VECTOR_FIELD));
                 }
+                results[1] = sequentialResult;
+            });
 
-                // Verify results are identical
-                assertThat(
-                    "Parallel and sequential results should have same size",
+            var sequentialResult = (Map<Integer, float[]>) results[1];
+            var parallelResult = (Map<Integer, float[]>) results[0];
+
+            // Verify results are identical
+            assertThat(
+                "Parallel and sequential results should have same size",
                     parallelResult.size(),
                     equalTo(sequentialResult.size())
                 );
 
-                for (int docId : docIds) {
-                    float[] parallelVector = parallelResult.get(docId);
-                    float[] sequentialVector = sequentialResult.get(docId);
 
-                    assertNotNull("Parallel result should contain vector for doc " + docId, parallelVector);
-                    assertNotNull("Sequential result should contain vector for doc " + docId, sequentialVector);
+            for (int docId : sequentialResult.keySet()) {
+                float[] sequentialVector = sequentialResult.get(docId);
+                float[] parallelVector = parallelResult.get(docId);
+
+                assertNotNull("Parallel result should contain vector for doc " + docId, parallelVector);
+                assertNotNull("Sequential result should contain vector for doc " + docId, sequentialVector);
                     assertArrayEquals("Vectors should be identical for doc " + docId, sequentialVector, parallelVector, 0.0001f);
-                }
             }
+        }
+    }
+
+    private void loadVectors(Directory dir, CheckedBiConsumer<LeafReaderContext, int[], IOException> consumer) throws IOException {
+        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+
+            // Get initial documents
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
+            int[] docIds = Arrays.stream(topDocs.scoreDocs)
+                .mapToInt(scoreDoc -> scoreDoc.doc)
+                .toArray();
+
+            var leafReaderContext = reader.leaves().get(0);
+            consumer.accept(leafReaderContext, docIds);
         }
     }
 
     private float[] randomVector(int dimensions) {
         float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
-            vector[i] = randomFloat() * 2.0f - 1.0f; // Range [-1, 1]
+            vector[i] = randomFloatBetween(-1.0f, 1.0f, true);
         }
         return vector;
     }

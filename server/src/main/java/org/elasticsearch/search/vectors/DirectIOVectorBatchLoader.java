@@ -13,14 +13,13 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -94,25 +93,16 @@ public class DirectIOVectorBatchLoader {
 
     private Map<Integer, Integer> buildDocToOrdinalMapping(FloatVectorValues vectorValues, int[] targetDocIds) throws IOException {
 
-        Map<Integer, Integer> docToOrdinal = new HashMap<>();
-
-        Set<Integer> targetDocSet = Sets.newHashSetWithExpectedSize(targetDocIds.length);
-        for (int docId : targetDocIds) {
-            targetDocSet.add(docId);
-        }
+        Map<Integer, Integer> docToOrdinal = Maps.newHashMapWithExpectedSize(targetDocIds.length);
 
         KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-        for (int docId = iterator.nextDoc(); docId != KnnVectorValues.DocIndexIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
-            if (targetDocSet.contains(docId)) {  // Only map docs we actually need
-                docToOrdinal.put(docId, iterator.index());
-
-                // Early termination when all target docs found
-                if (docToOrdinal.size() == targetDocSet.size()) {
-                    break;
-                }
+        for (int i = 0; i < targetDocIds.length; i++) {
+            var next = iterator.advance(targetDocIds[i]);
+            if (next == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS || next != targetDocIds[i]) {
+                break;
             }
+            docToOrdinal.put(next, iterator.index());
         }
-
         return docToOrdinal;
     }
 
@@ -134,14 +124,12 @@ public class DirectIOVectorBatchLoader {
         }
 
         KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-        for (int currentDoc = iterator.nextDoc(); currentDoc != KnnVectorValues.DocIndexIterator.NO_MORE_DOCS; currentDoc = iterator
-            .nextDoc()) {
-            if (currentDoc == docId) {
-                float[] vector = vectorValues.vectorValue(iterator.index()).clone();
-                return vector != null ? vector : null;
-            }
+        var next = iterator.advance(docId);
+        float[] result = null;
+        if (next != KnnVectorValues.DocIndexIterator.NO_MORE_DOCS && next == docId) {
+            var ordinal = iterator.index();
+            result = vectorValues.vectorValue(ordinal).clone();
         }
-
-        throw new IllegalArgumentException("Document " + docId + " not found in vector values");
+        return result;
     }
 }

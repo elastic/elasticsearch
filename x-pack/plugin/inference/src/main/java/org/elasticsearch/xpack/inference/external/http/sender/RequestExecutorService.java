@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -16,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
@@ -519,7 +521,15 @@ public class RequestExecutorService implements RequestExecutor {
                     false
                 );
 
-                task.onRejection(rejected);
+                ElasticsearchStatusException statusException = new ElasticsearchStatusException(
+                    format(
+                        "Failed to execute task for inference id [%s] because the request service queue is full",
+                        task.getRequestManager().inferenceEntityId()
+                    ),
+                    RestStatus.TOO_MANY_REQUESTS,
+                    rejected
+                );
+                task.onRejection(statusException);
             } else if (isShutdown()) {
                 notifyRequestsOfShutdown();
             }

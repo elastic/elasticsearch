@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueueTests.mockQueueCreator;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
@@ -189,22 +190,21 @@ public class RequestExecutorServiceTests extends ESTestCase {
             new PlainActionFuture<>()
         );
 
-        var requestManager = RequestManagerTests.createMock("id");
+        String inferenceEntityId = "id";
+        var requestManager = RequestManagerTests.createMock(inferenceEntityId);
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
-        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Failed to execute task for inference id [id] because the request service [%s] queue is full",
-                    requestManager.rateLimitGrouping().hashCode()
-                )
-            )
+            is(Strings.format("Failed to execute task for inference id [%s] because the request service queue is full", inferenceEntityId))
         );
-        assertFalse(thrownException.isExecutorShutdown());
+        assertThat(thrownException.status(), is(TOO_MANY_REQUESTS));
+        Throwable cause = thrownException.getCause();
+        assertThat(cause, is(instanceOf(EsRejectedExecutionException.class)));
+        assertThat(((EsRejectedExecutionException) cause).isExecutorShutdown(), is(false));
     }
 
     public void testTaskThrowsError_CallsOnFailure() throws InterruptedException {
@@ -396,19 +396,17 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var requestManager = RequestManagerTests.createMock(requestSender, "id");
+        String inferenceEntityId = "id";
+        var requestManager = RequestManagerTests.createMock(requestSender, inferenceEntityId);
         service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
-        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Failed to execute task for inference id [id] because the request service [%s] queue is full",
-                    requestManager.rateLimitGrouping().hashCode()
-                )
-            )
+            is(Strings.format("Failed to execute task for inference id [%s] because the request service queue is full", inferenceEntityId))
         );
+        assertThat(thrownException.status(), is(TOO_MANY_REQUESTS));
+        assertThat(thrownException.getCause(), is(instanceOf(EsRejectedExecutionException.class)));
 
         settings.setQueueCapacity(2);
 
@@ -503,23 +501,21 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        String inferenceEntityId = "id";
         service.execute(
-            RequestManagerTests.createMock(requestSender, "id"),
+            RequestManagerTests.createMock(requestSender, inferenceEntityId),
             new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             null,
             listener
         );
 
-        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Failed to execute task for inference id [id] because the request service [%s] queue is full",
-                    requestManager.rateLimitGrouping().hashCode()
-                )
-            )
+            is(Strings.format("Failed to execute task for inference id [%s] because the request service queue is full", inferenceEntityId))
         );
+        assertThat(thrownException.status(), is(TOO_MANY_REQUESTS));
+        assertThat(thrownException.getCause(), is(instanceOf(EsRejectedExecutionException.class)));
 
         settings.setQueueCapacity(0);
 

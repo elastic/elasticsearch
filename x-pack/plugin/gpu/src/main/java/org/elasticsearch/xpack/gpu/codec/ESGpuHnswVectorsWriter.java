@@ -154,8 +154,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return newField;
     }
 
-    private static MemorySegmentAccessInput getMemorySegmentAccessInputOrNull(
-        KnnVectorValues vectorValues) {
+    private static MemorySegmentAccessInput getMemorySegmentAccessInputOrNull(KnnVectorValues vectorValues) {
 
         if (vectorValues instanceof HasIndexSlice indexSlice) {
             var input = FilterIndexInput.unwrapOnlyTest(indexSlice.getSlice());
@@ -171,14 +170,16 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         flatVectorWriter.flush(maxDoc, sortMap);
 
         // TODO: this "mimics" a hypothetical/missing FlatVectorsWriter#getReader()
-        try (FlatVectorsReader flatVectorsReader = flatVectorsReaderProvider.apply(
-            new SegmentReadState(
-                segmentWriteState.segmentInfo.dir,
-                segmentWriteState.segmentInfo,
-                segmentWriteState.fieldInfos,
-                segmentWriteState.context
+        try (
+            FlatVectorsReader flatVectorsReader = flatVectorsReaderProvider.apply(
+                new SegmentReadState(
+                    segmentWriteState.segmentInfo.dir,
+                    segmentWriteState.segmentInfo,
+                    segmentWriteState.fieldInfos,
+                    segmentWriteState.context
+                )
             )
-        )) {
+        ) {
             for (FieldWriter fieldWriter : fields) {
                 // This might be inefficient if getVectors() materializes a List<T>; however current implementations
                 // just return a reference to an inner, already allocated List<T>, so we are fine for now.

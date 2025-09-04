@@ -61,8 +61,14 @@ public class ESGpuHnswSQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESGpuHnswVectorsWriter(cuVSResourceManager, state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state),
-            flatVectorsFormat::fieldsReader);
+        return new ESGpuHnswVectorsWriter(
+            cuVSResourceManager,
+            state,
+            maxConn,
+            beamWidth,
+            flatVectorsFormat.fieldsWriter(state),
+            flatVectorsFormat::fieldsReader
+        );
     }
 
     @Override

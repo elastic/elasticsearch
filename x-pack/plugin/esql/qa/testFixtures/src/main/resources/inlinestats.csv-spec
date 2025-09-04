@@ -2848,6 +2848,8 @@ multiIndexIpStringInlinestats_Inline4
 required_capability: inlinestats_v11
 
 FROM sample_data, sample_data_str
+| SORT @timestamp
+| LIMIT 1000
 | INLINESTATS count=count(*) BY client_ip::ip
 | LIMIT 5
 | INLINESTATS mc=count(count) BY count
@@ -2856,11 +2858,11 @@ FROM sample_data, sample_data_str
 ;
 
 mc:l           | count:l       | event_duration:l
-4              |8              |725448         
-4              |8              |1756467        
-4              |8              |5033755        
-4              |8              |8268153        
-1              |2              |1232382
+5              |2              |1232382        
+5              |2              |2764889        
+5              |2              |2764889        
+5              |2              |3450233        
+5              |2              |3450233        
 ;
 
 multiIndexWhereIpStringInlinestats 

@@ -207,8 +207,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (fvv == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
-        // we have filtered so much that it's not worth doing an approximate search
-        if (filterCost <= fvv.size() || filterCost < k) {
+        // The idea here is if the filter is very restrictive and the index is large,
+        // then we should do exact search over the floating point vectors.
+        // However, if the index is tiny, let's use the approximate vectors as they will be magnitudes cheaper than floating point
+        if (filterCost < k && fvv.size() > k) {
             return exactSearch(ctx, liveDocs, supplier);
         }
 

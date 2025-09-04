@@ -103,9 +103,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
-        ProjectState projectState = clusterService.state().projectState(projectId);
-        ProjectMetadata metadata = projectState.metadata();
-        final Optional<String> snapshotName = maybeTakeSnapshot(metadata, event.jobName(), client, clusterService, historyStore);
+        ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final Optional<String> snapshotName = maybeTakeSnapshot(projectMetadata, event.jobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse
         snapshotName.ifPresent(
@@ -202,7 +201,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         policyMetadata.getPolicy().getId(),
                         Strings.toString(createSnapshotResponse)
                     );
-
                     final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
                     assert snapInfo != null : "completed snapshot info is null";
                     // Check that there are no failed shards, since the request may not entirely

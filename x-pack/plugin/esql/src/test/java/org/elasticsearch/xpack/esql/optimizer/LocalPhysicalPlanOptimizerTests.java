@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -1030,21 +1032,23 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     /*
-     * LimitExec[1000[INTEGER]]
+     * LimitExec[1000[INTEGER],12]
      * \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],FINAL,[language_code{r}#12
      * , $$c$count{r}#32, $$c$seen{r}#33],12]
      *   \_ExchangeExec[[language_code{r}#12, $$c$count{r}#32, $$c$seen{r}#33],true]
      *     \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],INITIAL,[language_code{r}#
-     *          12, $$c$count{r}#34, $$c$seen{r}#35],12]
+     * 12, $$c$count{r}#34, $$c$seen{r}#35],12]
      *       \_LookupJoinExec[[language_code{r}#12],[language_code{f}#29],[]]
-     *         |_GrokExec[first_name{f}#19,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@764e5109],[languag
-     *              e_code{r}#12]]
+     *         |_GrokExec[first_name{f}#19,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@177d8fd5],[languag
+     * e_code{r}#12]]
      *         | \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
      *         |   \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
      *         |     \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
      *         |       \_EvalExec[[null[INTEGER] AS languages#21]]
-     *         |         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[66]
-     *         \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#37], limit[], sort[] estimatedRowSize[4]
+     *         |         \_EsQueryExec[test], indexMode[standard], [_doc{f}#36], limit[], sort[] estimatedRowSize[66]
+     *  queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *         \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * EsRelation[languages_lookup][LOOKUP][language_code{f}#29]<>]]
      */
     public void testMissingFieldsNotPurgingTheJoinLocally() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -1072,22 +1076,26 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var eval = as(extract.child(), EvalExec.class);
         var source = as(eval.child(), EsQueryExec.class);
-        var right = as(join.right(), EsQueryExec.class);
+        var right = as(join.right(), FragmentExec.class);
+        var relation = as(right.fragment(), EsRelation.class);
     }
 
     /*
-     * LimitExec[1000[INTEGER]]
+     * LimitExec[1000[INTEGER],62]
      * \_LookupJoinExec[[language_code{r}#6],[language_code{f}#23],[language_name{f}#24]]
-     *   |_LimitExec[1000[INTEGER]]
+     *   |_LimitExec[1000[INTEGER],12]
      *   | \_AggregateExec[[languages{f}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#10, languages{f}#15 AS language_code#6],FINAL,[language
-     *          s{f}#15, $$c$count{r}#25, $$c$seen{r}#26],62]
+     * s{f}#15, $$c$count{r}#25, $$c$seen{r}#26],62]
      *   |   \_ExchangeExec[[languages{f}#15, $$c$count{r}#25, $$c$seen{r}#26],true]
      *   |     \_AggregateExec[[languages{r}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#10, languages{r}#15 AS language_code#6],INITIAL,
-     *              [languages{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
+     * [languages{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
+     * ges{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
      *   |       \_FieldExtractExec[emp_no{f}#12]<[],[]>
      *   |         \_EvalExec[[null[INTEGER] AS languages#15]]
-     *   |           \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[], sort[] estimatedRowSize[12]
-     *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#30], limit[], sort[] estimatedRowSize[4]
+     *   |           \_EsQueryExec[test], indexMode[standard], [_doc{f}#29], limit[], sort[] estimatedRowSize[12]
+     *  queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * EsRelation[languages_lookup][LOOKUP][language_code{f}#23, language_name{f}#24]<>]]
      */
     public void testMissingFieldsDoesNotPurgeTheJoinOnCoordinator() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -1118,9 +1126,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(source.indexPattern(), is("test"));
         assertThat(source.indexMode(), is(IndexMode.STANDARD));
 
-        source = as(join.right(), EsQueryExec.class);
-        assertThat(source.indexPattern(), is("languages_lookup"));
-        assertThat(source.indexMode(), is(IndexMode.LOOKUP));
+        var right = as(join.right(), FragmentExec.class);
+        var relation = as(right.fragment(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("languages_lookup"));
+        assertThat(relation.indexMode(), is(IndexMode.LOOKUP));
     }
 
     /*
@@ -2384,7 +2393,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testToDateNanosPushDown() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");

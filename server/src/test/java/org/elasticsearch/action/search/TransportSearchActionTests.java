@@ -1707,7 +1707,7 @@ public class TransportSearchActionTests extends ESTestCase {
             final ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
             final SearchShardIterator shardIterator = shardIterators.get(id);
             final SearchContextIdForNode context = contexts.get(shardId);
-            if (context.getSearchContextId().getSearcherId() == null) {
+            if (context.getSearchContextId().isRetryable() == false) {
                 assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
             } else {
                 final List<String> targetNodes = clusterState.routingTable(project)

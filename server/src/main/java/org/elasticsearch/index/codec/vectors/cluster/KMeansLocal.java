@@ -221,8 +221,8 @@ class KMeansLocal {
 
     private NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
         assert centers.length > clustersPerNeighborhood;
-        // experiments shows that below 20k, we better use brute force, otherwise hnsw gives us a nice speed up
-        if (centers.length < 20_000) {
+        // experiments shows that below 15k, we better use brute force, otherwise hnsw gives us a nice speed up
+        if (centers.length < 15_000) {
             return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
         } else {
             return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);

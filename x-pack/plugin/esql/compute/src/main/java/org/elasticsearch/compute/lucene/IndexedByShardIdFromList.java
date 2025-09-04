@@ -10,7 +10,7 @@ package org.elasticsearch.compute.lucene;
 import java.util.Collection;
 import java.util.List;
 
-/** Used by tests, but placed here so it's visible for all test modules. */
+/** An {@link IndexedByShardId} used by only in tests, but placed here so it's visible for all test modules. */
 public class IndexedByShardIdFromList<T> implements IndexedByShardId<T> {
     private final List<T> list;
 

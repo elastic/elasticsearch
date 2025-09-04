@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: "semantic_text.filter_field_caps_fix"
+      cluster_features: "semantic_query.filter_field_caps_fix"
       reason: "fixed bug with semantic query filtering in field_caps (#116106)"
 
   - do:

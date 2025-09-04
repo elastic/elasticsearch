@@ -50,6 +50,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
      */
     private static final Map<String, String> RENAME_KEYS = Map.ofEntries(
+        // PRTODO: Dots mixed in to different keys. It seems that these dotted fields are meant to be normalized
         entry("span.id", "span_id"),
         entry("message", "body.text"),
         entry("log.level", "severity_text"),
@@ -70,6 +71,8 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         Set<String> renamedTopLevelFields = new HashSet<>();
         for (String value : RENAME_KEYS.values()) {
             // if the renamed field is nested, we only need to know the top level field
+            // PRTODO: This takes the field body.text and converts it to just body. If we added a `body.text` field, then we'd
+            //  treat it differently.
             int dotIndex = value.indexOf('.');
             if (dotIndex != -1) {
                 renamedTopLevelFields.add(value.substring(0, dotIndex));
@@ -170,6 +173,9 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         final var sourceItr = source.entrySet().iterator();
         while (sourceItr.hasNext()) {
             final var entry = sourceItr.next();
+            // PRTODO: When we call renameSpecialKeys above in flexible mode, there is a chance that the keys we added end up as
+            //  dotted field names in the root of the document source. As such, these keep keys will miss those dotted fields because
+            //  they only look for the root field.
             if (KEEP_KEYS.contains(entry.getKey()) == false) {
                 newAttributes.put(entry.getKey(), entry.getValue());
                 sourceItr.remove();
@@ -271,6 +277,11 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                 while (lastDot > 0) {
                     String parentName = nonOtelName.substring(0, lastDot);
                     // parent should never be null and must be a map if we are here
+                    // PRTODO: Not true - in flexible mode, if nonOtelName is a kind of dotted field name, then we either removed the
+                    //  whole field, or a portion of it. For example, removing field a.b.c.d will get rid of fields named `a.b.c.d`,
+                    //  `a`.`b`.`c`.`d`, `a.b`.`c.d`, etc... This means that if we removed the field `c.d` off the end, there is still
+                    //  `a.b` at the front to remove. We'd need to get each field parent combination while ignoring missing, removing
+                    //  it if empty.
                     @SuppressWarnings("unchecked")
                     Map<String, Object> parent = (Map<String, Object>) document.getFieldValue(parentName, Map.class);
                     if (parent.isEmpty()) {
@@ -281,6 +292,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                     lastDot = parentName.lastIndexOf('.');
                 }
             } else if (nonOtelName.contains(".")) {
+                // PRTODO: This is only really needed if we are in classic mode.
                 // look for dotted field names
                 Map<String, Object> source = document.getSource();
                 if (source.containsKey(nonOtelName)) {
@@ -289,6 +301,8 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                 }
             }
             if (fieldExists) {
+                // PRTODO: In flexible mode, this could create a dotted field name if the parent field does not exist. In classic mode
+                //  we create the parent path to the field being set. In flexible mode we just create a dotted field name.
                 document.setFieldValue(otelName, value);
             }
         });

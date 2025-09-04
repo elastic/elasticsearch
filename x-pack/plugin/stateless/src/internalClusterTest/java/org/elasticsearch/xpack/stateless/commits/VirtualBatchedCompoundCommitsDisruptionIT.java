@@ -25,12 +25,16 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -245,6 +250,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
 
+        final var index = resolveIndex(indexName);
         var indexShard = findIndexShard(indexName);
         var currentVBCCGen = indexShard.commitStats().getGeneration() + 1;
 
@@ -279,6 +285,38 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         safeAwait(getVBCCSent);
         internalCluster().stopNode(indexNode);
 
+        // wait for cluster state on search node to show that index node has been removed
+        var future = new PlainActionFuture<Void>();
+        ClusterStateObserver.waitForState(
+            internalCluster().getInstance(ClusterService.class, searchNode),
+            new ThreadContext(Settings.EMPTY),
+            new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    future.onResponse(null);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    future.onFailure(null);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    future.onFailure(new TimeoutException(timeout.toString()));
+                }
+            },
+            clusterState -> false == clusterState.projectState(clusterState.metadata().projectFor(index).id())
+                .routingTable()
+                .shardRoutingTable(indexShard.shardId())
+                .primaryShard()
+                .assignedToNode(),
+            null,
+            logger
+        );
+
+        future.actionGet(SAFE_AWAIT_TIMEOUT);
+        logger.info("shard is unassigned, proceeding with VBCC chunk request");
         getVBCCChunkRequestBlocked.countDown();
         var refreshResponse = refreshFuture.get();
         // Delete the index, otherwise the test cleanup process would try to flush the index and that would take 60s to timeout

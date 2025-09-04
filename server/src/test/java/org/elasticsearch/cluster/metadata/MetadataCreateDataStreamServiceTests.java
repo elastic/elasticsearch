@@ -599,7 +599,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 any(CreateIndexClusterStateUpdateRequest.class),
                 anyBoolean(),
                 any(),
-                any(),
                 any()
             )
         ).thenAnswer(objectAnswer);

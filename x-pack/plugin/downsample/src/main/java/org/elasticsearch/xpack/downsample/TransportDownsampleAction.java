@@ -977,7 +977,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     true,
                     // Copy index metadata from source index to downsample index
                     (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
-                    metadataBuilder -> {},
                     delegate.reroute()
                 );
             }

@@ -437,7 +437,6 @@ public class MetadataRolloverService {
                         )
                     );
                 },
-                metadataBuilder -> {},
                 rerouteCompletionIsNotRequired()
             );
         }

@@ -2056,7 +2056,7 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private void validate(String name, ComponentTemplate template) {
+    public void validate(String name, ComponentTemplate template) {
         validate(name, template.template(), Collections.emptyList());
     }
 

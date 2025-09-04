@@ -224,8 +224,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            // avoid validation errors due to missing routing path
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dummy_path")
             .build();
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -277,7 +275,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
 
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName);
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
@@ -291,7 +288,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 templateSettings,
                 mappings,
                 builder,
-                indexMetadataBuilder::putCustom
+                (k, v) -> {}
             );
             Settings result = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
@@ -314,7 +311,8 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         // Apply settings resolved from templates.
         dummySettings.put(templateSettings);
 
-        final IndexMetadata indexMetadata = indexMetadataBuilder.eventIngestedRange(getEventIngestedRange(indexName, simulatedProject))
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedProject))
             .settings(dummySettings)
             .build();
 

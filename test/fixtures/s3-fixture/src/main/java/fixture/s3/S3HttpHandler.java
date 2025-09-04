@@ -249,30 +249,22 @@ public class S3HttpHandler implements HttpHandler {
                 // a copy request is a put request with an X-amz-copy-source header
                 final var copySource = copySourceName(exchange);
                 if (copySource != null) {
+                    if (isProtectOverwrite(exchange)) {
+                        throw new AssertionError("If-None-Match: * header is not supported here");
+                    }
+
                     var sourceBlob = blobs.get(copySource);
                     if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
-                        boolean preconditionFailed = false;
-                        if (isProtectOverwrite(exchange)) {
-                            var previousValue = blobs.putIfAbsent(request.path(), sourceBlob);
-                            if (previousValue != null) {
-                                preconditionFailed = true;
-                            }
-                        } else {
-                            blobs.put(request.path(), sourceBlob);
-                        }
+                        blobs.put(request.path(), sourceBlob);
 
-                        if (preconditionFailed) {
-                            exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                        } else {
-                            byte[] response = ("""
-                                <?xml version="1.0" encoding="UTF-8"?>
-                                <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
-                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                            exchange.getResponseBody().write(response);
-                        }
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                        exchange.getResponseBody().write(response);
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);

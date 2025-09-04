@@ -1800,7 +1800,7 @@ public class IngestDocumentTests extends ESTestCase {
             case 1 -> {
                 // Different error messages for each access pattern when trying to remove an element from a list incorrectly
                 doWithAccessPattern(CLASSIC, (doc) -> {
-                    doc.setFieldValue("fizz.some", List.of("foo", "bar"));
+                    doc.setFieldValue("fizz.some", new ArrayList<>(List.of("foo", "bar")));
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
                         () -> doc.removeField("fizz.some.nonsense", false)
@@ -1811,12 +1811,15 @@ public class IngestDocumentTests extends ESTestCase {
                     );
                 });
                 doWithAccessPattern(FLEXIBLE, (doc) -> {
-                    doc.setFieldValue("fizz.other", List.of("foo", "bar"));
+                    doc.setFieldValue("fizz.other", new ArrayList<>(List.of("foo", "bar")));
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
                         () -> doc.removeField("fizz.other.nonsense", false)
                     );
-                    assertThat(e.getMessage(), is("path [fizz.other.nonsense] is not valid"));
+                    assertThat(
+                        e.getMessage(),
+                        is("cannot resolve [nonsense] from object of type [java.util.ArrayList] as part of path [fizz.other.nonsense]")
+                    );
                 });
             }
             case 2 -> {

@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -24,14 +28,20 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.SearchAfterTermsEnum;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -103,6 +113,32 @@ public class PatternedTextFieldType extends StringFieldType {
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         return SourceValueFetcher.toString(name(), context, format);
+    }
+
+    @Override
+    public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
+        Terms terms = MultiTerms.getTerms(reader, name());
+        if (terms == null) {
+            // Field does not exist on this shard.
+            return null;
+        }
+        Automaton a = caseInsensitive
+            ? AutomatonQueries.caseInsensitivePrefix(prefix)
+            : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
+        assert a.isDeterministic();
+
+        CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);
+
+        BytesRef searchBytes = searchAfter == null ? null : new BytesRef(searchAfter);
+
+        if (automaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
+            TermsEnum result = terms.iterator();
+            if (searchAfter != null) {
+                result = new SearchAfterTermsEnum(result, searchBytes);
+            }
+            return result;
+        }
+        return terms.intersect(automaton, searchBytes);
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(

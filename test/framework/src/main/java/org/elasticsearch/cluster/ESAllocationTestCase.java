@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
@@ -97,6 +98,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         public void refreshLicense() {}
     };
+
+    public static final DesiredBalanceShardsAllocator.ShardAllocationExplainer TEST_ONLY_EXPLAINER = (
+        shard,
+        allocation) -> ShardAllocationDecision.NOT_TAKEN;
 
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.EMPTY);
@@ -176,7 +181,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             clusterService,
             null,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER
         ) {
             private RoutingAllocation lastAllocation;
 

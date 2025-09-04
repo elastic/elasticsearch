@@ -18,7 +18,6 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.lucene.util.IOConsumer;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -32,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -45,9 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -404,56 +402,35 @@ public class CsvTestsDataLoader {
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-        Set<TestDataset> datasets = availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled);
-        ExecutorService executor = Executors.newFixedThreadPool(PARALLEL_THREADS);
-        try {
-            executeInParallel(
-                executor,
-                datasets,
-                dataset -> createIndex(client, dataset, indexCreator),
-                "Failed to create indices in parallel"
-            );
+        List<TestDataset> datasets = availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled).stream()
+            .toList();
 
-            executeInParallel(executor, datasets, dataset -> loadData(client, dataset, logger), "Failed to load data in parallel");
+        executeInParallel(datasets, dataset -> createIndex(client, dataset, indexCreator), "Failed to create indices in parallel");
 
-            forceMerge(client, datasets.stream().map(d -> d.indexName).collect(Collectors.toSet()), logger);
+        executeInParallel(datasets, dataset -> loadData(client, dataset, logger), "Failed to load data in parallel");
 
-            executeInParallel(
-                executor,
-                ENRICH_POLICIES,
-                policy -> loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger),
-                "Failed to load enrich policies in parallel"
-            );
-        } finally {
-            executor.shutdown();
-        }
+        forceMerge(client, datasets.stream().map(d -> d.indexName).collect(Collectors.toSet()), logger);
+
+        executeInParallel(
+            ENRICH_POLICIES,
+            policy -> loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger),
+            "Failed to load enrich policies in parallel"
+        );
+
     }
 
-    private static <T> void executeInParallel(ExecutorService executor, Iterable<T> items, IOConsumer<T> consumer, String errorMessage)
-        throws IOException {
-        List<Future<?>> futures = new ArrayList<>();
-        for (T item : items) {
-            futures.add(executor.submit(() -> {
-                try {
-                    consumer.accept(item);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-        }
-
-        RuntimeException exception = null;
-        for (Future<?> future : futures) {
+    private static <T> void executeInParallel(List<T> items, IOConsumer<T> consumer, String errorMessage) {
+        Semaphore semaphore = new Semaphore(PARALLEL_THREADS);
+        ESTestCase.runInParallel(items.size(), i -> {
             try {
-                future.get();
-            } catch (Exception e) {
-                exception = ExceptionsHelper.useOrSuppress(exception, ExceptionsHelper.convertToRuntime(e));
+                semaphore.acquire();
+                consumer.accept(items.get(i));
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(errorMessage, e);
+            } finally {
+                semaphore.release();
             }
-        }
-
-        if (exception != null) {
-            throw new IOException(errorMessage, exception);
-        }
+        });
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {

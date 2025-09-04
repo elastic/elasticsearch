@@ -284,6 +284,23 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testLookupJoinMissingLocalIndexAfterPipelineBreaker() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery(
+                "FROM c*:logs-* | EVAL lookup_key = v | STATS lookup_key = max(lookup_key) | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("LOOKUP JOIN with remote indices can't be executed after [STATS lookup_key = max(lookup_key)]")
+        );
+    }
+
     public void testLookupJoinMissingKey() throws IOException {
         setupClusters(2);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);

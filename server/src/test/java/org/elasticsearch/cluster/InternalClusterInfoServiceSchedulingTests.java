@@ -146,7 +146,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(nodeJoined.get());
             // Addition of node should have triggered refresh
-            assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests
+            // should have run two client requests: nodes stats request and indices stats request
+            assertThat(client.requestCount, equalTo(initialRequestCount + 2));
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }

@@ -55,7 +55,7 @@ class TSDataGenerationHelper {
         this.numDocs = numDocs;
         var maxAttributes = (int) Math.sqrt(numDocs);
         List<String> tempAttributeSet = List.copyOf(
-            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
+            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(3, 30)))
         );
         var maxTimeSeries = (int) Math.sqrt(numDocs);
         var minTimeSeries = Math.max(1, maxTimeSeries / 4);

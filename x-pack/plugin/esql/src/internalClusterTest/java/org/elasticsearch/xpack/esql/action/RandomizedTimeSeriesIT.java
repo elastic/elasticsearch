@@ -71,6 +71,10 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         Tuple.tuple("30 minutes", 1800),
         Tuple.tuple("1 hour", 3600)
     );
+    private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
+        Tuple.tuple("rate", DeltaAgg.RATE),
+        Tuple.tuple("irate", DeltaAgg.IRATE)
+    );
 
     private List<XContentBuilder> documents;
     private TSDataGenerationHelper dataGenerationHelper;
@@ -265,9 +269,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
             if (deltaAgg.equals(DeltaAgg.IRATE)) {
-                var irate = Math.abs(timeseries.getLast().v2().v2() - timeseries.get(timeseries.size() - 2).v2().v2())
+                var lastVal = timeseries.getLast().v2().v2();
+                var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
+                var irate = (lastVal > secondLastVal ? lastVal - secondLastVal : lastVal)
                     / (lastTs.toEpochMilli() - timeseries.get(timeseries.size() - 2).v2().v1().toEpochMilli()) * 1000;
-                return new RateRange(irate, irate);
+                return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
             }
             assert deltaAgg == DeltaAgg.RATE;
             Double lastValue = null;
@@ -377,6 +383,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
+        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
         var windowStr = window.v1();
@@ -386,15 +393,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
-            | STATS count(rate(metrics.counterl_hdd.bytes.read)),
-                    max(rate(metrics.counterl_hdd.bytes.read)),
-                    avg(rate(metrics.counterl_hdd.bytes.read)),
-                    min(rate(metrics.counterl_hdd.bytes.read)),
-                    sum(rate(metrics.counterl_hdd.bytes.read))
+            | STATS count(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
+                    max(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
+                    avg(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
+                    min(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
+                    sum(<DELTAGG>(metrics.counterl_hdd.bytes.read))
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            | LIMIT 1000
-            """, DATASTREAM_NAME, windowStr, dimensionsStr))) {
+            """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1()))) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
             var groups = groupedRows(documents, dimensions, windowSize);
@@ -402,7 +408,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var rowKey = getRowKey(row, dimensions, 5);
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, DeltaAgg.RATE);
+                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, deltaAgg.v2());
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);
@@ -562,10 +568,16 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertThat(row.getFirst(), equalTo(docValues.isEmpty() ? null : docValues.getFirst().longValue()));
                 }
-                assertThat(row.get(1), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
-                assertThat(row.get(2), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
-                assertThat(row.get(3), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
-                assertThat(row.get(4), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
+                Function<Object, Double> toDouble = cell -> switch (cell) {
+                    case Long l -> l.doubleValue();
+                    case Double d -> d;
+                    case null -> null;
+                    default -> throw new IllegalStateException("Unexpected value type: " + cell + " of class " + cell.getClass());
+                };
+                assertThat(toDouble.apply(row.get(1)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
+                assertThat(toDouble.apply(row.get(2)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
+                assertThat(toDouble.apply(row.get(3)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
+                assertThat(toDouble.apply(row.get(4)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
                 var avg = (Double) aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
                 assertThat((Double) row.get(5), row.get(5) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
                 // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));

@@ -80,20 +80,20 @@ public class SegmentCountStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
-        String forceMergedIndexName = targetIndexNameSupplier.apply(
+        String targetIndexName = targetIndexNameSupplier.apply(
             indexMetadata.getIndex().getName(),
             indexMetadata.getLifecycleExecutionState()
         );
-        assert forceMergedIndexName != null : "target index name supplier must not return null";
+        assert targetIndexName != null : "target index name supplier must not return null";
         getClient(state.projectId()).admin()
             .indices()
-            .segments(new IndicesSegmentsRequest(forceMergedIndexName), ActionListener.wrap(response -> {
-                IndexSegments idxSegments = response.getIndices().get(forceMergedIndexName);
+            .segments(new IndicesSegmentsRequest(targetIndexName), ActionListener.wrap(response -> {
+                IndexSegments idxSegments = response.getIndices().get(targetIndexName);
                 if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
                     final DefaultShardOperationFailedException[] failures = response.getShardFailures();
                     logger.info(
                         "[{}] retrieval of segment counts after force merge did not succeed, there were {} shard failures. failures: {}",
-                        forceMergedIndexName,
+                        targetIndexName,
                         response.getFailedShards(),
                         failures == null
                             ? "n/a"
@@ -112,7 +112,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                             .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
                         logger.info(
                             "[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
-                            forceMergedIndexName,
+                            targetIndexName,
                             maxNumSegments,
                             unmergedShards.size(),
                             unmergedShardCounts

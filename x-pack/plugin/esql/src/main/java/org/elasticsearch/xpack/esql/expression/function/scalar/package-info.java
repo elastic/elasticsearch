@@ -215,7 +215,8 @@
  *         <ul>
  *             <li>The new function doesn't show up in the docs. Committing the 8 generated docs files is ok.</li>
  *             <li>The new function is marked as a snapshot function in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}.</li>
- *             <li>The new function is grouped with other snapshot functions in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.</li>
+ *             <li>The new function is grouped with other snapshot functions in
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.</li>
  *             <li>The class that implements your new functions has the right annotations.</li>
  *         </ul>
  *

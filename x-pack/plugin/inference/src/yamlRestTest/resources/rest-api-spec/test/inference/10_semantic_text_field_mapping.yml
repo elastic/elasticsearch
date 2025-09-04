@@ -549,7 +549,7 @@ setup:
   - not_exists: fields.dense_field.inference
 
 ---
-"Field caps with semantic query filter does not fail":
+"Field caps with semantic query does not fail":
   # We need at least one document present to exercise can-match phase
   - do:
       index:

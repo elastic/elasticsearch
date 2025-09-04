@@ -1576,7 +1576,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Refreshes the cluster info on the master
      *
-     * @return The new cluster info if the refresh was executed, null if the ClusterInfoService was of an unknown type
+     * @return The new cluster info if the refresh was executed, null if the {@link ClusterInfoService} was of an unknown type
      */
     @Nullable
     public static ClusterInfo refreshClusterInfo() {

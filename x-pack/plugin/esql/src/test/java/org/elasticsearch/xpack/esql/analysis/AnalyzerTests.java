@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -88,8 +87,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -2349,7 +2348,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         checkDenseVectorCastingKnn("float_vector");
     }
@@ -3505,17 +3504,16 @@ public class AnalyzerTests extends ESTestCase {
 
         Limit limit = as(plan, Limit.class);
 
-        Dedup dedup = as(limit.child(), Dedup.class);
-        assertThat(dedup.groupings().size(), equalTo(2));
-        assertThat(dedup.aggregates().size(), equalTo(15));
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings().size(), equalTo(2));
 
-        RrfScoreEval rrf = as(dedup.child(), RrfScoreEval.class);
-        assertThat(rrf.scoreAttribute(), instanceOf(ReferenceAttribute.class));
-        assertThat(rrf.scoreAttribute().name(), equalTo("_score"));
-        assertThat(rrf.forkAttribute(), instanceOf(ReferenceAttribute.class));
-        assertThat(rrf.forkAttribute().name(), equalTo("_fork"));
+        FuseScoreEval scoreEval = as(aggregate.child(), FuseScoreEval.class);
+        assertThat(scoreEval.score(), instanceOf(ReferenceAttribute.class));
+        assertThat(scoreEval.score().name(), equalTo("_score"));
+        assertThat(scoreEval.discriminator(), instanceOf(ReferenceAttribute.class));
+        assertThat(scoreEval.discriminator().name(), equalTo("_fork"));
 
-        assertThat(rrf.child(), instanceOf(Fork.class));
+        assertThat(scoreEval.child(), instanceOf(Fork.class));
     }
 
     public void testFuseError() {
@@ -4141,7 +4139,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 

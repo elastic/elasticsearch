@@ -113,6 +113,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
@@ -147,7 +148,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         super.setUp();
         randomInferenceEntityId = randomAlphaOfLength(10);
         inferenceStats = InferenceStatsTests.mockInferenceStats();
-        threadPool = createThreadPool(InferencePlugin.inferenceUtilityExecutor(Settings.EMPTY));
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After

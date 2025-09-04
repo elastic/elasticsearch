@@ -18,53 +18,47 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class ReplacedIndexExpression implements Writeable {
+    public enum ResolutionResult {
+        SUCCESS,
+        CONCRETE_RESOURCE_UNAUTHORIZED,
+        CONCRETE_RESOURCE_MISSING
+    }
+
     private final String original;
     private final List<String> replacedBy;
-    private final boolean authorized;
-    private final boolean existsAndVisible;
+    private final ResolutionResult resolutionResult;
     @Nullable
     private ElasticsearchException authorizationError;
 
     public ReplacedIndexExpression(StreamInput in) throws IOException {
         this.original = in.readString();
         this.replacedBy = in.readCollectionAsList(StreamInput::readString);
-        this.authorized = in.readBoolean();
-        this.existsAndVisible = in.readBoolean();
+        this.resolutionResult = in.readEnum(ResolutionResult.class);
         this.authorizationError = ElasticsearchException.readException(in);
     }
 
     public ReplacedIndexExpression(
         String original,
         List<String> replacedBy,
-        boolean authorized,
-        boolean existsAndVisible,
+        ResolutionResult resolutionResult,
         @Nullable ElasticsearchException exception
     ) {
         this.original = original;
         this.replacedBy = replacedBy;
-        this.authorized = authorized;
-        this.existsAndVisible = existsAndVisible;
+        this.resolutionResult = resolutionResult;
         this.authorizationError = exception;
     }
 
-    public static String[] toIndices(Map<String, ReplacedIndexExpression> replacedExpressions) {
-        return replacedExpressions.values()
-            .stream()
-            .flatMap(indexExpression -> indexExpression.replacedBy().stream())
-            .toArray(String[]::new);
-    }
-
     public ReplacedIndexExpression(String original, List<String> replacedBy) {
-        this(original, replacedBy, true, true, null);
+        this(original, replacedBy, ResolutionResult.SUCCESS, null);
     }
 
     public void setAuthorizationError(ElasticsearchException error) {
-        assert authorized == false : "we should never set an error if we are authorized";
+        assert resolutionResult == ResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED : "we should never set an error if we are authorized";
         this.authorizationError = error;
     }
 
@@ -88,12 +82,8 @@ public final class ReplacedIndexExpression implements Writeable {
         return replacedBy;
     }
 
-    public boolean authorized() {
-        return authorized;
-    }
-
-    public boolean existsAndVisible() {
-        return existsAndVisible;
+    public ResolutionResult resolutionResult() {
+        return resolutionResult;
     }
 
     @Nullable
@@ -102,44 +92,40 @@ public final class ReplacedIndexExpression implements Writeable {
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(original);
+        out.writeStringCollection(replacedBy);
+        out.writeEnum(resolutionResult);
+        ElasticsearchException.writeException(authorizationError, out);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         ReplacedIndexExpression that = (ReplacedIndexExpression) o;
-        return authorized == that.authorized
-            && existsAndVisible == that.existsAndVisible
-            && Objects.equals(original, that.original)
+        return Objects.equals(original, that.original)
             && Objects.equals(replacedBy, that.replacedBy)
+            && resolutionResult == that.resolutionResult
             && Objects.equals(authorizationError, that.authorizationError);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(original, replacedBy, authorized, existsAndVisible, authorizationError);
+        return Objects.hash(original, replacedBy, resolutionResult, authorizationError);
     }
 
     @Override
     public String toString() {
-        return "ReplacedExpression{"
+        return "ReplacedIndexExpression{"
             + "original='"
             + original
             + '\''
             + ", replacedBy="
             + replacedBy
-            + ", authorized="
-            + authorized
-            + ", existsAndVisible="
-            + existsAndVisible
+            + ", resolutionResult="
+            + resolutionResult
             + ", authorizationError="
             + authorizationError
             + '}';
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(original);
-        out.writeStringCollection(replacedBy);
-        out.writeBoolean(authorized);
-        out.writeBoolean(existsAndVisible);
-        ElasticsearchException.writeException(authorizationError, out);
     }
 }

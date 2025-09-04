@@ -372,25 +372,25 @@ public class IndicesAndAliasesResolver {
                 if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable crossProjectSearchCapableRequest
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
                     assert crossProjectSearchCapableRequest.allowsRemoteIndices();
-                    var crossProjectReplacedIndexExpressions = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                    var replacedForCps = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
                         remoteClusterResolver,
                         targetProjects,
                         crossProjectSearchCapableRequest.indices()
                     );
-                    if (crossProjectReplacedIndexExpressions != null) {
+                    if (replacedForCps != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
                         ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsForCrossProjectSearch(
-                                crossProjectReplacedIndexExpressions.getLocalIndices(),
+                                replacedForCps.getLocalIndices(),
                                 indicesOptions,
                                 projectMetadata,
                                 authorizedIndices::all,
                                 authorizedIndices::check,
                                 indicesRequest.includeDataStreams()
                             );
-                        crossProjectReplacedIndexExpressions.replaceLocalIndices(replacedExpressions);
-                        crossProjectSearchCapableRequest.setReplacedIndexExpressions(crossProjectReplacedIndexExpressions);
-                        crossProjectSearchCapableRequest.indices(crossProjectReplacedIndexExpressions.getAllIndicesArray());
+                        replacedForCps.replaceLocalIndices(replacedExpressions);
+                        crossProjectSearchCapableRequest.setReplacedIndexExpressions(replacedForCps);
+                        crossProjectSearchCapableRequest.indices(replacedForCps.getAllIndicesArray());
                         // TODO handle empty case by calling
                         // replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                         return remoteClusterResolver.splitLocalAndRemoteIndexNames(crossProjectSearchCapableRequest.indices());

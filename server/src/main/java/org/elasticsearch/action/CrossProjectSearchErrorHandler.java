@@ -22,27 +22,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class CrossProjectSearchActionAdapter {
-    private static final Logger logger = LogManager.getLogger(CrossProjectSearchActionAdapter.class);
+public class CrossProjectSearchErrorHandler {
+    private static final Logger logger = LogManager.getLogger(CrossProjectSearchErrorHandler.class);
 
     private final AuthorizedProjectsSupplier supplier;
     private final RemoteClusterService remoteClusterService;
 
-    public CrossProjectSearchActionAdapter(AuthorizedProjectsSupplier supplier, RemoteClusterService remoteClusterService) {
+    public CrossProjectSearchErrorHandler(AuthorizedProjectsSupplier supplier, RemoteClusterService remoteClusterService) {
         this.supplier = supplier;
         this.remoteClusterService = remoteClusterService;
     }
 
-    public boolean crossProjectModeEnabled() {
+    public boolean enabled() {
         return supplier.get() != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT;
     }
 
-    public Map<String, OriginalIndices> groupIndicesForFanout(IndicesRequest.Replaceable replaceable) {
+    public Map<String, OriginalIndices> groupIndicesForFanoutAction(IndicesRequest.Replaceable replaceable) {
         return remoteClusterService.groupIndices(getIndicesOptions(replaceable.indicesOptions()), replaceable.indices());
     }
 
     private IndicesOptions getIndicesOptions(IndicesOptions indicesOptions) {
-        return crossProjectModeEnabled() ? lenientIndicesOptions(indicesOptions) : indicesOptions;
+        return enabled() ? lenientIndicesOptions(indicesOptions) : indicesOptions;
     }
 
     private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
@@ -58,7 +58,7 @@ public class CrossProjectSearchActionAdapter {
     ) {
         logger.info("Checking if we should throw for [{}] under CPS", request.getReplacedIndexExpressions());
         // No CPS nothing to do
-        if (false == crossProjectModeEnabled()) {
+        if (false == enabled()) {
             logger.info("Skipping because we are not in CPS mode...");
             return;
         }
@@ -75,7 +75,8 @@ public class CrossProjectSearchActionAdapter {
             // TODO need to handle qualified expressions here, too
             String original = replacedIndexExpression.original();
             List<ElasticsearchException> exceptions = new ArrayList<>();
-            boolean exists = replacedIndexExpression.hasLocalIndices() && replacedIndexExpression.existsAndVisible();
+            boolean exists = replacedIndexExpression.hasLocalIndices()
+                && replacedIndexExpression.resolutionResult() == ReplacedIndexExpression.ResolutionResult.SUCCESS;
             if (exists) {
                 logger.info("Local cluster has canonical expression for [{}], skipping remote existence check", original);
                 continue;
@@ -89,12 +90,15 @@ public class CrossProjectSearchActionAdapter {
                 Map<String, ReplacedIndexExpression> resolved = remoteResponse.getReplacedIndexExpressions().replacedExpressionMap();
                 assert resolved != null;
                 var r = resolved.get(original);
-                if (r != null && r.existsAndVisible() && resolved.get(original).replacedBy().isEmpty() == false) {
+                if (r != null
+                    && replacedIndexExpression.resolutionResult() == ReplacedIndexExpression.ResolutionResult.SUCCESS
+                    && resolved.get(original).replacedBy().isEmpty() == false) {
                     logger.info("Remote cluster has resolved entries for [{}], skipping further remote existence check", original);
                     exists = true;
                     break;
                 } else if (r != null && r.authorizationError() != null) {
-                    assert r.authorized() == false : "we should never get an error if we are authorized";
+                    assert r.resolutionResult() == ReplacedIndexExpression.ResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED
+                        : "we should never get an error if we are authorized";
                     exceptions.add(resolved.get(original).authorizationError());
                 }
             }

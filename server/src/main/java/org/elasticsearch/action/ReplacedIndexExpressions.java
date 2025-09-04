@@ -16,7 +16,10 @@ import java.util.Map;
 // Back to the idea that this can be an interface, with a ResolvedLocalIndices and CrossProjectRewrittenIndices implementation?
 public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap) {
     public String[] getAllIndicesArray() {
-        return ReplacedIndexExpression.toIndices(replacedExpressionMap);
+        return replacedExpressionMap.values()
+            .stream()
+            .flatMap(indexExpression -> indexExpression.replacedBy().stream())
+            .toArray(String[]::new);
     }
 
     public List<String> getLocalIndices() {
@@ -49,10 +52,7 @@ public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> repl
             combined.addAll(resolvedLocal);
             combined.addAll(remoteIndices);
 
-            replacedExpressionMap.put(
-                original,
-                new ReplacedIndexExpression(original, combined, local.authorized(), local.existsAndVisible(), null)
-            );
+            replacedExpressionMap.put(original, new ReplacedIndexExpression(original, combined, local.resolutionResult(), null));
         }
     }
 }

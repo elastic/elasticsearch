@@ -130,7 +130,12 @@ public class IndexAbstractionResolver {
                     resolvedForThisInput.addAll(resolvedIndices);
                     replaced.put(
                         originalIndexExpression,
-                        new ReplacedIndexExpression(originalIndexExpression, new ArrayList<>(resolvedForThisInput), true, true, null)
+                        new ReplacedIndexExpression(
+                            originalIndexExpression,
+                            new ArrayList<>(resolvedForThisInput),
+                            ReplacedIndexExpression.ResolutionResult.SUCCESS,
+                            null
+                        )
                     );
                 }
             } else {
@@ -151,18 +156,17 @@ public class IndexAbstractionResolver {
                     final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     final boolean existsAndVisible = authorized
                         && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
+                    final ReplacedIndexExpression.ResolutionResult resolutionResult = existsAndVisible
+                        ? ReplacedIndexExpression.ResolutionResult.SUCCESS
+                        : (authorized
+                            ? ReplacedIndexExpression.ResolutionResult.CONCRETE_RESOURCE_MISSING
+                            : ReplacedIndexExpression.ResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED);
                     if (indicesOptions.ignoreUnavailable() == false || authorized) {
                         resolvedForThisInput.addAll(resolvedIndices);
                     }
                     replaced.put(
                         originalIndexExpression,
-                        new ReplacedIndexExpression(
-                            originalIndexExpression,
-                            new ArrayList<>(resolvedForThisInput),
-                            authorized,
-                            existsAndVisible,
-                            null
-                        )
+                        new ReplacedIndexExpression(originalIndexExpression, new ArrayList<>(resolvedForThisInput), resolutionResult, null)
                     );
                 }
             }

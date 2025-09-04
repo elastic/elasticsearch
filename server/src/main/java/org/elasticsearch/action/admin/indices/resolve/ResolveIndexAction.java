@@ -18,7 +18,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.AuthorizedProjectsSupplier;
-import org.elasticsearch.action.CrossProjectSearchActionAdapter;
+import org.elasticsearch.action.CrossProjectSearchErrorHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -589,7 +589,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ProjectResolver projectResolver;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
-        private final CrossProjectSearchActionAdapter crossProjectSearchActionAdapter;
+        private final CrossProjectSearchErrorHandler crossProjectSearchErrorHandler;
 
         @Inject
         public TransportAction(
@@ -607,19 +607,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
             // Could be used by an abstract transport action base class (CrossProjectSearchCapableAction?), perhaps
-            this.crossProjectSearchActionAdapter = new CrossProjectSearchActionAdapter(authorizedProjectsSupplier, remoteClusterService);
+            this.crossProjectSearchErrorHandler = new CrossProjectSearchErrorHandler(authorizedProjectsSupplier, remoteClusterService);
         }
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
-            final boolean crossProjectModeEnabled = crossProjectSearchActionAdapter.crossProjectModeEnabled();
+            final boolean crossProjectModeEnabled = crossProjectSearchErrorHandler.enabled();
 
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
 
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
-            final Map<String, OriginalIndices> remoteClusterIndices = crossProjectSearchActionAdapter.groupIndicesForFanout(request);
+            final Map<String, OriginalIndices> remoteClusterIndices = crossProjectSearchErrorHandler.groupIndicesForFanoutAction(request);
 
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
@@ -638,7 +638,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         try {
-                            crossProjectSearchActionAdapter.errorHandling(request, remoteResponses);
+                            crossProjectSearchErrorHandler.errorHandling(request, remoteResponses);
                         } catch (Exception ex) {
                             listener.onFailure(ex);
                             return;

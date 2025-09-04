@@ -263,42 +263,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private static final class DatasetOrVectors implements AutoCloseable {
-        private final CuVSMatrix dataset;
-        private final List<float[]> vectors;
-
-        static DatasetOrVectors fromArray(List<float[]> vectors) {
-            return new DatasetOrVectors(null, vectors);
-        }
-
-        static DatasetOrVectors fromDataset(CuVSMatrix dataset) {
-            return new DatasetOrVectors(dataset, null);
-        }
-
-        private DatasetOrVectors(CuVSMatrix dataset, List<float[]> vectors) {
-            this.dataset = dataset;
-            this.vectors = vectors;
-            validateState();
-        }
-
-        private void validateState() {
-            if ((dataset == null && vectors == null) || (dataset != null && vectors != null)) {
-                throw new IllegalStateException("Exactly one of dataset or vectors must be non-null");
-            }
-        }
-
-        int size() {
-            return dataset != null ? (int) dataset.size() : vectors.size();
-        }
-
-        @Override
-        public void close() {
-            if (dataset != null) {
-                dataset.close();
-            }
-        }
-    }
-
     private void writeSortingField(FieldInfo fieldInfo, CuVSMatrix datasetOrVectors, int size, Sorter.DocMap sortMap) throws IOException {
         // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
         // We can now treat them as a simple, sorted list of vectors.

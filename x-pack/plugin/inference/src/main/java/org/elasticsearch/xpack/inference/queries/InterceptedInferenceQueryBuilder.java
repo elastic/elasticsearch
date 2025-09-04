@@ -145,16 +145,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         if (indexMetadataContext != null) {
             // We are performing an index metadata rewrite on the data node
             String indexName = indexMetadataContext.getFullyQualifiedIndex().getName();
-            Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = inferenceFieldInfoMap.get(indexName);
-            if (indexInferenceFieldInfoMap == null) {
-                throw new IllegalStateException("No inference field info for index [" + indexName + "]");
-            }
+            Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = inferenceFieldInfoMap.getOrDefault(indexName, Map.of());
 
             Map<String, Float> inferenceFieldsToQuery = indexInferenceFieldInfoMap.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getWeight()));
 
-            Map<String, Float> nonInferenceFieldsToQuery = getFields();
+            Map<String, Float> nonInferenceFieldsToQuery = new HashMap<>(getFields());
             if (useDefaultFields() && nonInferenceFieldsToQuery.isEmpty()) {
                 nonInferenceFieldsToQuery = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
             }

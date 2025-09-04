@@ -225,12 +225,7 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
             var parallelResult = (Map<Integer, float[]>) results[0];
 
             // Verify results are identical
-            assertThat(
-                "Parallel and sequential results should have same size",
-                    parallelResult.size(),
-                    equalTo(sequentialResult.size())
-                );
-
+            assertThat("Parallel and sequential results should have same size", parallelResult.size(), equalTo(sequentialResult.size()));
 
             for (int docId : sequentialResult.keySet()) {
                 float[] sequentialVector = sequentialResult.get(docId);
@@ -238,7 +233,7 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
                 assertNotNull("Parallel result should contain vector for doc " + docId, parallelVector);
                 assertNotNull("Sequential result should contain vector for doc " + docId, sequentialVector);
-                    assertArrayEquals("Vectors should be identical for doc " + docId, sequentialVector, parallelVector, 0.0001f);
+                assertArrayEquals("Vectors should be identical for doc " + docId, sequentialVector, parallelVector, 0.0001f);
             }
         }
     }
@@ -249,9 +244,7 @@ public class BulkVectorFunctionScoreQueryTests extends ESTestCase {
 
             // Get initial documents
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 20);
-            int[] docIds = Arrays.stream(topDocs.scoreDocs)
-                .mapToInt(scoreDoc -> scoreDoc.doc)
-                .toArray();
+            int[] docIds = Arrays.stream(topDocs.scoreDocs).mapToInt(scoreDoc -> scoreDoc.doc).toArray();
 
             var leafReaderContext = reader.leaves().get(0);
             consumer.accept(leafReaderContext, docIds);

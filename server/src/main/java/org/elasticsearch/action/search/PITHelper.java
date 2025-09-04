@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class PITHelper {
 
-    public static SearchContextId decodePITId(String id) throws IOException {
+    public static SearchContextId decodePITId(String id) {
         return decodePITId(new BytesArray(Base64.getUrlDecoder().decode(id)));
     }
 

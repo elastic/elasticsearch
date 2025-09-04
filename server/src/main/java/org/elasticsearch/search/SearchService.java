@@ -1259,7 +1259,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (searcherId == null) {
                     throw e;
                 }
-                // TODO this retries on context with same searcher id, currently offered in FrozenEngine and ReadonlyEngine
+                // TODO here we retry creating contexts on the same node if we can get a Searchwe with same searcher id as the original
+                // PIT context. That seems to currently only be working for FrozenEngine and ReadonlyEngine where the commitId is used
+                // as a searcher id
                 final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 final IndexShard shard = indexService.getShard(request.shardId().id());
                 final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();

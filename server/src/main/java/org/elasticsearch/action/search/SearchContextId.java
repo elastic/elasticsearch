@@ -40,7 +40,7 @@ public final class SearchContextId {
     private final Map<String, AliasFilter> aliasFilter;
     private final transient Set<ShardSearchContextId> contextIds;
 
-    public SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
+    SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;
         this.aliasFilter = aliasFilter;
         this.contextIds = shards.values().stream().map(SearchContextIdForNode::getSearchContextId).collect(Collectors.toSet());
@@ -58,8 +58,8 @@ public final class SearchContextId {
         return contextIds.contains(contextId);
     }
 
-    public static <SPR extends SearchPhaseResult> BytesReference encode(
-        List<SPR> searchPhaseResults,
+    public static BytesReference encode(
+        List<SearchPhaseResult> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
         ShardSearchFailure[] shardFailures

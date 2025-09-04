@@ -1,18 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
+    "github>elastic/renovate-config:base",
     "github>elastic/renovate-config:ci-agent-images",
     ":disableDependencyDashboard"
   ],
   "schedule": [
     "after 1pm on tuesday"
   ],
-
-  "includePaths": [
-    ".buildkite/pipelines/pull-request/pr-upgrade.yml",
-    "distribution/docker/src/docker/dockerfiles/wolfi/Dockerfile"
-  ],
-
   "labels": [
     ">non-issue",
     ":Delivery/Packaging",

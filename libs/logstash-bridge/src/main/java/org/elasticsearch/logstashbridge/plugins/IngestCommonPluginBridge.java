@@ -9,7 +9,7 @@
 package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.ingest.common.RemediateProcessor;
+import org.elasticsearch.ingest.common.RecoverFailureDocumentProcessor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 
@@ -41,7 +41,7 @@ public class IngestCommonPluginBridge implements IngestPluginBridge {
     public static final String LOWERCASE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.LowercaseProcessor.TYPE;
     public static final String NETWORK_DIRECTION_PROCESSOR_TYPE = org.elasticsearch.ingest.common.NetworkDirectionProcessor.TYPE;
     public static final String REGISTERED_DOMAIN_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RegisteredDomainProcessor.TYPE;
-    public static final String REMEDIATE_PROCESSOR_TYPE = RemediateProcessor.TYPE;
+    public static final String RECOVER_FAILURE_DOCUMENT_PROCESSOR_TYPE = RecoverFailureDocumentProcessor.TYPE;
     public static final String REMOVE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RemoveProcessor.TYPE;
     public static final String RENAME_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RenameProcessor.TYPE;
     public static final String REROUTE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RerouteProcessor.TYPE;

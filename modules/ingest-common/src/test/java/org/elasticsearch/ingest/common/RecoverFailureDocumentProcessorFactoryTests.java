@@ -17,32 +17,32 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemediateProcessorFactoryTests extends ESTestCase {
+public class RecoverFailureDocumentProcessorFactoryTests extends ESTestCase {
 
-    private RemediateProcessor.Factory factory;
+    private RecoverFailureDocumentProcessor.Factory factory;
 
     @Before
     public void init() {
-        factory = new RemediateProcessor.Factory();
+        factory = new RecoverFailureDocumentProcessor.Factory();
     }
 
     public void testCreate() throws Exception {
-        RemediateProcessor.Factory factory = new RemediateProcessor.Factory();
+        RecoverFailureDocumentProcessor.Factory factory = new RecoverFailureDocumentProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
 
         String processorTag = randomAlphaOfLength(10);
-        RemediateProcessor processor = factory.create(null, processorTag, null, config, null);
+        RecoverFailureDocumentProcessor processor = factory.create(null, processorTag, null, config, null);
 
         assertThat(processor.getTag(), equalTo(processorTag));
     }
 
     public void testCreateWithDescription() throws Exception {
-        RemediateProcessor.Factory factory = new RemediateProcessor.Factory();
+        RecoverFailureDocumentProcessor.Factory factory = new RecoverFailureDocumentProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
 
         String processorTag = randomAlphaOfLength(10);
         String description = randomAlphaOfLength(20);
-        RemediateProcessor processor = factory.create(null, processorTag, description, config, null);
+        RecoverFailureDocumentProcessor processor = factory.create(null, processorTag, description, config, null);
 
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getDescription(), equalTo(description));

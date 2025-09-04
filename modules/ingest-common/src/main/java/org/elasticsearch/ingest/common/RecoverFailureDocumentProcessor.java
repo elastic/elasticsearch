@@ -23,11 +23,11 @@ import java.util.Map;
  * - Removing the "error" and "document" fields from the root
  * - Restoring the original source fields at the root of the document
  */
-public final class RemediateProcessor extends AbstractProcessor {
+public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "remediate";
+    public static final String TYPE = "recover_failure_document";
 
-    RemediateProcessor(String tag, String description) {
+    RecoverFailureDocumentProcessor(String tag, String description) {
         super(tag, description);
     }
 
@@ -77,14 +77,14 @@ public final class RemediateProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public RemediateProcessor create(
+        public RecoverFailureDocumentProcessor create(
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
             Map<String, Object> config,
             ProjectId projectId
         ) throws Exception {
-            return new RemediateProcessor(processorTag, description);
+            return new RecoverFailureDocumentProcessor(processorTag, description);
         }
     }
 }

@@ -1,5 +1,5 @@
 pr: 133360
-summary: Add remediate processor to remediate failurestore docs
+summary: Add recover_failure_document processor to remediate failurestore docs
 area: Ingest Node
 type: feature
 issues: []

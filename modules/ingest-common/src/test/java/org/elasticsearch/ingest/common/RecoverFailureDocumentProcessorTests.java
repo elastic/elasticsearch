@@ -20,10 +20,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class RemediateProcessorTests extends ESTestCase {
+public class RecoverFailureDocumentProcessorTests extends ESTestCase {
 
-    private static Processor createRemediateProcessor() {
-        return new RemediateProcessor(randomAlphaOfLength(8), null);
+    private static Processor createRecoverFailureDocumentProcessor() {
+        return new RecoverFailureDocumentProcessor(randomAlphaOfLength(8), null);
     }
 
     private static IngestDocument createFailureDoc(
@@ -55,8 +55,8 @@ public class RemediateProcessorTests extends ESTestCase {
         return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
-    public void testRemediate_basic() throws Exception {
-        Processor processor = createRemediateProcessor();
+    public void testRecoverFailureDocument_basic() throws Exception {
+        Processor processor = createRecoverFailureDocumentProcessor();
 
         Map<String, Object> originalSource = new HashMap<>();
         originalSource.put("a", 1);
@@ -80,8 +80,8 @@ public class RemediateProcessorTests extends ESTestCase {
         assertThat(doc.hasField("document", true), is(false));
     }
 
-    public void testRemediate_withRouting() throws Exception {
-        Processor processor = createRemediateProcessor();
+    public void testRecoverFailureDocument_withRouting() throws Exception {
+        Processor processor = createRecoverFailureDocumentProcessor();
 
         Map<String, Object> originalSource = new HashMap<>();
         originalSource.put("nested", Map.of("k", "v"));
@@ -97,8 +97,8 @@ public class RemediateProcessorTests extends ESTestCase {
         assertThat(doc.hasField("document", true), is(false));
     }
 
-    public void testRemediate_missingDocument_throws() {
-        Processor processor = createRemediateProcessor();
+    public void testRecoverFailureDocument_missingDocument_throws() {
+        Processor processor = createRecoverFailureDocumentProcessor();
 
         Map<String, Object> sourceAndMetadata = new HashMap<>();
         sourceAndMetadata.put("_index", "failure-index");
@@ -112,8 +112,8 @@ public class RemediateProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("document"));
     }
 
-    public void testRemediate_missingSourceInsideDocument_throws() {
-        Processor processor = createRemediateProcessor();
+    public void testRecoverFailureDocument_missingSourceInsideDocument_throws() {
+        Processor processor = createRecoverFailureDocumentProcessor();
 
         Map<String, Object> sourceAndMetadata = new HashMap<>();
         sourceAndMetadata.put("_index", "failure-index");

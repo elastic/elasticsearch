@@ -35,20 +35,20 @@ setup:
                 field: count
                 value: "not_a_number"  # This will cause a mapping failure
 
-  # Create a remediation-pipeline with remediate processor
+  # Create a remediation-pipeline with recover_failure_document processor
   - do:
       ingest.put_pipeline:
         id: "remediation_pipeline"
         body:
           description: "Pipeline to remediate failed documents"
           processors:
-            - remediate: {}
+            - recover_failure_document: {}
 
 ---
 teardown:
   - do:
       indices.delete_data_stream:
-        name: test-logs-remediate
+        name: test-logs-recover_failure_document
         ignore: 404
 
   - do:
@@ -67,11 +67,11 @@ teardown:
         ignore: 404
 
 ---
-"Test remediate processor with data stream failure store":
+"Test recover_failure_document processor with data stream failure store":
   # Create the data stream by indexing a document
   - do:
       index:
-        index: test-logs-remediate
+        index: test-logs-recover_failure_document
         routing: custom-route-123
         pipeline: failing_pipeline
         body:
@@ -82,12 +82,12 @@ teardown:
   # Wait for the failure store to be populated
   - do:
       indices.refresh:
-        index: ".fs-test-logs-remediate-*"
+        index: ".fs-test-logs-recover_failure_document-*"
 
   # Check that document went to failure store
   - do:
       search:
-        index: ".fs-test-logs-remediate-*"
+        index: ".fs-test-logs-recover_failure_document-*"
         body:
           query:
             match_all: {}
@@ -95,7 +95,7 @@ teardown:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.document.source.message: "test message" }
   - match: { hits.hits.0._source.document.source.count: "not_a_number" }
-  - match: { hits.hits.0._source.document.index: "test-logs-remediate" }
+  - match: { hits.hits.0._source.document.index: "test-logs-recover_failure_document" }
   - match: { hits.hits.0._source.document.routing: "custom-route-123" }
   - is_true: hits.hits.0._source.error
 
@@ -108,14 +108,14 @@ teardown:
         body:
           pipeline:
             processors:
-              - remediate: {}
+              - recover_failure_document: {}
           docs:
             - _source: $original_source
-              _index: "test-logs-remediate"
+              _index: "test-logs-recover_failure_document"
               _id: "${failure_doc_id}"
 
   # Check that it is using the remediated format
-  - match: { docs.0.doc._index: "test-logs-remediate" }
+  - match: { docs.0.doc._index: "test-logs-recover_failure_document" }
   - match: { docs.0.doc._routing: "custom-route-123" }
   - match: { docs.0.doc._source.message: "test message" }
   - match: { docs.0.doc._source.count: "not_a_number" }
@@ -123,13 +123,13 @@ teardown:
   - is_false: docs.0.doc._source.document
 
 ---
-"Test remediate processor error handling - missing document field":
+"Test recover_failure_document processor error handling - missing document field":
   - do:
       ingest.simulate:
         body:
           pipeline:
             processors:
-              - remediate: {}
+              - recover_failure_document: {}
           docs:
             - _source:
                 error: "simulated failure"
@@ -141,13 +141,13 @@ teardown:
   - match: { docs.0.error.reason: "field [document] not present as part of path [document]" }
 
 ---
-"Test remediate processor error handling - missing source field":
+"Test recover_failure_document processor error handling - missing source field":
   - do:
       ingest.simulate:
         body:
           pipeline:
             processors:
-              - remediate: {}
+              - recover_failure_document: {}
           docs:
             - _source:
                 error: "simulated failure"

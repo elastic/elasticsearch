@@ -1,14 +1,14 @@
 ---
-navigation_title: "Remediate"
+navigation_title: "Recover Failure Document"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/remediate-processor.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/recover_failure_document-processor.html
 ---
 
-# Remediate processor [remediate-processor]
+# Recover Failure Document processor [recover_failure_document-processor]
 
 Remediates documents that have been stored in a data stream's failure store by restoring them to their original format. This processor is designed to work with documents that failed during ingestion and were automatically stored in the failure store with additional error metadata and document structure wrapping.
 
-The remediate processor performs the following operations:
+The Recover Failure Document processor performs the following operations:
 
 * Extracts the original document source from the `document.source` field
 * Restores the original index name from `document.index` to the document metadata
@@ -16,7 +16,7 @@ The remediate processor performs the following operations:
 * Removes the failure-related fields (`error` and `document`) from the document
 * Places all original source fields back at the root level of the document
 
-$$$remediate-options$$$
+$$$recover_failure_document-options$$$
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ $$$remediate-options$$$
 | `on_failure` | no | - | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
-## Examples [remediate-processor-ex]
+## Examples [recover_failure_document-processor-ex]
 
 ```console
 POST _ingest/pipeline/_simulate
@@ -34,7 +34,7 @@ POST _ingest/pipeline/_simulate
     "pipeline": {
         "processors": [
             {
-                "remediate": {}
+                "recover_failure_document": {}
             }
         ]
     },
@@ -98,7 +98,7 @@ POST _ingest/pipeline/_simulate
     "pipeline": {
         "processors": [
             {
-                "remediate": {}
+                "recover_failure_document": {}
             }
         ]
     },

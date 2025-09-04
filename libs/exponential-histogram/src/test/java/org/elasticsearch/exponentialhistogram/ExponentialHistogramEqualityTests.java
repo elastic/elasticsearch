@@ -86,8 +86,8 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
 
     private ExponentialHistogram copyWithModification(ExponentialHistogram toCopy, Modification modification) {
         ExponentialHistogramBuilder copyBuilder = ExponentialHistogram.builder(toCopy, breaker());
-        copyBuilder = switch (modification) {
-            case null -> copyBuilder;
+        switch (modification) {
+            case null -> {}
             case SCALE -> copyBuilder.scale((int) createRandomLongBetweenOtherThan(MIN_SCALE, MAX_SCALE, toCopy.scale()));
             case SUM -> copyBuilder.sum(randomDouble());
             case MIN -> copyBuilder.min(randomDouble());

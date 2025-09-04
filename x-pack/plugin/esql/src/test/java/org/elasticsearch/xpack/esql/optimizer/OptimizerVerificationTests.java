@@ -358,4 +358,74 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         // Since FORK, RERANK, COMPLETION and CHANGE_POINT are not supported on remote indices, we can't check them here against the remote
         // LOOKUP JOIN
     }
+
+    public void testRemoteEnrichAfterLookupJoinWithPipelineBreaker() {
+        EnrichResolution enrichResolution = new EnrichResolution();
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.COORDINATOR,
+            MATCH_TYPE,
+            "languages_coord",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        var analyzer = AnalyzerTestUtils.analyzer(
+            loadMapping("mapping-default.json", "test"),
+            defaultLookupResolution(),
+            enrichResolution,
+            TEST_VERIFIER
+        );
+
+        String err = error("""
+            FROM test
+            | STATS c = COUNT(*) by languages
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(
+            err,
+            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@2:3")
+        );
+
+        err = error("""
+            FROM test
+            | SORT emp_no
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@2:3"));
+
+        err = error("""
+            FROM test
+            | LIMIT 2
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
+
+        err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _coordinator:languages_coord
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(
+            err,
+            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@3:3")
+        );
+    }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -21,7 +23,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.lookup.ExpressionQueryList;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
@@ -39,6 +40,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,6 +58,7 @@ import java.util.stream.Collectors;
  */
 public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.TransportRequest> {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
+    private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -89,7 +95,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             null,
             request.extractFields,
             request.matchFields,
-            request.source
+            request.source,
+            request.rightPreJoinPlan
         );
     }
 
@@ -113,10 +120,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
         }
-        if (queryLists.size() == 1) {
+
+        PhysicalPlan physicalPlan = request.rightPreJoinPlan;
+        physicalPlan = localLookupNodePlanning(physicalPlan);
+        if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists);
+        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService);
+
+    }
+
+    /**
+     * This function will perform any planning needed on the local node
+     * For now, we will just do mapping of the logical plan to physical plan
+     * In the future we can also do local physical and logical optimizations.
+     * We only support a FragmentExec node containing a logical plan or a null plan
+     * If any other plan is sent we will just return null. This can happen in cases
+     * where the coordinator is running an older version that does not support
+     * keeping the plan as Logical Plan inside FragmentExec yet
+     * In those cases, it is safe to ignore the plan sent and return null
+     */
+    private static PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
+        if (physicalPlan instanceof FragmentExec fragmentExec) {
+            LocalMapper localMapper = new LocalMapper();
+            return localMapper.map(fragmentExec.fragment());
+        }
+        return null;
     }
 
     @Override
@@ -131,6 +160,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
+        private final PhysicalPlan rightPreJoinPlan;
 
         Request(
             String sessionId,
@@ -139,10 +169,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<MatchConfig> matchFields,
             Page inputPage,
             List<NamedExpression> extractFields,
-            Source source
+            Source source,
+            PhysicalPlan rightPreJoinPlan
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
+            this.rightPreJoinPlan = rightPreJoinPlan;
         }
     }
 
@@ -153,6 +185,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         );
 
         private final List<MatchConfig> matchFields;
+        private final PhysicalPlan rightPreJoinPlan;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -164,10 +197,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page toRelease,
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
-            Source source
+            Source source,
+            PhysicalPlan rightPreJoinPlan
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
+            this.rightPreJoinPlan = rightPreJoinPlan;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -213,6 +248,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
+            PhysicalPlan rightPreJoinPlan = null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+                rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -221,7 +260,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 inputPage,
                 extractFields,
                 matchFields,
-                source
+                source,
+                rightPreJoinPlan
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -264,11 +304,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+                planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
+            }
         }
 
         @Override
         protected String extraDescription() {
-            return " ,match_fields=" + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "));
+            return " ,match_fields="
+                + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "))
+                + ", right_pre_join_plan="
+                + (rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
         }
     }
 

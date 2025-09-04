@@ -15,14 +15,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 
-public class RrfScoreEvalExec extends UnaryExec {
+public class FuseScoreEvalExec extends UnaryExec {
     private final Attribute scoreAttr;
-    private final Attribute forkAttr;
+    private final Attribute discriminatorAttr;
 
-    public RrfScoreEvalExec(Source source, PhysicalPlan child, Attribute scoreAttr, Attribute forkAttr) {
+    public FuseScoreEvalExec(Source source, PhysicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr) {
         super(source, child);
         this.scoreAttr = scoreAttr;
-        this.forkAttr = forkAttr;
+        this.discriminatorAttr = discriminatorAttr;
     }
 
     @Override
@@ -37,16 +37,24 @@ public class RrfScoreEvalExec extends UnaryExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, RrfScoreEvalExec::new, child(), scoreAttr, forkAttr);
+        return NodeInfo.create(this, FuseScoreEvalExec::new, child(), scoreAttr, discriminatorAttr);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new RrfScoreEvalExec(source(), newChild, scoreAttr, forkAttr);
+        return new FuseScoreEvalExec(source(), newChild, scoreAttr, discriminatorAttr);
+    }
+
+    public Attribute score() {
+        return scoreAttr;
+    }
+
+    public Attribute discriminator() {
+        return discriminatorAttr;
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return AttributeSet.of(scoreAttr, forkAttr);
+        return AttributeSet.of(scoreAttr, discriminatorAttr);
     }
 }

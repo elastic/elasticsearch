@@ -55,17 +55,25 @@ public class MetricDocumentBuilder {
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
         builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash(hasher));
 
+        long docCount = 0;
         builder.startObject("metrics");
         for (int i = 0, dataPointsSize = dataPoints.size(); i < dataPointsSize; i++) {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
-            dataPoint.buildMetricValue(builder);
-            String dynamicTemplate = dataPoint.getDynamicTemplate(MappingHints.empty());
+            MappingHints mappingHints = MappingHints.fromAttributes(dataPoint.getAttributes());
+            dataPoint.buildMetricValue(mappingHints, builder);
+            String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
             }
+            if (mappingHints.docCount()) {
+                docCount = dataPoint.getDocCount();
+            }
         }
         builder.endObject();
+        if (docCount > 0) {
+            builder.field("_doc_count", docCount);
+        }
         builder.endObject();
         return dynamicTemplates;
     }

@@ -107,7 +107,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             );
         }
 
-        long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
+        public long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
                 modelId,
                 memoryBytes,
@@ -308,7 +308,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                     Node n = nodeAllocations.getKey();
                     weighedAllocationsScore += (1 + 0.1 * (m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0)) * modelAssignments
                         .get(n);
-                    memoryScore -= (nodeAllocations.getValue() > 0 ? m.memoryBytes() : 0);
+                    memoryScore -= (nodeAllocations.getValue() > 0 ? m.estimateMemoryUsageBytes(nodeAllocations.getValue()) : 0);
                 }
             }
         }

@@ -16,7 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -129,7 +129,7 @@ public interface SecurityExtension {
         return null;
     }
 
-    default CustomApiKeyAuthenticator getCustomApiKeyAuthenticator(SecurityComponents components) {
+    default List<CustomAuthenticator> getCustomAuthenticators(SecurityComponents components) {
         return null;
     }
 

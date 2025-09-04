@@ -46,7 +46,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
@@ -500,13 +499,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             writeIndex.getName()
         );
         return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
-            MapperService mapperService = indexService.mapperService();
-            DocumentMapper documentMapper = mapperService.merge(
-                MapperService.SINGLE_MAPPING_NAME,
-                mappings,
-                MapperService.MergeReason.INDEX_TEMPLATE
-            );
-            return documentMapper.mappingSource();
+            CompressedXContent mergedMapping = indexService.mapperService()
+                .merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE)
+                .mappingSource();
+            /*
+             * If the merged mapping contains the old "_doc" type placeholder, we remove it to make things more straightforward for the
+             * client:
+             */
+            Map<String, Object> mergedMappingMap = XContentHelper.convertToMap(mergedMapping.uncompressed(), true, XContentType.JSON).v2();
+            if (mergedMappingMap.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                mergedMapping = ComposableIndexTemplate.convertMappingMapToXContent(
+                    (Map<String, ?>) mergedMappingMap.get(MapperService.SINGLE_MAPPING_NAME)
+                );
+            }
+            return mergedMapping;
         });
     }
 

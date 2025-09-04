@@ -7,11 +7,24 @@ FROM employees
 | STATS is_present = PRESENT(languages)
 ```
 
+| is_present:boolean |
+| --- |
+| true |
+
 To check for the presence inside a group use `PRESENT()` and `BY` clauses
 
 ```esql
 FROM employees
 | STATS is_present = PRESENT(salary) BY languages
 ```
+
+| is_present:boolean | languages:integer |
+| --- | --- |
+| true | 1 |
+| true | 2 |
+| true | 3 |
+| true | 4 |
+| true | 5 |
+| true | null |
 
 

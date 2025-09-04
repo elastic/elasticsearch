@@ -9,8 +9,10 @@ FROM employees
 // end::present[]
 ;
 
+// tag::present-result[]
 is_present:boolean
 true
+// end::present-result[]
 ;
 
 PRESENT with grouping
@@ -23,6 +25,7 @@ FROM employees
 ;
 ignoreOrder:true
 
+// tag::present-by-result[]
 is_present:boolean    | languages:integer
 true                  | 1
 true                  | 2
@@ -30,6 +33,7 @@ true                  | 3
 true                  | 4
 true                  | 5
 true                  | null
+// end::present-by-result[]
 ;
 
 PRESENT with filter

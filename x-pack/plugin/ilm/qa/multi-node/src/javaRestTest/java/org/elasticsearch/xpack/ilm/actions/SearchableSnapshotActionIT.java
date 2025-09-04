@@ -157,7 +157,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
 
             assertForceMergedSnapshotDone(phase, backingIndexName, numberOfPrimaries > 1, true);
-        } catch (Exception e) {
+        } catch (Exception | AssertionError e) {
             // Make sure we re-enable allocation in case of failure so that the remaining tests in the suite are not affected.
             configureClusterAllocation(true);
             throw e;
@@ -210,7 +210,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             configureClusterAllocation(true);
 
             assertForceMergedSnapshotDone(phase, backingIndexName, numberOfPrimaries > 1, true);
-        } catch (Exception e) {
+        } catch (Exception | AssertionError e) {
             // Make sure we re-enable allocation in case of failure so that the remaining tests in the suite are not affected.
             configureClusterAllocation(true);
             throw e;

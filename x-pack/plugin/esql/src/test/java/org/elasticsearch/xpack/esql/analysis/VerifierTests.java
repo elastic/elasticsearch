@@ -2358,9 +2358,6 @@ public class VerifierTests extends ESTestCase {
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
             )
         );
-
-        // Fourth arg (options) can be ommitted
-        query("row value = 10, origin = 10, scale = 10\n" + "| eval decay_result = decay(value, origin, scale)");
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

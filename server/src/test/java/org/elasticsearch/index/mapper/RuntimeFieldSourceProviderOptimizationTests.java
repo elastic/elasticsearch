@@ -31,9 +31,9 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RuntimeFieldTests extends ESSingleNodeTestCase {
+public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTestCase {
 
-    public void testRuntimeSourceOnlyField_sourceProviderOptimization() throws IOException {
+    public void testWithSourceProviderOptimization() throws IOException {
         var mapping = jsonBuilder().startObject().startObject("runtime").startObject("field");
         mapping.field("type", "long");
         mapping.endObject().endObject().endObject();
@@ -84,7 +84,7 @@ public class RuntimeFieldTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testRuntimeSourceOnlyField_noSourceProviderOptimization() throws IOException {
+    public void testWithoutSourceProviderOptimization() throws IOException {
         var mapping = jsonBuilder().startObject().startObject("runtime").startObject("field");
         mapping.field("type", "long");
         mapping.endObject().endObject().endObject();

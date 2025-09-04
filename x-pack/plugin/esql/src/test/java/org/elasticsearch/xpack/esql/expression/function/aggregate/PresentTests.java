@@ -101,12 +101,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             boolean present = fieldTypedData.multiRowData().stream().anyMatch(Objects::nonNull);
 
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData),
-                "Present",
-                DataType.BOOLEAN,
-                equalTo(present)
-            );
+            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), "Present", DataType.BOOLEAN, equalTo(present));
         });
     }
 }

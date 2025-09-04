@@ -176,6 +176,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     clusterService,
                     (innerState, strategy) -> innerState,
                     EMPTY_NODE_ALLOCATION_STATS,
+                    TEST_ONLY_EXPLAINER,
                     DesiredBalanceMetrics.NOOP
                 ) {
                     @Override

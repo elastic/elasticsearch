@@ -1140,7 +1140,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
                     final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
-                    if (allocationDecision.type() == Type.NO) {
+                    if (allocationDecision.type() == Type.NO || allocationDecision.type() == Type.NOT_PREFERRED) {
                         continue;
                     }
 
@@ -1326,7 +1326,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static final class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;
-        /* the nodes weights with respect to the current weight function / index */
+        /** The nodes weights with respect to the current weight function / index */
         final float[] weights;
         private final WeightFunction function;
         private ProjectIndex index;

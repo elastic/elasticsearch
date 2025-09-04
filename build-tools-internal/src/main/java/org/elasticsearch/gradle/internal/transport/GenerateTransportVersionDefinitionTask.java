@@ -61,8 +61,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     @Optional
-    @Option(option = "increment", description = "The amount to increment the primary definitionId for the main name")
-    public abstract Property<Integer> getPrimaryIncrement();
+    @Option(option = "increment", description = "The amount to increment the id from the current upper bounds file by")
+    public abstract Property<Integer> getIncrement();
 
     /**
      * The name of the upper bounds file which will be used at runtime on the current branch. Normally
@@ -97,27 +97,27 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         TransportVersionResourcesService resources,
         List<TransportVersionUpperBound> existingUpperBounds,
         Set<String> targetUpperBoundNames,
-        String name
+        String definitionName
     ) throws IOException {
         String currentUpperBoundName = getCurrentUpperBoundName().get();
-        int primaryIncrement = getPrimaryIncrement().get();
-        if (primaryIncrement <= 0) {
-            throw new IllegalArgumentException("Invalid increment " + primaryIncrement + ", must be a positive integer");
+        int increment = getIncrement().get();
+        if (increment <= 0) {
+            throw new IllegalArgumentException("Invalid increment " + increment + ", must be a positive integer");
         }
         List<TransportVersionId> ids = new ArrayList<>();
 
-        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(name);
+        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromMain(definitionName);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
             String upperBoundName = existingUpperBound.name();
 
             if (targetUpperBoundNames.contains(upperBoundName)) {
-                // Case: targeting this branch, find an existing definitionId for this branch if it exists
-                TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition, name);
+                // Case: targeting this upper bound, find an existing id if it exists
+                TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition, definitionName);
                 if (targetId == null) {
-                    // Case: an definitionId doesn't yet exist for this branch, so create one
-                    int increment = upperBoundName.equals(currentUpperBoundName) ? primaryIncrement : 1;
-                    targetId = TransportVersionId.fromInt(existingUpperBound.definitionId().complete() + increment);
-                    var newUpperBound = new TransportVersionUpperBound(upperBoundName, name, targetId);
+                    // Case: an id doesn't yet exist for this upper bound, so create one
+                    int targetIncrement = upperBoundName.equals(currentUpperBoundName) ? increment : 1;
+                    targetId = TransportVersionId.fromInt(existingUpperBound.definitionId().complete() + targetIncrement);
+                    var newUpperBound = new TransportVersionUpperBound(upperBoundName, definitionName, targetId);
                     resources.writeUpperBound(newUpperBound);
                 }
                 ids.add(targetId);
@@ -185,7 +185,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     }
 
     private void resetAllUpperBounds(TransportVersionResourcesService resources) throws IOException {
-        // TODO: this should also _delete_ extraneous files from latest?
         for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromMain()) {
             resources.writeUpperBound(upperBound);
         }
@@ -211,7 +210,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String name
     ) {
         if (existingDefinition == null) {
-            // the definitionName doesn't yet exist, so there is no definitionId to return
+            // the definitionName doesn't yet exist, so there is no id to return
             return null;
         }
         if (upperBound.definitionName().equals(name)) {
@@ -219,16 +218,16 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             return upperBound.definitionId();
         }
         if (upperBound.name().equals(getCurrentUpperBoundName().get())) {
-            // the upper bound is for main, so return the primary definitionId
-            return existingDefinition.ids().get(0);
+            // this is the upper bound of the current branch, so use the primary id
+            return existingDefinition.ids().getFirst();
         }
-        // the upper bound is for a non-main branch, so find the definitionId with the same base
+        // the upper bound is for a non-current branch, so find the id with the same base
         for (TransportVersionId id : existingDefinition.ids()) {
             if (id.base() == upperBound.definitionId().base()) {
                 return id;
             }
         }
-        return null; // no definitionId for this release branch
+        return null; // no existing id for this upper bound
     }
 
 }

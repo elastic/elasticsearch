@@ -204,11 +204,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     @Override
-    public int vectorArgumentsCount() {
-        return 2;
-    }
-
-    @Override
     protected TypeResolution resolveParams() {
         return resolveField().and(resolveQuery()).and(resolveK()).and(Options.resolve(options(), source(), FOURTH, ALLOWED_OPTIONS));
     }

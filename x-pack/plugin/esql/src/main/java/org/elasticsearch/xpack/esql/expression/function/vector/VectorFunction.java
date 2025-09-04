@@ -9,14 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 /**
  * Marker interface for vector functions. Makes possible to do implicit casting
- * from multi values to dense_vector field types, so parameters are actually
+ * from multi values and hex strings to dense_vector field types, so parameters are actually
  * processed as dense_vectors in vector functions
  */
-public interface VectorFunction {
-
-    /**
-     * Number of arguments that should be treated as vectors. The first vectorArgumentsCount() arguments will be implicitly casted as
-     * dense_vector according to the value returned of this method
-     */
-    int vectorArgumentsCount();
-}
+public interface VectorFunction {}

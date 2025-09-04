@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -77,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Foldables
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -139,7 +139,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,6 +156,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -1453,7 +1453,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return processIn(in);
             }
             if (f instanceof VectorFunction) {
-                return processVectorFunction(f);
+                return processVectorFunction(f, registry);
             }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry);
@@ -1666,46 +1666,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         @SuppressWarnings("unchecked")
-        private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
+        private static Expression processVectorFunction(
+            org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
+            EsqlFunctionRegistry registry
+        ) {
             List<Expression> args = vectorFunction.arguments();
+            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
             List<Expression> newArgs = new ArrayList<>();
-            // Perform explicit casting for vector arguments. This is done instead of using TO_DENSE_VECTOR function for better error
-            // handling. Otherwise, a failure in TO_DENSE_VECTOR will be returned as null, and the user will be confused as to why
-            // the original function has a null parameter when one has been provided.
-            int vectorArgsCount = ((VectorFunction) vectorFunction).vectorArgumentsCount();
+            // Perform implicit casting for numeric and keyword values
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
-                if (i < vectorArgsCount && arg.resolved()) {
-                    if (arg.foldable()) {
-                        Object folded = arg.fold(FoldContext.small());
-                        List<Float> floatVector = null;
-                        if (folded instanceof List && arg.dataType().isNumeric()) {
-                            if (arg.dataType() == FLOAT) {
-                                floatVector = (List<Float>) folded;
-                            } else {
-                                floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
-                            }
-                        } else if (folded instanceof BytesRef hexString && arg.dataType() == KEYWORD) {
-                            try {
-                                byte[] bytes = HexFormat.of().parseHex(hexString.utf8ToString());
-                                floatVector = new ArrayList<>();
-                                for (byte value : bytes) {
-                                    floatVector.add((float) value);
+                if (targetDataTypes.get(i) == DENSE_VECTOR) {
+                    if (arg.resolved()) {
+                        var dataType = arg.dataType();
+                        if (dataType == KEYWORD) {
+                            if (arg.foldable()) {
+                                Expression exp = castStringLiteral(arg, DENSE_VECTOR);
+                                if (exp != arg) {
+                                    newArgs.add(exp);
+                                    continue;
                                 }
-                            } catch (IllegalArgumentException e) {
-                                throw new VerificationException(
-                                    "Error in ["
-                                        + vectorFunction.sourceText()
-                                        + "] for argument ["
-                                        + arg.sourceText()
-                                        + "]; dense_vectors must be a hex-encoded string: "
-                                        + e.getMessage()
-                                );
                             }
-                        }
-                        if (floatVector != null) {
-                            Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
-                            newArgs.add(denseVector);
+                        } else if (arg.dataType().isNumeric()) {
+                            newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
                             continue;
                         }
                     }

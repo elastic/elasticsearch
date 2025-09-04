@@ -52,8 +52,7 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
                     conditional = new Or(logicalPlan.source(), conditional, new IsNotNull(Source.EMPTY, metric));
                 }
             }
-            Expression finalConditional = conditional;
-            return agg.transformUp(p -> isMetricsQuery((LogicalPlan) p), p -> new Filter(p.source(), p, finalConditional));
+            return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
         });
     }
 

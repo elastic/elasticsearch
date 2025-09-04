@@ -41,6 +41,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
@@ -103,7 +104,12 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
+        // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(timeProvider, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolvedIndices, null),
+            rewriteListener
+        );
     }
 
     @Override

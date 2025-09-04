@@ -145,11 +145,12 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
+        final String localClusterAlias,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
-        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
+        this(parserConfiguration, client, nowInMillis, localClusterAlias, resolvedIndices, pit, queryRewriteInterceptor, false);
     }
 
     // TODO: Pass cluster alias to this constructor
@@ -157,6 +158,7 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
+        final String localClusterAlias,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
@@ -170,7 +172,7 @@ public class QueryRewriteContext {
             MappingLookup.EMPTY,
             Collections.emptyMap(),
             null,
-            null,
+            localClusterAlias,
             null,
             null,
             null,

@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
@@ -126,7 +127,15 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
             Map.of(index, indexMetadata)
         );
 
-        return new QueryRewriteContext(null, client, null, resolvedIndices, null, createRewriteInterceptor());
+        return new QueryRewriteContext(
+            null,
+            client,
+            null,
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            resolvedIndices,
+            null,
+            createRewriteInterceptor()
+        );
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {

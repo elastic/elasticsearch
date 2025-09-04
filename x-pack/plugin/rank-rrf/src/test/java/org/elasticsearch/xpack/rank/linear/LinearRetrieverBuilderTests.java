@@ -26,6 +26,7 @@ import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,6 +47,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null
@@ -176,6 +178,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -67,7 +68,9 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        return services.searchService().getRewriteContext(System::currentTimeMillis, resolvedIndices, null);
+        // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
+        return services.searchService()
+            .getRewriteContext(System::currentTimeMillis, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolvedIndices, null);
     }
 
     private static Set<String> indexNames(LogicalPlan plan) {

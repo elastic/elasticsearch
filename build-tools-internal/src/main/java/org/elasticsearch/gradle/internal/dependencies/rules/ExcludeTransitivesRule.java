@@ -22,46 +22,34 @@ public abstract class ExcludeTransitivesRule implements ComponentMetadataRule {
 
     @Override
     public void execute(ComponentMetadataContext context) {
-
-        if (context.getDetails().getId().getGroup().startsWith("org.elasticsearch") == false) {
-
-
-            context.getDetails().allVariants(variant -> {
-//                .attribute(
-//                    DependencyContext.CONTEXT_ATTRIBUTE,
-//                    getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
-//                );
-                DependencyContext customValue = variant.getAttributes().getAttribute(DependencyContext.CONTEXT_ATTRIBUTE);
-                if(customValue != null) {
-                    return;
+        context.getDetails().allVariants(variant -> {
+            variant.withDependencies(dependencies -> {
+                // Exclude all transitive dependencies
+                if(dependencies.isEmpty()) {
+                    System.out.println(context.getDetails().getId().getGroup() + ":" + context.getDetails().getId().getName());
                 }
-                //                if ("some-value".equals(customValue)) {
-//                    System.out.println("customValue = " + customValue);
-//                    return;
-//                }
-
-                variant.withDependencies(dependencies -> {
-                    // dependencies.clear();
-                    dependencies.removeIf(directDependencyMetadata -> { return true; });
-                });
+                dependencies.clear();
+//                dependencies.removeIf(p -> {
+//                    System.out.println("p.getName() = " + p.getName());
+//                    return true;
+//                });
             });
-
-        }
+        });
     }
-
-    private boolean isCodeQuality(VariantMetadata variant) {
-        // System.out.println("CodeQualityRule#context#variantName = " + ((VariantMetadataAdapter)variant).variantName);
-        System.out.println("ExcludeTransitivesRule#context#isCodeQuality = " + ((VariantMetadataAdapter) variant).toString());
-        try {
-            java.lang.reflect.Field field = VariantMetadataAdapter.class.getDeclaredField("variantName");
-            field.setAccessible(true);
-            Object variantName = field.get(variant);
-            System.out.println("ExcludeTransitivesRule#context#variantName = " + variantName);
-        } catch (Exception e) {
-            System.out.println("Failed to access variantName: " + e.getMessage());
-        }
-        DependencyContext attribute = variant.getAttributes().getAttribute(DependencyContext.CONTEXT_ATTRIBUTE);
-        return attribute != null && DependencyContext.CODE_QUALITY.equals(attribute.getName());
-    }
+//
+//    private boolean isCodeQuality(VariantMetadata variant) {
+//        // System.out.println("CodeQualityRule#context#variantName = " + ((VariantMetadataAdapter)variant).variantName);
+//        System.out.println("ExcludeTransitivesRule#context#isCodeQuality = " + ((VariantMetadataAdapter) variant).toString());
+//        try {
+//            java.lang.reflect.Field field = VariantMetadataAdapter.class.getDeclaredField("variantName");
+//            field.setAccessible(true);
+//            Object variantName = field.get(variant);
+//            System.out.println("ExcludeTransitivesRule#context#variantName = " + variantName);
+//        } catch (Exception e) {
+//            System.out.println("Failed to access variantName: " + e.getMessage());
+//        }
+//        DependencyContext attribute = variant.getAttributes().getAttribute(DependencyContext.CONTEXT_ATTRIBUTE);
+//        return attribute != null && DependencyContext.CODE_QUALITY.equals(attribute.getName());
+//    }
 
 }

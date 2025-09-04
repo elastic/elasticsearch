@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
@@ -507,7 +508,7 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
-                def(Knn.class, quad(Knn::new), "knn"),
+                def(Knn.class, tri(Knn::new), "knn"),
                 def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
                 def(ToGeohash.class, ToGeohash::new, "to_geohash"),
                 def(ToGeotile.class, ToGeotile::new, "to_geotile"),
@@ -521,7 +522,8 @@ public class EsqlFunctionRegistry {
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
-                def(UrlEncode.class, UrlEncode::new, "url_encode") } };
+                def(UrlEncode.class, UrlEncode::new, "url_encode"),
+                def(UrlDecode.class, UrlDecode::new, "url_decode") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -490,6 +491,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
             if (jarFileUrl == null || handleNetworkOrFileUrlCheck(callerClass, jarFileUrl) == false) {
                 checkUnsupportedURLProtocolConnection(callerClass, "jar with unsupported inner protocol");
             }
+        } else if (isJrtUrl(url)) {
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, url.getProtocol());
         }
@@ -558,6 +561,10 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     private static boolean isJarUrl(java.net.URL url) {
         return "jar".equals(url.getProtocol());
+    }
+
+    private static boolean isJrtUrl(java.net.URL url) {
+        return "jrt".equals(url.getProtocol());
     }
 
     // We have to use class names for sun.net.www classes as java.base does not export them

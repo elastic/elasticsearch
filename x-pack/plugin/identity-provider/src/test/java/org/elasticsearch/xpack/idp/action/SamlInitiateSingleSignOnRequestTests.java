@@ -112,7 +112,7 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         out.setTransportVersion(
             TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19)
             )
         );

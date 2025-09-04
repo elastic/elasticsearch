@@ -149,7 +149,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -180,7 +179,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // ie from test | stats c = count(*)
     public static final String NO_FIELDS_NAME = "<no-fields>";
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
@@ -192,7 +191,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled())
+            new DateMillisToNanosInEsRelation()
         ),
         new Batch<>(
             "Resolution",
@@ -316,7 +315,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
                     ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute(source, parentName, name, t);
+                    : new FieldAttribute(source, parentName, null, name, t);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -410,7 +409,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
-                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
+                return new ReferenceAttribute(source, null, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
         }
     }
@@ -454,7 +453,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Column column = entry.getValue();
                 // create a fake ES field - alternative is to use a ReferenceAttribute
                 EsField field = new EsField(name, column.type(), Map.of(), false, false, EsField.TimeSeriesFieldType.UNKNOWN);
-                attributes.add(new FieldAttribute(source, null, name, field));
+                attributes.add(new FieldAttribute(source, null, null, name, field));
                 // prepare the block for the supplier
                 blocks[i++] = column.values();
             }
@@ -613,7 +612,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression prompt = p.prompt();
 
             if (targetField instanceof UnresolvedAttribute ua) {
-                targetField = new ReferenceAttribute(ua.source(), ua.name(), KEYWORD);
+                targetField = new ReferenceAttribute(ua.source(), null, ua.name(), KEYWORD);
             }
 
             if (prompt.resolved() == false) {
@@ -634,7 +633,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.child(),
                     resolved,
                     resolved.resolved()
-                        ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
+                        ? new ReferenceAttribute(
+                            resolved.source(),
+                            resolved.qualifier(),
+                            resolved.name(),
+                            resolved.dataType(),
+                            resolved.nullable(),
+                            null,
+                            false
+                        )
                         : resolved
                 );
             }
@@ -804,7 +811,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
             for (Attribute attr : outputUnion) {
-                newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
+                newOutput.add(new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType()));
             }
 
             return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
@@ -844,7 +851,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (ua.name().equals(MetadataAttribute.SCORE)) {
                         resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
                     } else {
-                        resolved = new ReferenceAttribute(resolved.source(), resolved.name(), DOUBLE);
+                        resolved = new ReferenceAttribute(resolved.source(), null, resolved.name(), DOUBLE);
                     }
                 }
                 rerank = rerank.withScoreAttribute(resolved);
@@ -909,11 +916,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.dataType().typeName()
                     )
                 );
-            return new FieldAttribute(fa.source(), name, field);
+            return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+            return new FieldAttribute(
+                attribute.source(),
+                null,
+                attribute.qualifier(),
+                attribute.name(),
+                new PotentiallyUnmappedKeywordEsField(attribute.name())
+            );
         }
 
         private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
@@ -1831,7 +1844,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
             // synthetic to work around a bug.
             String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parentName(), unionTypedFieldName, resolvedField, true);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(
+                fa.source(),
+                fa.parentName(),
+                fa.qualifier(),
+                unionTypedFieldName,
+                resolvedField,
+                true
+            );
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1874,6 +1894,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
+                originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
                 field,
                 originalFieldAttr.nullable(),
@@ -1953,41 +1974,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
 
-        private final boolean isSnapshot;
-
-        DateMillisToNanosInEsRelation(boolean isSnapshot) {
-            this.isSnapshot = isSnapshot;
-        }
-
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (isSnapshot) {
-                return plan.transformUp(EsRelation.class, relation -> {
-                    if (relation.indexMode() == IndexMode.LOOKUP) {
-                        return relation;
+            return plan.transformUp(EsRelation.class, relation -> {
+                if (relation.indexMode() == IndexMode.LOOKUP) {
+                    return relation;
+                }
+                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        var convert = new ToDateNanos(f.source(), f);
+                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        return new FieldAttribute(
+                            f.source(),
+                            f.parentName(),
+                            f.qualifier(),
+                            f.name(),
+                            resolvedField,
+                            f.nullable(),
+                            f.id(),
+                            f.synthetic()
+                        );
                     }
-                    return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                        if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
-                            HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                            var convert = new ToDateNanos(f.source(), f);
-                            imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                            var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
-                            return new FieldAttribute(
-                                f.source(),
-                                f.parentName(),
-                                f.name(),
-                                resolvedField,
-                                f.nullable(),
-                                f.id(),
-                                f.synthetic()
-                            );
-                        }
-                        return f;
-                    });
+                    return f;
                 });
-            } else {
-                return plan;
-            }
+            });
         }
     }
 
@@ -2035,6 +2047,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         newName -> new FieldAttribute(
                             fa.source(),
                             fa.parentName(),
+                            fa.qualifier(),
                             newName,
                             MultiTypeEsField.resolveFrom(mtf, typeConverters),
                             fa.nullable(),

@@ -251,6 +251,12 @@ public class EsqlCapabilities {
         FN_MONTH_NAME,
 
         /**
+         * support for MV_CONTAINS function
+         * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
+         */
+        FN_MV_CONTAINS,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -347,7 +353,7 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
          */
-        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS,
 
         /**
          * Support for named or positional parameters in EsqlQueryRequest.
@@ -409,6 +415,11 @@ public class EsqlCapabilities {
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
         SPATIAL_GRID(Build.current().isSnapshot()),
+
+        /**
+         * Support geohash, geotile and geohex data types. Done in #129581
+         */
+        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -972,7 +983,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V10(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1267,6 +1278,12 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
 
         /**
+         * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129372">java.lang.ClassCastException when combining LOOKUP JOIN and remote ENRICH</a>
+         */
+        REMOTE_ENRICH_AFTER_LOOKUP_JOIN,
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION,
@@ -1274,7 +1291,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V3(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1365,6 +1382,7 @@ public class EsqlCapabilities {
          * FIRST and LAST aggregate functions.
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),
+        AGG_FIRST_LAST_STRING(Build.current().isSnapshot()),
 
         /**
          * Support correct counting of skipped shards.
@@ -1390,10 +1408,31 @@ public class EsqlCapabilities {
          * Support for vector Hamming distance.
          */
         HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
         /**
          * Support for tbucket function
          */
-        TBUCKET;
+        TBUCKET,
+
+        /**
+         * Allow qualifiers in attribute names.
+         */
+        NAME_QUALIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * URL encoding function.
+         */
+        URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL decoding function.
+         */
+        URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * FORK with remote indices
+         */
+        ENABLE_FORK_FOR_REMOTE_INDICES;
 
         private final boolean enabled;
 

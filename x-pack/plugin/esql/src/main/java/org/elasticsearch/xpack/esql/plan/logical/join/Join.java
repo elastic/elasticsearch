@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -46,6 +48,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -72,6 +77,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         GEO_SHAPE,
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
+        GEOHASH,
+        GEOTILE,
+        GEOHEX,
         UNSUPPORTED,
         NULL,
         COUNTER_LONG,
@@ -124,8 +132,21 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(left());
-        out.writeNamedWriteable(right());
+        out.writeNamedWriteable(getRightToSerialize(out));
         config.writeTo(out);
+    }
+
+    protected LogicalPlan getRightToSerialize(StreamOutput out) {
+        LogicalPlan rightToSerialize = right();
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
+            // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
+            // we do not support a filter on top of the right side of the join
+            // As we consider the filters optional, we remove them here
+            while (rightToSerialize instanceof Filter filter) {
+                rightToSerialize = filter.child();
+            }
+        }
+        return rightToSerialize;
     }
 
     @Override
@@ -225,7 +246,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             if (a.resolved() && a instanceof ReferenceAttribute == false) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
+                out.add(new ReferenceAttribute(a.source(), a.qualifier(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);
             }

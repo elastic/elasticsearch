@@ -276,6 +276,9 @@ public enum DataType {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
+    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES)),
+    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES)),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -392,6 +395,9 @@ public enum DataType {
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
+        // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
+        // so we need to map it here as well
+        map.put("semantic_text", DataType.TEXT);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));
@@ -567,19 +573,27 @@ public enum DataType {
     }
 
     public static boolean isSpatialShape(DataType t) {
-        return t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatialGeo(DataType t) {
-        return t == GEO_POINT || t == GEO_SHAPE;
+        return t == GEO_POINT || t == GEO_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialOrGrid(DataType t) {
+        return isSpatial(t) || isGeoGrid(t);
+    }
+
+    public static boolean isGeoGrid(DataType t) {
+        return t == GEOHASH || t == GEOTILE || t == GEOHEX;
+    }
+
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
     public String nameUpper() {

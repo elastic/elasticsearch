@@ -1,5 +1,6 @@
 ################################################################################
-# This Dockerfile was generated from the template at distribution/src/docker/Dockerfile
+# This Dockerfile was generated from the template at
+# distribution/src/docker/dockerfiles/cloud_ess_fips/Dockerfile
 #
 # Beginning of multi stage Dockerfile
 ################################################################################

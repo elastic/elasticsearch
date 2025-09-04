@@ -12,6 +12,7 @@ import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidBuilder.TsidFunnel;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.List;
@@ -35,7 +36,9 @@ class AttributeListTsidFunnel implements TsidFunnel<List<KeyValue>> {
         for (int i = 0; i < attributesList.size(); i++) {
             KeyValue keyValue = attributesList.get(i);
             String attributeKey = keyValue.getKey();
-            hashValue(tsidBuilder, prefix + attributeKey, keyValue.getValue());
+            if (MetricDocumentBuilder.isIgnoredAttribute(attributeKey) == false) {
+                hashValue(tsidBuilder, prefix + attributeKey, keyValue.getValue());
+            }
         }
     }
 

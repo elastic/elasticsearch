@@ -510,22 +510,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         });
     }
 
-    private void assertSnapshotPartial(String snapshotName) throws Exception {
-        assertBusy(() -> {
-            final SnapshotInfo snapshotInfo;
-            try {
-                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
-                    .setSnapshots(snapshotName)
-                    .get();
-                snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-            } catch (SnapshotMissingException sme) {
-                throw new AssertionError(sme);
-            }
-            assertNotEquals(0, snapshotInfo.failedShards());
-            assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
-        });
-    }
-
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {
         final String indexName = "test-idx";
         final String policyId = "test-policy";

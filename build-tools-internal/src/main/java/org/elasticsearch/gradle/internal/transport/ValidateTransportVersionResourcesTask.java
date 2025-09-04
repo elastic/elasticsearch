@@ -105,7 +105,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             TransportVersionDefinition existing = allDefinitions.put(entry.getKey(), entry.getValue());
             if (existing != null) {
                 Path unreferablePath = getResources().get().getUnreferableDefinitionRepositoryPath(entry.getValue());
-                throwDefinitionFailure(existing, "has same name as unreferable definition [" + unreferablePath + "]");
+                throwDefinitionFailure(existing, "has same definitionName as unreferable definition [" + unreferablePath + "]");
             }
         }
         return allDefinitions;
@@ -123,7 +123,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
         // now sort the ids within each base so we can check density later
         for (var ids : idsByBase.values()) {
-            // first sort the ids list so we can check compactness and quickly lookup the highest id later
+            // first sort the ids list so we can check compactness and quickly lookup the highest definitionId later
             ids.sort(Comparator.comparingInt(a -> a.id().complete()));
         }
 
@@ -144,7 +144,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             throwDefinitionFailure(definition, "is not referenced");
         }
         if (NAME_FORMAT.matcher(definition.name()).matches() == false) {
-            throwDefinitionFailure(definition, "does not have a valid name, must be lowercase alphanumeric and underscore");
+            throwDefinitionFailure(definition, "does not have a valid definitionName, must be lowercase alphanumeric and underscore");
         }
         if (definition.ids().isEmpty()) {
             throwDefinitionFailure(definition, "does not contain any ids");
@@ -157,18 +157,18 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
             if (ndx == 0) {
                 if (getShouldValidatePrimaryIdNotPatch().get() && id.patch() != 0) {
-                    throwDefinitionFailure(definition, "has patch version " + id.complete() + " as primary id");
+                    throwDefinitionFailure(definition, "has patch version " + id.complete() + " as primary definitionId");
                 }
             } else {
                 if (id.patch() == 0) {
-                    throwDefinitionFailure(definition, "contains bwc id [" + id + "] with a patch part of 0");
+                    throwDefinitionFailure(definition, "contains bwc definitionId [" + id + "] with a patch part of 0");
                 }
             }
 
-            // check modifications of ids on same releaseBranch, ie sharing same base
+            // check modifications of ids on same name, ie sharing same base
             TransportVersionId maybeModifiedId = existingIdsByBase.get(id.base());
             if (maybeModifiedId != null && maybeModifiedId.complete() != id.complete()) {
-                throwDefinitionFailure(definition, "modifies existing patch id from " + maybeModifiedId + " to " + id);
+                throwDefinitionFailure(definition, "modifies existing patch definitionId from " + maybeModifiedId + " to " + id);
             }
         }
     }
@@ -182,9 +182,9 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             throwDefinitionFailure(definition, "does not contain any ids");
         }
         if (definition.ids().size() > 1) {
-            throwDefinitionFailure(definition, " contains more than one id");
+            throwDefinitionFailure(definition, " contains more than one definitionId");
         }
-        // note: no name validation, anything that is a valid filename is ok, this allows eg initial_8.9.1
+        // note: no definitionName validation, anything that is a valid filename is ok, this allows eg initial_8.9.1
     }
 
     private void validateIdenticalPrimaryId(TransportVersionDefinition definition, TransportVersionDefinition originalDefinition) {
@@ -193,7 +193,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         int primaryId = definition.ids().get(0).complete();
         int originalPrimaryId = originalDefinition.ids().get(0).complete();
         if (primaryId != originalPrimaryId) {
-            throwDefinitionFailure(definition, "has modified primary id from " + originalPrimaryId + " to " + primaryId);
+            throwDefinitionFailure(definition, "has modified primary definitionId from " + originalPrimaryId + " to " + primaryId);
         }
     }
 
@@ -202,27 +202,27 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<String, TransportVersionDefinition> definitions,
         Map<Integer, List<IdAndDefinition>> idsByBase
     ) {
-        TransportVersionDefinition upperBoundDefinition = definitions.get(upperBound.name());
+        TransportVersionDefinition upperBoundDefinition = definitions.get(upperBound.definitionName());
         if (upperBoundDefinition == null) {
-            throwUpperBoundFailure(upperBound, "contains transport version name [" + upperBound.name() + "] which is not defined");
+            throwUpperBoundFailure(upperBound, "contains transport version definitionName [" + upperBound.definitionName() + "] which is not defined");
         }
-        if (upperBoundDefinition.ids().contains(upperBound.id()) == false) {
+        if (upperBoundDefinition.ids().contains(upperBound.definitionId()) == false) {
             Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(upperBoundDefinition);
-            throwUpperBoundFailure(upperBound, "has id " + upperBound.id() + " which is not in definition [" + relativePath + "]");
+            throwUpperBoundFailure(upperBound, "has definitionId " + upperBound.definitionId() + " which is not in definition [" + relativePath + "]");
         }
 
-        List<IdAndDefinition> baseIds = idsByBase.get(upperBound.id().base());
+        List<IdAndDefinition> baseIds = idsByBase.get(upperBound.definitionId().base());
         IdAndDefinition lastId = baseIds.getLast();
-        if (lastId.id().complete() != upperBound.id().complete()) {
+        if (lastId.id().complete() != upperBound.definitionId().complete()) {
             throwUpperBoundFailure(
                 upperBound,
-                "has id "
-                    + upperBound.id()
+                "has definitionId "
+                    + upperBound.definitionId()
                     + " from ["
-                    + upperBound.name()
+                    + upperBound.definitionName()
                     + "] with base "
-                    + upperBound.id().base()
-                    + " but another id "
+                    + upperBound.definitionId().base()
+                    + " but another definitionId "
                     + lastId.id().complete()
                     + " from ["
                     + lastId.definition().name()
@@ -230,12 +230,12 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.releaseBranch());
+        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.name());
         if (existingUpperBound != null) {
-            if (upperBound.id().patch() != 0 && upperBound.id().base() != existingUpperBound.id().base()) {
+            if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                 throwUpperBoundFailure(
                     upperBound,
-                    "modifies base id from " + existingUpperBound.id().base() + " to " + upperBound.id().base()
+                    "modifies base definitionId from " + existingUpperBound.definitionId().base() + " to " + upperBound.definitionId().base()
                 );
             }
         }
@@ -251,13 +251,13 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                 Path existingDefinitionPath = getResources().get().getReferableDefinitionRepositoryPath(previous.definition);
                 throwDefinitionFailure(
                     current.definition(),
-                    "contains id " + current.id + " already defined in [" + existingDefinitionPath + "]"
+                    "contains definitionId " + current.id + " already defined in [" + existingDefinitionPath + "]"
                 );
             }
 
             if (getShouldValidateDensity().get() && previous.id().complete() - 1 != current.id().complete()) {
                 throw new IllegalStateException(
-                    "Transport version base id " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
+                    "Transport version base definitionId " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
                 );
             }
             previous = current;
@@ -268,20 +268,20 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<String, TransportVersionUpperBound> upperBounds,
         Map<String, TransportVersionDefinition> allDefinitions
     ) {
-        // first id is always the highest within a definition, and validated earlier
-        // note we use min instead of max because the id comparator is in descending order
+        // first definitionId is always the highest within a definition, and validated earlier
+        // note we use min instead of max because the definitionId comparator is in descending order
         var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
         var highestId = highestDefinition.ids().get(0);
 
         for (var upperBound : upperBounds.values()) {
-            if (upperBound.id().equals(highestId)) {
+            if (upperBound.definitionId().equals(highestId)) {
                 return;
             }
         }
 
         throwDefinitionFailure(
             highestDefinition,
-            "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
+            "has the highest transport version definitionId [" + highestId + "] but is not present in any upper bounds files"
         );
     }
 

@@ -53,7 +53,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/${name}.csv] does not have a valid name, " +
+            "[myserver/src/main/resources/transport/definitions/referable/${name}.csv] does not have a valid definitionName, " +
             "must be lowercase alphanumeric and underscore")
 
         where:
@@ -87,7 +87,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] contains id 8123000 already defined in " +
+            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] contains definitionId 8123000 already defined in " +
             "[myserver/src/main/resources/transport/definitions/referable/duplicate.csv]")
     }
 
@@ -98,7 +98,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/patched.csv] contains bwc id [8100000] with a patch part of 0")
+            "[myserver/src/main/resources/transport/definitions/referable/patched.csv] contains bwc definitionId [8100000] with a patch part of 0")
     }
 
     def "definitions have primary ids which cannot change"() {
@@ -108,7 +108,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] has modified primary id from 8123000 to 8500000")
+            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] has modified primary definitionId from 8123000 to 8500000")
     }
 
     def "cannot change committed ids to a branch"() {
@@ -118,7 +118,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] modifies existing patch id from 8012001 to 8012002")
+            "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] modifies existing patch definitionId from 8012001 to 8012002")
     }
 
     def "upper bounds files must reference defined name"() {
@@ -128,7 +128,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version upper bound file " +
-            "[myserver/src/main/resources/transport/upper_bounds/9.2.csv] contains transport version name [dne] which is not defined")
+            "[myserver/src/main/resources/transport/upper_bounds/9.2.csv] contains transport version definitionName [dne] which is not defined")
     }
 
     def "upper bound files id must exist in definition"() {
@@ -138,7 +138,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version upper bound file " +
-            "[myserver/src/main/resources/transport/upper_bounds/9.2.csv] has id 8124000 which is not in definition " +
+            "[myserver/src/main/resources/transport/upper_bounds/9.2.csv] has definitionId 8124000 which is not in definition " +
             "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv]")
     }
 
@@ -152,8 +152,8 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version upper bound file " +
-            "[myserver/src/main/resources/transport/upper_bounds/9.0.csv] has id 8110001 from [seemingly_latest] with base 8110000 " +
-            "but another id 8110002 from [actual_latest] is later for that base")
+            "[myserver/src/main/resources/transport/upper_bounds/9.0.csv] has definitionId 8110001 from [seemingly_latest] with base 8110000 " +
+            "but another definitionId 8110002 from [actual_latest] is later for that base")
     }
 
     def "upper bound files cannot change base id"() {
@@ -165,7 +165,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version upper bound file " +
-            "[myserver/src/main/resources/transport/upper_bounds/9.1.csv] modifies base id from 8012000 to 8013000")
+            "[myserver/src/main/resources/transport/upper_bounds/9.1.csv] modifies base definitionId from 8012000 to 8013000")
     }
 
     def "ids must be dense"() {
@@ -176,7 +176,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         when:
         def result = validateResourcesFails()
         then:
-        assertValidateResourcesFailure(result, "Transport version base id 8013000 is missing patch ids between 8013000 and 8013002")
+        assertValidateResourcesFailure(result, "Transport version base definitionId 8013000 is missing patch ids between 8013000 and 8013002")
     }
 
     def "primary id must not be patch version"() {
@@ -186,7 +186,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/patch.csv] has patch version 8015001 as primary id")
+            "[myserver/src/main/resources/transport/definitions/referable/patch.csv] has patch version 8015001 as primary definitionId")
     }
 
     def "unreferable directory is optional"() {
@@ -217,7 +217,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
                 "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] " +
-                "has same name as unreferable definition " +
+                "has same definitionName as unreferable definition " +
                 "[myserver/src/main/resources/transport/definitions/unreferable/existing_92.csv]")
     }
 
@@ -238,7 +238,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
             "[myserver/src/main/resources/transport/definitions/referable/some_tv.csv] " +
-            "has the highest transport version id [10000000] but is not present in any upper bounds files")
+            "has the highest transport version definitionId [10000000] but is not present in any upper bounds files")
     }
 
     def "highest id in an unreferable definition should exist in an upper bounds file"() {
@@ -250,6 +250,6 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         // TODO: this should be _unreferable_ in the error message, but will require some rework
         assertValidateResourcesFailure(result, "Transport version definition file " +
             "[myserver/src/main/resources/transport/definitions/referable/initial_10.0.0.csv] " +
-            "has the highest transport version id [10000000] but is not present in any upper bounds files")
+            "has the highest transport version definitionId [10000000] but is not present in any upper bounds files")
     }
 }

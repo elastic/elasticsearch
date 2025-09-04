@@ -48,7 +48,7 @@ import javax.inject.Inject;
  *     <li><b>/transport/definitions/unreferable/</b>
  *     - Definitions which contain ids that are known at runtime, but cannot be looked up by name.</li>
  *     <li><b>/transport/upper_bounds/</b>
- *     - The maximum transport version definition that will be loaded for each release releaseBranch.</li>
+ *     - The maximum transport version definition that will be loaded on a branch.</li>
  * </ul>
  */
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
@@ -173,22 +173,22 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return rootDir.relativize(transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name())));
     }
 
-    /** Read all upper bound files and return them mapped by their release releaseBranch */
+    /** Read all upper bound files and return them mapped by their release name */
     Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
         Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
         try (var stream = Files.list(transportResourcesDir.resolve(UPPER_BOUNDS_DIR))) {
             for (var latestFile : stream.toList()) {
                 String contents = Files.readString(latestFile, StandardCharsets.UTF_8).strip();
                 var upperBound = TransportVersionUpperBound.fromString(latestFile, contents);
-                upperBounds.put(upperBound.releaseBranch(), upperBound);
+                upperBounds.put(upperBound.name(), upperBound);
             }
         }
         return upperBounds;
     }
 
-    /** Retrieve the upper bound for the given release releaseBranch on main */
-    TransportVersionUpperBound getUpperBoundFromMain(String releaseBranch) {
-        Path resourcePath = getUpperBoundRelativePath(releaseBranch);
+    /** Retrieve the upper bound for the given release name on main */
+    TransportVersionUpperBound getUpperBoundFromMain(String name) {
+        Path resourcePath = getUpperBoundRelativePath(name);
         return getMainFile(resourcePath, TransportVersionUpperBound::fromString);
     }
 
@@ -208,18 +208,18 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Write the given upper bound to a file in the transport resources */
     void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
-        Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.releaseBranch()));
+        Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.name()));
         logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
-        Files.writeString(path, upperBound.name() + "," + upperBound.id().complete() + "\n", StandardCharsets.UTF_8);
+        Files.writeString(path, upperBound.definitionName() + "," + upperBound.definitionId().complete() + "\n", StandardCharsets.UTF_8);
     }
 
     /** Return the path within the repository of the given latest */
     Path getUpperBoundRepositoryPath(TransportVersionUpperBound latest) {
-        return rootDir.relativize(transportResourcesDir.resolve(getUpperBoundRelativePath(latest.releaseBranch())));
+        return rootDir.relativize(transportResourcesDir.resolve(getUpperBoundRelativePath(latest.name())));
     }
 
-    private Path getUpperBoundRelativePath(String releaseBranch) {
-        return UPPER_BOUNDS_DIR.resolve(releaseBranch + ".csv");
+    private Path getUpperBoundRelativePath(String name) {
+        return UPPER_BOUNDS_DIR.resolve(name + ".csv");
     }
 
     // Return the transport version resources paths that exist in main
@@ -258,7 +258,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return changedResources.get();
     }
 
-    // Read a transport version resource from the main releaseBranch, or return null if it doesn't exist on main
+    // Read a transport version resource from the main name, or return null if it doesn't exist on main
     private <T> T getMainFile(Path resourcePath, BiFunction<Path, String, T> parser) {
         String pathString = resourcePath.toString().replace('\\', '/'); // normalize to forward slash that git uses
         if (getMainResources().contains(pathString) == false) {

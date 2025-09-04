@@ -93,8 +93,8 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         assert file("myserver/src/main/resources/transport/definitions/referable/${name}.csv").exists() == false
     }
 
-    void assertUpperBound(String releaseBranch, String content) {
-        assert file("myserver/src/main/resources/transport/upper_bounds/${releaseBranch}.csv").text.strip() == content
+    void assertUpperBound(String name, String content) {
+        assert file("myserver/src/main/resources/transport/upper_bounds/${name}.csv").text.strip() == content
     }
 
     def setup() {
@@ -111,7 +111,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             apply plugin: 'elasticsearch.transport-version-resources'
 
             tasks.named('generateTransportVersionDefinition') {
-                mainReleaseBranch = '9.2'
+                currentUpperBoundName = '9.2'
             }
         """
         referableTransportVersion("existing_91", "8012000")
@@ -122,7 +122,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         transportVersionUpperBound("9.0", "initial_9_0_0", "8000000")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al
         javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
-            public static TransportVersion fromName(String name) {
+            public static TransportVersion fromName(String definitionName) {
                 return null;
             }
         """)
@@ -148,7 +148,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
     void setupLocalGitRepo() {
         execute("git init")
         execute('git config user.email "build-tool@elastic.co"')
-        execute('git config user.name "Build tool"')
+        execute('git config user.definitionName "Build tool"')
         execute("git add .")
         execute('git commit -m "Initial"')
     }

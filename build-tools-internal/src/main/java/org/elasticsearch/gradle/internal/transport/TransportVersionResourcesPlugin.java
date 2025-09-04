@@ -80,7 +80,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getPrimaryIncrement().convention(1000);
                 Version esVersion = VersionProperties.getElasticsearchVersion();
-                t.getMainReleaseBranch().convention(esVersion.getMajor() + "." + esVersion.getMinor());
+                t.getCurrentUpperBoundName().convention(esVersion.getMajor() + "." + esVersion.getMinor());
             });
 
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));

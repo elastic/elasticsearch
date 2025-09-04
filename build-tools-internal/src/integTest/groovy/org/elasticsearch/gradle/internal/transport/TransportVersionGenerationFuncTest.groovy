@@ -263,7 +263,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             existing_92,8123000
             =======
             second_tv,8123000
-            >>>>>> releaseBranch
+            >>>>>> name
             """.strip()
         referableAndReferencedTransportVersion("second_tv", "8123000")
 

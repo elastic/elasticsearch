@@ -534,6 +534,12 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.DocIdsWriterTests
   method: testSorted
   issue: https://github.com/elastic/elasticsearch/issues/134106
+- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
+  method: testWriteLoadForecastIsOverriddenBySetting
+  issue: https://github.com/elastic/elasticsearch/issues/133455
+- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
+  method: testWriteLoadForecastDoesNotGetPopulatedWithInvalidLicense
+  issue: https://github.com/elastic/elasticsearch/issues/134124
 
 # Examples:
 #

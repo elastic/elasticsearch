@@ -159,7 +159,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         request.id(),
                         request.index(),
                         request.version(),
-                        request.sourceContext().bytes(),
+                        request.source(),
                         request.getContentType(),
                         request.getExecutedPipelines(),
                         validationResult.ignoredFields,
@@ -201,7 +201,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
-            request.sourceContext().bytes(),
+            request.source(),
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),

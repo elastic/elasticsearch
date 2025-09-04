@@ -87,7 +87,7 @@ public class BulkRequestParserTests extends ESTestCase {
             deleteRequests::add
         );
 
-        ReleasableBytesReference request = ReleasableBytesReference.wrap(new BytesArray("""
+        ReleasableBytesReference request = new ReleasableBytesReference(new BytesArray("""
             { "index":{ "_id": "bar", "pipeline": "foo" } }
             { "field": "value"}
             { "index":{ "require_alias": false } }
@@ -98,7 +98,7 @@ public class BulkRequestParserTests extends ESTestCase {
             { "index": { } }
             { "field": "value"}
             { "delete":{ "_id": "bop" } }
-            """));
+            """), () -> {});
 
         int consumed = 0;
         for (int i = 0; i < request.length() - 1; ++i) {
@@ -107,9 +107,21 @@ public class BulkRequestParserTests extends ESTestCase {
         consumed += incrementalParser.parse(request.slice(consumed, request.length() - consumed), true);
         assertThat(consumed, equalTo(request.length()));
 
+        request.decRef();
+
+        // 3 Index request retaining
+        assertTrue(request.hasReferences());
+
         assertThat(indexRequests.size(), equalTo(3));
         assertThat(updateRequests.size(), equalTo(1));
         assertThat(deleteRequests.size(), equalTo(2));
+
+        for (DocWriteRequest<?> req : indexRequests) {
+            req.close();
+        }
+
+        // Deletes and updates do not retain (upsert source is copied out opposed to sliced)
+        assertFalse(request.hasReferences());
     }
 
     public void testIndexRequest() throws IOException {

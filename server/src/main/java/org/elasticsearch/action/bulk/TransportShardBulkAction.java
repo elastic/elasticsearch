@@ -410,7 +410,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
-                request.sourceContext().bytes(),
+                request.source(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
@@ -609,7 +609,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
 
                 if (updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) {
-                    final BytesReference indexSourceAsBytes = updateIndexRequest.sourceContext().bytes();
+                    final BytesReference indexSourceAsBytes = updateIndexRequest.source();
                     final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
                         indexSourceAsBytes,
                         true,
@@ -741,7 +741,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    indexRequest.sourceContext().bytes(),
+                    indexRequest.source(),
                     indexRequest.getContentType(),
                     indexRequest.routing()
                 );

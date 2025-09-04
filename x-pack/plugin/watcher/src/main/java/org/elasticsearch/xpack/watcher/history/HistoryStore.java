@@ -56,7 +56,7 @@ public class HistoryStore {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
             IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
             request.opType(IndexRequest.OpType.CREATE);
-            if (request.sourceContext().bytes().length() > maxHistoryRecordSize.getBytes()) {
+            if (request.source().length() > maxHistoryRecordSize.getBytes()) {
                 WatchRecord redactedWatchRecord = watchRecord.dropLargeFields();
                 try (XContentBuilder redactedBuilder = XContentFactory.jsonBuilder()) {
                     redactedWatchRecord.toXContent(redactedBuilder, WatcherParams.HIDE_SECRETS);

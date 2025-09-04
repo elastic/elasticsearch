@@ -110,7 +110,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 indexRequest.index(),
                 indexRequest.id(),
                 action.refreshPolicy,
-                new XContentSource(indexRequest.sourceContext().bytes(), XContentType.JSON)
+                new XContentSource(indexRequest.source(), XContentType.JSON)
             );
         }
 

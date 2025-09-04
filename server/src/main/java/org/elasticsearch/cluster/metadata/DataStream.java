@@ -1738,7 +1738,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (rawTimestamp != null) {
             timestamp = getTimeStampFromRaw(rawTimestamp);
         } else {
-            timestamp = getTimestampFromParser(request.sourceContext().bytes(), request.getContentType());
+            timestamp = getTimestampFromParser(request.source(), request.getContentType());
         }
         timestamp = getCanonicalTimestampBound(timestamp);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);

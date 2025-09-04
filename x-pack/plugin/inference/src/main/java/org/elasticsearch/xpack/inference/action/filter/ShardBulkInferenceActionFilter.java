@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.SourceContext;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -725,25 +726,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            try (ReleasableBytesReference originalSource = indexRequest.sourceContext().retainedBytes()) {
+            SourceContext sourceContext = indexRequest.sourceContext();
+            try (ReleasableBytesReference originalSource = sourceContext.retainedBytes()) {
                 if (useLegacyFormat) {
-                    var newDocMap = indexRequest.sourceAsMap();
+                    var newDocMap = sourceContext.sourceAsMap();
                     for (var entry : inferenceFieldsMap.entrySet()) {
                         XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                     }
-                    indexRequest.source(newDocMap, indexRequest.getContentType());
+                    sourceContext.source(newDocMap, sourceContext.contentType());
                 } else {
-                    try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                        appendSourceAndInferenceMetadata(
-                            builder,
-                            indexRequest.sourceContext().bytes(),
-                            indexRequest.getContentType(),
-                            inferenceFieldsMap
-                        );
-                        indexRequest.source(builder);
+                    try (XContentBuilder builder = XContentBuilder.builder(sourceContext.contentType().xContent())) {
+                        appendSourceAndInferenceMetadata(builder, sourceContext.bytes(), sourceContext.contentType(), inferenceFieldsMap);
+                        sourceContext.source(builder);
                     }
                 }
-                long modifiedSourceSize = indexRequest.sourceContext().bytes().length();
+                long modifiedSourceSize = sourceContext.bytes().length();
 
                 // Add the indexing pressure from the source modifications.
                 // Don't increment operation count because we count one source update as one operation, and we already accounted for those
@@ -751,7 +748,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 try {
                     coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
                 } catch (EsRejectedExecutionException e) {
-                    indexRequest.sourceContext().source(originalSource.retain(), indexRequest.getContentType());
+                    sourceContext.source(originalSource.retain(), sourceContext.contentType());
                     item.abort(
                         item.index(),
                         new InferenceException(

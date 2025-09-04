@@ -159,11 +159,14 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         def seeds1 = result1.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
         def seeds2 = result2.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
 
-        assert seeds1.unique().size() == 1
-        assert seeds2.unique().size() == 1
-        println "${seeds1[0]} != ${seeds2[0]}"
+        seeds1.unique().size() == 1
+        seeds2.unique().size() == 1
 
-        assert seeds1[0] != seeds2[0]
-        assert result2.output.contains("Configuration cache entry reused.")
+        verifyAll {
+            seeds1[0] != null
+            seeds2[0] != null
+            seeds1[0] != seeds2[0]
+        }
+        result2.output.contains("Configuration cache entry reused.")
     }
 }

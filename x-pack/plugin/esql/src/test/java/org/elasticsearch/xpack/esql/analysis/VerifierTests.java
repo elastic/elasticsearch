@@ -2152,7 +2152,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM employees | WHERE min(languages) > 2")
         );
         assertEquals(
-            "1:19: aggregate function [present(name)] not allowed outside STATS command",
+            "1:19: aggregate function [present(gender)] not allowed outside STATS command",
             error("FROM test | WHERE present(gender)")
         );
     }

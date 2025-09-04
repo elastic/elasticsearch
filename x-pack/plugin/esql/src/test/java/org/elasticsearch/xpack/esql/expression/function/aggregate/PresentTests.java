@@ -79,7 +79,7 @@ public class PresentTests extends AbstractAggregationTestCase {
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "Present[field=Attribute[channel=0]]",
+                        "Present",
                         DataType.BOOLEAN,
                         equalTo(false)
                     )
@@ -103,7 +103,7 @@ public class PresentTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "Present[field=Attribute[channel=0]]",
+                "Present",
                 DataType.BOOLEAN,
                 equalTo(present)
             );

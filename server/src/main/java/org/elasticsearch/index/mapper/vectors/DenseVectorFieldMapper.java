@@ -2407,6 +2407,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             int k,
             int numCands,
+            Float visitPercentage,
             Float oversample,
             Query filter,
             Float similarityThreshold,
@@ -2438,6 +2439,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector.asFloatVector(),
                     k,
                     numCands,
+                    visitPercentage,
                     oversample,
                     filter,
                     similarityThreshold,
@@ -2570,6 +2572,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             int k,
             int numCands,
+            Float visitPercentage,
             Float queryOversample,
             Query filter,
             Float similarityThreshold,
@@ -2618,6 +2621,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
+                float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -2626,9 +2630,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         parentFilter,
-                        defaultVisitRatio
+                        visitRatio
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, defaultVisitRatio);
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, visitRatio);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

@@ -15,7 +15,9 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
@@ -24,6 +26,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -38,12 +41,12 @@ import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.gpu.reflect.VectorsFormatReflectionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -75,12 +78,12 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
-    private final IndexOutput vectorData;
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
 
     private final List<FieldWriter> fields = new ArrayList<>();
+    private final CheckedFunction<SegmentReadState, FlatVectorsReader, IOException> flatVectorsReaderProvider;
     private boolean finished;
     private final CuVSMatrix.DataType dataType;
 
@@ -89,19 +92,19 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         SegmentWriteState state,
         int M,
         int beamWidth,
-        FlatVectorsWriter flatVectorWriter
+        FlatVectorsWriter flatVectorWriter,
+        CheckedFunction<SegmentReadState, FlatVectorsReader, IOException> flatVectorsReaderProvider
     ) throws IOException {
+        this.flatVectorsReaderProvider = flatVectorsReaderProvider;
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
-            vectorData = VectorsFormatReflectionUtils.getQuantizedVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
             assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
-            vectorData = VectorsFormatReflectionUtils.getVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         this.segmentWriteState = state;
@@ -151,40 +154,81 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return newField;
     }
 
+    private static MemorySegmentAccessInput getMemorySegmentAccessInputOrNull(
+        KnnVectorValues vectorValues) {
+
+        if (vectorValues instanceof HasIndexSlice indexSlice) {
+            var input = FilterIndexInput.unwrapOnlyTest(indexSlice.getSlice());
+            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+                return memorySegmentAccessInput;
+            }
+        }
+        return null;
+    }
+
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         flatVectorWriter.flush(maxDoc, sortMap);
 
-        try (IndexInput in = segmentWriteState.segmentInfo.dir.openInput(vectorData.getName(), IOContext.DEFAULT)) {
-            var input = FilterIndexInput.unwrapOnlyTest(in);
-
+        // TODO: this "mimics" a hypothetical/missing FlatVectorsWriter#getReader()
+        try (FlatVectorsReader flatVectorsReader = flatVectorsReaderProvider.apply(
+            new SegmentReadState(
+                segmentWriteState.segmentInfo.dir,
+                segmentWriteState.segmentInfo,
+                segmentWriteState.fieldInfos,
+                segmentWriteState.context
+            )
+        )) {
             for (FieldWriter fieldWriter : fields) {
-                // TODO: is this inefficient? Can we get "size" in another way?
+                // This might be inefficient if getVectors() materializes a List<T>; however current implementations
+                // just return a reference to an inner, already allocated List<T>, so we are fine for now.
+                // TODO: change when/if Lucene introduces a direct FlatFieldVectorsWriter<T>#size()
                 var numVectors = fieldWriter.flatFieldVectorsWriter.getVectors().size();
 
-                final DatasetOrVectors datasetOrVectors;
-                if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                    // TODO: we are iterating over multiple fields, we probably need to memorySegmentAccessInput.segmentSliceOrNull()?
-                    var ds = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentAccessInput, numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
-                    datasetOrVectors = DatasetOrVectors.fromDataset(ds);
-                } else {
-                    var builder = CuVSMatrix.hostBuilder(numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
-                    for (var vector : fieldWriter.flatFieldVectorsWriter.getVectors()) {
-                        builder.addVector(vector);
+                final CuVSMatrix dataset;
+                if (numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                    if (dataType == CuVSMatrix.DataType.FLOAT) {
+                        FloatVectorValues floatVectorValues = flatVectorsReader.getFloatVectorValues(fieldWriter.fieldInfo.name);
+                        var memorySegmentAccessInput = getMemorySegmentAccessInputOrNull(floatVectorValues);
+                        if (memorySegmentAccessInput != null) {
+                            dataset = DatasetUtils.getInstance()
+                                .fromInput(memorySegmentAccessInput, numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
+                        } else {
+                            var builder = CuVSMatrix.hostBuilder(numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
+                            for (int i = 0; i < numVectors; ++i) {
+                                builder.addVector(floatVectorValues.vectorValue(i));
+                            }
+                            dataset = builder.build();
+                        }
+                    } else {
+                        assert dataType == CuVSMatrix.DataType.BYTE;
+                        ByteVectorValues byteVectorValues = flatVectorsReader.getByteVectorValues(fieldWriter.fieldInfo.name);
+                        var memorySegmentAccessInput = getMemorySegmentAccessInputOrNull(byteVectorValues);
+                        if (memorySegmentAccessInput != null) {
+                            dataset = DatasetUtils.getInstance()
+                                .fromInput(memorySegmentAccessInput, numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
+                        } else {
+                            var builder = CuVSMatrix.hostBuilder(numVectors, fieldWriter.fieldInfo.getVectorDimension(), dataType);
+                            for (int i = 0; i < numVectors; ++i) {
+                                builder.addVector(byteVectorValues.vectorValue(i));
+                            }
+                            dataset = builder.build();
+                        }
                     }
-
-                    datasetOrVectors = DatasetOrVectors.fromDataset(builder.build());
+                } else {
+                    dataset = null;
                 }
 
                 try {
                     if (sortMap == null) {
-                        writeField(fieldWriter.fieldInfo, datasetOrVectors);
+                        writeField(fieldWriter.fieldInfo, dataset, numVectors);
                     } else {
-                        writeSortingField(fieldWriter.fieldInfo, datasetOrVectors, sortMap);
+                        writeSortingField(fieldWriter.fieldInfo, dataset, numVectors, sortMap);
                     }
                 } finally {
-                    datasetOrVectors.close();
+                    if (dataset != null) {
+                        dataset.close();
+                    }
                 }
             }
         }
@@ -254,37 +298,35 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void writeSortingField(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors, Sorter.DocMap sortMap) throws IOException {
+    private void writeSortingField(FieldInfo fieldInfo, CuVSMatrix datasetOrVectors, int size, Sorter.DocMap sortMap) throws IOException {
         // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
         // We can now treat them as a simple, sorted list of vectors.
-        writeField(fieldInfo, datasetOrVectors);
+        writeField(fieldInfo, datasetOrVectors, size);
     }
 
-    private void writeField(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors) throws IOException {
+    private void writeField(FieldInfo fieldInfo, CuVSMatrix dataset, int size) throws IOException {
         try {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
-            HnswGraph mockGraph;
-            if (datasetOrVectors.vectors != null) {
-                int size = datasetOrVectors.size();
+            final HnswGraph graph;
+            if (dataset == null) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", size, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 }
-                mockGraph = writeGraph(size, graphLevelNodeOffsets);
+                graph = writeMockGraph(size, graphLevelNodeOffsets);
             } else {
-                var dataset = datasetOrVectors.dataset;
                 var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns(), dataset.dataType());
                 try {
                     try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
                         assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                        mockGraph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
+                        graph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
                     }
                 } finally {
                     cuVSResourceManager.release(cuVSResources);
                 }
             }
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
-            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetOrVectors.size(), mockGraph, graphLevelNodeOffsets);
+            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, size, graph, graphLevelNodeOffsets);
         } catch (IOException e) {
             throw e;
         } catch (Throwable t) {
@@ -360,7 +402,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     // create a mock graph where every node is connected to every other node
-    private HnswGraph writeGraph(int elementCount, int[][] levelNodeOffsets) throws IOException {
+    private HnswGraph writeMockGraph(int elementCount, int[][] levelNodeOffsets) throws IOException {
         if (elementCount == 0) {
             return null;
         }
@@ -458,26 +500,42 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             }
         }
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
-
             var input = FilterIndexInput.unwrapOnlyTest(in);
 
-            final DatasetOrVectors datasetOrVectors;
-            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                var ds = DatasetUtils.getInstance()
-                    .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
-                datasetOrVectors = DatasetOrVectors.fromDataset(ds);
+            final CuVSMatrix dataset;
+            if (numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+                    // Direct access to mmapped file
+                    dataset = DatasetUtils.getInstance()
+                        .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
+                } else {
+                    var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+                    // Read vector-by-vector
+                    if (dataType == CuVSMatrix.DataType.FLOAT) {
+                        float[] vector = new float[fieldInfo.getVectorDimension()];
+                        for (int i = 0; i < numVectors; ++i) {
+                            input.readFloats(vector, fieldInfo.getVectorDimension() * i, fieldInfo.getVectorDimension());
+                        }
+                    } else {
+                        assert dataType == CuVSMatrix.DataType.BYTE;
+                        byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                        for (int i = 0; i < numVectors; ++i) {
+                            input.readBytes(vector, fieldInfo.getVectorDimension() * i, fieldInfo.getVectorDimension());
+                        }
+                    }
+                    dataset = builder.build();
+                }
             } else {
-                // assert numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD : "numVectors: " + numVectors;
                 // we don't really need real value for vectors here,
                 // we just build a mock graph where every node is connected to every other node
-                datasetOrVectors = DatasetOrVectors.fromDataset(
-                    CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType).build()
-                );
+                dataset = null;
             }
             try {
-                writeFieldInternal(fieldInfo, datasetOrVectors);
+                writeField(fieldInfo, dataset, numVectors);
             } finally {
-                datasetOrVectors.close();
+                if (dataset != null) {
+                    dataset.close();
+                }
             }
         } finally {
             org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);

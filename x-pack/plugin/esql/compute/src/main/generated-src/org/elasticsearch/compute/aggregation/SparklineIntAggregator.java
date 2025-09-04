@@ -56,7 +56,7 @@ class SparklineIntAggregator {
         }
 
         @Override
-        public int compare(Tuple<Long,Integer> lhs, Tuple<Long, Integer> rhs) {
+        public int compare(Tuple<Long, Integer> lhs, Tuple<Long, Integer> rhs) {
             if (Long.compare(lhs.v1(), rhs.v1()) != 0) {
                 return order.reverseMul() * Long.compare(lhs.v1(), rhs.v1());
             }
@@ -108,7 +108,8 @@ class SparklineIntAggregator {
         private final IntIndirectBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-            Comparator<Tuple<Long, Integer>> comparator = Comparator.<Tuple<Long, Integer>>comparingLong(Tuple::v1).thenComparing(Tuple::v2);
+            Comparator<Tuple<Long, Integer>> comparator = Comparator.<Tuple<Long, Integer>>comparingLong(Tuple::v1)
+                .thenComparing(Tuple::v2);
             this.sort = new IntIndirectBucketedSort(bigArrays, comparator, limit);
         }
 

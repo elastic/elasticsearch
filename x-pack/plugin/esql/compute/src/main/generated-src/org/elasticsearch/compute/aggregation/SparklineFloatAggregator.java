@@ -56,7 +56,7 @@ class SparklineFloatAggregator {
         }
 
         @Override
-        public int compare(Tuple<Long,Float> lhs, Tuple<Long, Float> rhs) {
+        public int compare(Tuple<Long, Float> lhs, Tuple<Long, Float> rhs) {
             if (Long.compare(lhs.v1(), rhs.v1()) != 0) {
                 return order.reverseMul() * Long.compare(lhs.v1(), rhs.v1());
             }

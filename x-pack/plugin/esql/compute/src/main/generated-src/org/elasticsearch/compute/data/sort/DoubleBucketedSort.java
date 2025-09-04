@@ -302,7 +302,16 @@ public class DoubleBucketedSort implements Releasable {
         }
     }
 
-    // Heap sort algorithm for sorting the bucket contents in-place
+    /**
+     * Sorts all the values in the heap using heap sort algorithm.
+     * This runs in {@code O(n log n)} time.
+     * @param rootIndex index of the start of the bucket
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
+     */
     private void heapSort(long rootIndex, int heapSize) {
         while (heapSize > 0) {
             swap(rootIndex, rootIndex + heapSize - 1);
@@ -317,6 +326,11 @@ public class DoubleBucketedSort implements Releasable {
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
      */
     private void downHeap(long rootIndex, int parent, int heapSize) {
         while (true) {

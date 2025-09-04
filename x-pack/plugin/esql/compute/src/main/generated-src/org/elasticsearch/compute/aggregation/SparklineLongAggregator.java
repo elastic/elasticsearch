@@ -56,7 +56,7 @@ class SparklineLongAggregator {
         }
 
         @Override
-        public int compare(Tuple<Long,Long> lhs, Tuple<Long, Long> rhs) {
+        public int compare(Tuple<Long, Long> lhs, Tuple<Long, Long> rhs) {
             if (Long.compare(lhs.v1(), rhs.v1()) != 0) {
                 return order.reverseMul() * Long.compare(lhs.v1(), rhs.v1());
             }

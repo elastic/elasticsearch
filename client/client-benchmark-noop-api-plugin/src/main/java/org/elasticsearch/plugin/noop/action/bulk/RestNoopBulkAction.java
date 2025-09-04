@@ -78,6 +78,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
+        // TODO: Currently broken because of pooling
         // short circuit the call to the transport layer
         return channel -> {
             BulkRestBuilderListener listener = new BulkRestBuilderListener(channel, request);

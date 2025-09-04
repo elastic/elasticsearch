@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -2587,10 +2586,7 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
     }
 
-    protected static <R extends ReferenceManager<DirectoryReader>> R wrapForAssertions(
-        R referenceManager,
-        EngineConfig engineConfig
-    ) {
+    protected static <R extends ReferenceManager<DirectoryReader>> R wrapForAssertions(R referenceManager, EngineConfig engineConfig) {
         if (Assertions.ENABLED) {
             referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineResetLock()));
         }

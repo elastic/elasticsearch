@@ -2150,10 +2150,8 @@ public class InternalEngine extends Engine {
         return new RefreshResult(refreshed, primaryTerm, segmentGeneration);
     }
 
-    private long segmentGenerationAfterRefresh(
-        ReferenceManager<DirectoryReader> referenceManager,
-        long generationBeforeRefresh
-    ) throws IOException {
+    private long segmentGenerationAfterRefresh(ReferenceManager<DirectoryReader> referenceManager, long generationBeforeRefresh)
+        throws IOException {
         assert store.hasReferences();
         assert engineConfig.getEngineResetLock().isReadLockedByCurrentThread() : "prevent concurrent engine resets";
         final DirectoryReader current = referenceManager.acquire();

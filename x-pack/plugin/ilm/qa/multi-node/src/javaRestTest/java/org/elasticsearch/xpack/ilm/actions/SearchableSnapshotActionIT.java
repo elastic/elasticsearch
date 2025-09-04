@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.core.ilm.DeleteAction.WITH_SNAPSHOT_DELETE;
-import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.FORCE_MERGE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.FORCE_MERGE_CLONE_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1194,7 +1194,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
      * and that its name follows the expected naming convention.
      */
     private static void assertForceMergeCloneIndexSettings(String backingIndexName, int numberOfPrimaries) throws Exception {
-        final String forceMergeIndexPattern = FORCE_MERGE_INDEX_PREFIX + "*" + backingIndexName;
+        final String forceMergeIndexPattern = FORCE_MERGE_CLONE_INDEX_PREFIX + "*" + backingIndexName;
         assertBusy(() -> {
             // The force-merged index is hidden, so we need to expand wildcards.
             Request request = new Request("GET", "/" + forceMergeIndexPattern + "/_settings?expand_wildcards=all&flat_settings=true");
@@ -1206,7 +1206,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 equalTo(1)
             );
             final String forceMergeIndexName = indicesSettings.keySet().iterator().next();
-            assertThat(forceMergeIndexName, startsWith(FORCE_MERGE_INDEX_PREFIX));
+            assertThat(forceMergeIndexName, startsWith(FORCE_MERGE_CLONE_INDEX_PREFIX));
             assertThat(forceMergeIndexName, endsWith(backingIndexName));
             @SuppressWarnings("unchecked")
             final var forceMergeIndexResponse = (Map<String, Object>) indicesSettings.get(forceMergeIndexName);
@@ -1238,7 +1238,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(backingIndexName);
         // Regardless of whether we force merged the backing index or a clone, the cloned index should not exist (anymore).
-        awaitIndexDoesNotExist(FORCE_MERGE_INDEX_PREFIX + "-*-" + backingIndexName);
+        awaitIndexDoesNotExist(FORCE_MERGE_CLONE_INDEX_PREFIX + "-*-" + backingIndexName);
 
         // Retrieve the number of segments in the first (random) shard of the backing index.
         final Integer numberOfPrimarySegments = getNumberOfPrimarySegments(client(), restoredIndexName);
@@ -1261,7 +1261,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         final String snapshotIndexName = indices.getFirst();
         // If the backing index had replicas, we force merged a clone, so the snapshot index name should match the clone naming pattern.
         if (withReplicas) {
-            assertThat("expected index to start with the force merge prefix", snapshotIndexName, startsWith(FORCE_MERGE_INDEX_PREFIX));
+            assertThat(
+                "expected index to start with the force merge prefix",
+                snapshotIndexName,
+                startsWith(FORCE_MERGE_CLONE_INDEX_PREFIX)
+            );
             assertThat("expected index to end with the backing index name", snapshotIndexName, endsWith(backingIndexName));
         } else {
             // If the backing index had no replicas, we force merged the backing index itself, so the snapshot index name should be equal

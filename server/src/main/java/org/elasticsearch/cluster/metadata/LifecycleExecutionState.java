@@ -65,7 +65,7 @@ public record LifecycleExecutionState(
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
-    private static final String FORCE_MERGE_INDEX_NAME = "force_merge_index_name";
+    private static final String FORCE_MERGE_CLONE_INDEX_NAME = "force_merge_clone_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
 
@@ -205,7 +205,7 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             builder.setDownsampleIndexName(downsampleIndexName);
         }
-        String forceMergeIndexName = customData.get(FORCE_MERGE_INDEX_NAME);
+        String forceMergeIndexName = customData.get(FORCE_MERGE_CLONE_INDEX_NAME);
         if (forceMergeIndexName != null) {
             builder.setForceMergeIndexName(forceMergeIndexName);
         }
@@ -282,7 +282,7 @@ public record LifecycleExecutionState(
             result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
         }
         if (forceMergeIndexName != null) {
-            result.put(FORCE_MERGE_INDEX_NAME, forceMergeIndexName);
+            result.put(FORCE_MERGE_CLONE_INDEX_NAME, forceMergeIndexName);
         }
         return Collections.unmodifiableMap(result);
     }

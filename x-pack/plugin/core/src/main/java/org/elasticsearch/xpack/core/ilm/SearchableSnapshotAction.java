@@ -69,12 +69,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     public static final String FULL_RESTORED_INDEX_PREFIX = "restored-";
     public static final String PARTIAL_RESTORED_INDEX_PREFIX = "partial-";
-    public static final String FORCE_MERGE_INDEX_PREFIX = "force-merge-";
+    public static final String FORCE_MERGE_CLONE_INDEX_PREFIX = "fm-clone-";
     /** An index name supplier that always returns the force merge index name (possibly null). */
-    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_INDEX_NAME_SUPPLIER = (indexName, state) -> state
-        .forceMergeIndexName();
+    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER = (
+        indexName,
+        state) -> state.forceMergeIndexName();
     /** An index name supplier that returns the force merge index name if it exists, or the original index name if not. */
-    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER = (
+    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER = (
         indexName,
         state) -> state.forceMergeIndexName() != null ? state.forceMergeIndexName() : indexName;
 
@@ -375,12 +376,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             cleanupClonedIndexKey,
             generateCloneIndexNameKey,
             client,
-            FORCE_MERGE_INDEX_NAME_SUPPLIER
+            FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER
         );
         GenerateUniqueIndexNameStep generateCloneIndexNameStep = new GenerateUniqueIndexNameStep(
             generateCloneIndexNameKey,
             cloneIndexKey,
-            FORCE_MERGE_INDEX_PREFIX,
+            FORCE_MERGE_CLONE_INDEX_PREFIX,
             (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setForceMergeIndexName(generatedIndexName)
         );
         // Clone the index with 0 replicas.
@@ -389,7 +390,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             waitForClonedIndexGreenKey,
             client,
             ResizeType.CLONE,
-            FORCE_MERGE_INDEX_NAME_SUPPLIER,
+            FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER,
             CLONE_SETTINGS_SUPPLIER,
             null
         );
@@ -401,7 +402,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 waitForClonedIndexGreenKey,
                 forceMergeStepKey,
                 ClusterHealthStatus.GREEN,
-                FORCE_MERGE_INDEX_NAME_SUPPLIER
+                FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER
             ),
             cleanupClonedIndexKey
         );
@@ -410,20 +411,20 @@ public class SearchableSnapshotAction implements LifecycleAction {
             waitForSegmentCountKey,
             client,
             1,
-            FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER
+            FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER
         );
         SegmentCountStep segmentCountStep = new SegmentCountStep(
             waitForSegmentCountKey,
             generateSnapshotNameKey,
             client,
             1,
-            FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER
+            FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER
         );
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(
             generateSnapshotNameKey,
             cleanSnapshotKey,
             snapshotRepository,
-            FORCE_MERGE_INDEX_NAME_FALLBACK_SUPPLIER
+            FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER
         );
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
         CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, cleanSnapshotKey, client);
@@ -482,7 +483,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             deleteForceMergedIndexKey,
             dataStreamCheckBranchingKey,
             client,
-            FORCE_MERGE_INDEX_NAME_SUPPLIER,
+            FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER,
             true
         );
         BranchingStep isDataStreamBranchingStep = new BranchingStep(

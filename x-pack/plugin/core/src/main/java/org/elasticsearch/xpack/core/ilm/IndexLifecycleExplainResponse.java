@@ -57,7 +57,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     private static final ParseField SKIP_NAME = new ParseField("skip");
-    private static final ParseField FORCE_MERGE_INDEX_NAME = new ParseField("force_merge_index_name");
+    private static final ParseField FORCE_MERGE_CLONE_INDEX_NAME = new ParseField("force_merge_clone_index_name");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response",
@@ -126,7 +126,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }, PREVIOUS_STEP_INFO_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX_NAME);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_CLONE_INDEX_NAME);
     }
 
     private final String index;
@@ -613,7 +613,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             }
             builder.field(SKIP_NAME.getPreferredName(), skip);
             if (forceMergeIndexName != null) {
-                builder.field(FORCE_MERGE_INDEX_NAME.getPreferredName(), forceMergeIndexName);
+                builder.field(FORCE_MERGE_CLONE_INDEX_NAME.getPreferredName(), forceMergeIndexName);
             }
         }
         builder.endObject();

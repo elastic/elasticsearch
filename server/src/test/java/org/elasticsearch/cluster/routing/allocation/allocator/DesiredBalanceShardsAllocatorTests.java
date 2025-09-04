@@ -174,7 +174,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER
         );
         assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
@@ -302,7 +303,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER
         );
         var allocationService = new AllocationService(
             new AllocationDeciders(List.of()),
@@ -403,7 +405,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), shardsAllocator, TEST_ONLY_EXPLAINER) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -530,7 +532,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator, TEST_ONLY_EXPLAINER) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -634,7 +636,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator, TEST_ONLY_EXPLAINER) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -723,7 +725,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var clusterSettings = createBuiltInClusterSettings();
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator) {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, TEST_ONLY_EXPLAINER) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
@@ -792,7 +794,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
 
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            threadPool,
+            delegateAllocator,
+            TEST_ONLY_EXPLAINER
+        );
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
@@ -842,7 +849,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         final var resetCalled = new AtomicBoolean();
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            threadPool,
+            delegateAllocator,
+            TEST_ONLY_EXPLAINER
+        );
         var desiredBalanceAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
@@ -932,7 +944,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator, TEST_ONLY_EXPLAINER) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,

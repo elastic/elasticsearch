@@ -530,14 +530,14 @@ inference data that `semantic_text` typically hides using `fields`.
 ```console
 POST test-index/_search
 {
-    "query": {
-        "match": {
-            "my_semantic_field": "Which country is Paris in?"
-        },
-        "fields": [
-            "_inference_fields"
-          ]
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
     }
+  },
+  "fields": [
+    "_inference_fields"
+  ]
 }
 ```
 

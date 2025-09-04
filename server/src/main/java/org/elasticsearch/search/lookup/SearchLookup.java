@@ -102,6 +102,14 @@ public class SearchLookup implements SourceProvider {
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
 
+    private SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider) {
+        this.fieldChain = searchLookup.fieldChain;
+        this.sourceProvider = sourceProvider;
+        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
+        this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
+    }
+
     /**
      * Creates a copy of the current {@link SearchLookup} that looks fields up in the same way, but also tracks field references
      * in order to detect cycles and prevent resolving fields that depend on more than {@link #MAX_FIELD_CHAIN_DEPTH} other fields.
@@ -145,4 +153,8 @@ public class SearchLookup implements SourceProvider {
         return sourceProvider.getSource(ctx, doc);
     }
 
+    public SearchLookup optimizedSourceProvider(SourceFilter sourceFilter) {
+        SourceProvider copy = sourceProvider.optimizedSourceProvider(sourceFilter);
+        return new SearchLookup(this, copy);
+    }
 }

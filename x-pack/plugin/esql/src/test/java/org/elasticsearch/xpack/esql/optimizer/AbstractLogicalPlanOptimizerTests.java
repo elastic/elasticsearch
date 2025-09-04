@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
@@ -118,7 +119,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 new EsqlFunctionRegistry(),
                 getIndexResultTypes,
                 enrichResolution,
-                emptyInferenceResolution()
+                defaultInferenceResolution()
             ),
             TEST_VERIFIER
         );

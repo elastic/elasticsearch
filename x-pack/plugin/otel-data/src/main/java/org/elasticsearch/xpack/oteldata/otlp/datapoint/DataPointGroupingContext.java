@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
@@ -76,8 +77,7 @@ public class DataPointGroupingContext {
                             ignoredDataPointMessages.add("Histogram is not supported yet. Dropping " + metric.getName());
                             break;
                         case SUMMARY:
-                            ignoredDataPoints += metric.getSummary().getDataPointsList().size();
-                            ignoredDataPointMessages.add("Summary is not supported yet. Dropping " + metric.getName());
+                            scopeGroup.addDataPoints(metric, metric.getSummary().getDataPointsList(), DataPoint.Summary::new);
                             break;
                         default:
                             ignoredDataPoints++;
@@ -160,17 +160,36 @@ public class DataPointGroupingContext {
     }
 
     class ScopeGroup {
+        private static final String RECEIVER = "/receiver/";
+
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
+        @Nullable
+        private final String receiverName;
         // index -> timestamp -> dataPointGroupHash -> DataPointGroup
-        private final Map<String, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
+        private final Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
 
         ScopeGroup(ResourceGroup resourceGroup, InstrumentationScope scope, ByteString scopeSchemaUrl) {
             this.resourceGroup = resourceGroup;
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
+            this.receiverName = extractReceiverName(scope);
+        }
+
+        private @Nullable String extractReceiverName(InstrumentationScope scope) {
+            String scopeName = scope.getName();
+            int indexOfReceiver = scopeName.indexOf(RECEIVER);
+            if (indexOfReceiver >= 0) {
+                int beginIndex = indexOfReceiver + RECEIVER.length();
+                int endIndex = scopeName.indexOf('/', beginIndex);
+                if (endIndex < 0) {
+                    endIndex = scopeName.length();
+                }
+                return scopeName.substring(beginIndex, endIndex);
+            }
+            return null;
         }
 
         public <T> void addDataPoints(Metric metric, List<T> dataPoints, BiFunction<T, Metric, DataPoint> createDataPoint) {
@@ -186,7 +205,10 @@ public class DataPointGroupingContext {
                 ignoredDataPoints++;
                 return;
             }
-            getOrCreateDataPointGroup(dataPoint).addDataPoint(dataPoint);
+            DataPointGroup dataPointGroup = getOrCreateDataPointGroup(dataPoint);
+            if (dataPointGroup.addDataPoint(ignoredDataPointMessages, dataPoint) == false) {
+                ignoredDataPoints++;
+            }
         }
 
         private DataPointGroup getOrCreateDataPointGroup(DataPoint dataPoint) {
@@ -194,8 +216,13 @@ public class DataPointGroupingContext {
             Hash128 dataPointGroupHash = dataPointGroupTsidBuilder.hash();
             // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
             Hash128 timestamp = new Hash128(dataPoint.getTimestampUnixNano(), dataPoint.getStartTimestampUnixNano());
-            // TODO determine based on attributes and scope name
-            String targetIndex = "metrics-generic.otel-default";
+            TargetIndex targetIndex = TargetIndex.evaluate(
+                TargetIndex.TYPE_METRICS,
+                dataPoint.getAttributes(),
+                receiverName,
+                scope.getAttributesList(),
+                resourceGroup.resource.getAttributesList()
+            );
             var dataPointGroupsByTimestamp = dataPointGroupsByIndexAndTimestamp.computeIfAbsent(targetIndex, k -> new HashMap<>());
             var dataPointGroups = dataPointGroupsByTimestamp.computeIfAbsent(timestamp, k -> new HashMap<>());
             DataPointGroup dataPointGroup = dataPointGroups.get(dataPointGroupHash);
@@ -207,7 +234,6 @@ public class DataPointGroupingContext {
                     scopeSchemaUrl,
                     dataPoint.getAttributes(),
                     dataPoint.getUnit(),
-                    new ArrayList<>(),
                     targetIndex
                 );
                 dataPointGroups.put(dataPointGroupHash, dataPointGroup);
@@ -233,8 +259,9 @@ public class DataPointGroupingContext {
         private final ByteString scopeSchemaUrl;
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
-        private final List<DataPoint> dataPoints;
-        private final String targetIndex;
+        private final Set<String> metricNames = new HashSet<>();
+        private final List<DataPoint> dataPoints = new ArrayList<>();
+        private final TargetIndex targetIndex;
         private String metricNamesHash;
 
         public DataPointGroup(
@@ -244,8 +271,7 @@ public class DataPointGroupingContext {
             ByteString scopeSchemaUrl,
             List<KeyValue> dataPointAttributes,
             String unit,
-            List<DataPoint> dataPoints,
-            String targetIndex
+            TargetIndex targetIndex
         ) {
             this.resource = resource;
             this.resourceSchemaUrl = resourceSchemaUrl;
@@ -253,7 +279,6 @@ public class DataPointGroupingContext {
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.dataPointAttributes = dataPointAttributes;
             this.unit = unit;
-            this.dataPoints = dataPoints;
             this.targetIndex = targetIndex;
         }
 
@@ -276,9 +301,17 @@ public class DataPointGroupingContext {
             return metricNamesHash;
         }
 
-        public void addDataPoint(DataPoint dataPoint) {
+        public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
             metricNamesHash = null; // reset the hash when adding a new data point
-            dataPoints.add(dataPoint);
+            if (metricNames.add(dataPoint.getMetricName()) == false) {
+                ignoredDataPointMessages.add(
+                    "Duplicate metric name '" + dataPoint.getMetricName() + "' for timestamp " + getTimestampUnixNano()
+                );
+                return false;
+            } else {
+                dataPoints.add(dataPoint);
+                return true;
+            }
         }
 
         public Resource resource() {
@@ -309,7 +342,7 @@ public class DataPointGroupingContext {
             return dataPoints;
         }
 
-        public String targetIndex() {
+        public TargetIndex targetIndex() {
             return targetIndex;
         }
     }

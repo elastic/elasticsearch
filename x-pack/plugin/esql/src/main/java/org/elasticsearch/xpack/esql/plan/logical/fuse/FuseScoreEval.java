@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.logical.fuse;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
@@ -14,18 +14,20 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class RrfScoreEval extends UnaryPlan implements LicenseAware {
-    private final Attribute forkAttr;
+public class FuseScoreEval extends UnaryPlan implements LicenseAware {
+    private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
 
-    public RrfScoreEval(Source source, LogicalPlan child, Attribute scoreAttr, Attribute forkAttr) {
+    public FuseScoreEval(Source source, LogicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr) {
         super(source, child);
         this.scoreAttr = scoreAttr;
-        this.forkAttr = forkAttr;
+        this.discriminatorAttr = discriminatorAttr;
     }
 
     @Override
@@ -40,30 +42,30 @@ public class RrfScoreEval extends UnaryPlan implements LicenseAware {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, RrfScoreEval::new, child(), scoreAttr, forkAttr);
+        return NodeInfo.create(this, FuseScoreEval::new, child(), scoreAttr, discriminatorAttr);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return scoreAttr.resolved() && forkAttr.resolved();
+        return scoreAttr.resolved() && discriminatorAttr.resolved();
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new RrfScoreEval(source(), newChild, scoreAttr, forkAttr);
+        return new FuseScoreEval(source(), newChild, scoreAttr, discriminatorAttr);
     }
 
-    public Attribute scoreAttribute() {
+    public Attribute score() {
         return scoreAttr;
     }
 
-    public Attribute forkAttribute() {
-        return forkAttr;
+    public Attribute discriminator() {
+        return discriminatorAttr;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), scoreAttr, forkAttr);
+        return Objects.hash(super.hashCode(), scoreAttr, discriminatorAttr);
     }
 
     @Override
@@ -75,8 +77,8 @@ public class RrfScoreEval extends UnaryPlan implements LicenseAware {
             return false;
         }
 
-        RrfScoreEval rrf = (RrfScoreEval) obj;
-        return child().equals(rrf.child()) && scoreAttr.equals(rrf.scoreAttribute()) && forkAttr.equals(forkAttribute());
+        FuseScoreEval rrf = (FuseScoreEval) obj;
+        return child().equals(rrf.child()) && scoreAttr.equals(rrf.score()) && discriminatorAttr.equals(discriminator());
     }
 
     @Override

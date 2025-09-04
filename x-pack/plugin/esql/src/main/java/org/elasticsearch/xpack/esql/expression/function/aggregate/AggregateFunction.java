@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -174,9 +173,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            // `dedup` for now is not exposed as a command,
-            // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
-            if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
+            if ((p instanceof Aggregate) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));

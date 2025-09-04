@@ -80,7 +80,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, percentileTypedData),
-                    "Percentile[number=Attribute[channel=0],percentile=Attribute[channel=1]]",
+                    standardAggregatorName("Percentile", fieldSupplier.type()),
                     DataType.DOUBLE,
                     equalTo(expected)
                 );

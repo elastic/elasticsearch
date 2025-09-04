@@ -342,14 +342,14 @@ allprojects {
       resolveJavaToolChain = true
 
       // ensure we have best possible caching of bwc builds
-      dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major1:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major4:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor1:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor4:buildBwcLinuxTar"
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

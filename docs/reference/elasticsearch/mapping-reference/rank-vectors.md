@@ -90,7 +90,7 @@ The `rank_vectors` field type supports the following parameters:
 $$$rank-vectors-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
+:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
 
 ::::{dropdown} Valid values for element_type
 `float`

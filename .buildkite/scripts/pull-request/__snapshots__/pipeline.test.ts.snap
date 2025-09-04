@@ -12,7 +12,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -63,7 +63,7 @@ exports[`generatePipelines should generate correct pipelines with only docs chan
         {
           "agents": {
             "buildDirectory": "/dev/shm/bk",
-            "image": "family/elasticsearch-ubuntu-2004",
+            "image": "family/elasticsearch-ubuntu-2404",
             "machineType": "custom-32-98304",
             "provider": "gcp",
           },
@@ -89,7 +89,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -104,7 +104,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -119,7 +119,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -134,7 +134,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -149,7 +149,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -214,7 +214,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },
@@ -268,7 +268,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
             {
               "agents": {
                 "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2004",
+                "image": "family/elasticsearch-ubuntu-2404",
                 "machineType": "custom-32-98304",
                 "provider": "gcp",
               },

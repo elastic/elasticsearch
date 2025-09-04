@@ -11,8 +11,8 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -128,6 +129,11 @@ public enum IndexMode {
         @Override
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
+        }
+
+        @Override
+        public boolean useDefaultPostingsFormat() {
+            return true;
         }
     },
     TIME_SERIES("time_series") {
@@ -553,6 +559,13 @@ public enum IndexMode {
     }
 
     /**
+     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     */
+    public boolean useDefaultPostingsFormat() {
+        return false;
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
@@ -587,7 +600,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.INDEX_MODE_LOOKUP) ? 3 : 0;
+            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
         };
         out.writeByte((byte) code);
     }
@@ -603,14 +616,16 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalMetadata(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
-            Metadata metadata,
+            ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings
+            List<CompressedXContent> combinedTemplateMappings,
+            Settings.Builder additionalSettings,
+            BiConsumer<String, Map<String, String>> additionalCustomMetadata
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
@@ -620,9 +635,7 @@ public enum IndexMode {
                 }
             }
             if (indexMode == LOOKUP) {
-                return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-            } else {
-                return Settings.EMPTY;
+                additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
             }
         }
     }

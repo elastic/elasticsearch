@@ -60,7 +60,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
-            if (clusterState.metadata().hasIndex(index) == false) {
+            if (clusterState.metadata().getProject().hasIndex(index) == false) {
                 if (allowMissing == false) {
                     unavailableIndices.add(index);
                 }

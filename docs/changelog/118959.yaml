@@ -1,5 +1,0 @@
-pr: 118959
-summary: Allow kibana_system user to manage .reindexed-v8-internal.alerts indices
-area: Authorization
-type: enhancement
-issues: []

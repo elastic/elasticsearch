@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -193,7 +194,10 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             setState(
                 clusterService,
                 ClusterState.builder(clusterService.state())
-                    .blocks(ClusterBlocks.builder().removeIndexBlock(shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK))
+                    .blocks(
+                        ClusterBlocks.builder()
+                            .removeIndexBlock(Metadata.DEFAULT_PROJECT_ID, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
+                    )
             );
         }
 

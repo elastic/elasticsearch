@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
@@ -23,14 +25,19 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StXMinFromWKBGeoEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public StXMinFromWKBGeoEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMinFromWKBGeoEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator wkb;
+
+  public StXMinFromWKBGeoEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.wkb = wkb;
   }
 
   @Override
-  public String name() {
-    return "StXMinFromWKBGeo";
+  public EvalOperator.ExpressionEvaluator next() {
+    return wkb;
   }
 
   @Override
@@ -59,7 +66,7 @@ public final class StXMinFromWKBGeoEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StXMin.fromWellKnownBinaryGeo(value);
   }
@@ -99,29 +106,46 @@ public final class StXMinFromWKBGeoEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return StXMin.fromWellKnownBinaryGeo(value);
+  }
+
+  @Override
+  public String toString() {
+    return "StXMinFromWKBGeoEvaluator[" + "wkb=" + wkb + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(wkb);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += wkb.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory wkb;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
       this.source = source;
+      this.wkb = wkb;
     }
 
     @Override
     public StXMinFromWKBGeoEvaluator get(DriverContext context) {
-      return new StXMinFromWKBGeoEvaluator(field.get(context), source, context);
+      return new StXMinFromWKBGeoEvaluator(source, wkb.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMinFromWKBGeoEvaluator[field=" + field + "]";
+      return "StXMinFromWKBGeoEvaluator[" + "wkb=" + wkb + "]";
     }
   }
 }

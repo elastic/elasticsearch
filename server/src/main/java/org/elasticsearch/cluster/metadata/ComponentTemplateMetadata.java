@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -34,7 +33,7 @@ import java.util.Objects;
  * {@link ComponentTemplateMetadata} is a custom {@link Metadata} implementation for storing a map
  * of component templates and their names.
  */
-public class ComponentTemplateMetadata implements Metadata.Custom {
+public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "component_template";
     private static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
     @SuppressWarnings("unchecked")
@@ -69,11 +68,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ComponentTemplateMetadataDiff((ComponentTemplateMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ComponentTemplateMetadataDiff(in);
     }
 
@@ -89,7 +88,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -128,7 +127,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;
 
@@ -150,7 +149,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new ComponentTemplateMetadata(componentTemplateDiff.apply(((ComponentTemplateMetadata) part).componentTemplates));
         }
 
@@ -166,7 +165,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 }

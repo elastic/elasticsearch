@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 
@@ -16,7 +17,11 @@ public class IndexNameExpressionResolverAliasIterationTests extends IndexNameExp
 
     @Override
     protected IndexNameExpressionResolver createIndexNameExpressionResolver(ThreadContext threadContext) {
-        return new IndexNameExpressionResolver(threadContext, EmptySystemIndices.INSTANCE) {
+        return new IndexNameExpressionResolver(
+            threadContext,
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.usingRequestHeader(threadContext)
+        ) {
             @Override
             boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
                 return true;

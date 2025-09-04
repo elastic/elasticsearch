@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -193,23 +194,79 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         String dataStreamName = "reindex_test_data_stream";
         String dataStreamFromNonDataStreamIndices = "index_first_reindex_test_data_stream";
         int numRollovers = randomIntBetween(0, 5);
+        boolean hasILMPolicy = randomBoolean();
+        boolean ilmEnabled = hasILMPolicy && randomBoolean();
+
+        if (ilmEnabled) {
+            startILM();
+        } else {
+            stopILM();
+        }
+
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createAndRolloverDataStream(dataStreamName, numRollovers);
+            createAndRolloverDataStream(dataStreamName, numRollovers, hasILMPolicy, ilmEnabled);
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
-            upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0);
-            upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0);
+            String oldWriteIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
+            upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
+            cancelReindexTask(dataStreamName);
+            upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0, ilmEnabled);
+            cancelReindexTask(dataStreamFromNonDataStreamIndices);
             Map<String, Map<String, Object>> upgradedIndicesMetadata = getIndicesMetadata(dataStreamName);
-            compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
+            String newWriteIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
+
+            if (ilmEnabled) {
+                checkILMPhase(dataStreamName, newWriteIndex);
+                // Delete the data streams to avoid ILM continuously running cluster state tasks, see
+                // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
+                deleteDataStream(dataStreamName);
+            } else {
+                compareIndexMetadata(oldIndicesMetadata, oldWriteIndex, upgradedIndicesMetadata);
+            }
+        }
+    }
+
+    public void testMigrateDoesNotRestartOnUpgrade() throws Exception {
+        /*
+         * This test makes sure that if reindex is run and completed, then when the cluster is upgraded the task
+         * does not begin running again.
+         */
+        String dataStreamName = "reindex_test_data_stream_upgrade_test";
+        int numRollovers = randomIntBetween(0, 5);
+        boolean hasILMPolicy = randomBoolean();
+        boolean ilmEnabled = hasILMPolicy && randomBoolean();
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createAndRolloverDataStream(dataStreamName, numRollovers, hasILMPolicy, ilmEnabled);
+            upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            makeSureNoUpgrade(dataStreamName);
+            cancelReindexTask(dataStreamName);
+            // Delete the data streams to avoid ILM continuously running cluster state tasks, see
+            // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
+            deleteDataStream(dataStreamName);
+        } else {
+            makeSureNoUpgrade(dataStreamName);
+        }
+    }
+
+    private void cancelReindexTask(String dataStreamName) throws IOException {
+        Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
+        String upgradeUser = "upgrade_user";
+        String upgradeUserPassword = "x-pack-test-password";
+        createRole("upgrade_role", dataStreamName);
+        createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
+        try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
+            Response cancelResponse = upgradeUserClient.performRequest(cancelRequest);
+            assertOK(cancelResponse);
         }
     }
 
     private void compareIndexMetadata(
         Map<String, Map<String, Object>> oldIndicesMetadata,
+        String oldWriteIndex,
         Map<String, Map<String, Object>> upgradedIndicesMetadata
     ) {
-        String oldWriteIndex = getWriteIndexFromDataStreamIndexMetadata(oldIndicesMetadata);
         for (Map.Entry<String, Map<String, Object>> upgradedIndexEntry : upgradedIndicesMetadata.entrySet()) {
             String upgradedIndexName = upgradedIndexEntry.getKey();
             if (upgradedIndexName.startsWith(".migrated-")) {
@@ -217,7 +274,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> oldIndexMetadata = oldIndicesMetadata.get(oldIndexName);
                 Map<String, Object> upgradedIndexMetadata = upgradedIndexEntry.getValue();
                 compareSettings(oldIndexMetadata, upgradedIndexMetadata);
-                assertThat("Mappings did not match", upgradedIndexMetadata.get("mappings"), equalTo(oldIndexMetadata.get("mappings")));
+                compareMappings((Map<?, ?>) oldIndexMetadata.get("mappings"), (Map<?, ?>) upgradedIndexMetadata.get("mappings"));
                 assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
                 if (oldIndexName.equals(oldWriteIndex) == false) { // the old write index will have been rolled over by upgrade
                     assertThat(
@@ -231,13 +288,43 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private String getWriteIndexFromDataStreamIndexMetadata(Map<String, Map<String, Object>> indexMetadataForDataStream) {
-        return indexMetadataForDataStream.entrySet()
-            .stream()
-            .sorted((o1, o2) -> Long.compare(getCreationDate(o2.getValue()), getCreationDate(o1.getValue())))
-            .map(Map.Entry::getKey)
-            .findFirst()
-            .get();
+    @SuppressWarnings("unchecked")
+    private void checkILMPhase(String dataStreamName, String writeIndex) throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", dataStreamName + "/_ilm/explain");
+            Response response = client().performRequest(request);
+            Map<String, Object> responseMap = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                response.getEntity().getContent(),
+                false
+            );
+            Map<String, Object> indices = (Map<String, Object>) responseMap.get("indices");
+            for (var index : indices.keySet()) {
+                if (index.equals(writeIndex) == false) {
+                    Map<String, Object> ilmInfo = (Map<String, Object>) indices.get(index);
+                    assertThat("Index [" + index + "] has not moved to cold ILM phase, " + indices, ilmInfo.get("phase"), equalTo("cold"));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void startILM() throws IOException {
+        setILMInterval();
+        var request = new Request("POST", "/_ilm/start");
+        assertOK(client().performRequest(request));
+    }
+
+    private void stopILM() throws IOException {
+        var request = new Request("POST", "/_ilm/stop");
+        assertOK(client().performRequest(request));
+    }
+
+    private void setILMInterval() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            { "persistent": {"indices.lifecycle.poll_interval": "1s"} }
+            """);
+        assertOK(client().performRequest(request));
     }
 
     @SuppressWarnings("unchecked")
@@ -268,14 +355,29 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    private void compareMappings(Map<?, ?> oldMappings, Map<?, ?> upgradedMappings) {
+        boolean ignoreSource = Version.fromString(UPGRADE_FROM_VERSION).before(Version.V_9_0_0);
+        if (ignoreSource) {
+            Map<?, ?> doc = (Map<?, ?>) oldMappings.get("_doc");
+            if (doc != null) {
+                Map<?, ?> sourceEntry = (Map<?, ?>) doc.get("_source");
+                if (sourceEntry != null && sourceEntry.isEmpty()) {
+                    doc.remove("_source");
+                }
+                assert doc.containsKey("_source") == false;
+            }
+        }
+        assertThat("Mappings did not match", upgradedMappings, equalTo(oldMappings));
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> getIndexSettingsFromIndexMetadata(Map<String, Object> indexMetadata) {
         return (Map<String, Object>) ((Map<String, Object>) indexMetadata.get("settings")).get("index");
     }
 
-    private void createAndRolloverDataStream(String dataStreamName, int numRollovers) throws IOException {
-        boolean useIlm = randomBoolean();
-        if (useIlm) {
+    private void createAndRolloverDataStream(String dataStreamName, int numRollovers, boolean hasILMPolicy, boolean ilmEnabled)
+        throws IOException {
+        if (hasILMPolicy) {
             createIlmPolicy();
         }
         // We want to create a data stream and roll it over several times so that we have several indices to upgrade
@@ -284,7 +386,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "settings":{
                     "index": {
                         $ILM_SETTING
-                        "mode": "time_series"
+                        "mode": "standard"
                     }
                 },
                 $DSL_TEMPLATE
@@ -305,8 +407,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                             "type": "date"
                         },
                         "metricset": {
-                            "type": "keyword",
-                            "time_series_dimension": true
+                            "type": "keyword"
                         },
                         "k8s": {
                             "properties": {
@@ -333,7 +434,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             """;
-        if (useIlm) {
+        if (hasILMPolicy) {
             template = template.replace("$ILM_SETTING", """
                 "lifecycle.name": "test-lifecycle-policy",
                 """);
@@ -353,13 +454,16 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "data_stream": {
                 }
             }""";
-        var putIndexTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_template");
+        var putIndexTemplateRequest = new Request(
+            "POST",
+            "/_index_template/reindex_test_data_stream_template" + randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT)
+        );
         putIndexTemplateRequest.setJsonEntity(indexTemplate.replace("$TEMPLATE", template).replace("$PATTERN", dataStreamName));
         assertOK(client().performRequest(putIndexTemplateRequest));
         bulkLoadData(dataStreamName);
         for (int i = 0; i < numRollovers; i++) {
             String oldIndexName = rollover(dataStreamName);
-            if (randomBoolean()) {
+            if (ilmEnabled == false && randomBoolean()) {
                 closeIndex(oldIndexName);
             }
             bulkLoadData(dataStreamName);
@@ -371,21 +475,18 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "policy": {
                 "phases": {
-                  "hot": {
+                  "warm": {
+                    "min_age": "1s",
                     "actions": {
-                      "rollover": {
-                        "max_primary_shard_size": "50kb"
+                      "forcemerge": {
+                        "max_num_segments": 1
                       }
                     }
                   },
-                  "warm": {
-                    "min_age": "30d",
+                  "cold": {
                     "actions": {
-                      "shrink": {
-                        "number_of_shards": 1
-                      },
-                      "forcemerge": {
-                        "max_num_segments": 1
+                      "set_priority" : {
+                        "priority": 50
                       }
                     }
                   }
@@ -539,13 +640,18 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster, int expectedSuccessesCount, int expectedErrorCount)
-        throws Exception {
-        Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
+    private void upgradeDataStream(
+        String dataStreamName,
+        int numRolloversOnOldCluster,
+        int expectedSuccessesCount,
+        int expectedErrorCount,
+        boolean ilmEnabled
+    ) throws Exception {
+        List<String> indicesNeedingUpgrade = getDataStreamBackingIndexNames(dataStreamName);
         final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
         for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
             String oldIndexName = rollover(dataStreamName);
-            if (randomBoolean()) {
+            if (ilmEnabled == false && randomBoolean()) {
                 closeIndex(oldIndexName);
             }
         }
@@ -580,7 +686,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 assertOK(statusResponse);
                 assertThat(statusResponseString, statusResponseMap.get("complete"), equalTo(true));
                 final int originalWriteIndex = 1;
-                if (isOriginalClusterSameMajorVersionAsCurrent()) {
+                if (isOriginalClusterSameMajorVersionAsCurrent() || CLUSTER_TYPE == ClusterType.OLD) {
                     assertThat(
                         statusResponseString,
                         statusResponseMap.get("total_indices_in_data_stream"),
@@ -617,7 +723,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     }
                     assertThat(
                         statusResponseString,
-                        getDataStreamIndices(dataStreamName).size(),
+                        getDataStreamBackingIndexNames(dataStreamName).size(),
                         equalTo(expectedTotalIndicesInDataStream)
                     );
                     assertThat(statusResponseString, ((List<Object>) statusResponseMap.get("errors")).size(), equalTo(expectedErrorCount));
@@ -627,21 +733,36 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             // Verify it's possible to reindex again after a successful reindex
             reindexResponse = upgradeUserClient.performRequest(reindexRequest);
             assertOK(reindexResponse);
-
-            Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
-            Response cancelResponse = upgradeUserClient.performRequest(cancelRequest);
-            assertOK(cancelResponse);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private Set<String> getDataStreamIndices(String dataStreamName) throws IOException {
-        Response response = client().performRequest(new Request("GET", "_data_stream/" + dataStreamName));
-        Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
-        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
-        Map<String, Object> dataStream = dataStreams.get(0);
-        List<Map<String, Object>> indices = (List<Map<String, Object>>) dataStream.get("indices");
-        return indices.stream().map(index -> index.get("index_name").toString()).collect(Collectors.toSet());
+    private void makeSureNoUpgrade(String dataStreamName) throws Exception {
+        String upgradeUser = "upgrade_user";
+        String upgradeUserPassword = "x-pack-test-password";
+        createRole("upgrade_role", dataStreamName);
+        createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
+        try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
+            assertBusy(() -> {
+                try {
+                    Request statusRequest = new Request("GET", "_migration/reindex/" + dataStreamName + "/_status");
+                    Response statusResponse = upgradeUserClient.performRequest(statusRequest);
+                    Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        statusResponse.getEntity().getContent(),
+                        false
+                    );
+                    String statusResponseString = statusResponseMap.keySet()
+                        .stream()
+                        .map(key -> key + "=" + statusResponseMap.get(key))
+                        .collect(Collectors.joining(", ", "{", "}"));
+                    assertOK(statusResponse);
+                    assertThat(statusResponseString, statusResponseMap.get("complete"), equalTo(true));
+                    assertThat(statusResponseString, statusResponseMap.get("successes"), equalTo(0));
+                } catch (Exception e) {
+                    fail(e);
+                }
+            }, 60, TimeUnit.SECONDS);
+        }
     }
 
     /*
@@ -723,6 +844,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         Request request = new Request("PUT", "/_security/role/" + name);
         request.setJsonEntity("{ \"indices\": [ { \"names\" : [ \"" + dataStream + "\"], \"privileges\": [ \"manage\" ] } ] }");
         assertOK(adminClient().performRequest(request));
+    }
+
+    private void deleteDataStream(String name) throws IOException {
+        client().performRequest(new Request("DELETE", "_data_stream/" + name));
     }
 
     private RestClient getClient(String user, String passwd) throws IOException {

@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,6 +104,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
+        private final Path configDir;
         private Version version;
 
         public LocalNodeSpec(
@@ -124,7 +126,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> extraConfigFiles,
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
-            List<String> jvmArgs
+            List<String> jvmArgs,
+            Path configDir
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -145,6 +148,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
+            this.configDir = configDir;
         }
 
         void setVersion(Version version) {
@@ -203,8 +207,17 @@ public class LocalClusterSpec implements ClusterSpec {
             return jvmArgs;
         }
 
+        public Path getConfigDir() {
+            return configDir;
+        }
+
         public boolean isSecurityEnabled() {
-            return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
+            return Boolean.parseBoolean(
+                getSetting(
+                    "xpack.security.enabled",
+                    getVersion().equals(Version.fromString("0.0.0")) || getVersion().onOrAfter("8.0.0") ? "true" : "false"
+                )
+            );
         }
 
         public boolean isRemoteClusterServerEnabled() {
@@ -339,7 +352,8 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.extraConfigFiles,
                         n.systemPropertyProviders,
                         n.systemProperties,
-                        n.jvmArgs
+                        n.jvmArgs,
+                        n.configDir
                     )
                 )
                 .toList();

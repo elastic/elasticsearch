@@ -21,11 +21,11 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.index.mapper.vectors.SyntheticVectorsMapperTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
@@ -46,20 +46,24 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RankVectorsFieldMapperTests extends MapperTestCase {
+public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase {
 
     private final ElementType elementType;
     private final int dims;
 
     public RankVectorsFieldMapperTests() {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
-        this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int randomMultiplier = ElementType.FLOAT == elementType ? randomIntBetween(1, 64) : 1;
+        this.dims = baseDims * randomMultiplier;
     }
 
     @Override
@@ -88,7 +92,9 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     protected Object getSampleValueForDocument() {
         int numVectors = randomIntBetween(1, 16);
         return Stream.generate(
-            () -> elementType == ElementType.FLOAT ? List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1)
+            () -> elementType == ElementType.FLOAT
+                ? convertToList(randomNormalizedVector(this.dims))
+                : convertToList(randomByteArrayOfLength(elementType == ElementType.BIT ? this.dims / Byte.SIZE : dims))
         ).limit(numVectors).toList();
     }
 
@@ -376,26 +382,18 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             RankVectorsFieldMapper.RankVectorsFieldType denseVectorFieldType = (RankVectorsFieldMapper.RankVectorsFieldType) ft;
             switch (denseVectorFieldType.getElementType()) {
                 case BYTE -> assumeFalse("byte element type testing not currently added", false);
                 case FLOAT -> {
-                    List<float[]> fetchedFloatsList = new ArrayList<>();
-                    for (var f : fromNative) {
-                        float[] fetchedFloats = new float[denseVectorFieldType.getVectorDimensions()];
-                        assert f instanceof List;
-                        List<?> vector = (List<?>) f;
-                        int i = 0;
-                        for (Object v : vector) {
-                            assert v instanceof Number;
-                            fetchedFloats[i++] = ((Number) v).floatValue();
-                        }
-                        fetchedFloatsList.add(fetchedFloats);
+                    float[][] fetchedFloats = new float[fromNative.size()][];
+                    for (int i = 0; i < fromNative.size(); i++) {
+                        fetchedFloats[i] = (float[]) fromNative.get(i);
                     }
-                    float[][] fetchedFloats = fetchedFloatsList.toArray(new float[0][]);
                     assertThat("fetching " + value, fetchedFloats, equalTo(value));
                 }
             }

@@ -1,5 +1,0 @@
-pr: 121325
-summary: '`ReindexDataStreamIndex` bug in assertion caused by reference equality'
-area: Data streams
-type: bug
-issues: []

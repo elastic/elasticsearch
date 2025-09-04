@@ -319,7 +319,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
-        final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+        final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
 
         /*
          * We want to ensure that the background renewal is cancelled at the end of recovery. To do this, we will sleep a small multiple
@@ -351,7 +351,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         .setMetadata(true)
                         .setIndices(followerIndex)
                         .get();
-                    final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                    final String followerUUID = followerIndexClusterState.getState()
+                        .metadata()
+                        .getProject()
+                        .index(followerIndex)
+                        .getIndexUUID();
                     final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                     final String expectedRetentionLeaseId = retentionLeaseId(
                         getFollowerCluster().getClusterName(),
@@ -394,7 +398,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     .setMetadata(true)
                     .setIndices(followerIndex)
                     .get();
-                final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                final String followerUUID = followerIndexClusterState.getState()
+                    .metadata()
+                    .getProject()
+                    .index(followerIndex)
+                    .getIndexUUID();
                 final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 // we assert that retention leases are being renewed by an increase in the timestamp
@@ -580,7 +588,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 .setMetadata(true)
                 .setIndices(followerIndex)
                 .get();
-            final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+            final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index(followerIndex).getIndexUUID();
 
             final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
                 .cluster()
@@ -589,7 +597,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 .setMetadata(true)
                 .setIndices(leaderIndex)
                 .get();
-            final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+            final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
 
             assertThat(
                 e.getMetadata("es.failed_to_remove_retention_leases"),
@@ -743,7 +751,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
-        final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+        final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
         /*
          * We want to ensure that the background renewal is cancelled after pausing. To do this, we will sleep a small multiple of the renew
          * interval. If the renews are not cancelled, we expect that a renewal would have been sent while we were sleeping. After we wake
@@ -774,7 +782,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         .setMetadata(true)
                         .setIndices(followerIndex)
                         .get();
-                    final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                    final String followerUUID = followerIndexClusterState.getState()
+                        .metadata()
+                        .getProject()
+                        .index(followerIndex)
+                        .getIndexUUID();
                     final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                     final String expectedRetentionLeaseId = retentionLeaseId(
                         getFollowerCluster().getClusterName(),
@@ -817,7 +829,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     .setMetadata(true)
                     .setIndices(followerIndex)
                     .get();
-                final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                final String followerUUID = followerIndexClusterState.getState()
+                    .metadata()
+                    .getProject()
+                    .index(followerIndex)
+                    .getIndexUUID();
                 final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 // we assert that retention leases are not being renewed by an unchanged timestamp
@@ -1095,7 +1111,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .setMetadata(true)
             .setIndices(followerIndex)
             .get();
-        final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+        final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index(followerIndex).getIndexUUID();
 
         final BroadcastResponse forgetFollowerResponse = leaderClient().execute(
             ForgetFollowerAction.INSTANCE,
@@ -1207,7 +1223,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .setMetadata(true)
             .setIndices(followerIndex)
             .get();
-        final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+        final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index(followerIndex).getIndexUUID();
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
@@ -1216,7 +1232,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
-        final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+        final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
 
         return getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID);
     }

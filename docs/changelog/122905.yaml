@@ -1,6 +1,0 @@
-pr: 122905
-summary: Updating `TransportRolloverAction.checkBlock` so that non-write-index blocks
-  do not prevent data stream rollover
-area: Data streams
-type: bug
-issues: []

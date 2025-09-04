@@ -95,8 +95,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                 Map<String, List<Object>> loadedFields = hitContext.loadedFields();
                 for (StoredField storedField : storedFields) {
                     if (storedField.hasValue(loadedFields)) {
-                        hitContext.hit()
-                            .setDocumentField(storedField.name, new DocumentField(storedField.name, storedField.process(loadedFields)));
+                        hitContext.hit().setDocumentField(new DocumentField(storedField.name, storedField.process(loadedFields)));
                     }
                 }
             }

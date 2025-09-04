@@ -28,7 +28,7 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
             }
 
             @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
+            public TransformState transform(ValidRequest source, TransformState prevState) throws Exception {
                 return prevState;
             }
 

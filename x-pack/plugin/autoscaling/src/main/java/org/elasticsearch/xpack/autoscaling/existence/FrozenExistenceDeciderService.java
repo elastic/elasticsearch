@@ -47,6 +47,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
         List<String> indicesNeedingFrozen = context.state()
             .metadata()
+            .getProject()
             .stream()
             .filter(FrozenExistenceDeciderService::isFrozenPhase)
             .map(imd -> imd.getIndex().getName())

@@ -1,6 +1,0 @@
-pr: 118177
-summary: Fixing bedrock event executor terminated cache issue
-area: Machine Learning
-type: bug
-issues:
- - 117916

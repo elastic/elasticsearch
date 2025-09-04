@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -37,9 +38,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -53,7 +56,11 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     public void testInitializingOrRelocatingShardExplanation() throws Exception {
         ShardRoutingState shardRoutingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), shardRoutingState);
-        ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
+
+        assertThat(clusterState.metadata().projects(), aMapWithSize(1));
+        final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
+
+        ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
             clusterState,
@@ -135,13 +142,14 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         // find unassigned primary
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.UNASSIGNED);
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
-        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState));
+        Set<ProjectId> projectIds = clusterState.metadata().projects().keySet();
+        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).primaryShard(), shard);
 
         // find unassigned replica
         clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED);
         request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
-        shard = findShardToExplain(request, routingAllocation(clusterState));
+        shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0), shard);
 
         // prefer unassigned primary to replica
@@ -170,7 +178,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         }
         clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
         request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
-        shard = findShardToExplain(request, routingAllocation(clusterState));
+        shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
         assertEquals(clusterState.getRoutingTable().index(redIndex).shard(0).primaryShard(), shard);
 
         // no unassigned shard to explain
@@ -184,22 +192,22 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState))
+                () -> findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState), projectIds)
             ).getMessage(),
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that it contains these bits:
-                containsString("No shard was specified in the request"),
-                containsString("specify the target shard in the request"),
-                containsString("https://www.elastic.co/guide/en/elasticsearch/reference"),
-                containsString("cluster-allocation-explain.html")
+                containsString("There are no unassigned shards in this cluster."),
+                containsString("Specify an assigned shard in the request body"),
+                containsString("https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain")
             )
         );
     }
 
     public void testFindPrimaryShardToExplain() {
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), randomFrom(ShardRoutingState.values()));
+        Set<ProjectId> projectIds = clusterState.metadata().projects().keySet();
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, true, null);
-        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState));
+        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).primaryShard(), shard);
     }
 
@@ -212,8 +220,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             ShardRoutingState.STARTED,
             ShardRoutingState.UNASSIGNED
         );
+        Set<ProjectId> projectIds = clusterState.metadata().projects().keySet();
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, false, null);
-        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState));
+        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
         assertEquals(
             clusterState.getRoutingTable()
                 .index("idx")
@@ -235,7 +244,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             ShardRoutingState.STARTED
         );
         request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, false, null);
-        shard = findShardToExplain(request, routingAllocation(clusterState));
+        shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
         assertEquals(
             clusterState.getRoutingTable().index("idx").shard(0).replicaShards().stream().filter(ShardRouting::started).findFirst().get(),
             shard
@@ -250,9 +259,11 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             replicaStates = new ShardRoutingState[] { ShardRoutingState.STARTED };
         }
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED, replicaStates);
+        assertThat(clusterState.metadata().projects(), aMapWithSize(1));
+        final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
         ShardRouting shardToExplain = primary
-            ? clusterState.getRoutingTable().index("idx").shard(0).primaryShard()
-            : clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0);
+            ? clusterState.routingTable(projectId).index("idx").shard(0).primaryShard()
+            : clusterState.routingTable(projectId).index("idx").shard(0).replicaShards().get(0);
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(
             TEST_REQUEST_TIMEOUT,
             "idx",
@@ -261,7 +272,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             shardToExplain.currentNodeId()
         );
         RoutingAllocation allocation = routingAllocation(clusterState);
-        ShardRouting foundShard = findShardToExplain(request, allocation);
+        ShardRouting foundShard = findShardToExplain(request, allocation, Set.of(projectId));
         assertEquals(shardToExplain, foundShard);
 
         // shard is not assigned to given node
@@ -279,7 +290,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             primary,
             explainNode
         );
-        expectThrows(IllegalArgumentException.class, () -> findShardToExplain(failingRequest, allocation));
+        expectThrows(IllegalArgumentException.class, () -> findShardToExplain(failingRequest, allocation, Set.of(projectId)));
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {

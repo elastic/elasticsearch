@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -35,7 +34,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.Custom {
+public class AutoscalingMetadata implements Metadata.ClusterCustom {
 
     public static final String NAME = "autoscaling";
 
@@ -103,7 +102,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
+    public Diff<Metadata.ClusterCustom> diff(final Metadata.ClusterCustom previousState) {
         return new AutoscalingMetadataDiff((AutoscalingMetadata) previousState, this);
     }
 
@@ -114,7 +113,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -135,7 +134,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
         return Objects.hash(policies);
     }
 
-    public static class AutoscalingMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class AutoscalingMetadataDiff implements NamedDiff<Metadata.ClusterCustom> {
 
         final Diff<Map<String, AutoscalingPolicyMetadata>> policies;
 
@@ -153,7 +152,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(final Metadata.Custom part) {
+        public Metadata.ClusterCustom apply(final Metadata.ClusterCustom part) {
             return new AutoscalingMetadata(new TreeMap<>(policies.apply(((AutoscalingMetadata) part).policies)));
         }
 
@@ -173,7 +172,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 }

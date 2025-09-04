@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -184,14 +185,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert names == null || names.stream().noneMatch(reservedRoleNameChecker::isReserved)
             : "native roles store should not be called with reserved role names";
 
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onResponse(RoleRetrievalResult.failure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
         } else if (names == null || names.isEmpty()) {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.boolQuery()
                     .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                     .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true));
@@ -221,7 +222,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else if (names.size() == 1) {
             getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
                 MultiGetRequest multiGetRequest = client.prepareMultiGet().addIds(SECURITY_MAIN_ALIAS, roleIds).request();
                 executeAsyncWithOrigin(
@@ -256,13 +257,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public boolean isMetadataSearchable() {
-        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         // the metadata is searchable if:
         // * the security index has been created anew (using the latest index version),
         // i.e. it is NOT created in a previous ES version that potentially didn't index the role metadata
         // * or, the .security index has been migrated (using an internal update-by-query) such that the metadata is queryable
-        return frozenSecurityIndex.isCreatedOnLatestVersion()
-            || securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+        return projectSecurityIndex.isCreatedOnLatestVersion()
+            || projectSecurityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
     }
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
@@ -271,14 +272,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
-        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(QueryRoleResult.EMPTY);
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
@@ -313,13 +314,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = createRoleDeleteRequest(deleteRoleRequest.name());
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(
@@ -386,14 +387,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(new BulkRolesResponse(List.of()));
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
@@ -459,10 +460,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void executeAsyncRolesBulkRequest(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        securityIndex.checkIndexVersionThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
-        );
+        securityIndex.forCurrentProject()
+            .checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
+            );
     }
 
     private Exception validateRoleDescriptor(RoleDescriptor role) {
@@ -528,29 +530,30 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         try {
             IndexRequest indexRequest = createRoleIndexRequest(role);
             indexRequest.setRefreshPolicy(refreshPolicy);
-            securityIndex.prepareIndexIfNeededThenExecute(
-                listener::onFailure,
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    indexRequest,
-                    new ActionListener<DocWriteResponse>() {
-                        @Override
-                        public void onResponse(DocWriteResponse indexResponse) {
-                            final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                            logger.trace("Created role: [{}]", indexRequest);
-                            clearRoleCache(role.getName(), listener, created);
-                        }
+            securityIndex.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    listener::onFailure,
+                    () -> executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        SECURITY_ORIGIN,
+                        indexRequest,
+                        new ActionListener<DocWriteResponse>() {
+                            @Override
+                            public void onResponse(DocWriteResponse indexResponse) {
+                                final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                logger.trace("Created role: [{}]", indexRequest);
+                                clearRoleCache(role.getName(), listener, created);
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error(() -> "failed to put role [" + role.getName() + "]", e);
-                            listener.onFailure(e);
-                        }
-                    },
-                    client::index
-                )
-            );
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error(() -> "failed to put role [" + role.getName() + "]", e);
+                                listener.onFailure(e);
+                            }
+                        },
+                        client::index
+                    )
+                );
         } catch (IOException exception) {
             listener.onFailure(exception);
         }
@@ -603,27 +606,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                bulkRequest,
-                new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse bulkResponse) {
-                        bulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
-                    }
+        securityIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    bulkRequest,
+                    new ActionListener<BulkResponse>() {
+                        @Override
+                        public void onResponse(BulkResponse bulkResponse) {
+                            bulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put roles", e);
-                        listener.onFailure(e);
-                    }
-                },
-                client::bulk
-            )
-        );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(() -> "failed to put roles", e);
+                            listener.onFailure(e);
+                        }
+                    },
+                    client::bulk
+                )
+            );
     }
 
     private IndexRequest createRoleIndexRequest(final RoleDescriptor role) throws IOException {
@@ -678,13 +682,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
-        if (securityIndex.isAvailable(SEARCH_SHARDS) == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
@@ -798,14 +803,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS)));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            resultListener.onResponse(RoleRetrievalResult.failure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS)));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 e -> resultListener.onResponse(RoleRetrievalResult.failure(e)),
                 () -> executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                     @Override
@@ -826,16 +831,17 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityIndex.checkIndexVersionThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareGet(SECURITY_MAIN_ALIAS, getIdForRole(role)).request(),
-                listener,
-                client::get
-            )
-        );
+        securityIndex.forCurrentProject()
+            .checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForRole(role)).request(),
+                    listener,
+                    client::get
+                )
+            );
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {

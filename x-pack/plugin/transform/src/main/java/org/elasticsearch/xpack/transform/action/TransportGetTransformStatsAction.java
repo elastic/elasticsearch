@@ -205,7 +205,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 );
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata()
+                        .getProject()
+                        .custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
                         response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, clusterState));
@@ -273,6 +275,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         } else if (derivedState.equals(TransformStats.State.STARTED) && transformTask.getContext().isWaitingForIndexToUnblock()) {
             derivedState = TransformStats.State.WAITING;
             reason = Strings.isNullOrEmpty(reason) ? "transform is paused while destination index is blocked" : reason;
+        } else if (derivedState.equals(TransformStats.State.STOPPING) && transformTask.isRetryingStartup()) {
+            derivedState = TransformStats.State.STARTED;
         }
         return new TransformStats(
             transformTask.getTransformId(),

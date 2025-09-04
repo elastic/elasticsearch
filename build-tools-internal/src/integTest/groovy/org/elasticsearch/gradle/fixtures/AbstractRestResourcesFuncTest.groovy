@@ -13,6 +13,27 @@ package org.elasticsearch.gradle.fixtures;
 abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
+        settingsFile.text = """
+        plugins {
+            id 'elasticsearch.java-toolchain'
+        }
+
+        toolchainManagement {
+          jvm {
+            javaRepositories {
+              repository('bundledOracleOpendJdk') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+              }
+              repository('adoptiumJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+              }
+              repository('archivedOracleJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+              }
+            }
+          }
+        }
+        """ + settingsFile.text
         subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:test-clusters") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:yaml-rest-runner") << "apply plugin: 'elasticsearch.java'"
@@ -32,8 +53,10 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        subProject(":distribution:archives:integ-test-zip") << "configurations.create('extracted')\n"
-        subProject(":distribution:archives:integ-test-zip") << "configurations.create('default')\n"
+        subProject(":distribution:archives:integ-test-zip") << """
+apply plugin: 'base'
+configurations.create('extracted')
+"""
     }
 
     void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {

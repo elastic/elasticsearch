@@ -16,7 +16,10 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -61,7 +64,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         ordering.recordAllocation("node-1");
 
         var iterator = OrderedShardsIterator.createForNecessaryMoves(
-            createRoutingAllocation(nodes, Metadata.EMPTY_METADATA, routing),
+            createRoutingAllocation(nodes, createMetadata(routing), routing),
             ordering
         );
 
@@ -96,7 +99,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         ordering.recordAllocation("node-2");
 
         var iterator = OrderedShardsIterator.createForNecessaryMoves(
-            createRoutingAllocation(nodes, Metadata.EMPTY_METADATA, routing),
+            createRoutingAllocation(nodes, createMetadata(routing), routing),
             ordering
         );
 
@@ -165,7 +168,89 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         );
     }
 
+    public void testShouldOrderShardByPriorityAcrossMultipleProjects() {
+
+        var nodes = DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build();
+
+        IndexMetadata lookup = IndexMetadata.builder("lookup")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .build();
+        IndexMetadata ds1 = IndexMetadata.builder(".ds-data-stream-2024.04.18-000001")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .build();
+        IndexMetadata ds2 = IndexMetadata.builder(".ds-data-stream-2024.04.18-000002")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .build();
+
+        // "lookup" index in project 1, data streams in project 2
+        var metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(randomUniqueProjectId()).put(lookup, false))
+            .put(
+                ProjectMetadata.builder(randomUniqueProjectId())
+                    .put(ds1, false)
+                    .put(ds2, false)
+                    .put(DataStream.builder("data-stream", List.of(ds1.getIndex(), ds2.getIndex())).build())
+            )
+            .build();
+
+        var routing = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            (builder, index) -> builder.add(index(index.getIndex(), "node-1"))
+        );
+
+        // when performing necessary moves (such as preparation for the node shutdown) write shards should be moved first
+        assertThat(
+            next(
+                3,
+                OrderedShardsIterator.createForNecessaryMoves(
+                    createRoutingAllocation(nodes, metadata, routing),
+                    new NodeAllocationOrdering()
+                )
+            ),
+            contains(
+                isIndexShardAt(".ds-data-stream-2024.04.18-000002", "node-1"),
+                isIndexShardAt("lookup", "node-1"),
+                isIndexShardAt(".ds-data-stream-2024.04.18-000001", "node-1")
+            )
+        );
+
+        // when performing rebalancing write shards should be moved last
+        assertThat(
+            next(
+                3,
+                OrderedShardsIterator.createForBalancing(createRoutingAllocation(nodes, metadata, routing), new NodeAllocationOrdering())
+            ),
+            contains(
+                isIndexShardAt(".ds-data-stream-2024.04.18-000001", "node-1"),
+                isIndexShardAt("lookup", "node-1"),
+                isIndexShardAt(".ds-data-stream-2024.04.18-000002", "node-1")
+            )
+        );
+    }
+
+    private Metadata createMetadata(RoutingTable routingTable) {
+        final ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        for (var idxRoutingTable : routingTable) {
+            final String indexName = idxRoutingTable.getIndex().getName();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(indexSettings(IndexVersion.current(), 1, 1))
+                .build();
+            project.put(indexMetadata, false);
+        }
+        return Metadata.builder().put(project).build();
+    }
+
     private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0
+        );
+    }
+
+    private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, GlobalRoutingTable routing) {
         return new RoutingAllocation(
             new AllocationDeciders(List.of()),
             ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),

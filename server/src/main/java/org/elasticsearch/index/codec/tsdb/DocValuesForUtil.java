@@ -16,7 +16,7 @@ import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 
-public class DocValuesForUtil {
+public final class DocValuesForUtil {
     private static final int BITS_IN_FOUR_BYTES = 4 * Byte.SIZE;
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;

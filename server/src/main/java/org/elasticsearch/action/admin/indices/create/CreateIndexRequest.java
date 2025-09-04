@@ -105,9 +105,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            origin = in.readString();
-        }
+        origin = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
         } else {
@@ -410,22 +408,29 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
-                if (entry.getValue() instanceof Map == false) {
-                    throw new ElasticsearchParseException("key [settings] must be an object");
-                }
+                validateIsMap(SETTINGS.getPreferredName(), entry.getValue());
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
+                validateIsMap(MAPPINGS.getPreferredName(), entry.getValue());
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                    validateIsMap(entry1.getKey(), entry1.getValue());
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (ALIASES.match(name, deprecationHandler)) {
+                validateIsMap(ALIASES.getPreferredName(), entry.getValue());
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         return this;
+    }
+
+    static void validateIsMap(String key, Object value) {
+        if (value instanceof Map == false) {
+            throw new ElasticsearchParseException("key [{}] must be an object", key);
+        }
     }
 
     public String mappings() {
@@ -518,9 +523,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeString(origin);
-        }
+        out.writeString(origin);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(this.requireDataStream);
         }

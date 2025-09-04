@@ -55,6 +55,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestCase {
@@ -287,7 +290,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        return mockContext(allowExpensiveQueries, mappedFieldType, SourceProvider.fromStoredFields());
+        return mockContext(
+            allowExpensiveQueries,
+            mappedFieldType,
+            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+        );
     }
 
     protected static SearchExecutionContext mockContext(
@@ -416,13 +423,52 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType)
+    public final void testIsParsedFromSource() throws IOException {
+        XContentBuilder mapping = runtimeMapping(b -> {
+            b.startObject("field")
+                .field("type", typeName())
+                .startObject("script")
+                .field("source", "dummy_source")
+                .field("lang", "test")
+                .endObject()
+                .endObject()
+                .startObject("field_source")
+                .field("type", typeName())
+                .startObject("script")
+                .field("source", "deterministic_source")
+                .field("lang", "test")
+                .endObject()
+                .endObject();
+        });
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext c = createSearchExecutionContext(mapperService);
+        {
+            // The field_source uses parseFromSource(...) in compileScript(...) method in this class.
+            // This triggers calling SearchLookup#optimizedSourceProvider(...) which should return more optimized source.
+            var fieldType = (AbstractScriptFieldType) c.getFieldType("field_source");
+            SearchLookup searchLookup = mock(SearchLookup.class);
+            when(searchLookup.optimizedSourceProvider(any())).thenReturn(searchLookup);
+            var result = fieldType.leafFactory(searchLookup);
+            assertNotNull(result);
+            verify(searchLookup, times(1)).optimizedSourceProvider(any());
+        }
+        {
+            // The field uses normal scripts and that should never cause SearchLookup#optimizedSourceProvider(...) to be invoked:
+            var fieldType = (AbstractScriptFieldType) c.getFieldType("field");
+            SearchLookup searchLookup = mock(SearchLookup.class);
+            when(searchLookup.optimizedSourceProvider(any())).thenReturn(searchLookup);
+            var result = fieldType.leafFactory(searchLookup);
+            assertNotNull(result);
+            verify(searchLookup, never()).optimizedSourceProvider(any());
+        }
+    }
+
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
         throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
-                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx));
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }
@@ -436,7 +482,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
-            BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), ctx.reader().numDocs());
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
             for (int i = 0; i < ctx.reader().numDocs(); i++) {
                 blockReader.read(i, null, builder);
             }

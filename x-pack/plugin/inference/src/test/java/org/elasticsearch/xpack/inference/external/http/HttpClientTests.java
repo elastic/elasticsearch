@@ -41,11 +41,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +65,7 @@ public class HttpClientTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -174,7 +173,7 @@ public class HttpClientTests extends ESTestCase {
         try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
             client.start();
 
-            PlainActionFuture<Flow.Publisher<HttpResult>> listener = new PlainActionFuture<>();
+            PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
             client.stream(httpPost, HttpClientContext.create(), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -196,7 +195,7 @@ public class HttpClientTests extends ESTestCase {
         try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
             client.start();
 
-            PlainActionFuture<Flow.Publisher<HttpResult>> listener = new PlainActionFuture<>();
+            PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
             client.stream(httpPost, HttpClientContext.create(), listener);
 
             var thrownException = expectThrows(CancellationException.class, () -> listener.actionGet(TIMEOUT));

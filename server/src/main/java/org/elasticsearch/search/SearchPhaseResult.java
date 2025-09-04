@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -37,13 +36,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
 
-    protected SearchPhaseResult() {
-
-    }
-
-    protected SearchPhaseResult(StreamInput in) throws IOException {
-        super(in);
-    }
+    protected SearchPhaseResult() {}
 
     /**
      * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that
@@ -60,6 +53,15 @@ public abstract class SearchPhaseResult extends TransportResponse {
     @Nullable
     public ShardSearchContextId getContextId() {
         return contextId;
+    }
+
+    /**
+     * Null out the context id and request tracked in this instance. This is used to mark shards for which merging results on the data node
+     * made it clear that their search context won't be used in the fetch phase.
+     */
+    public void clearContextId() {
+        this.shardSearchRequest = null;
+        this.contextId = null;
     }
 
     /**

@@ -1,5 +1,0 @@
-pr: 118410
-summary: Push down filter passed lookup join
-area: ES|QL
-type: enhancement
-issues: []

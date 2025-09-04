@@ -7,20 +7,23 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -28,6 +31,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -37,10 +41,10 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
-import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceUnifiedCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -49,37 +53,34 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -89,52 +90,97 @@ public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
+    public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
+    // The maximum batch size for sparse text embeddings is set to 16.
+    // This value was reduced from 512 due to memory constraints; batch sizes above 32 can cause GPU out-of-memory errors.
+    // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
+    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
-    private static final Logger logger = LogManager.getLogger(ElasticInferenceService.class);
-    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
+    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.CHAT_COMPLETION,
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING
+    );
     private static final String SERVICE_NAME = "Elastic";
+
+    // TODO: revisit this value once EIS supports dense models
+    // The maximum batch size for dense text embeddings is proactively set to 16.
+    // This mirrors the memory constraints observed with sparse embeddings
+    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
-    // elser-v2
-    static final String DEFAULT_ELSER_MODEL_ID_V2 = "elser-v2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId(DEFAULT_ELSER_MODEL_ID_V2);
+    // elser-2
+    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
+    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
+
+    // multilingual-text-embed
+    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
+    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+
+    // rerank-v1
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
+    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
-    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING
+    );
 
-    private static String defaultEndpointId(String modelId) {
+    public static String defaultEndpointId(String modelId) {
         return Strings.format(".%s-elastic", modelId);
     }
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
-    private Configuration configuration;
-    private final AtomicReference<AuthorizedContent> authRef = new AtomicReference<>(AuthorizedContent.empty());
-    private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
-    private final CountDownLatch authorizationCompletedLatch = new CountDownLatch(1);
-    // model ids to model information, used for the default config methods to return the list of models and default
-    // configs
-    private final Map<String, DefaultModelConfig> defaultModelsConfigs;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorizationHandler authorizationHandler
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
-        this.modelRegistry = Objects.requireNonNull(modelRegistry);
-        this.authorizationHandler = Objects.requireNonNull(authorizationHandler);
+        this(
+            factory,
+            serviceComponents,
+            elasticInferenceServiceSettings,
+            modelRegistry,
+            authorizationRequestHandler,
+            context.clusterService()
+        );
+    }
 
-        configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
-        defaultModelsConfigs = initDefaultEndpoints(elasticInferenceServiceComponents);
+    public ElasticInferenceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        ModelRegistry modelRegistry,
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        ClusterService clusterService
+    ) {
+        super(factory, serviceComponents, clusterService);
+        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
+            elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
+        );
+        authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+            serviceComponents,
+            modelRegistry,
+            authorizationRequestHandler,
+            initDefaultEndpoints(elasticInferenceServiceComponents),
+            IMPLEMENTED_TASK_TYPES,
+            this,
+            getSender(),
+            elasticInferenceServiceSettings
+        );
     }
 
     private static Map<String, DefaultModelConfig> initDefaultEndpoints(
@@ -147,192 +193,108 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     NAME,
-                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1, null),
+                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.chatCompletion()
+                MinimalServiceSettings.chatCompletion(NAME)
             ),
-            DEFAULT_ELSER_MODEL_ID_V2,
+            DEFAULT_ELSER_2_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_MODEL_ID_V2, null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                MinimalServiceSettings.sparseEmbedding(NAME)
+            ),
+            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                    DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
+                    TaskType.TEXT_EMBEDDING,
+                    NAME,
+                    new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                        DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+                        defaultDenseTextEmbeddingsSimilarity(),
+                        null,
+                        null
+                    ),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                MinimalServiceSettings.textEmbedding(
+                    NAME,
+                    DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                    defaultDenseTextEmbeddingsSimilarity(),
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            ),
+            DEFAULT_RERANK_MODEL_ID_V1,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceRerankModel(
+                    DEFAULT_RERANK_ENDPOINT_ID_V1,
+                    TaskType.RERANK,
+                    NAME,
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.sparseEmbedding()
+                MinimalServiceSettings.rerank(NAME)
             )
         );
     }
 
-    private record DefaultModelConfig(Model model, MinimalServiceSettings settings) {}
-
-    private record AuthorizedContent(
-        ElasticInferenceServiceAuthorization taskTypesAndModels,
-        List<DefaultConfigId> configIds,
-        List<DefaultModelConfig> defaultModelConfigs
-    ) {
-        static AuthorizedContent empty() {
-            return new AuthorizedContent(ElasticInferenceServiceAuthorization.newDisabledService(), List.of(), List.of());
-        }
-    }
-
-    private void getAuthorization() {
-        try {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(this::setAuthorizedContent, e -> {
-                // we don't need to do anything if there was a failure, everything is disabled by default
-                authorizationCompletedLatch.countDown();
-            });
-
-            authorizationHandler.getAuthorization(listener, getSender());
-        } catch (Exception e) {
-            // we don't need to do anything if there was a failure, everything is disabled by default
-            authorizationCompletedLatch.countDown();
-        }
-    }
-
-    private synchronized void setAuthorizedContent(ElasticInferenceServiceAuthorization auth) {
-        var authorizedTaskTypesAndModels = auth.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
-
-        // recalculate which default config ids and models are authorized now
-        var authorizedDefaultModelIds = getAuthorizedDefaultModelIds(auth);
-
-        var authorizedDefaultConfigIds = getAuthorizedDefaultConfigIds(authorizedDefaultModelIds, auth);
-        var authorizedDefaultModelObjects = getAuthorizedDefaultModelsObjects(authorizedDefaultModelIds);
-        authRef.set(new AuthorizedContent(authorizedTaskTypesAndModels, authorizedDefaultConfigIds, authorizedDefaultModelObjects));
-
-        configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
-
-        defaultConfigIds().forEach(modelRegistry::putDefaultIdIfAbsent);
-        handleRevokedDefaultConfigs(authorizedDefaultModelIds);
-    }
-
-    private Set<String> getAuthorizedDefaultModelIds(ElasticInferenceServiceAuthorization auth) {
-        var authorizedModels = auth.getAuthorizedModelIds();
-        var authorizedDefaultModelIds = new TreeSet<>(defaultModelsConfigs.keySet());
-        authorizedDefaultModelIds.retainAll(authorizedModels);
-
-        return authorizedDefaultModelIds;
-    }
-
-    private List<DefaultConfigId> getAuthorizedDefaultConfigIds(
-        Set<String> authorizedDefaultModelIds,
-        ElasticInferenceServiceAuthorization auth
-    ) {
-        var authorizedConfigIds = new ArrayList<DefaultConfigId>();
-        for (var id : authorizedDefaultModelIds) {
-            var modelConfig = defaultModelsConfigs.get(id);
-            if (modelConfig != null) {
-                if (auth.getAuthorizedTaskTypes().contains(modelConfig.model.getTaskType()) == false) {
-                    logger.warn(
-                        Strings.format(
-                            "The authorization response included the default model: %s, "
-                                + "but did not authorize the assumed task type of the model: %s. Enabling model.",
-                            id,
-                            modelConfig.model.getTaskType()
-                        )
-                    );
-                }
-                authorizedConfigIds.add(new DefaultConfigId(modelConfig.model.getInferenceEntityId(), modelConfig.settings(), this));
-            }
-        }
-
-        authorizedConfigIds.sort(Comparator.comparing(DefaultConfigId::inferenceId));
-        return authorizedConfigIds;
-    }
-
-    private List<DefaultModelConfig> getAuthorizedDefaultModelsObjects(Set<String> authorizedDefaultModelIds) {
-        var authorizedModels = new ArrayList<DefaultModelConfig>();
-        for (var id : authorizedDefaultModelIds) {
-            var modelConfig = defaultModelsConfigs.get(id);
-            if (modelConfig != null) {
-                authorizedModels.add(modelConfig);
-            }
-        }
-
-        authorizedModels.sort(Comparator.comparing(modelConfig -> modelConfig.model.getInferenceEntityId()));
-        return authorizedModels;
-    }
-
-    private void handleRevokedDefaultConfigs(Set<String> authorizedDefaultModelIds) {
-        // if a model was initially returned in the authorization response but is absent, then we'll assume authorization was revoked
-        var unauthorizedDefaultModelIds = new HashSet<>(defaultModelsConfigs.keySet());
-        unauthorizedDefaultModelIds.removeAll(authorizedDefaultModelIds);
-
-        // get all the default inference endpoint ids for the unauthorized model ids
-        var unauthorizedDefaultInferenceEndpointIds = unauthorizedDefaultModelIds.stream()
-            .map(defaultModelsConfigs::get) // get all the model configs
-            .filter(Objects::nonNull) // limit to only non-null
-            .map(modelConfig -> modelConfig.model.getInferenceEntityId()) // get the inference ids
-            .collect(Collectors.toSet());
-
-        var deleteInferenceEndpointsListener = ActionListener.<Boolean>wrap(result -> {
-            logger.trace(Strings.format("Successfully revoked access to default inference endpoint IDs: %s", unauthorizedDefaultModelIds));
-            authorizationCompletedLatch.countDown();
-        }, e -> {
-            logger.warn(
-                Strings.format("Failed to revoke access to default inference endpoint IDs: %s, error: %s", unauthorizedDefaultModelIds, e)
-            );
-            authorizationCompletedLatch.countDown();
-        });
-
-        Runnable removeFromRegistry = () -> {
-            logger.debug("Synchronizing default inference endpoints");
-            modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener);
-        };
-
-        var delay = elasticInferenceServiceComponents.revokeAuthorizationDelay();
-        if (delay == null) {
-            getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(removeFromRegistry);
-        } else {
-            getServiceComponents().threadPool()
-                .schedule(removeFromRegistry, delay, getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
-        }
-
+    @Override
+    public void onNodeStarted() {
+        authorizationHandler.init();
     }
 
     @Override
-    public void onNodeStarted() {
-        getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::getAuthorization);
+    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
+        if (returnDocuments != null) {
+            validationException.addValidationError(
+                org.elasticsearch.core.Strings.format(
+                    "Invalid return_documents [%s]. The return_documents option is not supported by this service",
+                    returnDocuments
+                )
+            );
+        }
     }
 
     /**
+     * Only use this in tests.
+     *
      * Waits the specified amount of time for the authorization call to complete. This is mainly to make testing easier.
      * @param waitTime the max time to wait
      * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
      */
-    public void waitForAuthorizationToComplete(TimeValue waitTime) {
-        try {
-            if (authorizationCompletedLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("The wait time has expired for authorization to complete.");
-            }
-        } catch (InterruptedException e) {
-            throw new IllegalStateException("Waiting for authorization to complete was interrupted");
-        }
+    public void waitForFirstAuthorizationToComplete(TimeValue waitTime) {
+        authorizationHandler.waitForAuthorizationToComplete(waitTime);
     }
 
     @Override
-    public synchronized Set<TaskType> supportedStreamingTasks() {
-        var authorizedStreamingTaskTypes = EnumSet.of(TaskType.CHAT_COMPLETION);
-        authorizedStreamingTaskTypes.retainAll(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
-
-        return authorizedStreamingTaskTypes;
+    public Set<TaskType> supportedStreamingTasks() {
+        return authorizationHandler.supportedStreamingTasks();
     }
 
     @Override
-    public synchronized List<DefaultConfigId> defaultConfigIds() {
-        return authRef.get().configIds;
+    public List<DefaultConfigId> defaultConfigIds() {
+        return authorizationHandler.defaultConfigIds();
     }
 
     @Override
-    public synchronized void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        var models = authRef.get().defaultModelConfigs.stream().map(config -> config.model).toList();
-        defaultsListener.onResponse(models);
+    public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
+        authorizationHandler.defaultConfigs(defaultsListener);
     }
 
     @Override
@@ -355,7 +317,6 @@ public class ElasticInferenceService extends SenderService {
         var completionModel = (ElasticInferenceServiceCompletionModel) model;
         var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
         var errorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.uri(),
             String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
 
@@ -374,7 +335,6 @@ public class ElasticInferenceService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -385,6 +345,7 @@ public class ElasticInferenceService extends SenderService {
                 responseString = responseString + " " + useChatCompletionUrlMessage(model);
             }
             listener.onFailure(new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST));
+            return;
         }
 
         if (model instanceof ElasticInferenceServiceExecutableActionModel == false) {
@@ -398,27 +359,60 @@ public class ElasticInferenceService extends SenderService {
         var currentTraceInfo = getCurrentTraceInfo();
 
         ElasticInferenceServiceExecutableActionModel elasticInferenceServiceModel = (ElasticInferenceServiceExecutableActionModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo, inputType);
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {}
+
+    @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        // Pass-through without actually performing chunking (result will have a single chunk per input)
-        ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
-            (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
-        );
+        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseTextEmbeddingsModel) {
+            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
 
-        doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                inputs.getInputs(),
+                DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                denseTextEmbeddingsModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
+
+            for (var request : batchedRequests) {
+                var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            }
+
+            return;
+        }
+
+        if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseTextEmbeddingsModel) {
+            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
+
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                inputs.getInputs(),
+                SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE,
+                model.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
+
+            for (var request : batchedRequests) {
+                var action = sparseTextEmbeddingsModel.accept(actionCreator, taskSettings);
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            }
+
+            return;
+        }
+
+        // Model cannot perform chunked inference
+        listener.onFailure(createInvalidModelException(model));
     }
 
     @Override
@@ -437,11 +431,19 @@ public class ElasticInferenceService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
+
             ElasticInferenceServiceModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
+                chunkingSettings,
                 serviceSettingsMap,
                 elasticInferenceServiceComponents,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
@@ -459,18 +461,18 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public synchronized InferenceServiceConfiguration getConfiguration() {
-        return configuration.get();
+    public InferenceServiceConfiguration getConfiguration() {
+        return authorizationHandler.getConfiguration();
     }
 
     @Override
-    public synchronized EnumSet<TaskType> supportedTaskTypes() {
-        return authRef.get().taskTypesAndModels.getAuthorizedTaskTypes();
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return authorizationHandler.supportedTaskTypes();
     }
 
     @Override
-    public synchronized boolean hideFromConfigurationApi() {
-        return authRef.get().taskTypesAndModels.isAuthorized() == false;
+    public boolean hideFromConfigurationApi() {
+        return authorizationHandler.hideFromConfigurationApi();
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -478,8 +480,9 @@ public class ElasticInferenceService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        ElasticInferenceServiceComponents eisServiceComponents,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         String failureMessage,
         ConfigurationParseContext context
     ) {
@@ -491,8 +494,9 @@ public class ElasticInferenceService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                eisServiceComponents,
-                context
+                elasticInferenceServiceComponents,
+                context,
+                chunkingSettings
             );
             case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
@@ -501,8 +505,29 @@ public class ElasticInferenceService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                eisServiceComponents,
+                elasticInferenceServiceComponents,
                 context
+            );
+            case RERANK -> new ElasticInferenceServiceRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                elasticInferenceServiceComponents,
+                context
+            );
+            case TEXT_EMBEDDING -> new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                elasticInferenceServiceComponents,
+                context,
+                chunkingSettings
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -519,11 +544,17 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -534,11 +565,17 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
         return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
@@ -554,6 +591,7 @@ public class ElasticInferenceService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
@@ -562,6 +600,7 @@ public class ElasticInferenceService extends SenderService {
             taskType,
             serviceSettings,
             taskSettings,
+            chunkingSettings,
             secretSettings,
             elasticInferenceServiceComponents,
             failureMessage,
@@ -570,14 +609,35 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var modelId = serviceSettings.modelId();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultDenseTextEmbeddingsSimilarity() : similarityFromModel;
+            var maxInputTokens = serviceSettings.maxInputTokens();
+
+            var updateServiceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                modelId,
+                similarityToUse,
+                embeddingSize,
+                maxInputTokens
+            );
+
+            return new ElasticInferenceServiceDenseTextEmbeddingsModel(embeddingsModel, updateServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
+    }
+
+    public static SimilarityMeasure defaultDenseTextEmbeddingsSimilarity() {
+        // TODO: double-check
+        return SimilarityMeasure.COSINE;
     }
 
     private static List<ChunkedInference> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = DocumentsOnlyInput.of(inputs).getInputs();
+            var inputsAsList = EmbeddingsInput.of(inputs).getStringInputs();
             return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));
@@ -590,7 +650,7 @@ public class ElasticInferenceService extends SenderService {
     private TraceContext getCurrentTraceInfo() {
         var threadPool = getServiceComponents().threadPool();
 
-        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
         var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
 
         return new TraceContext(traceParent, traceState);
@@ -612,9 +672,9 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)).setDescription(
-                        "The name of the model to use for the inference task."
-                    )
+                    new SettingsConfiguration.Builder(
+                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+                    ).setDescription("The name of the model to use for the inference task.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -625,7 +685,7 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
                         "Allows you to specify the maximum number of tokens per input."
                     )
                         .setLabel("Maximum Input Tokens")
@@ -637,7 +697,9 @@ public class ElasticInferenceService extends SenderService {
                 );
 
                 configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION))
+                    RateLimitSettings.toSettingsConfiguration(
+                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+                    )
                 );
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)

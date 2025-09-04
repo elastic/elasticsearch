@@ -277,6 +277,7 @@ final class IndexDiskUsageAnalyzer {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
                         for (int i = 0; i < dv.docValueCount(); i++) {
                             cancellationChecker.logEvent();
+                            dv.nextOrd();
                         }
                     });
                     if (sortedSet.getValueCount() > 0) {
@@ -288,6 +289,17 @@ final class IndexDiskUsageAnalyzer {
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
                 }
+            }
+            switch (field.docValuesSkipIndexType()) {
+                case NONE -> {
+                }
+                case RANGE -> {
+                    var skipper = docValuesReader.getSkipper(field);
+                    while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                        skipper.advance(skipper.maxDocID(skipper.numLevels() - 1) + 1);
+                    }
+                }
+                default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
             }
             stats.addDocValues(field.name, directory.getBytesRead());
         }

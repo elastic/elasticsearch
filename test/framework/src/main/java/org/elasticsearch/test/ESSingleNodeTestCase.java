@@ -234,7 +234,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            Stream.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.")
+            Stream.of(
+                "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
+            )
         ).collect(Collectors.toList());
     }
 
@@ -285,7 +288,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();
         } catch (NodeValidationException e) {
@@ -532,5 +535,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 )
             )
         );
+    }
+
+    protected void updateClusterSettings(Settings settings) {
+        safeGet(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).execute());
     }
 }

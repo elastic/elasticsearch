@@ -19,6 +19,8 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('esql'))
   javaRestTestImplementation project(path: xpackModule('snapshot-repo-test-kit'))
   javaRestTestImplementation project(path: xpackModule('ent-search'))
+  javaRestTestImplementation project(path: xpackModule('inference'))
+  javaRestTestImplementation project(':test:external-modules:test-multi-project')
 }
 
 // location for keys and certificates

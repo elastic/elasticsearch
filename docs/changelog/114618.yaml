@@ -1,5 +1,0 @@
-pr: 114618
-summary: Add a new index setting to skip recovery source when synthetic source is enabled
-area: Logs
-type: enhancement
-issues: []

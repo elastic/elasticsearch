@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -29,12 +30,15 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 public class TransportStartILMAction extends AcknowledgedTransportMasterNodeAction<StartILMRequest> {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportStartILMAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             ILMActions.START.name(),
@@ -45,13 +49,15 @@ public class TransportStartILMAction extends AcknowledgedTransportMasterNodeActi
             StartILMRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, StartILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        final var projectId = projectResolver.getProjectId();
         submitUnbatchedTask(
             "ilm_operation_mode_update[running]",
-            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.RUNNING), request, listener)
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(projectId, OperationMode.RUNNING), request, listener)
         );
     }
 

@@ -911,9 +911,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // set analyzer
         Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.getIndexAnalyzer(
-                f -> { throw new UnsupportedOperationException("No analyzer configured for field " + f); }
-            );
+            analyzerObj = context.getIndexAnalyzer(f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); });
         }
         mltQuery.setAnalyzer(analyzer, analyzerObj);
 
@@ -1130,6 +1128,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -43,7 +43,7 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
      * lastly to data stream read indices.
      */
     public static OrderedShardsIterator createForNecessaryMoves(RoutingAllocation allocation, NodeAllocationOrdering ordering) {
-        return create(allocation.routingNodes(), createShardsComparator(allocation.metadata()), ordering);
+        return create(allocation.routingNodes(), createShardsComparator(allocation), ordering);
     }
 
     /**
@@ -56,7 +56,7 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
      * lastly to data stream write indices.
      */
     public static OrderedShardsIterator createForBalancing(RoutingAllocation allocation, NodeAllocationOrdering ordering) {
-        return create(allocation.routingNodes(), createShardsComparator(allocation.metadata()).reversed(), ordering);
+        return create(allocation.routingNodes(), createShardsComparator(allocation).reversed(), ordering);
     }
 
     private static OrderedShardsIterator create(
@@ -82,12 +82,13 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
     /**
      * Prioritizes write indices of data streams, and deprioritizes data stream read indices, relative to regular indices.
      */
-    private static Comparator<ShardRouting> createShardsComparator(Metadata metadata) {
+    private static Comparator<ShardRouting> createShardsComparator(RoutingAllocation allocation) {
         return Comparator.comparing(shard -> {
-            var lookup = metadata.getIndicesLookup().get(shard.getIndexName());
-            if (lookup != null && lookup.getParentDataStream() != null) {
+            final ProjectMetadata project = allocation.metadata().projectFor(shard.index());
+            var index = project.getIndicesLookup().get(shard.getIndexName());
+            if (index != null && index.getParentDataStream() != null) {
                 // prioritize write indices of the data stream
-                return Objects.equals(lookup.getParentDataStream().getWriteIndex(), shard.index()) ? 0 : 2;
+                return Objects.equals(index.getParentDataStream().getWriteIndex(), shard.index()) ? 0 : 2;
             } else {
                 // regular index
                 return 1;

@@ -29,7 +29,6 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
     }
 
     public GetSnapshottableFeaturesResponse(StreamInput in) throws IOException {
-        super(in);
         snapshottableFeatures = in.readCollectionAsImmutableList(SnapshottableFeature::new);
     }
 

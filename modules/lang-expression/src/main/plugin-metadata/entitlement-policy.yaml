@@ -1,2 +1,2 @@
-org.elasticsearch.script.expression:
+org.apache.lucene.expressions:
   - create_class_loader

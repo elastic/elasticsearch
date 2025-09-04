@@ -146,7 +146,6 @@ public class PostConnectorSyncJobAction {
         private final String id;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.id = in.readString();
         }
 

@@ -53,6 +53,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -64,6 +66,7 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
@@ -95,6 +98,9 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
+/**
+ * Contains one "check" method for each distinct JDK method we want to instrument.
+ */
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
@@ -129,6 +135,10 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls);
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass);
 
@@ -322,8 +332,209 @@ public interface EntitlementChecker {
 
     void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog);
 
-    // Network miscellanea
+    // URLConnection (java.net + sun.net.www)
+
+    void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that);
+
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
+
+    void check$java_net_URL$openStream(Class<?> callerClass, java.net.URL that);
+
+    void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that);
+
+    void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that, Class<?>[] classes);
+
+    void check$java_net_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentEncoding(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getExpiration(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getDate(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getHeaderFieldInt(Class<?> callerClass, java.net.URLConnection that, String name, int defaultValue);
+
+    void check$java_net_URLConnection$getHeaderFieldLong(Class<?> callerClass, java.net.URLConnection that, String name, long defaultValue);
+
+    void check$java_net_URLConnection$getHeaderFieldDate(Class<?> callerClass, java.net.URLConnection that, String name, long defaultValue);
+
+    void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that, Class<?>[] classes);
+
+    void check$java_net_HttpURLConnection$getResponseCode(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$java_net_HttpURLConnection$getResponseMessage(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$java_net_HttpURLConnection$getHeaderFieldDate(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    // Using java.net.URLConnection for "that" as sun.net.www.* is not exported
+    void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
+
+    void check$sun_net_www_URLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_URLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$$openConnectionCheckRedirects(Class<?> callerClass, java.net.URLConnection c);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getOutputStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getInputStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getErrorStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name
+    );
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFields(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(Class<?> callerClass, java.net.HttpURLConnection that, int n);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.HttpURLConnection that, int n);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$connect(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getOutputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getInputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getErrorStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFields(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldKey(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseCode(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseMessage(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLength(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLengthLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentType(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentEncoding(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getExpiration(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getDate(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getLastModified(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldInt(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        int defaultValue
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldDate(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(Class<?> callerClass, javax.net.ssl.HttpsURLConnection that);
+
+    void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        Class<?>[] classes
+    );
+
+    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    // Network miscellanea
 
     // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations
     void check$jdk_internal_net_http_HttpClientImpl$send(
@@ -383,6 +594,16 @@ public interface EntitlementChecker {
      * (not instrumentable).
      */
 
+    void check$java_nio_channels_spi_AbstractSelectableChannel$register(
+        Class<?> callerClass,
+        SelectableChannel that,
+        Selector sel,
+        int ops,
+        Object att
+    );
+
+    void check$java_nio_channels_SelectableChannel$register(Class<?> callerClass, SelectableChannel that, Selector sel, int ops);
+
     // bind
 
     void check$java_nio_channels_AsynchronousServerSocketChannel$bind(
@@ -405,6 +626,12 @@ public interface EntitlementChecker {
     void check$java_nio_channels_ServerSocketChannel$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local);
 
     void check$sun_nio_ch_ServerSocketChannelImpl$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local, int backlog);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, java.net.ProtocolFamily family);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, SocketAddress remote);
 
     void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local);
 
@@ -452,6 +679,18 @@ public interface EntitlementChecker {
 
     // provider methods (dynamic)
     void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
 
     /// /////////////////
     //
@@ -535,6 +774,8 @@ public interface EntitlementChecker {
     void check$java_io_File$canWrite(Class<?> callerClass, File file);
 
     void check$java_io_File$createNewFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix);
 
     void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory);
 
@@ -1002,7 +1243,7 @@ public interface EntitlementChecker {
     void checkType(Class<?> callerClass, FileStore that);
 
     // path
-    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException;
 
     void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
 
@@ -1013,6 +1254,54 @@ public interface EntitlementChecker {
         WatchEvent.Kind<?>[] events,
         WatchEvent.Modifier... modifiers
     );
+
+    // URLConnection
+
+    void check$sun_net_www_protocol_file_FileURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_JarURLConnection$getManifest(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getMainAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getCertificates(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarFile(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$connect(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getInputStream(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLength(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLengthLong(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContent(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentType(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getHeaderField(Class<?> callerClass, java.net.JarURLConnection that, String name);
 
     ////////////////////
     //

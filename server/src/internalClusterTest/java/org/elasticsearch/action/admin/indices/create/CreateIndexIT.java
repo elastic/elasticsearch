@@ -98,7 +98,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        Map<String, IndexMetadata> indices = metadata.getIndices();
+        Map<String, IndexMetadata> indices = metadata.getProject().indices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
         IndexMetadata index = indices.get("test");

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -60,7 +61,8 @@ public final class DissectProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String pattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");

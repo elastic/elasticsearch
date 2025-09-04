@@ -46,7 +46,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
-        super(in);
         mappings = in.readImmutableMap(mapIn -> {
             if (mapIn.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 int typesSize = mapIn.readVInt();

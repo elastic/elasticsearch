@@ -13,14 +13,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -35,6 +37,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,7 +48,7 @@ public class ParsingTests extends ESTestCase {
 
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
-        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution()),
+        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution(), emptyInferenceResolution()),
         TEST_VERIFIER
     );
 
@@ -79,25 +82,33 @@ public class ParsingTests extends ESTestCase {
      */
     public void testInlineCast() throws IOException {
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve("kibana");
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
+            .resolve("query-languages")
+            .resolve("esql")
+            .resolve("kibana")
+            .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
         try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
             report.humanReadable(true).prettyPrint();
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                // Some types do not have a converter function if the capability is disabled
+                namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
+            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
-                Expression functionCall = row.fields().get(0).child();
+                Function functionCall = (Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, functionName(registry, functionCall));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
             }
             report.endObject();
         }
@@ -128,18 +139,10 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    public void testJoinOnMultipleFields() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
-            error("row languages = 1, gender = \"f\" | lookup join test on gender, languages")
-        );
-    }
-
     public void testJoinTwiceOnTheSameField() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:66: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [languages]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
         );
     }
@@ -147,25 +150,73 @@ public class ParsingTests extends ESTestCase {
     public void testJoinTwiceOnTheSameField_TwoLookups() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:80: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:108: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [gender]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")
         );
     }
 
-    private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {
-        for (FunctionDefinition def : registry.listFunctions()) {
-            if (functionCall.getClass().equals(def.clazz())) {
-                return def.name();
-            }
-        }
-        throw new IllegalArgumentException("can't find name for " + functionCall);
+    public void testInvalidLimit() {
+        assertLimitWithAndWithoutParams("foo", "\"foo\"", DataType.KEYWORD);
+        assertLimitWithAndWithoutParams(1.2, "1.2", DataType.DOUBLE);
+        assertLimitWithAndWithoutParams(-1, "-1", DataType.INTEGER);
+        assertLimitWithAndWithoutParams(true, "true", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(false, "false", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(null, "null", DataType.NULL);
     }
 
-    private String error(String query) {
-        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query)));
+    private void assertLimitWithAndWithoutParams(Object value, String valueText, DataType type) {
+        assertEquals(
+            "1:13: value of [limit "
+                + valueText
+                + "] must be a non negative integer, found value ["
+                + valueText
+                + "] type ["
+                + type.typeName()
+                + "]",
+            error("row a = 1 | limit " + valueText)
+        );
+
+        assertEquals(
+            "1:13: value of [limit ?param] must be a non negative integer, found value [?param] type [" + type.typeName() + "]",
+            error(
+                "row a = 1 | limit ?param",
+                new QueryParams(List.of(new QueryParam("param", value, type, ParserUtils.ParamClassification.VALUE)))
+            )
+        );
+
+    }
+
+    public void testInvalidSample() {
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [foo], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample \"foo\"")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [-1.0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample -1.0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 1")
+        );
+    }
+
+    private String error(String query, QueryParams params) {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> defaultAnalyzer.analyze(parser.createStatement(query, params, TEST_CFG))
+        );
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());
+    }
+
+    private String error(String query) {
+        return error(query, new QueryParams());
     }
 
     private static IndexResolution loadIndexResolution(String name) {

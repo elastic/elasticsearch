@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -110,7 +111,6 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -350,7 +350,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
-    boolean includeRequestBody;
+    volatile boolean includeRequestBody;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -1072,6 +1072,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // not implemented yet
     }
 
+    public boolean includeRequestBody() {
+        return includeRequestBody;
+    }
+
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1633,6 +1637,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+            assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {

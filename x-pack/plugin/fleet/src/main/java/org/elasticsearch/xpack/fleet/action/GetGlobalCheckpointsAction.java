@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -41,7 +41,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -82,7 +81,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("timed_out", timedOut);
             builder.array("global_checkpoints", globalCheckpoints);
@@ -90,7 +89,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         }
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends LegacyActionRequest implements IndicesRequest {
 
         private final String index;
         private final boolean waitForAdvance;
@@ -194,7 +193,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 return;
             }
 
-            final IndexMetadata indexMetadata = state.getMetadata().index(index);
+            final IndexMetadata indexMetadata = state.getMetadata().getProject().index(index);
             final IndexRoutingTable routingTable = state.routingTable().index(index);
 
             if (routingTable.allPrimaryShardsActive()) {
@@ -228,7 +227,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 client,
                                 request,
                                 listener,
-                                state.getMetadata().index(index),
+                                state.getMetadata().getProject().index(index),
                                 TimeValue.timeValueNanos(remainingNanos)
                             ).run();
                         } else {
@@ -237,7 +236,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                     null,
                                     "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                     request.timeout(),
-                                    state.getMetadata().index(index).getNumberOfShards(),
+                                    state.getMetadata().getProject().index(index).getNumberOfShards(),
                                     state.routingTable().index(index).primaryShardsActive()
                                 )
                             );
@@ -257,7 +256,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 null,
                                 "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                 request.timeout(),
-                                state.getMetadata().index(index).getNumberOfShards(),
+                                state.getMetadata().getProject().index(index).getNumberOfShards(),
                                 state.routingTable().index(index).primaryShardsActive()
                             )
                         );

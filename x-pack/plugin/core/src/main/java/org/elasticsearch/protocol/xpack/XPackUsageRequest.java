@@ -7,7 +7,7 @@
 package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -17,14 +17,14 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Map;
 
-public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
+public class XPackUsageRequest extends LocalClusterStateRequest {
 
     public XPackUsageRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
     }
 
     public XPackUsageRequest(StreamInput in) throws IOException {
-        super(in);
+        super(in, false);
     }
 
     @Override

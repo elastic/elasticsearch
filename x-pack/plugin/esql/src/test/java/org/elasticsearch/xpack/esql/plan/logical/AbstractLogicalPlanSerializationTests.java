@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
@@ -31,9 +30,9 @@ public abstract class AbstractLogicalPlanSerializationTests<T extends LogicalPla
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(PlanWritables.logical());
+        entries.addAll(PlanWritables.others());
         entries.addAll(ExpressionWritables.aggregates());
         entries.addAll(ExpressionWritables.allExpressions());
-        entries.addAll(BlockWritables.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 

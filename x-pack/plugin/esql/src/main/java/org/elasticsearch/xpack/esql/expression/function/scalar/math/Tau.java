@@ -30,7 +30,7 @@ public class Tau extends DoubleConstantFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.",
+        description = "Returns the [ratio](https://tauday.com/tau-manifesto) of a circle’s circumference to its radius.",
         examples = @Example(file = "math", tag = "tau")
     )
     public Tau(Source source) {

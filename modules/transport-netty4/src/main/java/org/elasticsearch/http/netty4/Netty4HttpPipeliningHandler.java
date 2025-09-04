@@ -19,7 +19,6 @@ import io.netty.handler.codec.compression.JdkZlibEncoder;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -118,6 +117,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         activityTracker.startActivity();
+        boolean shouldRead = true;
         try {
             if (msg instanceof HttpRequest request) {
                 final Netty4HttpRequest netty4HttpRequest;
@@ -130,32 +130,28 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     } else {
                         nonError = (Exception) cause;
                     }
-                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, nonError);
                 } else {
                     assert currentRequestStream == null : "current stream must be null for new request";
-                    if (request instanceof FullHttpRequest fullHttpRequest) {
-                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
-                        currentRequestStream = null;
-                    } else {
-                        var contentStream = new Netty4HttpRequestBodyStream(
-                            ctx.channel(),
-                            serverTransport.getThreadPool().getThreadContext(),
-                            activityTracker
-                        );
-                        currentRequestStream = contentStream;
-                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
-                    }
+                    var contentStream = new Netty4HttpRequestBodyStream(ctx, serverTransport.getThreadPool().getThreadContext());
+                    currentRequestStream = contentStream;
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
+                    shouldRead = false;
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
                 assert msg instanceof HttpContent : "expect HttpContent got " + msg;
                 assert currentRequestStream != null : "current stream must exists before handling http content";
+                shouldRead = false;
                 currentRequestStream.handleNettyContent((HttpContent) msg);
-                if (msg instanceof LastHttpContent) {
-                    currentRequestStream = null;
-                }
             }
         } finally {
+            if (msg instanceof LastHttpContent) {
+                currentRequestStream = null;
+            }
+            if (shouldRead) {
+                ctx.channel().eventLoop().execute(ctx::read);
+            }
             activityTracker.stopActivity();
         }
     }
@@ -165,7 +161,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
         assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
-        assert Transports.assertTransportThread();
+        assert ctx.channel().eventLoop().inEventLoop();
         try {
             serverTransport.incomingRequest(pipelinedRequest, channel);
             success = true;

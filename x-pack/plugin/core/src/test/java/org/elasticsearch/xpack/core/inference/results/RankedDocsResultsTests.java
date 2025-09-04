@@ -82,4 +82,13 @@ public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestC
     protected RankedDocsResults doParseInstance(XContentParser parser) throws IOException {
         return RankedDocsResults.createParser(true).apply(parser, null);
     }
+
+    public record RerankExpectation(Map<String, Object> rankedDocFields) {}
+
+    public static Map<String, Object> buildExpectationRerank(List<RerankExpectation> rerank) {
+        return Map.of(
+            RankedDocsResults.RERANK,
+            rerank.stream().map(rerankExpectation -> Map.of(RankedDocsResults.RankedDoc.NAME, rerankExpectation.rankedDocFields)).toList()
+        );
+    }
 }

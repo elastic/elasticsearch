@@ -1,6 +1,7 @@
 setup:
   - requires:
-      reason: "Data stream options was added in 8.18+"
+      cluster_features: [ "data_stream.failure_store" ]
+      reason: "Failure store GA in 8.19+"
       test_runner_features: [ capabilities, allowed_warnings, contains ]
       capabilities:
         - method: POST
@@ -8,10 +9,7 @@ setup:
           capabilities: [ 'failure_store_status' ]
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
-        - method: PUT
-          path: /_cluster/settings
-          capabilities: [ 'data_stream_failure_store_cluster_setting' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       cluster.put_settings:
@@ -75,6 +73,11 @@ teardown:
 
   - do:
       indices.delete_data_stream:
+        name: default-fs-no-match
+        ignore: 404
+
+  - do:
+      indices.delete_data_stream:
         name: disabled-fs-matching
         ignore: 404
 
@@ -117,11 +120,41 @@ teardown:
   - match: { failure_store: used }
   - match: { _index: '/\.fs-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
 
+  # Assert that no data stream options are configured
+  - do:
+      indices.get_data_stream_options:
+        name: "default-fs-matching"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: default-fs-matching }
+  - is_false: data_streams.0.options
+
+  # Assert that failure store is effectively enabled
+  - do:
+      indices.get_data_stream:
+        name: "default-fs-matching"
+  - match: { data_streams.0.name: default-fs-matching }
+  - match: { data_streams.0.failure_store.enabled: true }
+
 ---
 "Redirect ingest failure into pre-existing data stream to failure store when enabled by setting":
   - do:
       indices.create_data_stream:
         name: default-fs-matching
+
+  # Assert that no data stream options are configured
+  - do:
+      indices.get_data_stream_options:
+        name: "default-fs-matching"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: default-fs-matching }
+  - is_false: data_streams.0.options
+
+  # Assert that failure store is effectively enabled
+  - do:
+      indices.get_data_stream:
+        name: "default-fs-matching"
+  - match: { data_streams.0.name: default-fs-matching }
+  - match: { data_streams.0.failure_store.enabled: true }
 
   - do:
       index:
@@ -136,6 +169,57 @@ teardown:
 
 ---
 "Do not redirect ingest failure when auto-creating data stream to failure store when enabled by setting but disabled in template":
+
+  - do:
+      index:
+        index:  disabled-fs-matching
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+      catch: '/pipeline go boom/'
+
+  # Now create the data stream to ensure it has the expected configuration
+  - do:
+      indices.create_data_stream:
+        name: disabled-fs-matching
+
+  # Assert that failure_store is disabled
+  - do:
+      indices.get_data_stream_options:
+        name: "disabled-fs-matching"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: disabled-fs-matching }
+  - match: { data_streams.0.options.failure_store.enabled: false }
+
+  # Assert that failure store is effectively disabled
+  - do:
+      indices.get_data_stream:
+        name: "disabled-fs-matching"
+  - match: { data_streams.0.name: disabled-fs-matching }
+  - match: { data_streams.0.failure_store.enabled: false }
+
+---
+"Do not redirect ingest failure into pre-existing data stream to failure store when enabled by setting but disabled in template":
+  - do:
+      indices.create_data_stream:
+        name: disabled-fs-matching
+
+  # Assert that failure_store is disabled
+  - do:
+      indices.get_data_stream_options:
+        name: "disabled-fs-matching"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: disabled-fs-matching }
+  - match: { data_streams.0.options.failure_store.enabled: false }
+
+  # Assert that failure store is effectively disabled
+  - do:
+      indices.get_data_stream:
+        name: "disabled-fs-matching"
+  - match: { data_streams.0.name: disabled-fs-matching }
+  - match: { data_streams.0.failure_store.enabled: false }
   - do:
       index:
         index:  disabled-fs-matching
@@ -147,14 +231,61 @@ teardown:
       catch: '/pipeline go boom/'
 
 ---
-"Do not redirect ingest failure into pre-existing data stream to failure store when enabled by setting but disabled in template":
-  - do:
-      indices.create_data_stream:
-        name: disabled-fs-matching
+"Do not redirect ingest failure when auto-creating data stream to failure store when it doesn't match the setting":
 
   - do:
       index:
-        index:  disabled-fs-matching
+        index:  default-fs-no-match
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+      catch: '/pipeline go boom/'
+
+  # Now create the data stream to ensure it has the expected configuration
+  - do:
+      indices.create_data_stream:
+        name: default-fs-no-match
+
+  # Assert that failure_store is not configured
+  - do:
+      indices.get_data_stream_options:
+        name: "default-fs-no-match"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: default-fs-no-match }
+  - is_false: data_streams.0.options.failure_store
+
+  # Assert that failure store is effectively disabled
+  - do:
+      indices.get_data_stream:
+        name: "default-fs-no-match"
+  - match: { data_streams.0.name: default-fs-no-match }
+  - match: { data_streams.0.failure_store.enabled: false }
+
+---
+"Do not redirect ingest failure into pre-existing data stream to failure store when it doesn't match the setting":
+  - do:
+      indices.create_data_stream:
+        name: default-fs-no-match
+
+  # Assert that failure_store is not configured
+  - do:
+      indices.get_data_stream_options:
+        name: "default-fs-no-match"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: default-fs-no-match }
+  - is_false: data_streams.0.options.failure_store
+
+  # Assert that failure store is effectively disabled
+  - do:
+      indices.get_data_stream:
+        name: "default-fs-no-match"
+  - match: { data_streams.0.name: default-fs-no-match }
+  - match: { data_streams.0.failure_store.enabled: false }
+  - do:
+      index:
+        index:  default-fs-no-match
         refresh: true
         pipeline: 'failing_pipeline'
         body:
@@ -216,7 +347,28 @@ teardown:
           foo: bar
       catch: '/failed to parse field/'
 
-# See also DataStreamOptionsIT for tests of the interaction between the failure store cluster setting and using
-# the /_data_stream/{name}/_options API to explicitly enable and disable the failure store. (At time of writing, these
-# can only be done in a Java REST test case, not a YAML one, because the failure store is behind a feature gate and so
-# the REST API spec has not been added.)
+---
+"Do not redirect mapping failure when auto-creating data stream to failure store when it doesn't match the setting":
+  - do:
+      index:
+        index:  default-fs-no-match
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+      catch: '/failed to parse field/'
+
+---
+"Do not redirect mapping failure into pre-existing data stream to failure store when it doesn't match the setting":
+  - do:
+      indices.create_data_stream:
+        name: default-fs-no-match
+
+  - do:
+      index:
+        index:  default-fs-no-match
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+      catch: '/failed to parse field/'

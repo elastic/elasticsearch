@@ -17,18 +17,20 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.common.RemoveProcessor.shouldKeep;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class RemoveProcessorTests extends ESTestCase {
 
     public void testRemoveFields() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random());
+        String field = RandomDocumentPicks.randomExistingFieldName(random(), document);
         Processor processor = new RemoveProcessor(
             randomAlphaOfLength(10),
             null,
@@ -36,19 +38,19 @@ public class RemoveProcessorTests extends ESTestCase {
             List.of(),
             false
         );
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.hasField(field), equalTo(false));
+        processor.execute(document);
+        assertThat(document.hasField(field), is(false));
     }
 
     public void testRemoveNonExistingField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
-        String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+        String tag = randomAlphaOfLength(10);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, tag, null, config, null);
         try {
-            processor.execute(ingestDocument);
+            processor.execute(document);
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
@@ -56,14 +58,108 @@ public class RemoveProcessorTests extends ESTestCase {
     }
 
     public void testIgnoreMissing() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
         config.put("ignore_missing", true);
-        String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
-        processor.execute(ingestDocument);
+        String tag = randomAlphaOfLength(10);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, tag, null, config, null);
+        processor.execute(document);
+    }
+
+    public void testIgnoreMissingAndNullInPath() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> some = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> path = new HashMap<>();
+
+        switch (randomIntBetween(0, 6)) {
+            case 0 -> {
+                // empty source
+            }
+            case 1 -> {
+                source.put("some", null);
+            }
+            case 2 -> {
+                some.put("map", null);
+                source.put("some", some);
+            }
+            case 3 -> {
+                some.put("map", map);
+                source.put("some", some);
+            }
+            case 4 -> {
+                map.put("path", null);
+                some.put("map", map);
+                source.put("some", some);
+            }
+            case 5 -> {
+                map.put("path", path);
+                some.put("map", map);
+                source.put("some", some);
+            }
+            case 6 -> {
+                map.put("path", "foobar");
+                some.put("map", map);
+                source.put("some", some);
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
+        }
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "some.map.path");
+        config.put("ignore_missing", true);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, null, null, config, null);
+        processor.execute(document);
+        assertThat(document.hasField("some.map.path"), is(false));
+    }
+
+    public void testIgnoreMissingAndNonIntegerInPath() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> some = new HashMap<>();
+        List<Object> array = new ArrayList<>();
+        Map<String, Object> path = new HashMap<>();
+
+        switch (randomIntBetween(0, 6)) {
+            case 0 -> {
+                // empty source
+            }
+            case 1 -> {
+                source.put("some", null);
+            }
+            case 2 -> {
+                some.put("array", null);
+                source.put("some", some);
+            }
+            case 3 -> {
+                some.put("array", array);
+                source.put("some", some);
+            }
+            case 4 -> {
+                array.add(null);
+                some.put("array", array);
+                source.put("some", some);
+            }
+            case 5 -> {
+                array.add(path);
+                some.put("array", array);
+                source.put("some", some);
+            }
+            case 6 -> {
+                array.add("foobar");
+                some.put("array", array);
+                source.put("some", some);
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
+        }
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "some.array.path");
+        config.put("ignore_missing", true);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, null, null, config, null);
+        processor.execute(document);
+        assertThat(document.hasField("some.array.path"), is(false));
     }
 
     public void testKeepFields() throws Exception {
@@ -76,27 +172,23 @@ public class RemoveProcessorTests extends ESTestCase {
         source.put("age", 55);
         source.put("address", address);
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
 
-        List<TemplateScript.Factory> fieldsToKeep = List.of(
-            new TestTemplateService.MockTemplateScript.Factory("name"),
-            new TestTemplateService.MockTemplateScript.Factory("address.street")
-        );
+        Processor processor = new RemoveProcessor(null, null, List.of(), templates("name", "address.street"), false);
+        processor.execute(document);
 
-        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, new ArrayList<>(), fieldsToKeep, false);
-        processor.execute(ingestDocument);
-        assertTrue(ingestDocument.hasField("name"));
-        assertTrue(ingestDocument.hasField("address"));
-        assertTrue(ingestDocument.hasField("address.street"));
-        assertFalse(ingestDocument.hasField("age"));
-        assertFalse(ingestDocument.hasField("address.number"));
-        assertTrue(ingestDocument.hasField("_index"));
-        assertTrue(ingestDocument.hasField("_version"));
-        assertTrue(ingestDocument.hasField("_id"));
-        assertTrue(ingestDocument.hasField("_version_type"));
+        assertTrue(document.hasField("name"));
+        assertTrue(document.hasField("address"));
+        assertTrue(document.hasField("address.street"));
+        assertFalse(document.hasField("age"));
+        assertFalse(document.hasField("address.number"));
+        assertTrue(document.hasField("_index"));
+        assertTrue(document.hasField("_version"));
+        assertTrue(document.hasField("_id"));
+        assertTrue(document.hasField("_version_type"));
     }
 
-    public void testShouldKeep(String a, String b) {
+    public void testShouldKeep() {
         Map<String, Object> address = new HashMap<>();
         address.put("street", "Ipiranga Street");
         address.put("number", 123);
@@ -105,57 +197,20 @@ public class RemoveProcessorTests extends ESTestCase {
         source.put("name", "eric clapton");
         source.put("address", address);
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), source);
 
-        assertTrue(RemoveProcessor.shouldKeep("name", List.of(new TestTemplateService.MockTemplateScript.Factory("name")), ingestDocument));
-
-        assertTrue(RemoveProcessor.shouldKeep("age", List.of(new TestTemplateService.MockTemplateScript.Factory("age")), ingestDocument));
-
-        assertFalse(RemoveProcessor.shouldKeep("name", List.of(new TestTemplateService.MockTemplateScript.Factory("age")), ingestDocument));
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address.street")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address.number")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address.street",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address.number",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep("address", List.of(new TestTemplateService.MockTemplateScript.Factory("address")), ingestDocument)
-        );
-
-        assertFalse(
-            RemoveProcessor.shouldKeep(
-                "address.street",
-                List.of(new TestTemplateService.MockTemplateScript.Factory("address.number")),
-                ingestDocument
-            )
-        );
+        assertTrue(shouldKeep("name", templates("name"), document));
+        assertTrue(shouldKeep("age", templates("age"), document));
+        assertFalse(shouldKeep("name", templates("age"), document));
+        assertTrue(shouldKeep("address", templates("address.street"), document));
+        assertTrue(shouldKeep("address", templates("address.number"), document));
+        assertTrue(shouldKeep("address.street", templates("address"), document));
+        assertTrue(shouldKeep("address.number", templates("address"), document));
+        assertTrue(shouldKeep("address", templates("address"), document));
+        assertFalse(shouldKeep("address.street", templates("address.number"), document));
     }
 
+    private static List<TemplateScript.Factory> templates(String... fields) {
+        return Arrays.stream(fields).map(f -> (TemplateScript.Factory) new TestTemplateService.MockTemplateScript.Factory(f)).toList();
+    }
 }

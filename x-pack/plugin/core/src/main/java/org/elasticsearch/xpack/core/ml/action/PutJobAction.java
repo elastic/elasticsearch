@@ -99,7 +99,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             job = new Job(in);
         }
 

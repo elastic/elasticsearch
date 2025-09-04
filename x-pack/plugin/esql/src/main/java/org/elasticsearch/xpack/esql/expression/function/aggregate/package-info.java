@@ -12,7 +12,7 @@
  * <h2>Guide to adding new aggregate function</h2>
  * <ol>
  *     <li>
- *         Aggregation functions are more complex than scalar functions, so it's a good idea to discuss
+ *         Aggregation functions are more complex than scalar functions, so it’s a good idea to discuss
  *         the new function with the ESQL team before starting to implement it.
  *         <p>
  *             You may also discuss its implementation, as aggregations may require special performance considerations.
@@ -27,7 +27,7 @@
  *     <li>
  *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}
  *         and add a test for the function you want to write. These files are roughly themed but there
- *         isn't a strong guiding principle in the organization.
+ *         isn’t a strong guiding principle in the organization.
  *     </li>
  *     <li>
  *         Rerun the {@code CsvTests} and watch your new test fail.
@@ -72,7 +72,7 @@
  *                 Implement {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}, and its required
  *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression#surrogate()} method.
  *                 <p>
- *                     It's used to be able to fold the aggregation when it receives only literals,
+ *                     It’s used to be able to fold the aggregation when it receives only literals,
  *                     or when the aggregation can be simplified.
  *                 </p>
  *             </li>
@@ -121,7 +121,7 @@
  *         It is also possible to declare any number of arbitrary arguments that must be provided via generated Supplier.
  *     </li>
  *     <li>
- *         {@code combine, combineStates, combineIntermediate, evaluateFinal} methods (see below) could be generated automatically
+ *         {@code combine, combineIntermediate, evaluateFinal} methods (see below) could be generated automatically
  *         when both input type I and mutable accumulator state AggregatorState and GroupingAggregatorState are primitive (DOUBLE, INT).
  *     </li>
  *     <li>
@@ -150,6 +150,11 @@
  *         {@code Block evaluateFinal(AggregatorState state, DriverContext)} converts the inner state of the aggregation to the result
  *         column
  *     </li>
+ *     <li>
+ *         (optional) {@code void first(AggregatorState state, I input)} if present, this is called the first time a value
+ *         is seen <strong>instead</strong> of calling {@code combine}. This is more efficient than manually checking for
+ *         uninitialized state on every call to {@code combine}.
+ *     </li>
  * </ul>
  * <h4>Grouping aggregation expects:</h4>
  * <ul>
@@ -165,10 +170,6 @@
  *     <li>
  *         {@code void combine(GroupingAggregatorState state, int groupId, I input)} adds input entry to the corresponding group (bucket)
  *         of the grouping aggregation state
- *     </li>
- *     <li>
- *         {@code void combineStates(GroupingAggregatorState targetState, int targetGroupId, GS otherState, int otherGroupId)}
- *         merges other grouped aggregation state into the first one
  *     </li>
  *     <li>
  *         {@code void combineIntermediate(GroupingAggregatorState current, int groupId, intermediate states)} adds serialized
@@ -233,7 +234,7 @@
  *     <li>
  *         After completing your template, run the generation with {@code ./gradlew :x-pack:plugin:esql:compute:compileJava}.
  *         <p>
- *             You may need to tweak some import orders per type so they don't raise warnings.
+ *             You may need to tweak some import orders per type so they don’t raise warnings.
  *         </p>
  *     </li>
  * </ol>

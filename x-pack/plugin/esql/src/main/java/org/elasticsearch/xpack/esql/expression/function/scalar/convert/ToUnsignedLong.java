@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -30,7 +32,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedLong;
@@ -47,12 +48,11 @@ public class ToUnsignedLong extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(UNSIGNED_LONG, (source, fieldEval) -> fieldEval),
         Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToUnsignedLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToUnsignedLongFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToUnsignedLongFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToUnsignedLongFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
@@ -60,13 +60,15 @@ public class ToUnsignedLong extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "unsigned_long",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = """
             Converts an input value to an unsigned long value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.
-            Boolean *true* will be converted to unsigned long *1*, *false* to *0*.""",
+            Boolean `true` will be converted to unsigned long `1`, `false` to `0`.""",
         examples = @Example(file = "ints", tag = "to_unsigned_long-str", explanation = """
-            Note that in this example, the last conversion of the string isn't possible.
-            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            Note that in this example, the last conversion of the string isn’t possible.
+            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 
             `"Line 1:133: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded."`

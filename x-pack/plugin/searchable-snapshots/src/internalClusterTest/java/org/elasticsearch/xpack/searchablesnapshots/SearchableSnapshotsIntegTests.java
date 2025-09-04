@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -89,6 +90,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READO
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -122,7 +124,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, aliasName));
 
         populateIndex(indexName, 10_000);
 
@@ -152,6 +154,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -261,6 +264,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName);
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -268,11 +272,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         if (deletedBeforeMount) {
             assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
-            assertAcked(indicesAdmin().prepareAliases().addAlias(restoredIndexName, aliasName));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
             assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
             assertAcked(
-                indicesAdmin().prepareAliases()
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
                     .addAlias(restoredIndexName, aliasName)
             );
@@ -351,7 +355,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
         assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(clonedIndexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(clonedIndexName, aliasName));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }
 
@@ -492,7 +496,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             final IndicesService service = internalCluster().getInstance(IndicesService.class, node);
             if (service != null && service.hasIndex(restoredIndex)) {
                 assertThat(
-                    getRepositoryOnNode(repositoryName, node).getRestoreThrottleTimeInNanos(),
+                    getRepositoryOnNode(repositoryName, node).getSnapshotStats().totalReadThrottledNanos(),
                     useRateLimits ? greaterThan(0L) : equalTo(0L)
                 );
             }
@@ -763,6 +767,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
 
         final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
@@ -1275,6 +1280,37 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 safeGet(response);
             }
         }
+    }
+
+    public void testRefreshFullyMountedIndex() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        final var index = "index";
+        createIndex(index, 1, 0);
+        populateIndex(index, 1_000);
+
+        final var repository = "repository";
+        createRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
+
+        final var snapshot = "repository";
+        createFullSnapshot(repository, snapshot);
+
+        assertAcked(indicesAdmin().prepareDelete(index));
+
+        final var fullIndex = "full-" + index;
+        mountSnapshot(
+            repository,
+            snapshot,
+            index,
+            fullIndex,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(1)).build(),
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
+        );
+        ensureGreen(fullIndex);
+
+        // before the fix this would have failed
+        var refreshResult = indicesAdmin().prepareRefresh(fullIndex).execute().actionGet();
+        assertNoFailures(refreshResult);
     }
 
     private TaskInfo getTaskForActionFromMaster(String action) {

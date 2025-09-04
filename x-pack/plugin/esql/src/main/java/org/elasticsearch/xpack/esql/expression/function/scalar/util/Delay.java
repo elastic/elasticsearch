@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.util;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Delay extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delay", Delay::new);
 
+    @FunctionInfo(returnType = { "boolean" }, description = "Sleeps for a duration for every row. For debug purposes only.")
     public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
         super(source, ms);
     }
@@ -107,6 +110,8 @@ public class Delay extends UnaryScalarFunction {
     }
 
     static final class DelayEvaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DelayEvaluator.class);
+
         private final DriverContext driverContext;
         private final long ms;
 
@@ -134,6 +139,11 @@ public class Delay extends UnaryScalarFunction {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
         }
 
         @Override

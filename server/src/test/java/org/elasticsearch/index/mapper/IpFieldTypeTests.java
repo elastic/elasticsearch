@@ -105,6 +105,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
@@ -339,6 +340,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false
         );
         IllegalArgumentException e = expectThrows(
@@ -349,16 +351,24 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, IndexVersion.current()).build(
-            MapperBuilderContext.root(false, false)
-        ).fieldType();
+        MappedFieldType mapper = new IpFieldMapper.Builder(
+            "field",
+            ScriptCompiler.NONE,
+            true,
+            IndexVersion.current(),
+            Mapper.SourceKeepMode.NONE
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
 
-        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, IndexVersion.current()).nullValue(
-            "2001:db8:0:0:0:0:2:7"
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder(
+            "field",
+            ScriptCompiler.NONE,
+            true,
+            IndexVersion.current(),
+            Mapper.SourceKeepMode.NONE
+        ).nullValue("2001:db8:0:0:0:0:2:7").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

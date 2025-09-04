@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +42,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -48,9 +52,13 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
+    private static final Logger allocationExplainLogger = LogManager.getLogger(
+        DesiredBalanceComputer.class.getCanonicalName() + ".allocation_explain"
+    );
 
     private final ShardsAllocator delegateAllocator;
     private final TimeProvider timeProvider;
+    private final ShardAllocationExplainer shardAllocationExplainer;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -72,10 +80,27 @@ public class DesiredBalanceComputer {
 
     private TimeValue progressLogInterval;
     private long maxBalanceComputationTimeDuringIndexCreationMillis;
+    private long numComputeCallsSinceLastConverged;
+    private long numIterationsSinceLastConverged;
+    private long lastConvergedTimeMillis;
+    private long lastNotConvergedLogMessageTimeMillis;
+    private Level convergenceLogMsgLevel;
+    private ShardRouting lastTrackedUnassignedShard;
 
-    public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
+    public DesiredBalanceComputer(
+        ClusterSettings clusterSettings,
+        TimeProvider timeProvider,
+        ShardsAllocator delegateAllocator,
+        ShardAllocationExplainer shardAllocationExplainer
+    ) {
         this.delegateAllocator = delegateAllocator;
         this.timeProvider = timeProvider;
+        this.shardAllocationExplainer = shardAllocationExplainer;
+        this.numComputeCallsSinceLastConverged = 0;
+        this.numIterationsSinceLastConverged = 0;
+        this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
+        this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
+        this.convergenceLogMsgLevel = Level.DEBUG;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -89,6 +114,7 @@ public class DesiredBalanceComputer {
         Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
+        numComputeCallsSinceLastConverged += 1;
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "Recomputing desired balance for [{}]: {}, {}, {}, {}",
@@ -276,7 +302,7 @@ public class DesiredBalanceComputer {
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
         final long computationStartedTime = timeProvider.relativeTimeInMillis();
-        long nextReportTime = computationStartedTime + timeWarningInterval;
+        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, lastConvergedTimeMillis) + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;
@@ -321,22 +347,46 @@ public class DesiredBalanceComputer {
                 }
             }
 
-            i++;
+            i += 1;
+            numIterationsSinceLastConverged += 1;
             final int iterations = i;
             final long currentTime = timeProvider.relativeTimeInMillis();
             final boolean reportByTime = nextReportTime <= currentTime;
-            final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
+            final boolean reportByIterationCount = numIterationsSinceLastConverged % iterationCountReportInterval == 0;
             if (reportByTime || reportByIterationCount) {
                 nextReportTime = currentTime + timeWarningInterval;
             }
 
             if (hasChanges == false && hasEnoughIterations(i)) {
-                logger.debug(
-                    "Desired balance computation for [{}] converged after [{}] and [{}] iterations",
-                    desiredBalanceInput.index(),
-                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
-                    i
-                );
+                if (numComputeCallsSinceLastConverged > 1) {
+                    logger.log(
+                        convergenceLogMsgLevel,
+                        () -> Strings.format(
+                            """
+                                Desired balance computation for [%d] converged after [%s] and [%d] iterations, \
+                                resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
+                            desiredBalanceInput.index(),
+                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            numIterationsSinceLastConverged,
+                            numComputeCallsSinceLastConverged,
+                            iterations,
+                            TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                        )
+                    );
+                } else {
+                    logger.log(
+                        convergenceLogMsgLevel,
+                        () -> Strings.format(
+                            "Desired balance computation for [%d] converged after [%s] and [%d] iterations",
+                            desiredBalanceInput.index(),
+                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            numIterationsSinceLastConverged
+                        )
+                    );
+                }
+                numComputeCallsSinceLastConverged = 0;
+                numIterationsSinceLastConverged = 0;
+                lastConvergedTimeMillis = currentTime;
                 break;
             }
             if (isFresh.test(desiredBalanceInput) == false) {
@@ -368,15 +418,37 @@ public class DesiredBalanceComputer {
                 break;
             }
 
-            logger.log(
-                reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
-                () -> Strings.format(
-                    "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
-                    desiredBalanceInput.index(),
-                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
-                    iterations
-                )
-            );
+            final var logLevel = reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE;
+            if (numComputeCallsSinceLastConverged > 1) {
+                logger.log(
+                    logLevel,
+                    () -> Strings.format(
+                        """
+                            Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations, \
+                            resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
+                        desiredBalanceInput.index(),
+                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        numIterationsSinceLastConverged,
+                        numComputeCallsSinceLastConverged,
+                        iterations,
+                        TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                    )
+                );
+            } else {
+                logger.log(
+                    logLevel,
+                    () -> Strings.format(
+                        "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
+                        desiredBalanceInput.index(),
+                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        numIterationsSinceLastConverged
+                    )
+                );
+            }
+
+            if (reportByIterationCount || reportByTime) {
+                lastNotConvergedLogMessageTimeMillis = currentTime;
+            }
         }
         iterations.inc(i);
 
@@ -405,8 +477,57 @@ public class DesiredBalanceComputer {
             );
         }
 
+        maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation);
+
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+    }
+
+    private void maybeLogAllocationExplainForUnassigned(
+        DesiredBalance.ComputationFinishReason finishReason,
+        RoutingNodes routingNodes,
+        RoutingAllocation routingAllocation
+    ) {
+        if (allocationExplainLogger.isDebugEnabled()) {
+            if (lastTrackedUnassignedShard != null) {
+                if (Stream.concat(routingNodes.unassigned().stream(), routingNodes.unassigned().ignored().stream())
+                    .noneMatch(shardRouting -> shardRouting.equals(lastTrackedUnassignedShard))) {
+                    allocationExplainLogger.debug("previously tracked unassigned shard [{}] is now assigned", lastTrackedUnassignedShard);
+                    lastTrackedUnassignedShard = null;
+                } else {
+                    return; // The last tracked unassigned shard is still unassigned, keep tracking it
+                }
+            }
+
+            assert lastTrackedUnassignedShard == null : "unexpected non-null lastTrackedUnassignedShard " + lastTrackedUnassignedShard;
+            if (routingNodes.hasUnassignedShards() && finishReason == DesiredBalance.ComputationFinishReason.CONVERGED) {
+                final Predicate<ShardRouting> predicate = routingNodes.hasUnassignedPrimaries() ? ShardRouting::primary : shard -> true;
+                lastTrackedUnassignedShard = Stream.concat(routingNodes.unassigned().stream(), routingNodes.unassigned().ignored().stream())
+                    .filter(predicate)
+                    .findFirst()
+                    .orElseThrow();
+
+                final var originalDebugMode = routingAllocation.getDebugMode();
+                routingAllocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+                final ShardAllocationDecision shardAllocationDecision;
+                try {
+                    shardAllocationDecision = shardAllocationExplainer.explain(lastTrackedUnassignedShard, routingAllocation);
+                } finally {
+                    routingAllocation.setDebugMode(originalDebugMode);
+                }
+                allocationExplainLogger.debug(
+                    "unassigned shard [{}] with allocation decision {}",
+                    lastTrackedUnassignedShard,
+                    org.elasticsearch.common.Strings.toString(
+                        p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
+                    )
+                );
+            }
+        } else {
+            if (lastTrackedUnassignedShard != null) {
+                lastTrackedUnassignedShard = null;
+            }
+        }
     }
 
     // visible for testing
@@ -470,5 +591,22 @@ public class DesiredBalanceComputer {
             iterations *= 10;
         }
         return iterations;
+    }
+
+    // Package-level getters for testing.
+    long getNumComputeCallsSinceLastConverged() {
+        return numComputeCallsSinceLastConverged;
+    }
+
+    long getNumIterationsSinceLastConverged() {
+        return numIterationsSinceLastConverged;
+    }
+
+    long getLastConvergedTimeMillis() {
+        return lastConvergedTimeMillis;
+    }
+
+    void setConvergenceLogMsgLevel(Level level) {
+        convergenceLogMsgLevel = level;
     }
 }

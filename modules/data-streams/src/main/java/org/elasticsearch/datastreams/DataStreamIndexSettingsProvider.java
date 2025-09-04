@@ -10,7 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +37,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -56,17 +58,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Settings getAdditionalIndexSettings(
+    public void provideAdditionalMetadata(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
-        List<CompressedXContent> combinedTemplateMappings
+        List<CompressedXContent> combinedTemplateMappings,
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
     ) {
         if (dataStreamName != null) {
-            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
@@ -86,7 +90,6 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             }
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
-                    Settings.Builder builder = Settings.builder();
                     TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
                     TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
                     final Instant start;
@@ -95,7 +98,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
                         end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                     } else {
-                        IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
+                        IndexMetadata currentLatestBackingIndex = projectMetadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
                             throw new IllegalStateException(
                                 String.format(
@@ -114,8 +117,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
-                    builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+                    additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+                    additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
@@ -125,15 +128,12 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             combinedTemplateMappings
                         );
                         if (routingPaths.isEmpty() == false) {
-                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
-                    return builder.build();
                 }
             }
         }
-
-        return Settings.EMPTY;
     }
 
     /**

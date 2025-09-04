@@ -11,14 +11,14 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   javaRestTestImplementation project(':test:fixtures:geoip-fixture')
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
-buildParams.bwcVersions.withWireCompatible(v -> v.before("9.0.0")) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

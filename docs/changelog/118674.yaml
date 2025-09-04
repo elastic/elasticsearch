@@ -1,5 +1,0 @@
-pr: 118674
-summary: Ignore failures from renormalizing buckets in read-only index
-area: Machine Learning
-type: enhancement
-issues: []

@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -87,7 +88,8 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             new BytesArray(requestJson),
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
-            true
+            true,
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
@@ -129,7 +131,8 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             new BytesArray(requestJson),
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
-            true
+            true,
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
@@ -152,7 +155,8 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             new BytesArray(requestJson),
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
-            true
+            true,
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
@@ -181,7 +185,8 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             new BytesArray(requestJson),
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
-            true
+            true,
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);

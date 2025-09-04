@@ -11,28 +11,40 @@ package org.elasticsearch.datastreams.action;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createIndexMetadata;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.allOf;
@@ -57,15 +69,15 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
-        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamName)));
     }
 
     public void testGetDataStreamsWithWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
-        ClusterState cs = getClusterStateWithDataStreams(
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
             List.of()
         );
@@ -74,25 +86,25 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             new String[] { dataStreamNames[1].substring(0, 5) + "*" }
         );
-        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, (String[]) null);
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "matches-none*" });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, empty());
     }
 
     public void testGetDataStreamsWithoutWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
-        ClusterState cs = getClusterStateWithDataStreams(
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
             List.of()
         );
@@ -101,32 +113,31 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             new String[] { dataStreamNames[0], dataStreamNames[1] }
         );
-        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        List<DataStream> dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[1] });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
         req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[0] });
-        dataStreams = TransportGetDataStreamsAction.getDataStreams(cs, resolver, req);
+        dataStreams = TransportGetDataStreamsAction.getDataStreams(project, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[0])));
 
         GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "foo" });
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportGetDataStreamsAction.getDataStreams(cs, resolver, req2)
+            () -> TransportGetDataStreamsAction.getDataStreams(project, resolver, req2)
         );
         assertThat(e.getMessage(), containsString("no such index [foo]"));
     }
 
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportGetDataStreamsAction.getDataStreams(cs, resolver, req)
+            () -> TransportGetDataStreamsAction.getDataStreams(emptyProject(), resolver, req)
         );
         assertThat(e.getMessage(), containsString("no such index [" + dataStreamName + "]"));
     }
@@ -140,9 +151,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
+        var projectId = randomProjectIdOrDefault();
         ClusterState state;
         {
-            var mBuilder = new Metadata.Builder();
+            var mBuilder = ProjectMetadata.builder(projectId);
             DataStreamTestHelper.getClusterStateWithDataStream(
                 mBuilder,
                 dataStream1,
@@ -161,18 +173,19 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     new Tuple<>(twoHoursAgo, twoHoursAhead)
                 )
             );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+            state = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(mBuilder.build()).build();
         }
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -191,20 +204,21 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
         // Remove the middle backing index first data stream, so that there is time gap in the data stream:
         {
-            Metadata.Builder mBuilder = Metadata.builder(state.getMetadata());
-            DataStream dataStream = state.getMetadata().dataStreams().get(dataStream1);
+            ProjectMetadata.Builder mBuilder = ProjectMetadata.builder(state.metadata().getProject(projectId));
+            DataStream dataStream = state.getMetadata().getProject(projectId).dataStreams().get(dataStream1);
             mBuilder.put(dataStream.removeBackingIndex(dataStream.getIndices().get(1)));
             mBuilder.remove(dataStream.getIndices().get(1).getName());
-            state = ClusterState.builder(state).metadata(mBuilder).build();
+            state = ClusterState.builder(state).putProjectMetadata(mBuilder.build()).build();
         }
         response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -233,9 +247,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
 
+        var projectId = randomProjectIdOrDefault();
         ClusterState state;
         {
-            var mBuilder = new Metadata.Builder();
+            var mBuilder = ProjectMetadata.builder(projectId);
             DataStreamTestHelper.getClusterStateWithDataStream(
                 mBuilder,
                 dataStream,
@@ -245,18 +260,19 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     new Tuple<>(twoHoursAgo, twoHoursAhead)
                 )
             );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+            state = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(mBuilder.build()).build();
         }
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -276,38 +292,33 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         Instant twoHoursAgo = instant.minus(2, ChronoUnit.HOURS);
         Instant twoHoursAhead = instant.plus(2, ChronoUnit.HOURS);
 
-        ClusterState state;
-        {
-            var mBuilder = new Metadata.Builder();
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                mBuilder,
-                List.of(Tuple.tuple(dataStream1, 2)),
-                List.of(),
-                instant.toEpochMilli(),
-                Settings.EMPTY,
-                0,
-                false,
-                false
-            );
-            DataStreamTestHelper.getClusterStateWithDataStream(mBuilder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
-        }
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStream1, 2)),
+            List.of(),
+            instant.toEpochMilli(),
+            Settings.EMPTY,
+            0
+        );
+        var builder = ProjectMetadata.builder(project);
+        DataStreamTestHelper.getClusterStateWithDataStream(builder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));
+        project = builder.build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            projectStateFromProject(project),
             req,
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
 
-        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
-        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, instant.toEpochMilli());
-        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, twoHoursAgo.toEpochMilli());
+        var name1 = getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
+        var name2 = getDefaultBackingIndexName("ds-1", 2, instant.toEpochMilli());
+        var name3 = getDefaultBackingIndexName("ds-1", 3, twoHoursAgo.toEpochMilli());
         assertThat(
             response.getDataStreams(),
             contains(
@@ -324,21 +335,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testPassingGlobalRetention() {
-        ClusterState state;
-        {
-            var mBuilder = new Metadata.Builder();
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                mBuilder,
-                List.of(Tuple.tuple("data-stream-1", 2)),
-                List.of(),
-                System.currentTimeMillis(),
-                Settings.EMPTY,
-                0,
-                false,
-                false
-            );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
-        }
+        final var state = projectStateFromProject(
+            DataStreamTestHelper.getProjectWithDataStreams(List.of(Tuple.tuple("data-stream-1", 2)), List.of())
+        );
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
@@ -349,10 +348,11 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), nullValue());
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+        assertThat(response.getDataGlobalRetention(), nullValue());
+        DataStreamGlobalRetention dataGlobalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
@@ -361,9 +361,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 Settings.builder()
                     .put(
                         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
-                        globalRetention.defaultRetention()
+                        dataGlobalRetention.defaultRetention()
                     )
-                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
             )
         );
@@ -375,15 +375,16 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             withGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), equalTo(globalRetention));
+        assertThat(response.getDataGlobalRetention(), equalTo(dataGlobalRetention));
+        // We used the default failures retention here which is greater than the max
+        assertThat(response.getFailuresGlobalRetention(), equalTo(new DataStreamGlobalRetention(null, dataGlobalRetention.maxRetention())));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_disabled() {
-        var metadata = new Metadata.Builder();
-        DataStreamTestHelper.getClusterStateWithDataStreams(
-            metadata,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple("data-stream-1", 2)),
             List.of(),
             System.currentTimeMillis(),
@@ -392,17 +393,17 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             false,
             false
         );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            projectStateFromProject(project),
             req,
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
@@ -410,9 +411,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledExplicitly() {
-        var metadata = new Metadata.Builder();
-        DataStreamTestHelper.getClusterStateWithDataStreams(
-            metadata,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple("data-stream-1", 2)),
             List.of(),
             System.currentTimeMillis(),
@@ -421,17 +420,17 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             false,
             true
         );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            projectStateFromProject(project),
             req,
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
@@ -439,9 +438,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledByClusterSetting() {
-        var metadata = new Metadata.Builder();
-        DataStreamTestHelper.getClusterStateWithDataStreams(
-            metadata,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple("data-stream-1", 2)),
             List.of(),
             System.currentTimeMillis(),
@@ -450,11 +447,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             false,
             false
         );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            projectStateFromProject(project),
             req,
             resolver,
             systemIndices,
@@ -467,9 +463,217 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                         .build()
                 )
             ),
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
         assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
+    }
+
+    public void testProvidersAffectMode() {
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(
+                Set.of(
+                    (
+                        indexName,
+                        dataStreamName,
+                        templateIndexMode,
+                        metadata,
+                        resolvedAt,
+                        indexTemplateAndCreateRequestSettings,
+                        combinedTemplateMappings,
+                        additionalSettings,
+                        additionalCustomMetadata) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)
+                )
+            ),
+            null
+        );
+        assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("lookup"));
+        assertThat(
+            response.getDataStreams()
+                .getFirst()
+                .getIndexSettingsValues()
+                .values()
+                .stream()
+                .findFirst()
+                .map(GetDataStreamAction.Response.IndexProperties::indexMode)
+                .orElse("bad"),
+            equalTo("standard")
+        );
+    }
+
+    public void testGetEffectiveSettingsTemplateOnlySettings() {
+        // Set a lifecycle only in the template, and make sure that is in the response:
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+
+        ProjectMetadata project = getProjectWithDataStreamWithSettings(
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.EMPTY,
+            Settings.EMPTY
+        );
+
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(templatePolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(templateIndexMode));
+    }
+
+    public void testGetEffectiveSettingsComponentTemplateOnlySettings() {
+        // Set a lifecycle only in the template, and make sure that is in the response:
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+
+        ProjectMetadata project = getProjectWithDataStreamWithSettings(
+            Settings.EMPTY,
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.EMPTY
+        );
+
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(templatePolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(templateIndexMode));
+    }
+
+    public void testGetEffectiveSettings() {
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+        final String dataStreamPolicy = "dataStreamPolicy";
+        final String dataStreamIndexMode = IndexMode.LOGSDB.getName();
+        // Now set a lifecycle in both the template and the data stream, and make sure the response has the data stream one:
+        ProjectMetadata project = getProjectWithDataStreamWithSettings(
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, dataStreamPolicy)
+                .put(IndexSettings.MODE.getKey(), dataStreamIndexMode)
+                .build()
+        );
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(dataStreamPolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(dataStreamIndexMode));
+    }
+
+    private static ProjectMetadata getProjectWithDataStreamWithSettings(
+        Settings templateSettings,
+        Settings componentTemplateSettings,
+        Settings dataStreamSettings
+    ) {
+        String dataStreamName = "data-stream-1";
+        int numberOfBackingIndices = randomIntBetween(1, 5);
+        long currentTime = System.currentTimeMillis();
+        int replicas = 0;
+        boolean replicated = false;
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        builder.put(
+            "template_1",
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("*"))
+                .template(Template.builder().settings(templateSettings))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .componentTemplates(List.of("component_template_1"))
+                .build()
+        );
+        ComponentTemplate componentTemplate = new ComponentTemplate(
+            Template.builder().settings(componentTemplateSettings).build(),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        builder.componentTemplates(Map.of("component_template_1", componentTemplate));
+
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numberOfBackingIndices; backingIndexNumber++) {
+            backingIndices.add(
+                createIndexMetadata(
+                    getDefaultBackingIndexName(dataStreamName, backingIndexNumber, currentTime),
+                    true,
+                    templateSettings,
+                    replicas
+                )
+            );
+        }
+        List<IndexMetadata> allIndices = new ArrayList<>(backingIndices);
+
+        DataStream ds = DataStream.builder(
+            dataStreamName,
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setReplicated(replicated).build();
+        builder.put(ds);
+
+        for (IndexMetadata index : allIndices) {
+            builder.put(index, false);
+        }
+        return builder.build();
     }
 }

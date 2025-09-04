@@ -22,6 +22,10 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -119,10 +123,13 @@ public class ClusterStateHealthTests extends ESTestCase {
         final CountDownLatch applyLatch = new CountDownLatch(1);
         final CountDownLatch listenerCalled = new CountDownLatch(1);
 
-        setState(
-            clusterService,
-            ClusterState.builder(clusterService.state()).nodes(clusterService.state().nodes().withMasterNodeId(null)).build()
-        );
+        var state = ClusterState.builder(clusterService.state()).nodes(clusterService.state().nodes().withMasterNodeId(null)).build();
+        var projectId = state.metadata().projects().keySet().iterator().next();
+        // Randomly add an extra project.
+        if (randomBoolean()) {
+            state = ClusterState.builder(state).putProjectMetadata(ProjectMetadata.builder(randomUniqueProjectId()).build()).build();
+        }
+        setState(clusterService, state);
 
         clusterService.addStateApplier(event -> {
             listenerCalled.countDown();
@@ -154,7 +161,8 @@ public class ClusterStateHealthTests extends ESTestCase {
             threadPool,
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
-            new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY),
+            TestProjectResolvers.singleProject(projectId)
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(
@@ -175,7 +183,8 @@ public class ClusterStateHealthTests extends ESTestCase {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        Metadata.Builder metadata = Metadata.builder();
+        ProjectId projectId = randomUniqueProjectId();
+        ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
         for (int i = randomInt(4); i >= 0; i--) {
             int numberOfShards = randomInt(3) + 1;
             int numberOfReplicas = randomInt(4);
@@ -185,16 +194,19 @@ public class ClusterStateHealthTests extends ESTestCase {
                 .numberOfReplicas(numberOfReplicas)
                 .build();
             IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
-            metadata.put(indexMetadata, true);
+            project.put(indexMetadata, true);
             routingTable.add(indexRoutingTable);
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
+            .build();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
+            clusterState.metadata().getProject(projectId),
             IndicesOptions.strictExpand(),
             (String[]) null
         );
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
         assertClusterHealth(clusterStateHealth, counter);
@@ -203,11 +215,12 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnIndexCreation() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, false);
+        var projectId = randomUniqueProjectId();
+        final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, false, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is always YELLOW, up until the last state where it should be GREEN
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -219,12 +232,13 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnIndexCreationWithFailedAllocations() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, true);
+        var projectId = randomUniqueProjectId();
+        final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, true, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
             // failed allocations that should make the cluster health RED
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -236,11 +250,12 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecovery() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, false);
+        var projectId = randomUniqueProjectId();
+        final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, false, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, when it turns GREEN
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -252,12 +267,13 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecoveryWithFailures() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, true);
+        var projectId = randomUniqueProjectId();
+        final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, true, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
             // failed allocations that should make the cluster health RED
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -269,16 +285,17 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecoveryWithPreviousAllocationIds() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, true, false);
+        var projectId = randomUniqueProjectId();
+        final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, true, false, projectId);
         for (int i = 0; i < clusterStates.size(); i++) {
             // because there were previous allocation ids, we should be RED until the primaries are started,
             // then move to YELLOW, and the last state should be GREEN when all shards have been started
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             if (i < clusterStates.size() - 1) {
                 // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated),
                 // then cluster health is YELLOW, otherwise RED
-                if (primaryInactiveDueToRecovery(indexName, clusterState)) {
+                if (primaryInactiveDueToRecovery(indexName, clusterState, projectId)) {
                     assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
                 } else {
                     assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
@@ -292,11 +309,12 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthOnClusterRecoveryWithPreviousAllocationIdsAndAllocationFailures() {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
-        for (final ClusterState clusterState : simulateClusterRecoveryStates(indexName, true, true)) {
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+        var projectId = randomUniqueProjectId();
+        for (final ClusterState clusterState : simulateClusterRecoveryStates(indexName, true, true, projectId)) {
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, projectId);
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
             // then cluster health is YELLOW, otherwise RED
-            if (primaryInactiveDueToRecovery(indexName, clusterState)) {
+            if (primaryInactiveDueToRecovery(indexName, clusterState, projectId)) {
                 assertThat("clusterState is:\n" + clusterState, health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
                 assertThat("clusterState is:\n" + clusterState, health.getStatus(), equalTo(ClusterHealthStatus.RED));
@@ -314,7 +332,11 @@ public class ClusterStateHealthTests extends ESTestCase {
         return clusterStateHealth;
     }
 
-    private List<ClusterState> simulateIndexCreationStates(final String indexName, final boolean withPrimaryAllocationFailures) {
+    private List<ClusterState> simulateIndexCreationStates(
+        final String indexName,
+        final boolean withPrimaryAllocationFailures,
+        ProjectId projectId
+    ) {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(1, numberOfShards);
         // initial index creation and new routing table info
@@ -323,22 +345,28 @@ public class ClusterStateHealthTests extends ESTestCase {
             .numberOfShards(numberOfShards)
             .numberOfReplicas(numberOfReplicas)
             .build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(indexMetadata)
-            .build();
+        final var mdBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true).build());
+        final var rtBuilder = GlobalRoutingTable.builder()
+            .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata));
+        final int nrOfProjects = randomIntBetween(0, 5);
+        for (int i = 0; i < nrOfProjects; i++) {
+            var id = randomUniqueProjectId();
+            mdBuilder.put(ProjectMetadata.builder(id).build());
+            rtBuilder.put(id, RoutingTable.EMPTY_ROUTING_TABLE);
+        }
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
-            .metadata(metadata)
-            .routingTable(routingTable)
+            .metadata(mdBuilder.build())
+            .routingTable(rtBuilder.build())
             .build();
-        return generateClusterStates(clusterState, indexName, numberOfReplicas, withPrimaryAllocationFailures);
+        return generateClusterStates(clusterState, indexName, numberOfReplicas, withPrimaryAllocationFailures, projectId);
     }
 
     private List<ClusterState> simulateClusterRecoveryStates(
         final String indexName,
         final boolean withPreviousAllocationIds,
-        final boolean withPrimaryAllocationFailures
+        final boolean withPrimaryAllocationFailures,
+        final ProjectId projectId
     ) {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(1, numberOfShards);
@@ -360,23 +388,29 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
             indexMetadata = idxMetaWithAllocationIds.build();
         }
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(indexMetadata)
-            .build();
+        final var mdBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true).build());
+        final var rtBuilder = GlobalRoutingTable.builder()
+            .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata));
+        final int nrOfProjects = randomIntBetween(0, 5);
+        for (int i = 0; i < nrOfProjects; i++) {
+            var id = randomUniqueProjectId();
+            mdBuilder.put(ProjectMetadata.builder(id).build());
+            rtBuilder.put(id, RoutingTable.EMPTY_ROUTING_TABLE);
+        }
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
-            .metadata(metadata)
-            .routingTable(routingTable)
+            .metadata(mdBuilder.build())
+            .routingTable(rtBuilder.build())
             .build();
-        return generateClusterStates(clusterState, indexName, numberOfReplicas, withPrimaryAllocationFailures);
+        return generateClusterStates(clusterState, indexName, numberOfReplicas, withPrimaryAllocationFailures, projectId);
     }
 
     private List<ClusterState> generateClusterStates(
         final ClusterState originalClusterState,
         final String indexName,
         final int numberOfReplicas,
-        final boolean withPrimaryAllocationFailures
+        final boolean withPrimaryAllocationFailures,
+        ProjectId projectId
     ) {
         // generate random node ids
         final Set<String> nodeIds = new HashSet<>();
@@ -390,7 +424,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         ClusterState clusterState = originalClusterState;
 
         // initialize primaries
-        RoutingTable routingTable = originalClusterState.routingTable();
+        RoutingTable routingTable = originalClusterState.routingTable(projectId);
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
@@ -405,7 +439,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+            .build();
         clusterStates.add(clusterState);
 
         // some primaries started
@@ -426,10 +462,13 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        final IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
+        final IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(indexName));
         allocationIds.forEach(idxMetaBuilder::putInSyncAllocationIds);
-        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder);
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
+        var projectBuilder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(idxMetaBuilder);
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+            .putProjectMetadata(projectBuilder)
+            .build();
         clusterStates.add(clusterState);
 
         if (withPrimaryAllocationFailures) {
@@ -452,7 +491,11 @@ public class ClusterStateHealthTests extends ESTestCase {
                 }
             }
             routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-            clusterStates.add(ClusterState.builder(clusterState).routingTable(routingTable).build());
+            clusterStates.add(
+                ClusterState.builder(clusterState)
+                    .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+                    .build()
+            );
             return clusterStates;
         }
 
@@ -474,10 +517,13 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        final IndexMetadata.Builder idxMetaBuilder2 = IndexMetadata.builder(clusterState.metadata().index(indexName));
+        final IndexMetadata.Builder idxMetaBuilder2 = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(indexName));
         allocationIds.forEach(idxMetaBuilder2::putInSyncAllocationIds);
-        metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder2);
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
+        projectBuilder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(idxMetaBuilder2);
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+            .putProjectMetadata(projectBuilder)
+            .build();
         clusterStates.add(clusterState);
 
         // initialize replicas
@@ -501,7 +547,11 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        clusterStates.add(ClusterState.builder(clusterState).routingTable(routingTable).build());
+        clusterStates.add(
+            ClusterState.builder(clusterState)
+                .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+                .build()
+        );
 
         // some replicas started
         indexRoutingTable = routingTable.index(indexName);
@@ -518,7 +568,11 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        clusterStates.add(ClusterState.builder(clusterState).routingTable(routingTable).build());
+        clusterStates.add(
+            ClusterState.builder(clusterState)
+                .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+                .build()
+        );
 
         // all replicas started
         boolean replicaStateChanged = false;
@@ -539,7 +593,11 @@ public class ClusterStateHealthTests extends ESTestCase {
         // all of the replicas may have moved to started in the previous phase already
         if (replicaStateChanged) {
             routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-            clusterStates.add(ClusterState.builder(clusterState).routingTable(routingTable).build());
+            clusterStates.add(
+                ClusterState.builder(clusterState)
+                    .routingTable(GlobalRoutingTable.builder(clusterState.globalRoutingTable()).put(projectId, routingTable).build())
+                    .build()
+            );
         }
 
         return clusterStates;
@@ -547,13 +605,17 @@ public class ClusterStateHealthTests extends ESTestCase {
 
     // returns true if the inactive primaries in the index are only due to cluster recovery
     // (not because of allocation of existing shard or previously having allocation ids assigned)
-    private boolean primaryInactiveDueToRecovery(final String indexName, final ClusterState clusterState) {
-        final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(indexName);
+    private boolean primaryInactiveDueToRecovery(final String indexName, final ClusterState clusterState, final ProjectId projectId) {
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable(projectId).index(indexName);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
             final ShardRouting primaryShard = shardRouting.primaryShard();
             if (primaryShard.active() == false) {
-                if (clusterState.metadata().index(indexName).inSyncAllocationIds(shardRouting.shardId().id()).isEmpty() == false) {
+                if (clusterState.metadata()
+                    .getProject(projectId)
+                    .index(indexName)
+                    .inSyncAllocationIds(shardRouting.shardId().id())
+                    .isEmpty() == false) {
                     return false;
                 }
                 if (primaryShard.recoverySource() != null

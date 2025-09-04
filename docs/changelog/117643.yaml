@@ -1,6 +1,0 @@
-pr: 117643
-summary: Drop null columns in text formats
-area: ES|QL
-type: bug
-issues:
-  - 116848

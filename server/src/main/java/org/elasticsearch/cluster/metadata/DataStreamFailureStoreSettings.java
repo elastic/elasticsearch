@@ -46,12 +46,10 @@ public class DataStreamFailureStoreSettings {
      */
     public static DataStreamFailureStoreSettings create(ClusterSettings clusterSettings) {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings = new DataStreamFailureStoreSettings();
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            clusterSettings.initializeAndWatch(
-                DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
-                dataStreamFailureStoreSettings::setEnabledByNamePatterns
-            );
-        }
+        clusterSettings.initializeAndWatch(
+            DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
+            dataStreamFailureStoreSettings::setEnabledByNamePatterns
+        );
         return dataStreamFailureStoreSettings;
     }
 
@@ -61,7 +59,6 @@ public class DataStreamFailureStoreSettings {
      * @param name The data stream name
      */
     public boolean failureStoreEnabledForDataStreamName(String name) {
-        assert DataStream.isFailureStoreFeatureFlagEnabled() : "Testing whether failure store is enabled should be behind by feature flag";
         return failureStoreEnabledByName.test(name);
     }
 

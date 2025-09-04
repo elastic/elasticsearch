@@ -1,5 +1,0 @@
-pr: 120852
-summary: Correct line and column numbers of missing named parameters
-area: ES|QL
-type: bug
-issues: []

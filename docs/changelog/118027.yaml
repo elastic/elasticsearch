@@ -1,6 +1,0 @@
-pr: 118027
-summary: Esql compare nanos and millis
-area: ES|QL
-type: enhancement
-issues:
- - 116281

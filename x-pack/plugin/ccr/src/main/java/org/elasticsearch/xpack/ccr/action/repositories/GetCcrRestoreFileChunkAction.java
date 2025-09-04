@@ -143,7 +143,6 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         private final ReleasableBytesReference chunk;
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
-            super(streamInput);
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC); // large responses must fork before deserialization
             offset = streamInput.readVLong();
             chunk = streamInput.readReleasableBytesReference();

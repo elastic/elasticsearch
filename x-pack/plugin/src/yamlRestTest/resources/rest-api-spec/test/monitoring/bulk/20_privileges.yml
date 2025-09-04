@@ -80,7 +80,7 @@ teardown:
 
   - do:
       allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
       cluster.put_settings:
         body:
           persistent:

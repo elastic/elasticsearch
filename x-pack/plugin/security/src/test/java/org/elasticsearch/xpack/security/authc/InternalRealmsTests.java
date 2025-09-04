@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFac
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -43,7 +45,6 @@ import org.hamcrest.Matchers;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -84,10 +85,10 @@ public class InternalRealmsTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final ThreadContext threadContext = new ThreadContext(settings);
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-        verify(securityIndex).addStateListener(isA(BiConsumer.class));
+        verify(securityIndex).addStateListener(isA(TriConsumer.class));
 
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-        verify(securityIndex, times(2)).addStateListener(isA(BiConsumer.class));
+        verify(securityIndex, times(2)).addStateListener(isA(TriConsumer.class));
     }
 
     public void testRealmsRegisterForRefreshAtRoleMapper() throws Exception {
@@ -180,22 +181,34 @@ public class InternalRealmsTests extends ESTestCase {
             verify(userRoleMapper, times(1)).clearRealmCacheOnChange(same((CachingRealm) realm));
         }
         {
-            RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, "test");
+            RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(SingleSpSamlRealmSettings.TYPE, "test");
             Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
-                .put(getFullSettingKey(realmId.getName(), SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
-                .put(getFullSettingKey(realmId.getName(), SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
-                .put(getFullSettingKey(realmId.getName(), SamlRealmSettings.SP_ENTITY_ID), "mock")
-                .put(getFullSettingKey(realmId.getName(), SamlRealmSettings.SP_ACS), "http://mock")
-                .put(getFullSettingKey(realmId.getName(), SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+                .put(
+                    SingleSpSamlRealmSettings.getFullSettingKey(realmId.getName(), SamlRealmSettings.IDP_METADATA_PATH),
+                    metadata.toString()
+                )
+                .put(
+                    SingleSpSamlRealmSettings.getFullSettingKey(realmId.getName(), SamlRealmSettings.IDP_ENTITY_ID),
+                    SamlRealmTests.TEST_IDP_ENTITY_ID
+                )
+                .put(getFullSettingKey(realmId.getName(), SingleSpSamlRealmSettings.SP_ENTITY_ID), "mock")
+                .put(getFullSettingKey(realmId.getName(), SingleSpSamlRealmSettings.SP_ACS), "http://mock")
+                .put(
+                    getFullSettingKey(
+                        realmId.getName(),
+                        SamlRealmSettings.PRINCIPAL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()
+                    ),
+                    "uid"
+                )
                 .build();
             final Environment env = TestEnvironment.newEnvironment(settings);
             final ThreadContext threadContext = new ThreadContext(settings);
-            assertThat(factories, hasEntry(is(SamlRealmSettings.TYPE), any(Realm.Factory.class)));
+            assertThat(factories, hasEntry(is(SingleSpSamlRealmSettings.TYPE), any(Realm.Factory.class)));
             try (
-                SamlRealm ignored = (SamlRealm) factories.get(SamlRealmSettings.TYPE)
+                SamlRealm ignored = (SamlRealm) factories.get(SingleSpSamlRealmSettings.TYPE)
                     .create(new RealmConfig(realmId, settings, env, threadContext))
             ) {
                 // SAML realm is not caching

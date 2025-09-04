@@ -14,8 +14,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
@@ -91,7 +91,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
+                    var searchShardsResponse = new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap());
+                    try {
+                        channel.sendResponse(searchShardsResponse);
+                    } finally {
+                        searchShardsResponse.decRef();
+                    }
                 }
             );
             newService.registerRequestHandler(
@@ -112,14 +117,19 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                ClusterStateRequest::new,
+                RemoteClusterStateRequest::new,
                 (request, channel, task) -> {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                     for (DiscoveryNode node : knownNodes) {
                         builder.add(node);
                     }
                     ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
+                    var clusterStateResponse = new ClusterStateResponse(clusterName, build, false);
+                    try {
+                        channel.sendResponse(clusterStateResponse);
+                    } finally {
+                        clusterStateResponse.decRef();
+                    }
                 }
             );
             newService.start();

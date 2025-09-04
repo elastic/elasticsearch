@@ -1,5 +1,9 @@
-# Integration tests for Discovery GCE components
-#
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 3
+---
 "Discovery GCE loaded":
     - skip:
         reason: "contains is a newly added assertion"
@@ -14,3 +18,11 @@
         nodes.info: {}
 
     - contains:  { nodes.$master.plugins: { name: discovery-gce } }
+---
+"All nodes are correctly discovered":
+
+  - do:
+      nodes.info:
+        metric: [ transport ]
+
+  - match: { _nodes.total: 3 }

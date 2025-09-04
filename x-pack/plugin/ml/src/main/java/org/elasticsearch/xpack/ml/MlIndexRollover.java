@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.TransportVersions.ML_ROLLOVER_LEGACY_INDICES;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
@@ -60,7 +60,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Wait for all nodes to be upgraded to ensure that the
         // newly created index will be of the latest version.
-        return minTransportVersion.onOrAfter(TransportVersions.ML_ROLLOVER_LEGACY_INDICES);
+        return minTransportVersion.supports(ML_ROLLOVER_LEGACY_INDICES);
     }
 
     @Override
@@ -138,9 +138,9 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
         // Indices created before 8.0 are read only in 9
         boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
-            clusterState.metadata().index(latestIndex).getCreationVersion()
+            clusterState.metadata().getProject().index(latestIndex).getCreationVersion()
         );
-        boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
+        boolean hasAlias = clusterState.getMetadata().getProject().hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {
             // v8 index with alias, no action required
@@ -150,7 +150,14 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
 
         SubscribableListener.<Boolean>newForked(l -> {
             if (hasAlias == false) {
-                MlIndexAndAlias.updateWriteAlias(client, alias, null, latestIndex, l);
+                MlIndexAndAlias.updateWriteAlias(
+                    client,
+                    alias,
+                    null,
+                    latestIndex,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    l
+                );
             } else {
                 l.onResponse(Boolean.TRUE);
             }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -20,28 +22,28 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
+    private final Settings settings;
     // package-private for tests
-    final GoogleCloudStorageService storageService;
+    final SetOnce<GoogleCloudStorageService> storageService = new SetOnce<>();
 
-    @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        this.storageService = createStorageService();
-        // eagerly load client settings so that secure settings are readable (not closed)
-        reload(settings);
+        this.settings = settings;
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService() {
-        return new GoogleCloudStorageService();
+    protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+        return new GoogleCloudStorageService(clusterService, projectResolver);
     }
 
     @Override
@@ -51,19 +53,32 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,
-            metadata -> new GoogleCloudStorageRepository(
+            (projectId, metadata) -> new GoogleCloudStorageRepository(
+                projectId,
                 metadata,
                 namedXContentRegistry,
-                this.storageService,
+                this.storageService.get(),
                 clusterService,
                 bigArrays,
-                recoverySettings
+                recoverySettings,
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
+                snapshotMetrics
             )
         );
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        final ClusterService clusterService = services.clusterService();
+        storageService.set(createStorageService(clusterService, services.projectResolver()));
+        // eagerly load client settings so that secure settings are readable (not closed)
+        reload(settings);
+        return List.of(storageService.get());
     }
 
     @Override
@@ -90,6 +105,6 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // `GoogleCloudStorageClientSettings` instance) instead of the `Settings`
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-        this.storageService.refreshAndClearCache(clientsSettings);
+        this.storageService.get().refreshAndClearCache(clientsSettings);
     }
 }

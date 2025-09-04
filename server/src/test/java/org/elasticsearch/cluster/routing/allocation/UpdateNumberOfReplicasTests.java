@@ -43,7 +43,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -92,7 +92,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(2, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
 
-        assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(2));
+        assertThat(clusterState.metadata().getProject().index("test").getNumberOfReplicas(), equalTo(2));
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(3));
@@ -149,7 +149,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(1, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
 
-        assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(1));
+        assertThat(clusterState.metadata().getProject().index("test").getNumberOfReplicas(), equalTo(1));
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(2));

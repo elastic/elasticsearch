@@ -17,10 +17,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
@@ -56,11 +58,18 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleTask.class);
 
+    private final ProjectId projectId;
     private final Client client;
     private final ClusterService clusterService;
     private final SnapshotHistoryStore historyStore;
 
-    public SnapshotLifecycleTask(final Client client, final ClusterService clusterService, final SnapshotHistoryStore historyStore) {
+    public SnapshotLifecycleTask(
+        final ProjectId projectId,
+        final Client client,
+        final ClusterService clusterService,
+        final SnapshotHistoryStore historyStore
+    ) {
+        this.projectId = projectId;
         this.client = client;
         this.clusterService = clusterService;
         this.historyStore = historyStore;
@@ -69,8 +78,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
-
-        final Optional<String> snapshotName = maybeTakeSnapshot(event.jobName(), client, clusterService, historyStore);
+        ProjectMetadata projectMetadata = clusterService.state().getMetadata().getProject(projectId);
+        final Optional<String> snapshotName = maybeTakeSnapshot(projectMetadata, event.jobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse
         snapshotName.ifPresent(
@@ -93,12 +102,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * @return An optional snapshot name if the request was issued successfully
      */
     public static Optional<String> maybeTakeSnapshot(
+        final ProjectMetadata projectMetadata,
         final String jobId,
         final Client client,
         final ClusterService clusterService,
         final SnapshotHistoryStore historyStore
     ) {
-        Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(jobId, clusterService.state());
+        ProjectId projectId = projectMetadata.id();
+        Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(projectMetadata, jobId);
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
@@ -131,7 +142,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         submitUnbatchedTask(
                             clusterService,
                             "slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), snapshotId, snapshotStartTime, timestamp)
+                            WriteJobStatus.success(projectId, policyMetadata.getPolicy().getId(), snapshotId, snapshotStartTime, timestamp)
                         );
                         historyStore.putAsync(
                             SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
@@ -151,12 +162,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
+                    SnapshotHistoryStore.logErrorOrWarning(
+                        clusterService.state(),
+                        () -> format("failed to create snapshot for snapshot lifecycle policy [{}]", policyMetadata.getPolicy().getId()),
+                        e
+                    );
                     final long timestamp = Instant.now().toEpochMilli();
                     submitUnbatchedTask(
                         clusterService,
                         "slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), snapshotId, timestamp, e)
+                        WriteJobStatus.failure(projectId, policyMetadata.getPolicy().getId(), snapshotId, timestamp, e)
                     );
                     final SnapshotHistoryItem failureRecord;
                     try {
@@ -198,8 +213,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     /**
      * For the given job id, return an optional policy metadata object, if one exists
      */
-    static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final String jobId, final ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
+    static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final ProjectMetadata projectMetadata, final String jobId) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) projectMetadata.custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getSnapshotConfigurations)
             .flatMap(
                 configMap -> configMap.values()
@@ -219,7 +234,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     static Set<SnapshotId> currentlyRunningSnapshots(ClusterState clusterState) {
         final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         final Set<SnapshotId> currentlyRunning = new HashSet<>();
-        for (final List<SnapshotsInProgress.Entry> entriesForRepo : snapshots.entriesByRepo()) {
+        @FixForMultiProject(description = "replace with snapshots.entriesByRepo(ProjectId) when SLM is project aware")
+        final Iterable<List<SnapshotsInProgress.Entry>> entriesByRepo = snapshots.entriesByRepo();
+        for (final List<SnapshotsInProgress.Entry> entriesForRepo : entriesByRepo) {
             for (SnapshotsInProgress.Entry entry : entriesForRepo) {
                 currentlyRunning.add(entry.snapshot().getSnapshotId());
             }
@@ -241,6 +258,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      */
     static class WriteJobStatus extends ClusterStateUpdateTask {
 
+        private final ProjectId projectId;
         private final String policyName;
         private final SnapshotId snapshotId;
         private final long snapshotStartTime;
@@ -248,12 +266,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         private final Optional<Exception> exception;
 
         private WriteJobStatus(
+            ProjectId projectId,
             String policyName,
             SnapshotId snapshotId,
             long snapshotStartTime,
             long snapshotFinishTime,
             Optional<Exception> exception
         ) {
+            this.projectId = projectId;
             this.policyName = policyName;
             this.snapshotId = snapshotId;
             this.exception = exception;
@@ -261,20 +281,25 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             this.snapshotFinishTime = snapshotFinishTime;
         }
 
-        static WriteJobStatus success(String policyId, SnapshotId snapshotId, long snapshotStartTime, long snapshotFinishTime) {
-            return new WriteJobStatus(policyId, snapshotId, snapshotStartTime, snapshotFinishTime, Optional.empty());
+        static WriteJobStatus success(
+            ProjectId projectId,
+            String policyId,
+            SnapshotId snapshotId,
+            long snapshotStartTime,
+            long snapshotFinishTime
+        ) {
+            return new WriteJobStatus(projectId, policyId, snapshotId, snapshotStartTime, snapshotFinishTime, Optional.empty());
         }
 
-        static WriteJobStatus failure(String policyId, SnapshotId snapshotId, long timestamp, Exception exception) {
-            return new WriteJobStatus(policyId, snapshotId, timestamp, timestamp, Optional.of(exception));
+        static WriteJobStatus failure(ProjectId projectId, String policyId, SnapshotId snapshotId, long timestamp, Exception exception) {
+            return new WriteJobStatus(projectId, policyId, snapshotId, timestamp, timestamp, Optional.of(exception));
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
-            RegisteredPolicySnapshots registeredSnapshots = currentState.metadata()
-                .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+            final ProjectMetadata project = currentState.metadata().getProject(projectId);
+            SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            RegisteredPolicySnapshots registeredSnapshots = project.custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
 
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
@@ -342,16 +367,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
-            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(
-                snapLifecycles,
-                currentSLMMode(currentState),
-                newStats
+            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentSLMMode(project), newStats);
+            return currentState.copyAndUpdateProject(
+                project.id(),
+                builder -> builder.putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
+                    .putCustom(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(newRegistered))
             );
-            Metadata newMeta = Metadata.builder(currentState.metadata())
-                .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
-                .putCustom(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(newRegistered))
-                .build();
-            return ClusterState.builder(currentState).metadata(newMeta).build();
         }
 
         @Override

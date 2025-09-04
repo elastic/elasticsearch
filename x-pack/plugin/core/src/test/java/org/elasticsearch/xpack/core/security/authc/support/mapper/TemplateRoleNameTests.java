@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -91,7 +94,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ExpressionModel model = new ExpressionModel();
         model.defineField("username", "hulk");
@@ -147,7 +151,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("""
@@ -175,7 +180,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final BytesReference template = new BytesArray("""
@@ -206,7 +212,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final BytesReference template = new BytesArray("""
@@ -241,10 +248,11 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Map.of("painless", scriptEngine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         ) {
             @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 if ("valid".equals(id)) {
                     return new StoredScriptSource("painless", "params.metedata.group", Map.of());
                 } else {
@@ -270,7 +278,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final BytesReference inlineScript = new BytesArray("""
             { "source":"" }""");
@@ -287,16 +296,19 @@ public class TemplateRoleNameTests extends ESTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         final StoredScriptSource storedScriptSource = mock(StoredScriptSource.class);
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).storeScript("foo", storedScriptSource).build();
+        final ProjectMetadata project = mock(ProjectMetadata.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.getProject(any())).thenReturn(project);
         when(storedScriptSource.getLang()).thenReturn("mustache");
         when(storedScriptSource.getSource()).thenReturn("");
         when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
@@ -316,15 +328,18 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).build();
+        final ProjectMetadata project = mock(ProjectMetadata.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.getProject(any())).thenReturn(project);
         scriptService.applyClusterState(clusterChangedEvent);
 
         final BytesReference storedScript = new BytesArray("""

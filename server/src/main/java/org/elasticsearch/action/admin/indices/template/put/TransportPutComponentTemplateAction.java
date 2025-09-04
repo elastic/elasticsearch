@@ -19,13 +19,15 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +40,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -46,8 +49,8 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -60,11 +63,12 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutComponentTemplateAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     public static ComponentTemplate normalizeComponentTemplate(
@@ -82,7 +86,9 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
                 template,
                 componentTemplate.version(),
                 componentTemplate.metadata(),
-                componentTemplate.deprecated()
+                componentTemplate.deprecated(),
+                componentTemplate.createdDateMillis().orElse(null),
+                componentTemplate.modifiedDateMillis().orElse(null)
             );
         }
 
@@ -97,12 +103,14 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ActionListener<AcknowledgedResponse> listener
     ) {
         ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
+        var projectId = projectResolver.getProjectId();
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             componentTemplate,
+            projectId,
             listener
         );
     }
@@ -115,5 +123,18 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
     @Override
     public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
+    }
+
+    @Override
+    @FixForMultiProject // does this need to be a more general concept?
+    protected void validateForReservedState(PutComponentTemplateAction.Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 }

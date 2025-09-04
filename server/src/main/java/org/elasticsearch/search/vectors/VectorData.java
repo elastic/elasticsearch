@@ -48,6 +48,10 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         }
     }
 
+    public boolean isFloat() {
+        return floatVector != null;
+    }
+
     public byte[] asByteVector() {
         if (byteVector != null) {
             return byteVector;

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -394,9 +395,10 @@ public class MlDailyMaintenanceService implements Releasable {
      */
     private void auditUnassignedMlTasks() {
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final ProjectMetadata project = state.getMetadata().getProject();
+        PersistentTasksCustomMetadata tasks = project.custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks != null) {
-            mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);
+            mlAssignmentNotifier.auditUnassignedMlTasks(project.id(), state.nodes(), tasks);
         }
     }
 }

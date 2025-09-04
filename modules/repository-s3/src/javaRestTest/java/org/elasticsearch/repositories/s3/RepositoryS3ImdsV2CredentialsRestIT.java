@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.DynamicAwsCredentials;
+import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.imds.Ec2ImdsHttpFixture;
 import fixture.aws.imds.Ec2ImdsServiceBuilder;
 import fixture.aws.imds.Ec2ImdsVersion;
@@ -24,6 +25,8 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.function.Supplier;
+
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -33,10 +36,12 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "imdsv2_credentials_client";
 
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials();
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
+            .instanceIdentityDocument((b, p) -> b.field("region", regionSupplier.get()))
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
@@ -44,7 +49,7 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME, ec2ImdsHttpFixture::getAddress)
+        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, ec2ImdsHttpFixture::getAddress)
         .build();
 
     @ClassRule

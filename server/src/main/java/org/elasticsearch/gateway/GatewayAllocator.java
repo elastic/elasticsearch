@@ -250,7 +250,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     logger,
                     "shard_started",
                     shardId,
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
                     allocation.routingNodes().size()
                 ) {
                     @Override
@@ -297,7 +297,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     logger,
                     "shard_store",
                     shard.shardId(),
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
                     allocation.routingNodes().size()
                 ) {
                     @Override

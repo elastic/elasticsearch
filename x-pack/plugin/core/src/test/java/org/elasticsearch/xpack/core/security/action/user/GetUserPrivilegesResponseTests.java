@@ -92,7 +92,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeAdvancedRemoteClusterSecurity
         );
         out.setTransportVersion(version);

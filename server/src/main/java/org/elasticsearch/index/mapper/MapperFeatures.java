@@ -14,6 +14,11 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_INDEX_OPTIONS_FEATURE;
+
 /**
  * Spec for mapper-related features.
  */
@@ -33,6 +38,16 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
     public static final NodeFeature DOC_VALUES_SKIPPER = new NodeFeature("mapper.doc_values_skipper");
+    static final NodeFeature UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE = new NodeFeature(
+        "mapper.unknown_field_mapping_update_error_message"
+    );
+    static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
+    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
+    static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
+    static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
+    static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
+    static final NodeFeature PATTERNED_TEXT = new NodeFeature("mapper.patterned_text");
+    static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -54,7 +69,20 @@ public class MapperFeatures implements FeatureSpecification {
             TSDB_NESTED_FIELD_SUPPORT,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-            DOC_VALUES_SKIPPER
+            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
+            DOC_VALUES_SKIPPER,
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            DateFieldMapper.INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            IVF_FORMAT_CLUSTER_FEATURE,
+            IVF_NESTED_SUPPORT,
+            BBQ_DISK_SUPPORT,
+            SEARCH_LOAD_PER_SHARD,
+            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
+            PATTERNED_TEXT,
+            IGNORED_SOURCE_FIELDS_PER_ENTRY
         );
     }
 }

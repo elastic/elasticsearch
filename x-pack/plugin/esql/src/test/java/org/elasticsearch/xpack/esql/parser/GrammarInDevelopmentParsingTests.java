@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -23,7 +24,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentMetrics() throws Exception {
-        parse("metrics foo", "metrics");
+        parse("TS foo", "TS");
     }
 
     public void testDevelopmentMatch() throws Exception {
@@ -31,7 +32,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     void parse(String query, String errorMessage) {
-        ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query));
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query, EsqlTestUtils.TEST_CFG));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));
         // check the parser eliminated the DEV_ tokens from the message
         assertThat(pe.getMessage(), not(containsString("DEV_")));
@@ -44,6 +45,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
         // manually disable dev mode (make it production)
         config.setDevVersion(false);
+        config.setMetricsCommand(false);
         return parser;
     }
 }

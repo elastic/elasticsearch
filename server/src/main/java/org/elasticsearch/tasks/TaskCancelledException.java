@@ -28,6 +28,11 @@ public class TaskCancelledException extends ElasticsearchException {
     }
 
     @Override
+    public Throwable fillInStackTrace() {
+        return this;  // this exception doesn't imply a bug, no need for a stack trace
+    }
+
+    @Override
     public RestStatus status() {
         // Tasks are typically cancelled at the request of the client, so a 4xx status code is more accurate than the default of 500 (and
         // means we don't log every cancellation at WARN level). There's no perfect match for cancellation in the available status codes,

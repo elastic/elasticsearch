@@ -315,7 +315,7 @@ class RepositoryIntegrityVerifier {
             private void verifySnapshotGlobalMetadata(ActionListener<Void> listener) {
                 metadataTaskRunner.run(ActionRunnable.wrap(listener, l -> {
                     try {
-                        blobStoreRepository.getSnapshotGlobalMetadata(snapshotId);
+                        blobStoreRepository.getSnapshotGlobalMetadata(snapshotId, false);
                         // no checks here, loading it is enough
                         l.onResponse(null);
                     } catch (Exception e) {
@@ -798,7 +798,7 @@ class RepositoryIntegrityVerifier {
                     })));
                 } else {
                     blobBytesVerified.addAndGet(fileInfo.length());
-                    return SubscribableListener.newSucceeded(null);
+                    return SubscribableListener.nullSuccess();
                 }
             });
         }

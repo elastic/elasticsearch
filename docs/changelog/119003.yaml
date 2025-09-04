@@ -1,5 +1,0 @@
-pr: 119003
-summary: Add a `replicate_for` option to the ILM `searchable_snapshot` action
-area: ILM+SLM
-type: enhancement
-issues: []

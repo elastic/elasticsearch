@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -47,7 +48,11 @@ public class Rename extends UnaryPlan implements TelemetryAware, SortAgnostic {
     @Override
     public List<Attribute> output() {
         // Normally shouldn't reach here, as Rename only exists before resolution.
-        List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(this, this.child().output(), null);
+        List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(
+            this,
+            new ArrayList<>(this.child().output()),
+            null
+        );
 
         return Expressions.asAttributes(projectionsAfterResolution);
     }

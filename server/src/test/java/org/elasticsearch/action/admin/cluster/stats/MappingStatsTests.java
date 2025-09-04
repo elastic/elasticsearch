@@ -107,7 +107,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(1));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(1));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals("""
             {
@@ -239,7 +239,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(2));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(2));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals("""
             {

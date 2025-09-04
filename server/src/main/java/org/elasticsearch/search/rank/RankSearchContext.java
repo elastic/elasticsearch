@@ -13,6 +13,8 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -40,6 +42,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -201,6 +204,16 @@ public class RankSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return null;
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return parent.circuitBreaker();
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return parent.memAccountingBufferSize();
     }
 
     @Override
@@ -525,7 +538,7 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader() {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
         throw new UnsupportedOperationException();
     }
 

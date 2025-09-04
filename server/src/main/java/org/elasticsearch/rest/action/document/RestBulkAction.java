@@ -18,10 +18,10 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -42,6 +42,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -61,15 +62,16 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
-
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
+    private final IncrementalBulkService.Enabled incrementalEnabled;
     private final Set<String> capabilities;
 
-    public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
+    public RestBulkAction(Settings settings, ClusterSettings clusterSettings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
-        this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
+        this.capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY);
+        this.incrementalEnabled = new IncrementalBulkService.Enabled(clusterSettings);
     }
 
     @Override
@@ -85,6 +87,11 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "bulk_action";
+    }
+
+    @Override
+    public boolean supportsContentStream() {
+        return incrementalEnabled.get();
     }
 
     @Override
@@ -105,6 +112,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
+            bulkRequest.requestParamsUsed(request.params().keySet());
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -129,10 +137,15 @@ public class RestBulkAction extends BaseRestHandler {
                 client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
             };
         } else {
+            request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String refresh = request.param("refresh");
-            return new ChunkHandler(allowExplicitIndex, request, () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh));
+            return new ChunkHandler(
+                allowExplicitIndex,
+                request,
+                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
+            );
         }
     }
 
@@ -155,9 +168,11 @@ public class RestBulkAction extends BaseRestHandler {
 
         private volatile RestChannel restChannel;
         private boolean shortCircuited;
-        private int bytesParsed = 0;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
+
+        private long requestNextChunkTime;
+        private long totalChunkWaitTimeInNanos = 0L;
 
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
@@ -183,6 +198,7 @@ public class RestBulkAction extends BaseRestHandler {
         public void accept(RestChannel restChannel) {
             this.restChannel = restChannel;
             this.handler = handlerSupplier.get();
+            requestNextChunkTime = System.nanoTime();
             request.contentStream().next();
         }
 
@@ -190,6 +206,12 @@ public class RestBulkAction extends BaseRestHandler {
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert handler != null;
             assert channel == restChannel;
+            long now = System.nanoTime();
+            long elapsedTime = now - requestNextChunkTime;
+            if (elapsedTime > 0) {
+                totalChunkWaitTimeInNanos += elapsedTime;
+                requestNextChunkTime = now;
+            }
             if (shortCircuited) {
                 chunk.close();
                 return;
@@ -202,6 +224,7 @@ public class RestBulkAction extends BaseRestHandler {
                 bytesConsumed = 0;
             } else {
                 try {
+                    handler.getIncrementalOperation().incrementUnparsedBytes(chunk.length());
                     unParsedChunks.add(chunk);
 
                     if (unParsedChunks.size() > 1) {
@@ -210,10 +233,8 @@ public class RestBulkAction extends BaseRestHandler {
                         data = chunk;
                     }
 
-                    // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
-                    // BulkRequest#add is fine
                     bytesConsumed = parser.parse(data, isLast);
-                    bytesParsed += bytesConsumed;
+                    handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
 
                 } catch (Exception e) {
                     shortCircuit();
@@ -225,7 +246,7 @@ public class RestBulkAction extends BaseRestHandler {
             final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
-                if (bytesParsed == 0) {
+                if (handler.getIncrementalOperation().totalParsedBytes() == 0) {
                     shortCircuit();
                     new RestToXContentListener<>(channel).onFailure(new ElasticsearchParseException("request body is required"));
                 } else {
@@ -234,12 +255,18 @@ public class RestBulkAction extends BaseRestHandler {
                     items.clear();
                     handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
                 }
+                handler.updateWaitForChunkMetrics(TimeUnit.NANOSECONDS.toMillis(totalChunkWaitTimeInNanos));
+                totalChunkWaitTimeInNanos = 0L;
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
-                handler.addItems(toPass, () -> Releasables.close(releasables), () -> request.contentStream().next());
+                handler.addItems(toPass, () -> Releasables.close(releasables), () -> {
+                    requestNextChunkTime = System.nanoTime();
+                    request.contentStream().next();
+                });
             } else {
                 Releasables.close(releasables);
+                requestNextChunkTime = System.nanoTime();
                 request.contentStream().next();
             }
         }
@@ -247,7 +274,9 @@ public class RestBulkAction extends BaseRestHandler {
         @Override
         public void streamClose() {
             assert Transports.assertTransportThread();
-            shortCircuit();
+            if (shortCircuited == false) {
+                shortCircuit();
+            }
         }
 
         private void shortCircuit() {

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -101,19 +102,19 @@ public class LoadMapping {
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
             final EsField field;
             if (esDataType == TEXT) {
-                field = new TextEsField(name, properties, docValues);
+                field = new TextEsField(name, properties, docValues, false, EsField.TimeSeriesFieldType.NONE);
             } else if (esDataType == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
-                field = new KeywordEsField(name, properties, docValues, length, normalized);
+                field = new KeywordEsField(name, properties, docValues, length, normalized, false, EsField.TimeSeriesFieldType.NONE);
             } else if (esDataType == DATETIME) {
-                field = DateEsField.dateEsField(name, properties, docValues);
+                field = DateEsField.dateEsField(name, properties, docValues, EsField.TimeSeriesFieldType.NONE);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
-                field = new UnsupportedEsField(name, type, null, properties);
+                field = new UnsupportedEsField(name, List.of(type), null, properties);
                 propagateUnsupportedType(name, type, properties);
             } else {
-                field = new EsField(name, esDataType, properties, docValues);
+                field = new EsField(name, esDataType, properties, docValues, EsField.TimeSeriesFieldType.NONE);
             }
             mapping.put(name, field);
         } else {
@@ -165,9 +166,9 @@ public class LoadMapping {
                 UnsupportedEsField u;
                 if (field instanceof UnsupportedEsField) {
                     u = (UnsupportedEsField) field;
-                    u = new UnsupportedEsField(u.getName(), originalType, inherited, u.getProperties());
+                    u = new UnsupportedEsField(u.getName(), List.of(originalType), inherited, u.getProperties());
                 } else {
-                    u = new UnsupportedEsField(field.getName(), originalType, inherited, field.getProperties());
+                    u = new UnsupportedEsField(field.getName(), List.of(originalType), inherited, field.getProperties());
                 }
                 entry.setValue(u);
                 propagateUnsupportedType(inherited, originalType, u.getProperties());

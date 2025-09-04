@@ -20,6 +20,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 
@@ -62,13 +65,15 @@ public class EsqlTypeResolutions {
         CARTESIAN_POINT.typeName(),
         GEO_SHAPE.typeName(),
         CARTESIAN_SHAPE.typeName() };
+    private static final String[] SPATIAL_AND_GRID_TYPE_NAMES = new String[] {
+        GEO_POINT.typeName(),
+        CARTESIAN_POINT.typeName(),
+        GEO_SHAPE.typeName(),
+        CARTESIAN_SHAPE.typeName(),
+        GEOHASH.typeName(),
+        GEOTILE.typeName(),
+        GEOHEX.typeName() };
     private static final String[] POINT_TYPE_NAMES = new String[] { GEO_POINT.typeName(), CARTESIAN_POINT.typeName() };
-    private static final String[] NON_SPATIAL_TYPE_NAMES = DataType.types()
-        .stream()
-        .filter(DataType::isRepresentable)
-        .filter(t -> DataType.isSpatial(t) == false)
-        .map(DataType::esType)
-        .toArray(String[]::new);
 
     public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return isType(e, DataType::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
@@ -78,8 +83,7 @@ public class EsqlTypeResolutions {
         return isType(e, DataType::isSpatial, operationName, paramOrd, SPATIAL_TYPE_NAMES);
     }
 
-    public static Expression.TypeResolution isNotSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, t -> DataType.isSpatial(t) == false, operationName, paramOrd, NON_SPATIAL_TYPE_NAMES);
+    public static Expression.TypeResolution isSpatialOrGrid(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, DataType::isSpatialOrGrid, operationName, paramOrd, SPATIAL_AND_GRID_TYPE_NAMES);
     }
-
 }

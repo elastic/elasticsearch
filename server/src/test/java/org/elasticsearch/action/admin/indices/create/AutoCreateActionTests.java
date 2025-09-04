@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -22,9 +22,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class AutoCreateActionTests extends ESTestCase {
 
     public void testResolveTemplates() {
-        Metadata metadata;
+        ProjectMetadata projectMetadata;
         {
-            Metadata.Builder mdBuilder = new Metadata.Builder();
+            ProjectMetadata.Builder mdBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
             mdBuilder.put("1", ComposableIndexTemplate.builder().indexPatterns(List.of("legacy-logs-*")).priority(10L).build());
             mdBuilder.put(
@@ -43,28 +43,28 @@ public class AutoCreateActionTests extends ESTestCase {
                     .dataStreamTemplate(dataStreamTemplate)
                     .build()
             );
-            metadata = mdBuilder.build();
+            projectMetadata = mdBuilder.build();
         }
 
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
-        ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, metadata);
+        ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, projectMetadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
 
         request = new CreateIndexRequest("logs-barbaz");
-        result = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, projectMetadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");
-        result = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, projectMetadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), nullValue());
 
         // An index that doesn't match with an index template
         request = new CreateIndexRequest("my-index");
-        result = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, projectMetadata);
         assertThat(result, nullValue());
     }
 

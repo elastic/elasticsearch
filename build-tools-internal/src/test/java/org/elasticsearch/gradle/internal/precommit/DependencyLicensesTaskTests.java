@@ -244,7 +244,7 @@ public class DependencyLicensesTaskTests {
         Path file = parent.toPath().resolve(name);
         file.toFile().createNewFile();
 
-        Files.write(file, content.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, content);
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {

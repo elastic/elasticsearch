@@ -58,4 +58,5 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new StartsWith(source, args.get(0), args.get(1));
     }
+
 }

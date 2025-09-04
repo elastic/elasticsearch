@@ -65,6 +65,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -75,7 +76,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -90,6 +90,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Simple tests for this filterreader */
 public class FieldSubsetReaderTests extends MapperServiceTestCase {
@@ -684,7 +686,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
+        IndexVersion indexVersion = randomBoolean() ? getVersion() : IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES;
         DocumentMapper mapper = createMapperService(
+            indexVersion,
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
@@ -708,8 +712,14 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             iw.addDocuments(doc.docs());
             iw.close();
 
+            String ignoredSourceFieldPattern = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                indexVersion
+            ) == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
+                ? IgnoredSourceFieldMapper.ignoredFieldName("*")
+                : IgnoredSourceFieldMapper.NAME;
+
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -740,7 +750,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -772,7 +782,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", ignoredSourceFieldPattern));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -1242,11 +1252,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1282,11 +1293,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1321,11 +1333,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1350,11 +1363,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1405,9 +1419,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         TestUtil.checkReader(ir);
-        assertThat(ir.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+        assertThat(ir.leaves().size(), greaterThanOrEqualTo(1));
         for (LeafReaderContext context : ir.leaves()) {
-            assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+            assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
             SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
             assertNotNull(lf.getSequentialStoredFieldsReader());
         }

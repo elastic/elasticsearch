@@ -176,17 +176,4 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
             return builder.build();
         }
     }
-
-    public void add(int groupId, SpatialExtentGroupingState inState, int inPosition) {
-        ensureCapacity(groupId);
-        if (inState.hasValue(inPosition)) {
-            add(
-                groupId,
-                inState.minXs.get(inPosition),
-                inState.maxXs.get(inPosition),
-                inState.maxYs.get(inPosition),
-                inState.minYs.get(inPosition)
-            );
-        }
-    }
 }

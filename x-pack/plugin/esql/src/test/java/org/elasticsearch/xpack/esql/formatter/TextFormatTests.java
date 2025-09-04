@@ -161,7 +161,7 @@ public class TextFormatTests extends ESTestCase {
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
             .collect(Collectors.toList());
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         do {
             sb.append(expectedTerms.remove(0));
             sb.append(delim);
@@ -246,7 +246,7 @@ public class TextFormatTests extends ESTestCase {
     public void testPlainTextEmptyCursorWithoutColumns() {
         assertEquals(
             StringUtils.EMPTY,
-            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false, null)))
+            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), 0, 0, null, false, false, null)))
         );
     }
 
@@ -269,18 +269,27 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false, null);
+        return new EsqlQueryResponse(
+            singletonList(new ColumnInfoImpl("name", "keyword", null)),
+            emptyList(),
+            0,
+            0,
+            null,
+            false,
+            false,
+            null
+        );
     }
 
     private static EsqlQueryResponse regularData() {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         // headers
         List<ColumnInfoImpl> headers = asList(
-            new ColumnInfoImpl("string", "keyword"),
-            new ColumnInfoImpl("number", "integer"),
-            new ColumnInfoImpl("location", "geo_point"),
-            new ColumnInfoImpl("location2", "cartesian_point"),
-            new ColumnInfoImpl("null_field", "keyword")
+            new ColumnInfoImpl("string", "keyword", null),
+            new ColumnInfoImpl("number", "integer", null),
+            new ColumnInfoImpl("location", "geo_point", null),
+            new ColumnInfoImpl("location2", "cartesian_point", null),
+            new ColumnInfoImpl("null_field", "keyword", null)
         );
 
         BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -303,12 +312,15 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false, null);
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, null);
     }
 
     private static EsqlQueryResponse escapedData() {
         // headers
-        List<ColumnInfoImpl> headers = asList(new ColumnInfoImpl("first", "keyword"), new ColumnInfoImpl("\"special\"", "keyword"));
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("first", "keyword", null),
+            new ColumnInfoImpl("\"special\"", "keyword", null)
+        );
 
         // values
         List<Page> values = List.of(
@@ -324,7 +336,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false, null);
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, null);
     }
 
     private static RestRequest req() {

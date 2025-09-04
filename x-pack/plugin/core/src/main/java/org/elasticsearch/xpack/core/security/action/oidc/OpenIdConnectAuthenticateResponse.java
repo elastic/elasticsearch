@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -61,8 +60,6 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);
         out.writeTimeValue(expiresIn);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication.writeTo(out);
-        }
+        authentication.writeTo(out);
     }
 }

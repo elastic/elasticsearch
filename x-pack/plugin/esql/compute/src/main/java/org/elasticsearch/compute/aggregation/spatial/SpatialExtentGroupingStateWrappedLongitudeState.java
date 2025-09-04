@@ -108,21 +108,6 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         }
     }
 
-    public void add(int groupId, SpatialExtentGroupingStateWrappedLongitudeState inState, int inPosition) {
-        ensureCapacity(groupId);
-        if (inState.hasValue(inPosition)) {
-            add(
-                groupId,
-                inState.tops.get(inPosition),
-                inState.bottoms.get(inPosition),
-                inState.negLefts.get(inPosition),
-                inState.negRights.get(inPosition),
-                inState.posLefts.get(inPosition),
-                inState.posRights.get(inPosition)
-            );
-        }
-    }
-
     /**
      * This method is used when the field is a geo_point or cartesian_point and is loaded from doc-values.
      * This optimization is enabled when the field has doc-values and is only used in a spatial aggregation.

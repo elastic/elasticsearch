@@ -1,5 +1,0 @@
-pr: 117949
-summary: Move `SlowLogFieldProvider` instantiation to node construction
-area: Infra/Logging
-type: bug
-issues: []

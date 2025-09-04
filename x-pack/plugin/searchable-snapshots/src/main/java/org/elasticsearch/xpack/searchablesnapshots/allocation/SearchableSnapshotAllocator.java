@@ -13,6 +13,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -105,13 +106,12 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     @Override
     public void beforeAllocation(RoutingAllocation allocation) {
-        boolean hasPartialIndices = false;
-        for (IndexMetadata indexMetadata : allocation.metadata()) {
-            if (indexMetadata.isPartialSearchableSnapshot()) {
-                hasPartialIndices = true;
-                break;
-            }
-        }
+        boolean hasPartialIndices = allocation.metadata()
+            .projects()
+            .values()
+            .stream()
+            .flatMap(ProjectMetadata::stream)
+            .anyMatch(IndexMetadata::isPartialSearchableSnapshot);
 
         if (hasPartialIndices) {
             frozenCacheInfoService.updateNodes(
@@ -140,7 +140,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (recoveryUuid != null) {
 
                 // we always force snapshot recovery source to use the snapshot-based recovery process on the node
-                final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
+                final Settings indexSettings = allocation.metadata().indexMetadata(shardRouting.index()).getSettings();
                 final IndexId indexId = new IndexId(
                     SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
                     SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
@@ -256,18 +256,17 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     private AllocateUnassignedDecision decideAllocation(RoutingAllocation allocation, ShardRouting shardRouting) {
+        final Settings indexSettings = allocation.metadata().indexMetadata(shardRouting.index()).getSettings();
+
         assert shardRouting.unassigned();
-        assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
-        ).equals(ALLOCATOR_NAME);
+        assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(indexSettings).equals(ALLOCATOR_NAME);
 
         if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
             && allocation.snapshotShardSizeInfo().getShardSize(shardRouting) == null) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
-        if (SNAPSHOT_PARTIAL_SETTING.get(allocation.metadata().index(shardRouting.index()).getSettings())
-            && frozenCacheInfoService.isFetching()) {
+        if (SNAPSHOT_PARTIAL_SETTING.get(indexSettings) && frozenCacheInfoService.isFetching()) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
@@ -379,7 +378,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
         final ShardId shardId = shard.shardId();
-        final Settings indexSettings = allocation.metadata().index(shard.index()).getSettings();
+        final Settings indexSettings = allocation.metadata().indexMetadata(shard.index()).getSettings();
 
         if (SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
             // cached data for partial indices is not persistent, no need to fetch it

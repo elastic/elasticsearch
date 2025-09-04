@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
  */
 public class InferenceAPIClusterAwareRateLimitingFeature {
 
-    public static final FeatureFlag INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG = new FeatureFlag(
+    public static final boolean INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG = new FeatureFlag(
         "inference_cluster_aware_rate_limiting"
-    );
+    ).isEnabled();
 
     private InferenceAPIClusterAwareRateLimitingFeature() {}
 

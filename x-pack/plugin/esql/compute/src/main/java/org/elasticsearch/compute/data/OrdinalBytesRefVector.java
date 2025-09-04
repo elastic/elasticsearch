@@ -55,7 +55,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
      * Returns true if this ordinal vector is dense enough to enable optimizations using its ordinals
      */
     public boolean isDense() {
-        return ordinals.getPositionCount() * 2 / 3 >= bytes.getPositionCount();
+        return OrdinalBytesRefBlock.isDense(ordinals.getPositionCount(), bytes.getPositionCount());
     }
 
     @Override
@@ -132,6 +132,22 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public OrdinalBytesRefVector deepCopy(BlockFactory blockFactory) {
+        IntVector copiedOrdinals = null;
+        BytesRefVector copiedBytes = null;
+        try {
+            copiedOrdinals = ordinals.deepCopy(blockFactory);
+            copiedBytes = bytes.deepCopy(blockFactory);
+            OrdinalBytesRefVector result = new OrdinalBytesRefVector(copiedOrdinals, copiedBytes);
+            copiedOrdinals = null;
+            copiedBytes = null;
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(copiedOrdinals, copiedBytes);
+        }
+    }
+
+    @Override
     public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
@@ -154,5 +170,19 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     protected void closeInternal() {
         Releasables.close(ordinals, bytes);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof BytesRefVector other) {
+            return BytesRefVector.equals(this, other);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefVector.hash(this);
     }
 }

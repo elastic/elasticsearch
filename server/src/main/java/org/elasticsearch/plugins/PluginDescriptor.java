@@ -46,9 +46,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
-    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
-
-    private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersions.V_7_11_0;
     private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
     private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
 
@@ -140,15 +137,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
 
-        if (in.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-                in.readString(); // plugin type
-                in.readOptionalString(); // java opts
-            }
-            isLicensed = in.readBoolean();
-        } else {
-            isLicensed = false;
+        if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+            in.readString(); // plugin type
+            in.readOptionalString(); // java opts
         }
+        isLicensed = in.readBoolean();
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             isModular = in.readBoolean();
@@ -183,13 +176,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
-        if (out.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-                out.writeString("ISOLATED");
-                out.writeOptionalString(null);
-            }
-            out.writeBoolean(isLicensed);
+        if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+            out.writeString("ISOLATED");
+            out.writeOptionalString(null);
         }
+        out.writeBoolean(isLicensed);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(isModular);
             out.writeBoolean(isStable);
@@ -251,6 +242,31 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         PluginDescriptor descriptor = reader.apply(propsMap, descriptorFile.getFileName().toString());
         name = descriptor.getName();
+
+        if (propsMap.isEmpty() == false) {
+            throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
+        }
+
+        return descriptor;
+    }
+
+    /**
+     * Reads the internal descriptor for a classic plugin.
+     *
+     * @param stream the InputStream from which to read the plugin data
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
+    public static PluginDescriptor readInternalDescriptorFromStream(InputStream stream) throws IOException {
+        final Map<String, String> propsMap;
+        {
+            final Properties props = new Properties();
+            props.load(stream);
+            propsMap = props.stringPropertyNames().stream().collect(Collectors.toMap(Function.identity(), props::getProperty));
+        }
+
+        PluginDescriptor descriptor = readerInternalDescriptor(propsMap, INTERNAL_DESCRIPTOR_FILENAME);
+        String name = descriptor.getName();
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());

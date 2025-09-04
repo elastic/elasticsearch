@@ -22,9 +22,13 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -36,6 +40,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -55,6 +60,7 @@ public abstract class TransportBroadcastReplicationAction<
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
     private final Executor executor;
+    private final ProjectResolver projectResolver;
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -65,7 +71,8 @@ public abstract class TransportBroadcastReplicationAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionType<ShardResponse> replicatedBroadcastShardAction,
-        Executor executor
+        Executor executor,
+        ProjectResolver projectResolver
     ) {
         super(name, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -73,6 +80,7 @@ public abstract class TransportBroadcastReplicationAction<
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -92,8 +100,10 @@ public abstract class TransportBroadcastReplicationAction<
                 assert totalShardCopyCount == 0 && successShardCopyCount == 0 && allFailures.isEmpty() : "shouldn't call this twice";
 
                 final ClusterState clusterState = clusterService.state();
-                final List<ShardId> shards = shards(request, clusterState);
-                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().indices();
+                final ProjectState projectState = projectResolver.getProjectState(clusterState);
+                final ProjectMetadata project = projectState.metadata();
+                final List<ShardId> shards = shards(request, projectState);
+                final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
                     for (final ShardId shardId : shards) {
@@ -178,17 +188,17 @@ public abstract class TransportBroadcastReplicationAction<
     /**
      * @return all shard ids the request should run on
      */
-    protected List<ShardId> shards(Request request, ClusterState clusterState) {
+    protected List<ShardId> shards(Request request, ProjectState projectState) {
         assert Transports.assertNotTransportThread("may hit all the shards");
         List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+
+        OperationRouting operationRouting = clusterService.operationRouting();
+
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), request);
         for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
-            if (indexMetadata != null) {
-                final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().indicesRouting().get(index);
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    shardIds.add(indexRoutingTable.shard(i).shardId());
-                }
+            Iterator<IndexShardRoutingTable> iterator = operationRouting.allWritableShards(projectState, index);
+            while (iterator.hasNext()) {
+                shardIds.add(iterator.next().shardId());
             }
         }
         return shardIds;

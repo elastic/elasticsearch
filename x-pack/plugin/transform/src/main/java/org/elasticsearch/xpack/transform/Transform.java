@@ -13,8 +13,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,7 +21,9 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -186,8 +186,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+    public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        if (TransformMetadata.upgradeMode(project)) {
             // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
             listener.onResponse(Map.of("already_in_upgrade_mode", true));
             return;
@@ -203,12 +203,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public void indicesMigrationComplete(
-        Map<String, Object> preUpgradeMetadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
+    public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
         if (wasAlreadyInUpgradeMode) {
             // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
@@ -256,32 +251,32 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
 
         return Arrays.asList(
-            new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
-            new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
-            new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
-            new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
-            new ActionHandler<>(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
-            new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
-            new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
-            new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
-            new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
-            new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
-            new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
-            new ActionHandler<>(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
-            new ActionHandler<>(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
-            new ActionHandler<>(SetTransformUpgradeModeAction.INSTANCE, TransportSetTransformUpgradeModeAction.class),
+            new ActionHandler(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
+            new ActionHandler(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
+            new ActionHandler(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
+            new ActionHandler(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
+            new ActionHandler(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
+            new ActionHandler(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
+            new ActionHandler(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
+            new ActionHandler(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
+            new ActionHandler(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
+            new ActionHandler(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
+            new ActionHandler(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
+            new ActionHandler(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
+            new ActionHandler(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
+            new ActionHandler(SetTransformUpgradeModeAction.INSTANCE, TransportSetTransformUpgradeModeAction.class),
 
             // internal, no rest endpoint
-            new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
-            new ActionHandler<>(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
-            new ActionHandler<>(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
+            new ActionHandler(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
+            new ActionHandler(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
+            new ActionHandler(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
 
             // usage and info
-            new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
+            new ActionHandler(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
         );
     }
 
@@ -442,6 +437,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
@@ -483,7 +479,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
             listTasksResponse.rethrowFailures("Waiting for transform indexing tasks");
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
         ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {

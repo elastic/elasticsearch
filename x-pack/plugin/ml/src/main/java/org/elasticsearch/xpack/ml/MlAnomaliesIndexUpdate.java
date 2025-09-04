@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -37,9 +37,13 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.TransportVersions.ML_ROLLOVER_LEGACY_INDICES;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
+import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.has6DigitSuffix;
 
 /**
  * Rollover the various .ml-anomalies result indices
@@ -61,7 +65,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.onOrAfter(TransportVersions.ML_ROLLOVER_LEGACY_INDICES);
+        return minTransportVersion.onOrAfter(ML_ROLLOVER_LEGACY_INDICES);
     }
 
     @Override
@@ -101,10 +105,18 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
         for (String index : indices) {
             boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
-                latestState.metadata().index(index).getCreationVersion()
+                latestState.metadata().getProject().index(index).getCreationVersion()
             );
 
             if (isCompatibleIndexVersion) {
+                continue;
+            }
+
+            // Check if this index has already been rolled over
+            String latestIndex = latestIndexMatchingBaseName(index, expressionResolver, latestState);
+
+            if (index.equals(latestIndex) == false) {
+                logger.debug("index [{}] will not be rolled over as there is a later index [{}]", index, latestIndex);
                 continue;
             }
 
@@ -137,7 +149,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
     private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
         // Create an alias specifically for rolling over.
-        // The ml-anomalies index has aliases for each job anyone
+        // The ml-anomalies index has aliases for each job, any
         // of which could be used but that means one alias is
         // treated differently.
         // Using a `.` in the alias name avoids any conflicts
@@ -148,7 +160,12 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         // what to name the new index so it must be specified in the request.
         // Otherwise leave null and rollover will calculate the new name
         String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-        IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin().indices().prepareAliases();
+        IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin()
+            .indices()
+            .prepareAliases(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            );
 
         SubscribableListener.<Boolean>newForked(
             l -> { createAliasForRollover(index, rolloverAlias, l.map(AcknowledgedResponse::isAcknowledged)); }
@@ -163,16 +180,29 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     private void rollover(String alias, @Nullable String newIndexName, ActionListener<String> listener) {
-        client.admin().indices().rolloverIndex(new RolloverRequest(alias, newIndexName), listener.delegateFailure((l, response) -> {
-            l.onResponse(response.getNewIndex());
-        }));
+        client.admin()
+            .indices()
+            .rolloverIndex(
+                new RolloverRequest(alias, newIndexName),
+                ActionListener.wrap(response -> listener.onResponse(response.getNewIndex()), e -> {
+                    if (e instanceof ResourceAlreadyExistsException alreadyExistsException) {
+                        // The destination index already exists possibly because it has been rolled over already.
+                        listener.onResponse(alreadyExistsException.getIndex().getName());
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
     }
 
     private void createAliasForRollover(String indexName, String aliasName, ActionListener<IndicesAliasesResponse> listener) {
         logger.info("creating alias for rollover [{}]", aliasName);
         client.admin()
             .indices()
-            .prepareAliases()
+            .prepareAliases(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            )
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName).isHidden(true))
             .execute(listener);
     }
@@ -190,7 +220,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         // Multiple jobs can share the same index each job
         // has a read and write alias that needs updating
         // after the rollover
-        var meta = clusterState.metadata().index(oldIndex);
+        var meta = clusterState.metadata().getProject().index(oldIndex);
         assert meta != null;
         if (meta == null) {
             return aliasRequestBuilder;
@@ -231,5 +261,42 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         // If this is a write alias it will start with a `.` character
         // which is not a valid job id.
         return MlStrings.isValidId(jobIdPart);
+    }
+
+    /**
+     * Strip any suffix from the index name and find any other indices
+     * that match the base name. Then return the latest index from the
+     * matching ones.
+     *
+     * @param index The index to check
+     * @param expressionResolver The expression resolver
+     * @param latestState The latest cluster state
+     * @return The latest index that matches the base name of the given index
+     */
+    static String latestIndexMatchingBaseName(String index, IndexNameExpressionResolver expressionResolver, ClusterState latestState) {
+        String baseIndexName = MlIndexAndAlias.has6DigitSuffix(index)
+            ? index.substring(0, index.length() - FIRST_INDEX_SIX_DIGIT_SUFFIX.length())
+            : index;
+
+        String[] matching = expressionResolver.concreteIndexNames(
+            latestState,
+            IndicesOptions.lenientExpandOpenHidden(),
+            baseIndexName + "*"
+        );
+
+        // This should never happen
+        assert matching.length > 0 : "No indices matching [" + baseIndexName + "*]";
+        if (matching.length == 0) {
+            return index;
+        }
+
+        // Exclude indices that start with the same base name but are a different index
+        // e.g. .ml-anomalies-foobar should not be included when the index name is
+        // .ml-anomalies-foo
+        String[] filtered = Arrays.stream(matching).filter(i -> {
+            return i.equals(index) || (has6DigitSuffix(i) && i.length() == baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length());
+        }).toArray(String[]::new);
+
+        return MlIndexAndAlias.latestIndex(filtered);
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -73,10 +74,15 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
         DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
+        BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(
+            null,
+            randomFrom(BlockHash.CategorizeDef.OutputFormat.values()),
+            70
+        );
 
         List<BlockHash.GroupSpec> groupSpecs = List.of(
-            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true),
-            new BlockHash.GroupSpec(1, ElementType.INT, false)
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef),
+            new BlockHash.GroupSpec(1, ElementType.INT, null)
         );
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
@@ -136,8 +142,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
 
         List<Page> intermediateOutput = new ArrayList<>();
 
-        Driver driver = new Driver(
-            "test",
+        Driver driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
@@ -149,13 +154,11 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
         runDriver(driver);
 
-        driver = new Driver(
-            "test",
+        driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
@@ -167,15 +170,13 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
         runDriver(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
-        driver = new Driver(
-            "test",
+        driver = TestDriverFactory.create(
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
@@ -187,8 +188,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(finalOutput::add),
-            () -> {}
+            new PageConsumerOperator(finalOutput::add)
         );
         runDriver(driver);
 
@@ -223,8 +223,12 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
         }
         Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
 
+        List<String> keys = switch (categorizeDef.outputFormat()) {
+            case REGEX -> List.of(".*?connected.+?to.*?", ".*?connection.+?error.*?", ".*?disconnected.*?");
+            case TOKENS -> List.of("connected to", "connection error", "disconnected");
+        };
         Map<String, Map<Integer, Set<String>>> expectedResult = Map.of(
-            ".*?connected.+?to.*?",
+            keys.get(0),
             Map.of(
                 7,
                 Set.of("connected to 1.1.1", "connected to 1.1.2", "connected to 1.1.4", "connected to 2.1.2"),
@@ -233,9 +237,9 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                 111,
                 Set.of("connected to 2.1.1")
             ),
-            ".*?connection.+?error.*?",
+            keys.get(1),
             Map.of(7, Set.of("connection error"), 42, Set.of("connection error")),
-            ".*?disconnected.*?",
+            keys.get(2),
             Map.of(7, Set.of("disconnected"))
         );
         if (withNull) {

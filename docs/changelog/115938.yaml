@@ -1,9 +1,0 @@
-pr: 115938
-summary: Wait for up to 2 seconds for yellow status before starting search
-area: Machine Learning
-type: bug
-issues:
- - 107777
- - 105955
- - 107815
- - 112191

@@ -152,7 +152,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         ensureRed(indexName);
         // Ensure that node1 still has data for the unassigned index
         NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class, node1);
-        Index index = internalCluster().clusterService().state().metadata().index(indexName).getIndex();
+        Index index = internalCluster().clusterService().state().metadata().getProject().index(indexName).getIndex();
         ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, new ShardId(index, 0), "");
         assertNotNull("local index shards not found", shardPath);
         // Prevalidate removal of node1

@@ -23,7 +23,6 @@ public class DeletePipelineResponse extends ActionResponse {
     }
 
     public DeletePipelineResponse(StreamInput in) throws IOException {
-        super(in);
         this.deleted = in.readBoolean();
     }
 

@@ -151,7 +151,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
-        for (DataType type : List.of(DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT, DataType.IP, DataType.VERSION)) {
+        for (DataType type : List.of(DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION)) {
             suppliers.add(new TestCaseSupplier(List.of(type, DataType.KEYWORD), () -> {
                 List<BytesRef> field = randomList(1, 10, () -> (BytesRef) randomLiteral(type).value());
                 boolean order = randomBoolean();

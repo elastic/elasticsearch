@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
@@ -25,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -82,6 +81,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -89,7 +89,7 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -219,8 +219,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>(super.getActions());
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>(super.getActions());
         filterPlugins(ActionPlugin.class).forEach(p -> actions.addAll(p.getActions()));
         return actions;
     }
@@ -282,6 +282,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             entries.addAll(p.getNamedWriteables());
         }
         return entries;
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        List<QuerySpec<?>> querySpecs = new ArrayList<>(super.getQueries());
+        filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getQueries().stream()).forEach(querySpecs::add);
+        return querySpecs;
     }
 
     @Override
@@ -359,7 +366,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         HttpServerTransport.Dispatcher dispatcher,
         BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).forEach(
@@ -375,7 +382,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     dispatcher,
                     perRequestThreadContext,
                     clusterSettings,
-                    tracer
+                    telemetryProvider
                 )
             )
         );
@@ -506,14 +513,31 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         HashMap<String, Repository.Factory> repositories = new HashMap<>(
-            super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
+            super.getRepositories(
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                repositoriesMetrics,
+                snapshotMetrics
+            )
         );
         filterPlugins(RepositoryPlugin.class).forEach(
             r -> repositories.putAll(
-                r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, RepositoriesMetrics.NOOP)
+                r.getRepositories(
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    RepositoriesMetrics.NOOP,
+                    SnapshotMetrics.NOOP
+                )
             )
         );
         return repositories;
@@ -679,8 +703,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
+        ActionListener<ResetFeatureStateStatus> finalListener
     ) {
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
 
@@ -697,7 +722,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 }
             })
         );
-        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
+        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, allListeners));
     }
 
     @Override

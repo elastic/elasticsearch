@@ -13,14 +13,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -28,7 +31,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,19 +40,19 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
@@ -68,15 +70,15 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -91,7 +93,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class IbmWatsonxServiceTests extends ESTestCase {
+public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -107,7 +109,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -275,7 +277,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -596,15 +598,17 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -613,6 +617,46 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
+
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    null,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();
@@ -658,10 +702,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of(input),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -686,7 +732,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     }
 
     private void testChunkedInfer_Batches(ChunkingSettings chunkingSettings) throws IOException {
-        var input = List.of("foo", "bar");
+        var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -723,7 +769,15 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.chunkedInfer(
+                model,
+                null,
+                input,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
@@ -733,12 +787,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
-                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0123f, -0.0123f },
-                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding()
+                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -748,12 +802,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
-                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0456f, -0.0456f },
-                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding()
+                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -763,7 +817,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
-            assertThat(requestMap, is(Map.of("project_id", projectId, "inputs", List.of("foo", "bar"), "model_id", modelId)));
+            assertThat(requestMap, is(Map.of("project_id", projectId, "inputs", List.of("a", "bb"), "model_id", modelId)));
         }
     }
 
@@ -793,10 +847,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -805,169 +861,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             assertThat(error.getMessage(), containsString("Resource not found at "));
             assertThat(error.getMessage(), containsString("Error message: [error]"));
             assertThat(webServer.requests(), hasSize(1));
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "results": [
-                        {
-                            "embedding": [
-                               0.0123,
-                               -0.0123
-                            ],
-                           "input": "foo"
-                        }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
-                1,
-                similarityMeasure
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            // Updates dimensions to two as two embeddings were returned instead of one as specified before
-            assertThat(
-                result,
-                is(
-                    IbmWatsonxEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        projectId,
-                        URI.create(url),
-                        apiVersion,
-                        apiKey,
-                        2,
-                        similarityMeasure
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var twoDimension = 2;
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "results": [
-                        {
-                            "embedding": [
-                               0.0123,
-                               -0.0123
-                            ],
-                           "input": "foo"
-                        }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
-                twoDimension,
-                null
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(
-                result,
-                is(
-                    IbmWatsonxEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        projectId,
-                        URI.create(url),
-                        apiVersion,
-                        apiKey,
-                        twoDimension,
-                        SimilarityMeasure.DOT_PRODUCT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var twoDimension = 2;
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "results": [
-                        {
-                            "embedding": [
-                               0.0123,
-                               -0.0123
-                            ],
-                           "input": "foo"
-                        }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
-                twoDimension,
-                SimilarityMeasure.COSINE
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(
-                result,
-                is(
-                    IbmWatsonxEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        projectId,
-                        URI.create(url),
-                        apiVersion,
-                        apiKey,
-                        twoDimension,
-                        SimilarityMeasure.COSINE
-                    )
-                )
-            );
         }
     }
 
@@ -1026,8 +919,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "watsonxai",
-                       "name": "IBM Watsonx",
-                       "task_types": ["text_embedding"],
+                       "name": "IBM watsonx",
+                       "task_types": ["text_embedding", "completion", "chat_completion"],
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -1036,7 +929,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -1045,16 +938,16 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                            },
                            "api_version": {
-                               "description": "The IBM Watsonx API version ID to use.",
+                               "description": "The IBM watsonx API version ID to use.",
                                "label": "API Version",
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -1072,7 +965,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                            }
                        }
                    }
@@ -1126,12 +1019,17 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     }
 
     private IbmWatsonxService createIbmWatsonxService() {
-        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createIbmWatsonxService();
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {
         IbmWatsonxServiceWithoutAuth(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+            super(factory, serviceComponents, mockClusterServiceEmpty());
         }
 
         @Override

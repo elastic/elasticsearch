@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
-    private static final boolean IS_SINGLE_PROCESSOR_TEST = Boolean.parseBoolean(
+    private static final boolean IS_SINGLE_PROCESSOR_TEST = Booleans.parseBoolean(
         System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
     );
 
@@ -155,17 +156,6 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
-    }
-
-    private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(Strings.format("""
-            {  "docs": [{"input":"%s"}] }
-            """, input));
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);

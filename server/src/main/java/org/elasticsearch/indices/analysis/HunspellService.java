@@ -99,7 +99,7 @@ public final class HunspellService {
             try {
                 return loadDictionary(locale, settings, env);
             } catch (Exception e) {
-                throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
+                throw new IllegalArgumentException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
         if (HUNSPELL_LAZY_LOAD.get(settings) == false) {

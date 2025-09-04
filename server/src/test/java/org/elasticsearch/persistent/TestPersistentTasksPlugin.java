@@ -13,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -27,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -78,10 +78,16 @@ import static org.junit.Assert.fail;
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>("cluster:admin/persistent/task_test");
+    public static final Setting<PersistentTasksExecutor.Scope> PERSISTENT_TASK_SCOPE_SETTING = Setting.enumSetting(
+        PersistentTasksExecutor.Scope.class,
+        "cluster.test_persistent_tasks_executor.scope",
+        PersistentTasksExecutor.Scope.PROJECT,
+        Setting.Property.NodeScope
+    );
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(TEST_ACTION, TransportTestTaskAction.class));
+    public List<ActionHandler> getActions() {
+        return Collections.singletonList(new ActionHandler(TEST_ACTION, TransportTestTaskAction.class));
     }
 
     @Override
@@ -92,7 +98,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
+        final var scope = PERSISTENT_TASK_SCOPE_SETTING.get(settingsModule.getSettings());
+        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService, scope));
     }
 
     @Override
@@ -117,6 +124,11 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 State::fromXContent
             )
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(PERSISTENT_TASK_SCOPE_SETTING);
     }
 
     public static class TestParams implements PersistentTaskParams {
@@ -295,12 +307,19 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
+        private final Scope scope;
 
         private static volatile boolean nonClusterStateCondition = true;
 
-        public TestPersistentTasksExecutor(ClusterService clusterService) {
+        public TestPersistentTasksExecutor(ClusterService clusterService, Scope scope) {
             super(NAME, clusterService.threadPool().generic());
             this.clusterService = clusterService;
+            this.scope = scope;
+        }
+
+        @Override
+        public Scope scope() {
+            return scope;
         }
 
         public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
@@ -308,12 +327,17 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Assignment getAssignment(TestParams params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+        protected Assignment doGetAssignment(
+            TestParams params,
+            Collection<DiscoveryNode> candidateNodes,
+            ClusterState clusterState,
+            ProjectId projectId
+        ) {
             if (nonClusterStateCondition == false) {
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {
-                return super.getAssignment(params, candidateNodes, clusterState);
+                return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
             } else {
                 DiscoveryNode executorNode = selectLeastLoadedNode(
                     clusterState,

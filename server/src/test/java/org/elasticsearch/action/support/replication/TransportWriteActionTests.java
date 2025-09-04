@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,6 +23,8 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -52,7 +55,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -92,6 +94,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private ClusterService clusterService;
     private IndexShard indexShard;
 
@@ -153,8 +156,8 @@ public class TransportWriteActionTests extends ESTestCase {
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
-        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
+        CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
+        result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
@@ -192,8 +195,8 @@ public class TransportWriteActionTests extends ESTestCase {
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
-        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
+        CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
+        result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<ActionListener<Engine.RefreshResult>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
@@ -239,8 +242,8 @@ public class TransportWriteActionTests extends ESTestCase {
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
-        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
+        CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
+        result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
@@ -272,8 +275,8 @@ public class TransportWriteActionTests extends ESTestCase {
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
-        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
+        CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
+        result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
         assertNull(listener.response);
         assertNotNull(listener.failure);
     }
@@ -301,10 +304,10 @@ public class TransportWriteActionTests extends ESTestCase {
         );
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
-        ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(index, true, 1 + randomInt(3), randomInt(2));
+        ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(projectId, index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);
-        final long primaryTerm = state.metadata().index(index).primaryTerm(0);
+        final long primaryTerm = state.metadata().getProject(projectId).index(index).primaryTerm(0);
         ReplicationOperation.Replicas<TestRequest> proxy = action.newReplicasProxy();
 
         // check that at unknown node fails
@@ -331,7 +334,7 @@ public class TransportWriteActionTests extends ESTestCase {
         assertTrue(listener.isDone());
         assertListenerThrows("non existent node should throw a NoNodeAvailableException", listener, NoNodeAvailableException.class);
 
-        final IndexShardRoutingTable shardRoutings = state.routingTable().shardRoutingTable(shardId);
+        final IndexShardRoutingTable shardRoutings = state.routingTable(projectId).shardRoutingTable(shardId);
         final ShardRouting replica = randomFrom(shardRoutings.replicaShards().stream().filter(ShardRouting::assignedToNode).toList());
         listener = new PlainActionFuture<>();
         proxy.performOn(replica, new TestRequest(), primaryTerm, randomNonNegativeLong(), randomNonNegativeLong(), listener);
@@ -376,7 +379,7 @@ public class TransportWriteActionTests extends ESTestCase {
         assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());
         if (randomBoolean()) {
             // simulate success
-            transport.handleResponse(shardFailedRequest.requestId(), TransportResponse.Empty.INSTANCE);
+            transport.handleResponse(shardFailedRequest.requestId(), ActionResponse.Empty.INSTANCE);
             assertTrue(success.get());
             assertNull(failure.get());
         } else if (randomBoolean()) {
@@ -430,6 +433,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProject(projectId),
                 ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
@@ -459,6 +463,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProject(projectId),
                 ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = false;
@@ -524,14 +529,14 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            final IndexMetadata indexSafe = state.metadata().getIndexSafe(index);
+            final IndexMetadata indexSafe = state.metadata().getProject(projectId).getIndexSafe(index);
             return mockIndexService(indexSafe, clusterService);
         });
         when(indicesService.indexService(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            if (state.metadata().hasIndex(index.getName())) {
-                return mockIndexService(clusterService.state().metadata().getIndexSafe(index), clusterService);
+            if (state.metadata().getProject(projectId).hasIndex(index.getName())) {
+                return mockIndexService(clusterService.state().metadata().getProject(projectId).getIndexSafe(index), clusterService);
             } else {
                 return null;
             }
@@ -578,7 +583,7 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(
-            i -> clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
+            i -> clusterService.state().metadata().getProject(projectId).getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
         );
         return indexShard;
     }

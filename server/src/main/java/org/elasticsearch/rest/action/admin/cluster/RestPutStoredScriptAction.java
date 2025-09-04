@@ -54,8 +54,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             getAckTimeout(request),
             request.param("id"),
             request.param("context"),
-            content,
-            request.getXContentType(),
+            content.length(),
             StoredScriptSource.parse(content, xContentType)
         );
         return channel -> client.execute(

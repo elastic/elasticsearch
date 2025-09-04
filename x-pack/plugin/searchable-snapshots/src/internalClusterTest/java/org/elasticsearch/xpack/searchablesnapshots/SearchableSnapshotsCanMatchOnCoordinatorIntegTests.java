@@ -1319,10 +1319,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
     }
 
-    private void waitUntilAllShardsAreUnassigned(Index index) throws Exception {
+    private void waitUntilAllShardsAreUnassigned(Index index) {
         awaitClusterState(state -> state.getRoutingTable().index(index).allPrimaryShardsUnassigned());
     }
 

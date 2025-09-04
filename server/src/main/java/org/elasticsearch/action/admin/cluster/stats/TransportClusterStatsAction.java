@@ -34,12 +34,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -54,10 +57,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -101,6 +105,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final NodeService nodeService;
     private final IndicesService indicesService;
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
     private final CCSUsageTelemetry esqlUsageHolder;
@@ -119,6 +124,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         NodeService nodeService,
         IndicesService indicesService,
         RepositoriesService repositoriesService,
+        ProjectResolver projectResolver,
         UsageService usageService,
         ActionFilters actionFilters,
         Settings settings
@@ -134,6 +140,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.nodeService = nodeService;
         this.indicesService = indicesService;
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
         this.esqlUsageHolder = usageService.getEsqlUsageHolder();
@@ -151,15 +158,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
         assert task instanceof CancellableTask;
         final var cancellableTask = (CancellableTask) task;
-        final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
         if (request.isRemoteStats() == false) {
+            final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
             final AdditionalStats additionalStats = new AdditionalStats();
             additionalStats.compute(cancellableTask, request, additionalStatsListener);
+            return additionalStatsListener;
         } else {
             // For remote stats request, we don't need to compute anything
-            additionalStatsListener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
-        return additionalStatsListener;
     }
 
     @Override
@@ -287,8 +294,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
 
         final ClusterState clusterState = clusterService.state();
+
+        @FixForMultiProject(description = "Should it be possible to execute this against the cluster rather than a specific project?")
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
-            ? new ClusterStateHealth(clusterState).getStatus()
+            ? new ClusterStateHealth(clusterState, project.getConcreteAllIndices(), project.id()).getStatus()
             : null;
 
         final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
@@ -310,7 +320,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
-    public static class ClusterStatsNodeRequest extends TransportRequest {
+    public static class ClusterStatsNodeRequest extends AbstractTransportRequest {
 
         ClusterStatsNodeRequest() {}
 
@@ -484,10 +494,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         RemoteClusterStats makeRemoteClusterStats(String clusterAlias) {
             RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
             RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
-            var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            var compression = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return new RemoteClusterStats(
                 remoteConnectionInfo.getModeInfo().modeName(),
-                remoteConnection.isSkipUnavailable(),
+                remoteClusterService.isSkipUnavailable(clusterAlias),
                 compression.toString()
             );
         }

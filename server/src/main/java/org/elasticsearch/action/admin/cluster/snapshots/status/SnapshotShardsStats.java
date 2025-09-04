@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -149,5 +150,10 @@ public class SnapshotShardsStats implements ToXContentObject {
         result = 31 * result + failedShards;
         result = 31 * result + totalShards;
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

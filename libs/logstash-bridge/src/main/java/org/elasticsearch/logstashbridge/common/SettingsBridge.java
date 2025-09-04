@@ -11,14 +11,17 @@ package org.elasticsearch.logstashbridge.common;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-public class SettingsBridge extends StableBridgeAPI.Proxy<Settings> {
+/**
+ * An external bridge for {@link Settings}
+ */
+public class SettingsBridge extends StableBridgeAPI.ProxyInternal<Settings> {
 
-    public static SettingsBridge wrap(final Settings delegate) {
+    public static SettingsBridge fromInternal(final Settings delegate) {
         return new SettingsBridge(delegate);
     }
 
     public static Builder builder() {
-        return Builder.wrap(Settings.builder());
+        return Builder.fromInternal(Settings.builder());
     }
 
     public SettingsBridge(final Settings delegate) {
@@ -26,12 +29,15 @@ public class SettingsBridge extends StableBridgeAPI.Proxy<Settings> {
     }
 
     @Override
-    public Settings unwrap() {
-        return this.delegate;
+    public Settings toInternal() {
+        return this.internalDelegate;
     }
 
-    public static class Builder extends StableBridgeAPI.Proxy<Settings.Builder> {
-        static Builder wrap(final Settings.Builder delegate) {
+    /**
+     * An external bridge for {@link Settings.Builder} that proxies calls to a real {@link Settings.Builder}
+     */
+    public static class Builder extends StableBridgeAPI.ProxyInternal<Settings.Builder> {
+        static Builder fromInternal(final Settings.Builder delegate) {
             return new Builder(delegate);
         }
 
@@ -40,12 +46,12 @@ public class SettingsBridge extends StableBridgeAPI.Proxy<Settings> {
         }
 
         public Builder put(final String key, final String value) {
-            this.delegate.put(key, value);
+            this.internalDelegate.put(key, value);
             return this;
         }
 
         public SettingsBridge build() {
-            return new SettingsBridge(this.delegate.build());
+            return new SettingsBridge(this.internalDelegate.build());
         }
     }
 }

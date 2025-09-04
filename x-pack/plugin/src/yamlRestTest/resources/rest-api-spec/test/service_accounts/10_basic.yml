@@ -20,20 +20,12 @@ teardown:
         name: api-token-kibana
         ignore: 404
 
-  - do:
-      security.delete_service_token:
-        namespace: elastic
-        service: enterprise-search-server
-        name: api-token-enterprise-search-server
-        ignore: 404
-
 ---
 "Test get service accounts":
   - do:
       security.get_service_accounts: {}
-  - length: { '': 5 }
+  - length: { '': 4 }
   - is_true: "elastic/auto-ops"
-  - is_true: "elastic/enterprise-search-server"
   - is_true: "elastic/fleet-server"
   - is_true: "elastic/fleet-server-remote"
   - is_true: "elastic/kibana"
@@ -41,9 +33,8 @@ teardown:
   - do:
       security.get_service_accounts:
         namespace: elastic
-  - length: { '': 5 }
+  - length: { '': 4 }
   - is_true: "elastic/auto-ops"
-  - is_true: "elastic/enterprise-search-server"
   - is_true: "elastic/fleet-server"
   - is_true: "elastic/fleet-server-remote"
   - is_true: "elastic/kibana"
@@ -78,16 +69,6 @@ teardown:
   - is_true: created
   - match: { "token.name": "api-token-kibana" }
   - set: { "token.value": service_token_kibana }
-
-  - do:
-      security.create_service_token:
-        namespace: elastic
-        service: enterprise-search-server
-        name: api-token-enterprise-search-server
-
-  - is_true: created
-  - match: { "token.name": "api-token-enterprise-search-server" }
-  - set: { "token.value": service_token_enterprise_search_server }
 
   - do:
       headers:

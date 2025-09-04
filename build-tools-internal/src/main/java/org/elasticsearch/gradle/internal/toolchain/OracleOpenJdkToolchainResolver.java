@@ -33,11 +33,15 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String url(String os, String arch, String extension);
     }
 
-    record ReleasedJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) implements JdkBuild {
+    record ReleaseJdkBuild(JavaLanguageVersion languageVersion, String host, String version, String buildNumber, String hash)
+        implements
+            JdkBuild {
 
         @Override
         public String url(String os, String arch, String extension) {
-            return "https://download.oracle.com/java/GA/jdk"
+            return "https://"
+                + host
+                + "/java/GA/jdk"
                 + version
                 + "/"
                 + hash
@@ -54,50 +58,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
-    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion) implements JdkBuild {
-        @Override
-        public String url(String os, String arch, String extension) {
-            String buildNumber = resolveBuildNumber(languageVersion.asInt());
-            return "https://download.java.net/java/early_access/jdk"
-                + languageVersion.asInt()
-                + "/"
-                + buildNumber
-                + "/GPL/openjdk-"
-                + languageVersion.asInt()
-                + "-ea+"
-                + buildNumber
-                + "_"
-                + os
-                + "-"
-                + arch
-                + "_bin."
-                + extension;
-        }
-
-        private static String resolveBuildNumber(int version) {
-            String buildNumber = System.getProperty("runtime.java." + version + ".build");
-            if (buildNumber != null) {
-                System.out.println("buildNumber = " + buildNumber);
-                return buildNumber;
-            }
-            buildNumber = System.getProperty("runtime.java.build");
-            if (buildNumber != null) {
-                System.out.println("buildNumber2 = " + buildNumber);
-                return buildNumber;
-            }
-
-            switch (version) {
-                case 24:
-                    // latest explicitly found build number for 24
-                    return "29";
-                case 25:
-                    return "3";
-                default:
-                    throw new IllegalArgumentException("Unsupported version " + version);
-            }
-        }
-    }
-
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
@@ -110,14 +70,11 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(),
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(24)),
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))
+        getBundledJdkBuild(VersionProperties.getBundledJdkVersion(), VersionProperties.getBundledJdkMajorVersion())
     );
 
-    private JdkBuild getBundledJdkBuild() {
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+    static JdkBuild getBundledJdkBuild(String bundledJdkVersion, String bundledJkdMajorVersionString) {
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(bundledJkdMajorVersionString);
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
@@ -125,7 +82,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-        return new ReleasedJdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+        return new ReleaseJdkBuild(bundledJdkMajorVersion, "download.oracle.com", baseVersion, build, hash);
     }
 
     /**

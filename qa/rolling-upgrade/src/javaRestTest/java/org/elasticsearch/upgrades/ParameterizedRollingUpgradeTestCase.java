@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     protected static final int NODE_NUM = 3;
-    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+    protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
@@ -103,8 +103,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             for (int n = 0; n < requestedUpgradedNodes; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
-                        logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
-                        getUpgradeCluster().upgradeNodeToVersion(n, Version.CURRENT);
+                        Version upgradeVersion = System.getProperty("tests.new_cluster_version") == null
+                            ? Version.CURRENT
+                            : Version.fromString(System.getProperty("tests.new_cluster_version"));
+
+                        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
+                        getUpgradeCluster().upgradeNodeToVersion(n, upgradeVersion);
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;
@@ -123,11 +127,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         upgradeFailed = false;
     }
 
-    @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
-    protected static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
-    }
-
     protected static boolean oldClusterHasFeature(String featureId) {
         assert oldClusterTestFeatureService != null;
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
@@ -142,12 +141,20 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return oldIndexVersion;
     }
 
-    protected static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedRollingUpgradeTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    protected static boolean isOldClusterVersion(String nodeVersion) {
-        return OLD_CLUSTER_VERSION.equals(nodeVersion);
+    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+        String bwcRefSpec = System.getProperty("tests.bwc.refspec.main");
+        if (bwcRefSpec != null) {
+            return bwcRefSpec.equals(buildHash);
+        }
+        return getOldClusterVersion().equals(nodeVersion);
     }
 
     protected static boolean isOldCluster() {
@@ -202,7 +209,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Override
-    protected final Settings restClientSettings() {
+    protected Settings restClientSettings() {
         return Settings.builder()
             .put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -93,7 +93,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final ActionFilters actionFilters,
         final Client client,
         final ClusterService clusterService,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PersistentTasksService persistentTasksService,
         final IndicesService indicesService,
         final CcrLicenseChecker ccrLicenseChecker
@@ -132,7 +131,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().getProject().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;
@@ -487,7 +486,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_SLICES_PER_SCROLL,
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
-        IndexSettings.INDEX_SEARCH_THROTTLED,
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
@@ -532,7 +530,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
-        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
+        DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
+        DenseVectorFieldMapper.HNSW_EARLY_TERMINATION
     );
 
     public static Settings filter(Settings originalSettings) {

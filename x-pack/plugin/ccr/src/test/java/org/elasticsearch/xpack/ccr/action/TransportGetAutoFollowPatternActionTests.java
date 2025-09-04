@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -67,7 +67,7 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
                 null
             )
         );
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
 
@@ -92,7 +92,9 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
             Collections.emptyMap(),
             Collections.emptyMap()
         );
-        Metadata metadata = Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata).build();
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            .build();
         expectThrows(ResourceNotFoundException.class, () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
 
         Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, null);
@@ -100,7 +102,7 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
     }
 
     public void testGetAutoFollowPatternNoAutoFollowMetadata() {
-        Metadata metadata = Metadata.builder().build();
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         expectThrows(ResourceNotFoundException.class, () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
 
         Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, null);

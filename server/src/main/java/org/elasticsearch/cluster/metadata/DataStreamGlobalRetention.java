@@ -46,6 +46,17 @@ public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @N
         this.maxRetention = maxRetention;
     }
 
+    /**
+     * Helper method that creates a global retention object or returns null in case both retentions are null
+     */
+    @Nullable
+    public static DataStreamGlobalRetention create(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+        if (defaultRetention == null && maxRetention == null) {
+            return null;
+        }
+        return new DataStreamGlobalRetention(defaultRetention, maxRetention);
+    }
+
     private boolean validateRetentionValue(@Nullable TimeValue retention) {
         return retention == null || retention.getMillis() >= MIN_RETENTION_VALUE.getMillis();
     }

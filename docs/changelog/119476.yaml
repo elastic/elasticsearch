@@ -1,6 +1,0 @@
-pr: 119476
-summary: Fix TopN row size estimate
-area: ES|QL
-type: bug
-issues:
- - 106956

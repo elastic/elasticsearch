@@ -18,12 +18,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESTestCase.WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveCustomsCommandIT extends ESIntegTestCase {
 
     public void testRemoveCustomsAbortedByUser() throws Exception {
@@ -49,7 +51,14 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         indicesAdmin().prepareDelete("test").get();
         assertEquals(
             1,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indexGraveyard().getTombstones().size()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
@@ -70,7 +79,14 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
         assertEquals(
             0,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indexGraveyard().getTombstones().size()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
         );
     }
 
@@ -81,7 +97,14 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         indicesAdmin().prepareDelete("test").get();
         assertEquals(
             1,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indexGraveyard().getTombstones().size()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);

@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 public abstract class DefaultBuildParameterExtension implements BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
     private final Provider<File> runtimeJavaHome;
-    private final Boolean isRuntimeJavaHomeSet;
+    private final RuntimeJava runtimeJava;
     private final List<JavaHome> javaVersions;
     private final JavaVersion minimumCompilerVersion;
     private final JavaVersion minimumRuntimeVersion;
@@ -42,7 +42,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final String testSeed;
     private final Boolean isCi;
     private final Integer defaultParallel;
-    private final Boolean isSnapshotBuild;
+    private final Boolean snapshotBuild;
 
     // not final for testing
     private Provider<BwcVersions> bwcVersions;
@@ -50,11 +50,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     public DefaultBuildParameterExtension(
         ProviderFactory providers,
-        Provider<File> runtimeJavaHome,
+        RuntimeJava runtimeJava,
         Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
-        Provider<JavaVersion> runtimeJavaVersion,
-        boolean isRuntimeJavaHomeSet,
-        Provider<String> runtimeJavaDetails,
         List<JavaHome> javaVersions,
         JavaVersion minimumCompilerVersion,
         JavaVersion minimumRuntimeVersion,
@@ -68,11 +65,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
-        this.runtimeJavaHome = cache(providers, runtimeJavaHome);
+        this.runtimeJava = runtimeJava;
+        this.runtimeJavaHome = cache(providers, runtimeJava.getJavahome());
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
-        this.runtimeJavaVersion = cache(providers, runtimeJavaVersion);
-        this.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
-        this.runtimeJavaDetails = cache(providers, runtimeJavaDetails);
+        this.runtimeJavaVersion = cache(providers, runtimeJava.getJavaVersion());
+        this.runtimeJavaDetails = cache(providers, runtimeJava.getVendorDetails());
         this.javaVersions = javaVersions;
         this.minimumCompilerVersion = minimumCompilerVersion;
         this.minimumRuntimeVersion = minimumRuntimeVersion;
@@ -81,7 +78,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         this.testSeed = testSeed;
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
-        this.isSnapshotBuild = isSnapshotBuild;
+        this.snapshotBuild = isSnapshotBuild;
         this.bwcVersions = cache(providers, bwcVersions);
         this.gitOrigin = gitOrigin;
     }
@@ -116,7 +113,12 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public Boolean getIsRuntimeJavaHomeSet() {
-        return isRuntimeJavaHomeSet;
+        return runtimeJava.isExplicitlySet();
+    }
+
+    @Override
+    public RuntimeJava getRuntimeJava() {
+        return runtimeJava;
     }
 
     @Override
@@ -183,7 +185,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Boolean isCi() {
+    public Boolean getCi() {
         return isCi;
     }
 
@@ -193,8 +195,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Boolean isSnapshotBuild() {
-        return isSnapshotBuild;
+    public Boolean getSnapshotBuild() {
+        return snapshotBuild;
     }
 
     @Override
@@ -208,7 +210,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Boolean isGraalVmRuntime() {
+    public Boolean getGraalVmRuntime() {
         return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
     }
 

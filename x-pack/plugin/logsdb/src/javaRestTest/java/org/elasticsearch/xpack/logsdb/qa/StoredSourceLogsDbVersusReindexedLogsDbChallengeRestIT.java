@@ -39,11 +39,11 @@ public class StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT extends Rein
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 }

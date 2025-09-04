@@ -22,6 +22,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
+import static org.elasticsearch.action.termvectors.EnsureDocsSearchableAction.ENSURE_DOCS_SEARCHABLE_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -131,6 +133,7 @@ public final class AuthorizationUtils {
             case SECURITY_PROFILE_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.SECURITY_PROFILE_USER, version, consumer);
                 break;
+            case ENSURE_DOCS_SEARCHABLE_ORIGIN:
             case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
@@ -164,6 +167,7 @@ public final class AuthorizationUtils {
             case ENT_SEARCH_ORIGIN:
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
+            case ESQL_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

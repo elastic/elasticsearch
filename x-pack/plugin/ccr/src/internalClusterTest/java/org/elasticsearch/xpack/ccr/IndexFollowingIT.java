@@ -82,8 +82,7 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -120,6 +119,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.containsString;
@@ -464,8 +464,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final String leaderIndexSettings = getIndexSettings(between(1, 2), between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
-        final IndicesAliasesRequest request = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
+        final IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        ).addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
         final ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> followerClient().admin().indices().aliases(request).actionGet()
@@ -495,8 +496,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             ).actionGet()
         );
         followerClient().admin().indices().open(new OpenIndexRequest("follower").masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
-        final IndicesAliasesRequest request = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
+        final IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        ).addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
         assertAcked(followerClient().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = followerClient().admin()
             .indices()
@@ -1231,7 +1233,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final IndexMetadata indexMetadata = currentState.metadata().index("leader");
+                final IndexMetadata indexMetadata = currentState.metadata().getProject().index("leader");
                 Settings.Builder settings = Settings.builder().put(indexMetadata.getSettings()).put("index.max_ngram_diff", 2);
                 if (randomBoolean()) {
                     settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "private-value");
@@ -1299,7 +1301,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final IndexMetadata indexMetadata = currentState.metadata().index("leader");
+                final IndexMetadata indexMetadata = currentState.metadata().getProject().index("leader");
                 Settings.Builder settings = Settings.builder().put(indexMetadata.getSettings());
                 settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "internal-value");
                 settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "internal-value");
@@ -1316,7 +1318,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
+                settingVersionOnLeader.set(newState.metadata().getProject().index("leader").getSettingsVersion());
                 latch.countDown();
             }
 
@@ -1365,7 +1367,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .setMetadata(true)
                 .setIndices("index2")
                 .get();
-            final String followerUUID = followerIndexClusterState.getState().metadata().index("index2").getIndexUUID();
+            final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index("index2").getIndexUUID();
             final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
                 .cluster()
                 .prepareState(TEST_REQUEST_TIMEOUT)
@@ -1373,7 +1375,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .setMetadata(true)
                 .setIndices("index1")
                 .get();
-            final String leaderUUID = leaderIndexClusterState.getState().metadata().index("index1").getIndexUUID();
+            final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index("index1").getIndexUUID();
 
             final RoutingTable leaderRoutingTable = leaderClient().admin()
                 .cluster()
@@ -1538,10 +1540,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .masterNodeTimeout(TimeValue.MAX_VALUE);
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
-            Setting<Compression.Enabled> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(
+            Setting<Compression.Enabled> compress = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(
                 "leader_cluster"
             );
-            Setting<List<String>> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
             settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), true).put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
 
@@ -1576,10 +1578,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .masterNodeTimeout(TimeValue.MAX_VALUE);
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
-            Setting<Compression.Enabled> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(
+            Setting<Compression.Enabled> compress = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(
                 "leader_cluster"
             );
-            Setting<List<String>> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
             settingsRequest.persistentSettings(
                 Settings.builder().put(compress.getKey(), compress.getDefault(Settings.EMPTY)).put(seeds.getKey(), address)
             );
@@ -1663,7 +1665,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ClusterService clusterService = getFollowerCluster().getInstance(ClusterService.class, electedMasterNode);
         AtomicBoolean closed = new AtomicBoolean(false);
         clusterService.addListener(event -> {
-            IndexMetadata indexMetadata = event.state().metadata().index(indexName);
+            IndexMetadata indexMetadata = event.state().metadata().getProject().index(indexName);
             if (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 closed.set(true);
             }
@@ -1674,7 +1676,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
             assertNotNull(taskMetadata);
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();

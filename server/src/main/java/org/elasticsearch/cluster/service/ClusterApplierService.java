@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Recorder;
 import org.elasticsearch.common.Priority;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -467,9 +469,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
             } catch (Exception e) {
-                // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
-                // continue we will retry with the same cluster state but that might not help.
-                assert applicationMayFail();
                 timedListener.onFailure(e);
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
@@ -490,6 +489,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                         e
                     );
                 }
+                // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
+                // continue we will retry with the same cluster state but that might not help.
+                assert applicationMayFail();
             } finally {
                 clearIsApplyingClusterState();
             }
@@ -578,6 +580,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
+    @FixForMultiProject(description = "Don't catch multi-project exception")
     private static void callClusterStateListener(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
@@ -590,6 +593,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 try (Releasable ignored = stopWatch.record(name)) {
                     listener.clusterChanged(clusterChangedEvent);
                 }
+            } catch (Metadata.MultiProjectPendingException e) {
+                // don't warn, this fills the logs and also slow down applier thread in CI which could cause unrelated failures
+                logger.trace("ClusterStateListener not multi-project compatible", e);
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
             }

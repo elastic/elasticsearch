@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
@@ -48,28 +49,31 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public GetMigrationReindexStatusTransportAction(
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(GetMigrationReindexStatusAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         String index = request.getIndex();
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
+            projectResolver.getProjectMetadata(clusterService.state()),
+            persistentTaskId
+        );
         if (persistentTask == null) {
             listener.onFailure(new ResourceNotFoundException("No migration reindex status found for [{}]", index));
         } else if (persistentTask.isAssigned()) {
@@ -145,7 +149,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     }
 
     /*
-     * This method feches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
+     * This method fetches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
      * successfully fetching those, reportStatus is called.
      */
     private void fetchInProgressStatsAndReportStatus(

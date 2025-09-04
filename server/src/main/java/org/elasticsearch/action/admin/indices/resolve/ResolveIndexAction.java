@@ -9,24 +9,28 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
@@ -52,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -59,6 +65,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -69,16 +77,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static final String NAME = "indices:admin/resolve/index";
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
+    private static final TransportVersion RESOLVE_INDEX_MODE_ADDED = TransportVersion.fromName("resolve_index_mode_added");
+
     private ResolveIndexAction() {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
         private String[] names;
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+        private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
 
         public Request(String[] names) {
             this.names = names;
@@ -87,6 +98,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public Request(String[] names, IndicesOptions indicesOptions) {
             this.names = names;
             this.indicesOptions = indicesOptions;
+        }
+
+        public Request(String[] names, IndicesOptions indicesOptions, @Nullable EnumSet<IndexMode> indexModes) {
+            this.names = names;
+            this.indicesOptions = indicesOptions;
+            if (indexModes != null) {
+                this.indexModes = indexModes;
+            }
         }
 
         @Override
@@ -98,6 +117,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             super(in);
             this.names = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_FILTER)) {
+                this.indexModes = in.readEnumSet(IndexMode.class);
+            } else {
+                this.indexModes = EnumSet.noneOf(IndexMode.class);
+            }
         }
 
         @Override
@@ -105,6 +129,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             super.writeTo(out);
             out.writeStringArray(names);
             indicesOptions.writeIndicesOptions(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_FILTER)) {
+                out.writeEnumSet(indexModes);
+            }
         }
 
         @Override
@@ -112,12 +139,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return Arrays.equals(names, request.names) && indexModes.equals(request.indexModes);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            return Objects.hash(Arrays.hashCode(names), indexModes);
         }
 
         @Override
@@ -174,27 +201,35 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
         static final ParseField ATTRIBUTES_FIELD = new ParseField("attributes");
         static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
+        static final ParseField MODE_FIELD = new ParseField("mode");
 
         private final String[] aliases;
         private final String[] attributes;
         private final String dataStream;
+        private final IndexMode mode;
 
         ResolvedIndex(StreamInput in) throws IOException {
             setName(in.readString());
             this.aliases = in.readStringArray();
             this.attributes = in.readStringArray();
             this.dataStream = in.readOptionalString();
+            if (in.getTransportVersion().supports(RESOLVE_INDEX_MODE_ADDED)) {
+                this.mode = IndexMode.readFrom(in);
+            } else {
+                this.mode = null;
+            }
         }
 
-        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream) {
+        ResolvedIndex(String name, String[] aliases, String[] attributes, @Nullable String dataStream, IndexMode mode) {
             super(name);
             this.aliases = aliases;
             this.attributes = attributes;
             this.dataStream = dataStream;
+            this.mode = mode;
         }
 
         public ResolvedIndex copy(String newName) {
-            return new ResolvedIndex(newName, aliases, attributes, dataStream);
+            return new ResolvedIndex(newName, aliases, attributes, dataStream, mode);
         }
 
         public String[] getAliases() {
@@ -209,12 +244,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return dataStream;
         }
 
+        public IndexMode getMode() {
+            return mode;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(getName());
             out.writeStringArray(aliases);
             out.writeStringArray(attributes);
             out.writeOptionalString(dataStream);
+            if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_ADDED)) {
+                IndexMode.writeTo(mode, out);
+            }
         }
 
         @Override
@@ -228,6 +270,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (Strings.isNullOrEmpty(dataStream) == false) {
                 builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
             }
+            if (mode != null) {
+                builder.field(MODE_FIELD.getPreferredName(), mode.toString());
+            }
             builder.endObject();
             return builder;
         }
@@ -240,15 +285,30 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return getName().equals(index.getName())
                 && Objects.equals(dataStream, index.dataStream)
                 && Arrays.equals(aliases, index.aliases)
-                && Arrays.equals(attributes, index.attributes);
+                && Arrays.equals(attributes, index.attributes)
+                && Objects.equals(mode, index.mode);
         }
 
         @Override
         public int hashCode() {
             int result = Objects.hash(getName(), dataStream);
+            result = 31 * result + Objects.hashCode(mode);
             result = 31 * result + Arrays.hashCode(aliases);
             result = 31 * result + Arrays.hashCode(attributes);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                Locale.ROOT,
+                "ResolvedIndex{name=%s, aliases=%s, attributes=%s, dataStream=%s, mode=%s}",
+                getName(),
+                Arrays.toString(aliases),
+                Arrays.toString(attributes),
+                dataStream,
+                mode
+            );
         }
     }
 
@@ -306,6 +366,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             int result = Objects.hash(getName());
             result = 31 * result + Arrays.hashCode(indices);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.ROOT, "ResolvedAlias{name=%s, indices=%s}", getName(), Arrays.toString(indices));
         }
     }
 
@@ -373,6 +438,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             int result = Objects.hash(getName(), timestampField);
             result = 31 * result + Arrays.hashCode(backingIndices);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                Locale.ROOT,
+                "ResolvedDataStream{name=%s, backingIndices=%s, timestampField=%s}",
+                getName(),
+                Arrays.toString(backingIndices),
+                timestampField
+            );
         }
     }
 
@@ -445,6 +521,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
+        private final ProjectResolver projectResolver;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
 
@@ -453,11 +530,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
+            this.projectResolver = projectResolver;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
@@ -467,7 +546,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
-            final ClusterState clusterState = clusterService.state();
+            final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 request.indicesOptions(),
                 request.indices()
@@ -476,7 +555,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
-            resolveIndices(localIndices, clusterState, indexNameExpressionResolver, indices, aliases, dataStreams);
+            resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
@@ -484,7 +563,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
-                        mergeResults(remoteResponses, indices, aliases, dataStreams);
+                        mergeResults(remoteResponses, indices, aliases, dataStreams, request.indexModes);
                         listener.onResponse(new Response(indices, aliases, dataStreams));
                     }
                 };
@@ -512,25 +591,48 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         /**
          * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
          *
-         * @param localIndices   The names and wildcard expressions to resolve
-         * @param clusterState   Cluster state
-         * @param resolver       Resolver instance for matching names
-         * @param indices        List containing any matching indices
-         * @param aliases        List containing any matching aliases
-         * @param dataStreams    List containing any matching data streams
+         * @param localIndices The names and wildcard expressions to resolve
+         * @param projectState Project state
+         * @param resolver     Resolver instance for matching names
+         * @param indices      List containing any matching indices
+         * @param aliases      List containing any matching aliases
+         * @param dataStreams  List containing any matching data streams
          */
         static void resolveIndices(
             @Nullable OriginalIndices localIndices,
-            ClusterState clusterState,
+            ProjectState projectState,
+            IndexNameExpressionResolver resolver,
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams,
+            Set<IndexMode> indexModes
+        ) {
+            if (localIndices == null) {
+                return;
+            }
+            resolveIndices(
+                localIndices.indices(),
+                localIndices.indicesOptions(),
+                projectState,
+                resolver,
+                indices,
+                aliases,
+                dataStreams,
+                indexModes
+            );
+        }
+
+        // Shortcut for tests that don't need index mode filtering
+        static void resolveIndices(
+            String[] names,
+            IndicesOptions indicesOptions,
+            ProjectState projectState,
             IndexNameExpressionResolver resolver,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            if (localIndices == null) {
-                return;
-            }
-            resolveIndices(localIndices.indices(), localIndices.indicesOptions(), clusterState, resolver, indices, aliases, dataStreams);
+            resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Collections.emptySet());
         }
 
         /**
@@ -538,7 +640,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          *
          * @param names          The names and wildcard expressions to resolve
          * @param indicesOptions Options for expanding wildcards to indices with different states
-         * @param clusterState   Cluster state
+         * @param projectState   Cluster state
          * @param resolver       Resolver instance for matching names
          * @param indices        List containing any matching indices
          * @param aliases        List containing any matching aliases
@@ -547,11 +649,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         static void resolveIndices(
             String[] names,
             IndicesOptions indicesOptions,
-            ClusterState clusterState,
+            ProjectState projectState,
             IndexNameExpressionResolver resolver,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
+            List<ResolvedDataStream> dataStreams,
+            Set<IndexMode> indexModes
         ) {
             // redundant check to ensure that we don't resolve the list of empty names to "all" in this context
             if (names.length == 0) {
@@ -567,49 +670,111 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
+            Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
+                projectState.metadata(),
+                indicesOptions,
+                true,
+                names
+            );
             for (ResolvedExpression s : resolvedIndexAbstractions) {
-                enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
+                enrichIndexAbstraction(projectState, s, indices, aliases, dataStreams, indexModes);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             dataStreams.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
         }
 
+        /**
+         * Merge the results from remote clusters into the local results lists.
+         * This will also do index mode filtering (if requested), as the remote cluster might be too old to do it itself.
+         */
         private static void mergeResults(
             Map<String, Response> remoteResponses,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
+            List<ResolvedDataStream> dataStreams,
+            Set<IndexMode> indexModes
         ) {
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
                 for (ResolvedIndex index : response.indices) {
+                    // We want to filter by mode here because the linked cluster might be too old to be able to filter
+                    if (indexModes.isEmpty() == false && indexModes.contains(index.getMode()) == false) {
+                        continue;
+                    }
                     indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));
                 }
+                Set<String> indexNames = indices.stream().map(ResolvedIndexAbstraction::getName).collect(Collectors.toSet());
                 for (ResolvedAlias alias : response.aliases) {
-                    aliases.add(alias.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName())));
+                    if (indexModes.isEmpty() == false) {
+                        // We filter out indices that are not included in the main index list after index mode filtering
+                        String[] filteredIndices = Arrays.stream(alias.getIndices())
+                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .toArray(String[]::new);
+                        if (filteredIndices.length == 0) {
+                            // If this alias points to no indices after filtering, we skip it
+                            continue;
+                        }
+                        alias = new ResolvedAlias(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName()), filteredIndices);
+                    } else {
+                        alias = alias.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName()));
+                    }
+                    aliases.add(alias);
                 }
                 for (ResolvedDataStream dataStream : response.dataStreams) {
-                    dataStreams.add(dataStream.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName())));
+                    if (indexModes.isEmpty() == false) {
+                        // We filter out indices that are not included in the main index list after index mode filtering
+                        String[] filteredBackingIndices = Arrays.stream(dataStream.getBackingIndices())
+                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .toArray(String[]::new);
+                        if (filteredBackingIndices.length == 0) {
+                            // If this data stream points to no backing indices after filtering, we skip it
+                            continue;
+                        }
+                        dataStream = new ResolvedDataStream(
+                            RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName()),
+                            filteredBackingIndices,
+                            dataStream.getTimestampField()
+                        );
+                    } else {
+                        dataStream = dataStream.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName()));
+                    }
+                    dataStreams.add(dataStream);
                 }
             }
         }
 
+        private static Predicate<Index> indexModeFilter(ProjectState projectState, Set<IndexMode> indexModes) {
+            if (indexModes.isEmpty()) {
+                return index -> true;
+            }
+            return index -> {
+                IndexMetadata indexMetadata = projectState.metadata().index(index);
+                IndexMode mode = indexMetadata.getIndexMode() == null ? IndexMode.STANDARD : indexMetadata.getIndexMode();
+                return indexModes.contains(mode);
+            };
+        }
+
         private static void enrichIndexAbstraction(
-            ClusterState clusterState,
+            ProjectState projectState,
             ResolvedExpression resolvedExpression,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
+            List<ResolvedDataStream> dataStreams,
+            Set<IndexMode> indexModes
         ) {
-            SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+            SortedMap<String, IndexAbstraction> indicesLookup = projectState.metadata().getIndicesLookup();
             IndexAbstraction ia = indicesLookup.get(resolvedExpression.resource());
+            var filterPredicate = indexModeFilter(projectState, indexModes);
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
-                        IndexMetadata writeIndex = clusterState.metadata().index(ia.getWriteIndex());
+                        if (filterPredicate.test(ia.getWriteIndex()) == false) {
+                            return;
+                        }
+                        IndexMetadata writeIndex = projectState.metadata().index(ia.getWriteIndex());
+                        IndexMode mode = writeIndex.getIndexMode() == null ? IndexMode.STANDARD : writeIndex.getIndexMode();
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
                         List<Attribute> attributes = new ArrayList<>();
                         attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? Attribute.OPEN : Attribute.CLOSED);
@@ -619,7 +784,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (ia.isSystem()) {
                             attributes.add(Attribute.SYSTEM);
                         }
-                        final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
+                        final boolean isFrozen = writeIndex.getSettings().getAsBoolean("index.frozen", false);
                         if (isFrozen) {
                             attributes.add(Attribute.FROZEN);
                         }
@@ -629,13 +794,18 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 ia.getName(),
                                 aliasNames,
                                 attributes.stream().map(Enum::name).map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new),
-                                ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
+                                ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName(),
+                                mode
                             )
                         );
                     }
                     case ALIAS -> {
-                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, clusterState.metadata()).map(Index::getName)
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, projectState.metadata()).filter(filterPredicate)
+                            .map(Index::getName)
                             .toArray(String[]::new);
+                        if (indexModes.isEmpty() == false && indexNames.length == 0) {
+                            return;
+                        }
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                     }
@@ -647,7 +817,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 case DATA -> dataStream.getDataComponent().getIndices().stream();
                                 case FAILURES -> dataStream.getFailureIndices().stream();
                             };
-                        String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
+                        String[] backingIndices = dataStreamIndices.filter(filterPredicate).map(Index::getName).toArray(String[]::new);
+                        if (indexModes.isEmpty() == false && backingIndices.length == 0) {
+                            return;
+                        }
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
@@ -655,7 +828,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private static Stream<Index> getAliasIndexStream(ResolvedExpression resolvedExpression, IndexAbstraction ia, Metadata metadata) {
+        private static Stream<Index> getAliasIndexStream(
+            ResolvedExpression resolvedExpression,
+            IndexAbstraction ia,
+            ProjectMetadata metadata
+        ) {
             Stream<Index> aliasIndices;
             if (resolvedExpression.selector() == null) {
                 aliasIndices = ia.getIndices().stream();

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -41,7 +40,7 @@ import java.util.stream.Collectors;
  * Custom cluster state metadata that stores all the snapshot lifecycle
  * policies and their associated metadata
  */
-public class SnapshotLifecycleMetadata implements Metadata.Custom {
+public class SnapshotLifecycleMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "snapshot_lifecycle";
 
@@ -121,7 +120,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new SnapshotLifecycleMetadataDiff((SnapshotLifecycleMetadata) previousState, this);
     }
 
@@ -132,7 +131,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -177,7 +176,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
             && this.slmStats.equals(other.slmStats);
     }
 
-    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, SnapshotLifecyclePolicyMetadata>> lifecycles;
         final OperationMode operationMode;
@@ -205,7 +204,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             TreeMap<String, SnapshotLifecyclePolicyMetadata> newLifecycles = new TreeMap<>(
                 lifecycles.apply(((SnapshotLifecycleMetadata) part).snapshotConfigurations)
             );
@@ -230,7 +229,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
     }

@@ -317,21 +317,22 @@ public class NativeUsersStoreTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private NativeUsersStore startNativeUsersStore() {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(projectIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         return new NativeUsersStore(Settings.EMPTY, client, securityIndex);
     }
 

@@ -118,7 +118,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
-        var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        var slmMetadata = currentState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentSLMMode(currentState);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(

@@ -276,6 +276,9 @@ public enum DataType {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
+    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES)),
+    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES)),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -301,15 +304,13 @@ public enum DataType {
      * mapping and should be hidden from users.
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
-    /**
-     * String fields that are split into chunks, where each chunk has attached embeddings
-     * used for semantic search. Generally ESQL only sees {@code semantic_text} fields when
-     * loaded from the index and ESQL will load these fields as strings without their attached
-     * chunks or embeddings.
-     */
-    SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize()),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES));
+    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+
+    /**
+     * Fields with this type are dense vectors, represented as an array of double values.
+     */
+    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned
@@ -318,8 +319,8 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG)
+        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
     );
 
     private final String typeName;
@@ -394,6 +395,9 @@ public enum DataType {
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
+        // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
+        // so we need to map it here as well
+        map.put("semantic_text", DataType.TEXT);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));
@@ -407,6 +411,7 @@ public enum DataType {
         map.put("bool", BOOLEAN);
         map.put("int", INTEGER);
         map.put("string", KEYWORD);
+        map.put("date", DataType.DATETIME);
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -482,7 +487,7 @@ public enum DataType {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT || t == SEMANTIC_TEXT;
+        return t == KEYWORD || t == TEXT;
     }
 
     public static boolean isPrimitiveAndSupported(DataType t) {
@@ -556,7 +561,6 @@ public enum DataType {
             && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
-            && t != AGGREGATE_METRIC_DOUBLE
             && t.isCounter() == false;
     }
 
@@ -568,16 +572,28 @@ public enum DataType {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
 
+    public static boolean isSpatialShape(DataType t) {
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
+    }
+
     public static boolean isSpatialGeo(DataType t) {
-        return t == GEO_POINT || t == GEO_SHAPE;
+        return t == GEO_POINT || t == GEO_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialOrGrid(DataType t) {
+        return isSpatial(t) || isGeoGrid(t);
+    }
+
+    public static boolean isGeoGrid(DataType t) {
+        return t == GEOHASH || t == GEOTILE || t == GEOHEX;
+    }
+
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t));
+        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
     public String nameUpper() {
@@ -714,6 +730,29 @@ public enum DataType {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public static DataType suggestedCast(Set<DataType> originalTypes) {
+        if (originalTypes.isEmpty() || originalTypes.contains(UNSUPPORTED)) {
+            return null;
+        }
+        if (originalTypes.contains(DATE_NANOS) && originalTypes.contains(DATETIME) && originalTypes.size() == 2) {
+            return DATE_NANOS;
+        }
+        if (originalTypes.contains(AGGREGATE_METRIC_DOUBLE)) {
+            boolean allNumeric = true;
+            for (DataType type : originalTypes) {
+                if (type.isNumeric() == false && type != AGGREGATE_METRIC_DOUBLE) {
+                    allNumeric = false;
+                    break;
+                }
+            }
+            if (allNumeric) {
+                return AGGREGATE_METRIC_DOUBLE;
+            }
+        }
+
+        return KEYWORD;
     }
 
     /**

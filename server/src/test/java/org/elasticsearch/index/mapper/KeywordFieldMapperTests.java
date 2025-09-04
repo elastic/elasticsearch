@@ -52,7 +52,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -674,17 +673,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues() || ft.isStored(), mapper, loaderFieldName);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((BytesRef) v).utf8ToString();
     }
 
     @Override

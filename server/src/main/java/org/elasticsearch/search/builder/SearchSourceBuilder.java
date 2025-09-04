@@ -288,8 +288,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)
-            || in.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
             skipInnerHits = in.readBoolean();
         } else {
             skipInnerHits = false;
@@ -383,8 +382,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)
-            || out.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
             out.writeBoolean(skipInnerHits);
         }
     }
@@ -880,7 +878,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetch,
+            fetchSourceContext.excludeVectors(),
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -917,7 +920,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            fetchSourceContext.excludeVectors(),
+            includes,
+            excludes
+        );
         return this;
     }
 
@@ -926,6 +934,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchSourceBuilder excludeVectors(boolean excludeVectors) {
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            excludeVectors,
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -1165,9 +1187,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             )
         ));
+
         if (retrieverBuilder != null) {
             var newRetriever = retrieverBuilder.rewrite(context);
             if (newRetriever != retrieverBuilder) {
@@ -1181,6 +1205,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 retriever.extractToSearchSourceBuilder(this, false);
                 validate();
             }
+        }
+
+        RankBuilder rankBuilder = null;
+        if (this.rankBuilder != null) {
+            rankBuilder = this.rankBuilder.rewrite(context);
         }
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
@@ -1207,7 +1236,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             || aggregations != this.aggregations
             || rescoreBuilders != this.rescoreBuilders
             || sorts != this.sorts
-            || this.highlightBuilder != highlightBuilder;
+            || this.highlightBuilder != highlightBuilder
+            || this.rankBuilder != rankBuilder;
         if (rewritten) {
             return shallowCopy(
                 subSearchSourceBuilders,
@@ -1217,7 +1247,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 this.sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             );
         }
         return this;
@@ -1235,7 +1266,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             sliceBuilder,
             sorts,
             rescoreBuilders,
-            highlightBuilder
+            highlightBuilder,
+            rankBuilder
         );
     }
 
@@ -1252,7 +1284,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,
         List<RescorerBuilder> rescoreBuilders,
-        HighlightBuilder highlightBuilder
+        HighlightBuilder highlightBuilder,
+        RankBuilder rankBuilder
     ) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;

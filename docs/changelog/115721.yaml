@@ -1,5 +1,0 @@
-pr: 115721
-summary: Change Reindexing metrics unit from millis to seconds
-area: Reindex
-type: enhancement
-issues: []

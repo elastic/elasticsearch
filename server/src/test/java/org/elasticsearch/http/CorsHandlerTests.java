@@ -56,12 +56,12 @@ public class CorsHandlerTests extends ESTestCase {
     public void testCorsConfig() {
         final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
         final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
+        final String maybeSpace = randomFrom(" ", ""); // sometimes have a leading whitespace between comma delimited elements
         final Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-            .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", prefix, ""))
-            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", prefix, ""))
+            .put(SETTING_CORS_ALLOW_METHODS.getKey(), maybeSpace + collectionToDelimitedString(methods, "," + maybeSpace))
+            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), maybeSpace + collectionToDelimitedString(headers, "," + maybeSpace))
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
         final CorsHandler.Config corsConfig = CorsHandler.buildConfig(settings);

@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -704,9 +705,76 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testGlobValues() throws IOException {
-        Settings test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
-        var values = test.getGlobValues("foo.*.bar").toList();
+        Settings test = Settings.builder().put("foo.x.bar", "1").build();
+
+        // no values
+        assertThat(test.getValues("foo.*.baz").toList(), empty());
+        assertThat(test.getValues("fuz.*.bar").toList(), empty());
+
+        var values = test.getValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1"));
+
+        test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
+        values = test.getValues("foo.*.bar").toList();
         assertThat(values, containsInAnyOrder("1", "2"));
+
+        values = test.getValues("foo.x.bar").toList();
+        assertThat(values, contains("1"));
+    }
+
+    public void testMergeNullOrEmptySettingsIntoEmptySettings() {
+        expectThrows(NullPointerException.class, () -> Settings.EMPTY.merge(null));
+        assertThat(Settings.EMPTY.merge(Settings.EMPTY), equalTo(Settings.EMPTY));
+    }
+
+    public void testMergeEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings settings = builder.build();
+        assertThat(settings.merge(Settings.EMPTY), equalTo(settings));
+    }
+
+    public void testMergeNonEmptySettingsIntoEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings newSettings = builder.build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(newSettings));
+    }
+
+    public void testMergeNonEmptySettingsIntoNonEmptySettings() {
+        Settings settings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        assertThat(settings.merge(newSettings), equalTo(mergedSettings));
+    }
+
+    public void testMergeNonEmptySettingsWithNullIntoEmptySettings() {
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(mergedSettings));
     }
 
 }

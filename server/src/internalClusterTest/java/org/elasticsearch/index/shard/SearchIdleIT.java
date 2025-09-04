@@ -235,6 +235,15 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     public void testSearchIdleBoolQueryMatchOneIndex() throws InterruptedException {
+        checkSearchIdleBoolQueryMatchOneIndex(IndexSettings.DOC_VALUES_SKIPPER);
+    }
+
+    public void testSearchIdleBoolQueryMatchOneIndexWithDocValuesSkipper() throws InterruptedException {
+        assumeTrue("doc values skipper feature should be enabled", IndexSettings.DOC_VALUES_SKIPPER);
+        checkSearchIdleBoolQueryMatchOneIndex(false);
+    }
+
+    private void checkSearchIdleBoolQueryMatchOneIndex(boolean disableDocValuesSkippers) throws InterruptedException {
         // GIVEN
         final String idleIndex = "test1";
         final String activeIndex = "test2";
@@ -242,16 +251,31 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
+
+        var idleIndexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z");
+
+        var activeIndexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z");
+
+        if (disableDocValuesSkippers) {
+            idleIndexSettingsBuilder.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+            activeIndexSettingsBuilder.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
+
         createIndex(
             idleIndex,
-            Settings.builder()
-                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z")
-                .build(),
+            idleIndexSettingsBuilder.build(),
             "doc",
             "keyword",
             "type=keyword",
@@ -262,14 +286,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         );
         createIndex(
             activeIndex,
-            Settings.builder()
-                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z")
-                .build(),
+            activeIndexSettingsBuilder.build(),
             "doc",
             "keyword",
             "type=keyword",

@@ -44,7 +44,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -61,6 +60,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.xcontent.Text;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -80,9 +80,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
-        // the upper bound is higher than 2048 so that in some cases we time out after the first batch of bulk scoring, but before
+        // the upper bound is higher than 4096 so that in some cases we time out after the first batch of bulk scoring, but before
         // getting to the end of the first segment
-        numDocs = scaledRandomIntBetween(500, 2500);
+        numDocs = scaledRandomIntBetween(500, 4500);
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             doc.add(new StringField("field", Integer.toString(i), Field.Store.NO));
@@ -116,6 +116,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+        // note that no executor is provided, as this test requires sequential execution
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
@@ -125,27 +126,35 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         );
     }
 
-    public void testScorerTimeoutTerms() throws IOException {
+    /**
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading terms enum
+     * as the scorer supplier is requested.
+     */
+    public void testScorerSupplierTimeoutTerms() throws IOException {
         assumeTrue("Test requires more than one segment", reader.leaves().size() > 1);
         int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
-        scorerTimeoutTest(size, context -> {
+        scorerSupplierTimeoutTest(size, context -> {
             final TermsEnum termsEnum = context.reader().terms("field").iterator();
             termsEnum.next();
         });
     }
 
-    public void testScorerTimeoutPoints() throws IOException {
+    /**
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading points
+     * as the scorer supplier is requested.
+     */
+    public void testScorerSupplierTimeoutPoints() throws IOException {
         assumeTrue("Test requires more than one segment", reader.leaves().size() > 1);
         int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
-        scorerTimeoutTest(size, context -> {
+        scorerSupplierTimeoutTest(size, context -> {
             PointValues pointValues = context.reader().getPointValues("long");
             pointValues.size();
         });
     }
 
-    private void scorerTimeoutTest(int size, CheckedConsumer<LeafReaderContext, IOException> timeoutTrigger) throws IOException {
+    private void scorerSupplierTimeoutTest(int size, CheckedConsumer<LeafReaderContext, IOException> timeoutTrigger) throws IOException {
         {
-            TimeoutQuery query = newMatchAllScorerTimeoutQuery(timeoutTrigger, false);
+            TimeoutQuery query = newMatchAllScorerSupplierTimeoutQuery(timeoutTrigger, false);
             try (SearchContext context = createSearchContext(query, size)) {
                 QueryPhase.executeQuery(context);
                 assertFalse(context.queryResult().searchTimedOut());
@@ -154,18 +163,20 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             }
         }
         {
-            TimeoutQuery query = newMatchAllScorerTimeoutQuery(timeoutTrigger, true);
+            TimeoutQuery query = newMatchAllScorerSupplierTimeoutQuery(timeoutTrigger, true);
             try (SearchContext context = createSearchContextWithTimeout(query, size)) {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
+                // we are artificially raising the timeout when pulling the scorer supplier.
+                // We score the entire first segment, then trigger timeout.
+                assertEquals(firstSegmentMaxDoc, context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }
     }
 
-    private static TimeoutQuery newMatchAllScorerTimeoutQuery(
+    private static TimeoutQuery newMatchAllScorerSupplierTimeoutQuery(
         CheckedConsumer<LeafReaderContext, IOException> timeoutTrigger,
         boolean isTimeoutExpected
     ) {
@@ -177,6 +188,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
                     @Override
                     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                        // trigger the timeout as soon as the scorer supplier is request for the second segment
                         if (firstSegment == false && isTimeoutExpected) {
                             shouldTimeout = true;
                         }
@@ -190,6 +202,96 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         };
     }
 
+    /**
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading terms enum
+     * as the scorer is retrieved from the scorer supplier
+     */
+    public void testScorerGetTimeoutTerms() throws IOException {
+        assumeTrue("Test requires more than one segment", reader.leaves().size() > 1);
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        scorerGetTimeoutTest(size, context -> {
+            final TermsEnum termsEnum = context.reader().terms("field").iterator();
+            termsEnum.next();
+        });
+    }
+
+    /**
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading points
+     * as the scorer is retrieved from the scorer supplier
+     */
+    public void testScorerGetTimeoutPoints() throws IOException {
+        assumeTrue("Test requires more than one segment", reader.leaves().size() > 1);
+        int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
+        scorerGetTimeoutTest(size, context -> {
+            PointValues pointValues = context.reader().getPointValues("long");
+            pointValues.size();
+        });
+    }
+
+    private void scorerGetTimeoutTest(int size, CheckedConsumer<LeafReaderContext, IOException> timeoutTrigger) throws IOException {
+        {
+            TimeoutQuery query = newMatchAllScorerGetTimeoutQuery(timeoutTrigger, false);
+            try (SearchContext context = createSearchContext(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertFalse(context.queryResult().searchTimedOut());
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value());
+                assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
+        }
+        {
+            TimeoutQuery query = newMatchAllScorerGetTimeoutQuery(timeoutTrigger, true);
+            try (SearchContext context = createSearchContextWithTimeout(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertTrue(context.queryResult().searchTimedOut());
+                int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
+                // we are artificially raising the timeout when pulling the scorer supplier.
+                // We score the entire first segment, then trigger timeout.
+                assertEquals(firstSegmentMaxDoc, context.queryResult().topDocs().topDocs.totalHits.value());
+                assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
+        }
+    }
+
+    private static TimeoutQuery newMatchAllScorerGetTimeoutQuery(
+        CheckedConsumer<LeafReaderContext, IOException> timeoutTrigger,
+        boolean isTimeoutExpected
+    ) {
+        return new TimeoutQuery() {
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                return new MatchAllWeight(this, boost, scoreMode) {
+                    boolean firstSegment = true;
+
+                    @Override
+                    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                        ScorerSupplier scorerSupplier = super.scorerSupplier(context);
+                        return new ScorerSupplier() {
+                            @Override
+                            public Scorer get(long leadCost) throws IOException {
+                                // trigger the timeout as soon as the scorer is requested for the second segment
+                                if (firstSegment == false && isTimeoutExpected) {
+                                    shouldTimeout = true;
+                                }
+                                timeoutTrigger.accept(context);
+                                assert shouldTimeout == false : "should have already timed out";
+                                firstSegment = false;
+                                return scorerSupplier.get(leadCost);
+                            }
+
+                            @Override
+                            public long cost() {
+                                return scorerSupplier.cost();
+                            }
+                        };
+                    }
+                };
+            }
+        };
+    }
+
+    /**
+     * Test that a timeout is appropriately handled while bulk scoring, via cancellable bulk scorer
+     */
     public void testBulkScorerTimeout() throws IOException {
         int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
         {
@@ -207,7 +309,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
+                // See CancellableBulkScorer#INITIAL_INTERVAL for the source of 4096: we always score the first
+                // batch of up to 4096 docs, and only then raise the timeout
+                assertEquals(Math.min(4096, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }
@@ -233,7 +337,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                             }
 
                             @Override
-                            public BulkScorer bulkScorer() throws IOException {
+                            public BulkScorer bulkScorer() {
                                 final float score = score();
                                 final int maxDoc = context.reader().maxDoc();
                                 return new BulkScorer() {
@@ -251,7 +355,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                                         }
                                         if (timeoutExpected) {
                                             // timeout after collecting the first batch of documents from the 1st segment, or the entire 1st
-                                            // segment
+                                            // segment if max > firstSegment.maxDoc()
                                             shouldTimeout = true;
                                         }
                                         return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
@@ -274,6 +378,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
+                // this controls whether a timeout is raised or not. We abstract time away by pretending that the clock stops
+                // when a timeout is not expected. The tiniest increment to relative time in millis triggers a timeout.
+                // See QueryPhase#getTimeoutCheck
                 return query.shouldTimeout ? 1L : 0L;
             }
         };

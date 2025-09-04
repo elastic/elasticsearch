@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,6 +44,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportForceMergeAction(
@@ -50,6 +52,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -63,6 +66,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         );
         this.indicesService = indicesService;
         this.threadPool = transportService.getThreadPool();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -96,7 +100,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         SubscribableListener.<IndexShard>newForked(l -> {
             IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                 .getShard(shardRouting.shardId().id());
-            indexShard.ensureMutable(l.map(unused -> indexShard));
+            indexShard.ensureMutable(l.map(unused -> indexShard), false);
         }).<EmptyResult>andThen((l, indexShard) -> {
             threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(l, () -> {
                 indexShard.forceMerge(request);
@@ -110,16 +114,16 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ForceMergeRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
     }
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ForceMergeRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ForceMergeRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

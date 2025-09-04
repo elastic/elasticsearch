@@ -20,12 +20,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
@@ -210,11 +208,15 @@ final class TransportHandshaker {
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
-        ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel);
-        channel.sendResponse(new HandshakeResponse(this.version, Build.current().version()));
+        channel.sendResponse(
+            new HandshakeResponse(
+                ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel),
+                Build.current().version()
+            )
+        );
     }
 
-    static void ensureCompatibleVersion(
+    private static TransportVersion ensureCompatibleVersion(
         TransportVersion localTransportVersion,
         TransportVersion remoteTransportVersion,
         String releaseVersion,
@@ -222,14 +224,34 @@ final class TransportHandshaker {
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
-                // Remote is newer than us, so we will be using our transport protocol and it's up to the other end to decide whether it
-                // knows how to do that.
-                return;
+                // Remote is semantically newer than us (i.e. has a greater transport protocol version), so we propose using our current
+                // transport protocol version. If we're initiating the connection then that's the version we'll use; if the other end is
+                // initiating the connection then it's up to the other end to decide whether to use this version (if it knows it) or
+                // an earlier one.
+                return localTransportVersion;
             }
-            if (remoteTransportVersion.isKnown()) {
-                // Remote is older than us, so we will be using its transport protocol, which we can only do if and only if its protocol
-                // version is known to us.
-                return;
+            final var bestKnownVersion = remoteTransportVersion.bestKnownVersion();
+            if (bestKnownVersion.equals(TransportVersion.zero()) == false) {
+                if (bestKnownVersion.equals(remoteTransportVersion) == false) {
+                    // Remote is semantically older than us (i.e. has a lower transport protocol version), but we do not know its exact
+                    // transport protocol version so it must be chronologically newer. We recommend not doing this, it implies an upgrade
+                    // that goes backwards in time and therefore may regress in some way, so we emit a warning. But we carry on with the
+                    // best known version anyway since both ends will know it.
+                    logger.warn(
+                        """
+                            Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
+                            from a chronologically-newer release with a numerically-older version compared to this node's version [{}/{}]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [{}].""",
+                        releaseVersion,
+                        remoteTransportVersion,
+                        channel,
+                        Build.current().version(),
+                        localTransportVersion,
+                        bestKnownVersion
+                    );
+                } // else remote is semantically older and we _do_ know its version, so we just use that without further fuss.
+                return bestKnownVersion;
             }
         }
 
@@ -287,8 +309,12 @@ final class TransportHandshaker {
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
                 ActionListener.completeWith(listener, () -> {
-                    ensureCompatibleVersion(version, response.getTransportVersion(), response.getReleaseVersion(), channel);
-                    final var resultVersion = TransportVersion.min(TransportHandshaker.this.version, response.getTransportVersion());
+                    final var resultVersion = ensureCompatibleVersion(
+                        version,
+                        response.getTransportVersion(),
+                        response.getReleaseVersion(),
+                        channel
+                    );
                     assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
                         || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
                     return resultVersion;
@@ -310,7 +336,7 @@ final class TransportHandshaker {
         }
     }
 
-    static final class HandshakeRequest extends TransportRequest {
+    static final class HandshakeRequest extends AbstractTransportRequest {
 
         /**
          * The {@link TransportVersion#current()} of the requesting node.
@@ -328,28 +354,18 @@ final class TransportHandshaker {
             this.releaseVersion = Objects.requireNonNull(releaseVersion);
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remainingMessage == null is invalid in v9
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
-            BytesReference remainingMessage;
-            try {
-                remainingMessage = streamInput.readSlicedBytesReference();
-            } catch (EOFException e) {
-                remainingMessage = null;
-            }
-            if (remainingMessage == null) {
-                transportVersion = null;
-                releaseVersion = null;
-            } else {
-                try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.transportVersion = TransportVersion.readVersion(messageStreamInput);
-                    if (streamInput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
-                        this.releaseVersion = messageStreamInput.readString();
-                    } else {
-                        this.releaseVersion = this.transportVersion.toReleaseVersion();
-                    }
+
+            try (StreamInput messageStreamInput = streamInput.readSlicedBytesReference().streamInput()) {
+                this.transportVersion = TransportVersion.readVersion(messageStreamInput);
+                if (streamInput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
+                    this.releaseVersion = messageStreamInput.readString();
+                } else {
+                    this.releaseVersion = this.transportVersion.toReleaseVersion();
                 }
             }
+
         }
 
         @Override
@@ -389,7 +405,6 @@ final class TransportHandshaker {
         }
 
         HandshakeResponse(StreamInput in) throws IOException {
-            super(in);
             transportVersion = TransportVersion.readVersion(in);
             if (in.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
                 releaseVersion = in.readString();

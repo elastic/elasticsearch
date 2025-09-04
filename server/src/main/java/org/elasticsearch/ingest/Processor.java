@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.grok.MatcherWatchdog;
@@ -84,12 +85,12 @@ public interface Processor {
      *
      * Override this method to perform additional post-construction validation that should be performed at the rest/transport level.
      * If there's an issue with the processor, then indicate that by throwing an exception. See
-     * {@link IngestService#validatePipeline(Map, String, Map)}} for the call site where there is invoked in a try/catch.
+     * {@link IngestService#validatePipeline(Map, ProjectId, String, Map)}} for the call site where there is invoked in a try/catch.
      *
      * An example of where this would be needed is a processor that interacts with external state like the license state -- it may
      * be okay to create that processor on day 1 with license state A, but later illegal to create a similar processor on day 2 with
      * state B. We want to reject put requests on day 2 (at the rest/transport level), but still allow for restarting nodes in the
-     * cluster (so we can't throw exceptions from {@link Factory#create(Map, String, String, Map)}).
+     * cluster (so we can't throw exceptions from {@link Factory#create(Map, String, String, Map, ProjectId)}).
      */
     default void extraValidation() throws Exception {}
 
@@ -100,15 +101,22 @@ public interface Processor {
 
         /**
          * Creates a processor based on the specified map of maps config.
-         *  @param processorFactories Other processors which may be created inside this processor
+         *
+         * @param processorFactories Other processors which may be created inside this processor
          * @param tag The tag for the processor
          * @param description A short description of what this processor does
          * @param config The configuration for the processor
+         * @param projectId The project for which the processor is created
          *
          * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
          */
-        Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
-            throws Exception;
+        Processor create(
+            Map<String, Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception;
     }
 
     /**

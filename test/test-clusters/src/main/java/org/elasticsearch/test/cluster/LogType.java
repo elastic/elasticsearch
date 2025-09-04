@@ -15,6 +15,7 @@ public enum LogType {
     AUDIT("%s_audit.json"),
     SEARCH_SLOW("%s_index_search_slowlog.json"),
     INDEXING_SLOW("%s_index_indexing_slowlog.json"),
+    ESQL_QUERY("%s_esql_querylog.json"),
     DEPRECATION("%s_deprecation.json");
 
     private final String filenameFormat;

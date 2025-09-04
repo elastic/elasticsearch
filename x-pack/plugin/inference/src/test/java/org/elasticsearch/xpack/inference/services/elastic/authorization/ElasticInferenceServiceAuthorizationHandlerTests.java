@@ -7,266 +7,277 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.junit.After;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.defaultEndpointId;
+import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
-public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
+public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNodeTestCase {
+    private DeterministicTaskQueue taskQueue;
+    private ModelRegistry modelRegistry;
 
-    private HttpClientManager clientManager;
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(LocalStateInferencePlugin.class);
+    }
 
     @Before
     public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        taskQueue = new DeterministicTaskQueue();
+        modelRegistry = getInstanceFromNode(ModelRegistry.class);
     }
 
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
+    public void testSecondAuthResultRevokesAuthorization() throws Exception {
+        var callbackCount = new AtomicInteger(0);
+        // we're only interested in two authorization calls which is why I'm using a value of 2 here
+        var latch = new CountDownLatch(2);
+        final AtomicReference<ElasticInferenceServiceAuthorizationHandler> handlerRef = new AtomicReference<>();
 
-    public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsNull() throws Exception {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationHandler(null, threadPool, logger);
+        Runnable callback = () -> {
+            // the first authorization response contains a streaming task so we're expecting to support streaming here
+            if (callbackCount.incrementAndGet() == 1) {
+                assertThat(handlerRef.get().supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+            }
+            latch.countDown();
 
-        try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-            authHandler.getAuthorization(listener, sender);
-
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
-            assertFalse(authResponse.isAuthorized());
-
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger, times(2)).debug(loggerArgsCaptor.capture());
-            var messages = loggerArgsCaptor.getAllValues();
-            assertThat(messages.getFirst(), is("Retrieving authorization information from the Elastic Inference Service."));
-            assertThat(messages.get(1), is("The base URL for the authorization service is not valid, rejecting authorization."));
-        }
-    }
-
-    public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsEmpty() throws Exception {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationHandler("", threadPool, logger);
-
-        try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-            authHandler.getAuthorization(listener, sender);
-
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
-            assertFalse(authResponse.isAuthorized());
-
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger, times(2)).debug(loggerArgsCaptor.capture());
-            var messages = loggerArgsCaptor.getAllValues();
-            assertThat(messages.getFirst(), is("Retrieving authorization information from the Elastic Inference Service."));
-            assertThat(messages.get(1), is("The base URL for the authorization service is not valid, rejecting authorization."));
-        }
-    }
-
-    public void testGetAuthorization_FailsWhenAnInvalidFieldIsFound() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var eisGatewayUrl = getUrl(webServer);
-        var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
-
-        try (var sender = senderFactory.createSender()) {
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "invalid-field": "model-a",
-                          "task-types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
+            // we only want to run the tasks twice, so advance the time on the queue
+            // which flags the scheduled authorization request to be ready to run
+            if (callbackCount.get() == 1) {
+                taskQueue.advanceTime();
+            } else {
+                try {
+                    handlerRef.get().close();
+                } catch (IOException e) {
+                    // ignore
                 }
-                """;
+            }
+        };
 
-            queueWebServerResponsesForRetries(responseJson);
-
-            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-            authHandler.getAuthorization(listener, sender);
-
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
-            assertFalse(authResponse.isAuthorized());
-
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger).warn(loggerArgsCaptor.capture());
-            var message = loggerArgsCaptor.getValue();
-            assertThat(
-                message,
-                is(
-                    "Failed to retrieve the authorization information from the Elastic Inference Service."
-                        + " Encountered an exception: org.elasticsearch.xcontent.XContentParseException: [4:28] "
-                        + "[ElasticInferenceServiceAuthorizationResponseEntity] failed to parse field [models]"
+        var requestHandler = mockAuthorizationRequestHandler(
+            ElasticInferenceServiceAuthorizationModel.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity(
+                    List.of(
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                            "rainbow-sprinkles",
+                            EnumSet.of(TaskType.CHAT_COMPLETION)
+                        )
+                    )
                 )
-            );
-        }
+            ),
+            ElasticInferenceServiceAuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntity(List.of()))
+        );
+
+        handlerRef.set(
+            new ElasticInferenceServiceAuthorizationHandler(
+                createWithEmptySettings(taskQueue.getThreadPool()),
+                modelRegistry,
+                requestHandler,
+                initDefaultEndpoints(),
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION),
+                null,
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                callback
+            )
+        );
+
+        var handler = handlerRef.get();
+        handler.init();
+        taskQueue.runAllRunnableTasks();
+        latch.await(Utils.TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
+        // this should be after we've received both authorization responses, the second response will revoke authorization
+
+        assertThat(handler.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+        assertThat(handler.defaultConfigIds(), is(List.of()));
+        assertThat(handler.supportedTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
+
+        PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+        handler.defaultConfigs(listener);
+
+        var configs = listener.actionGet();
+        assertThat(configs.size(), is(0));
     }
 
-    /**
-     * Queues the required number of responses to handle the retries of the internal sender.
-     */
-    private void queueWebServerResponsesForRetries(String responseJson) {
-        for (int i = 0; i < MAX_RETIES; i++) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        }
-    }
+    public void testSendsAnAuthorizationRequestTwice() throws Exception {
+        var callbackCount = new AtomicInteger(0);
+        // we're only interested in two authorization calls which is why I'm using a value of 2 here
+        var latch = new CountDownLatch(2);
+        final AtomicReference<ElasticInferenceServiceAuthorizationHandler> handlerRef = new AtomicReference<>();
 
-    public void testGetAuthorization_ReturnsAValidResponse() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var eisGatewayUrl = getUrl(webServer);
-        var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
+        Runnable callback = () -> {
+            // the first authorization response does not contain a streaming task so we're expecting to not support streaming here
+            if (callbackCount.incrementAndGet() == 1) {
+                assertThat(handlerRef.get().supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            }
+            latch.countDown();
 
-        try (var sender = senderFactory.createSender()) {
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
+            // we only want to run the tasks twice, so advance the time on the queue
+            // which flags the scheduled authorization request to be ready to run
+            if (callbackCount.get() == 1) {
+                taskQueue.advanceTime();
+            } else {
+                try {
+                    handlerRef.get().close();
+                } catch (IOException e) {
+                    // ignore
                 }
-                """;
+            }
+        };
 
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        var requestHandler = mockAuthorizationRequestHandler(
+            ElasticInferenceServiceAuthorizationModel.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity(
+                    List.of(
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("abc", EnumSet.of(TaskType.SPARSE_EMBEDDING))
+                    )
+                )
+            ),
+            ElasticInferenceServiceAuthorizationModel.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity(
+                    List.of(
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                            "abc",
+                            EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                        ),
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                            "rainbow-sprinkles",
+                            EnumSet.of(TaskType.CHAT_COMPLETION)
+                        )
+                    )
+                )
+            )
+        );
 
-            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-            authHandler.getAuthorization(listener, sender);
+        handlerRef.set(
+            new ElasticInferenceServiceAuthorizationHandler(
+                createWithEmptySettings(taskQueue.getThreadPool()),
+                modelRegistry,
+                requestHandler,
+                initDefaultEndpoints(),
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION),
+                null,
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                callback
+            )
+        );
 
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
-            assertTrue(authResponse.isAuthorized());
+        var handler = handlerRef.get();
+        handler.init();
+        taskQueue.runAllRunnableTasks();
+        latch.await(Utils.TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        // this should be after we've received both authorization responses
 
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger, times(1)).debug(loggerArgsCaptor.capture());
+        assertThat(handler.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+        assertThat(
+            handler.defaultConfigIds(),
+            is(
+                List.of(
+                    new InferenceService.DefaultConfigId(
+                        ".rainbow-sprinkles-elastic",
+                        MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                        null
+                    )
+                )
+            )
+        );
+        assertThat(handler.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
 
-            var message = loggerArgsCaptor.getValue();
-            assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
-            verifyNoMoreInteractions(logger);
-        }
+        PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+        handler.defaultConfigs(listener);
+
+        var configs = listener.actionGet();
+        assertThat(configs.get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testGetAuthorization_OnResponseCalledOnce() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var eisGatewayUrl = getUrl(webServer);
-        var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
-
-        ActionListener<ElasticInferenceServiceAuthorization> listener = mock(ActionListener.class);
-        String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-            """;
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-        try (var sender = senderFactory.createSender()) {
-            authHandler.getAuthorization(listener, sender);
-            authHandler.waitForAuthRequestCompletion(TIMEOUT);
-
-            verify(listener, times(1)).onResponse(any());
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger, times(1)).debug(loggerArgsCaptor.capture());
-
-            var message = loggerArgsCaptor.getValue();
-            assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
-            verifyNoMoreInteractions(logger);
-        }
-    }
-
-    public void testGetAuthorization_InvalidResponse() throws IOException {
-        var senderMock = mock(Sender.class);
-        var senderFactory = mock(HttpRequestSender.Factory.class);
-        when(senderFactory.createSender()).thenReturn(senderMock);
-
-        doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(4);
-            listener.onResponse(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("awesome"))));
+    private static ElasticInferenceServiceAuthorizationRequestHandler mockAuthorizationRequestHandler(
+        ElasticInferenceServiceAuthorizationModel firstAuthResponse,
+        ElasticInferenceServiceAuthorizationModel secondAuthResponse
+    ) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(firstAuthResponse);
             return Void.TYPE;
-        }).when(senderMock).sendWithoutQueuing(any(), any(), any(), any(), any());
+        }).doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(secondAuthResponse);
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
 
-        var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationHandler("abc", threadPool, logger);
+        return mockAuthHandler;
+    }
 
-        try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-
-            authHandler.getAuthorization(listener, sender);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result, is(ElasticInferenceServiceAuthorization.newDisabledService()));
-
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger).warn(loggerArgsCaptor.capture());
-            var message = loggerArgsCaptor.getValue();
-            assertThat(
-                message,
-                is(
-                    "Failed to retrieve the authorization information from the Elastic Inference Service."
-                        + " Received an invalid response type: ChatCompletionResults"
-                )
-            );
-        }
-
+    private static Map<String, DefaultModelConfig> initDefaultEndpoints() {
+        return Map.of(
+            "rainbow-sprinkles",
+            new DefaultModelConfig(
+                new ElasticInferenceServiceCompletionModel(
+                    defaultEndpointId("rainbow-sprinkles"),
+                    TaskType.CHAT_COMPLETION,
+                    "test",
+                    new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles"),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
+                ),
+                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME)
+            ),
+            "elser-2",
+            new DefaultModelConfig(
+                new ElasticInferenceServiceSparseEmbeddingsModel(
+                    defaultEndpointId("elser-2"),
+                    TaskType.SPARSE_EMBEDDING,
+                    "test",
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-2", null),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME)
+            )
+        );
     }
 }

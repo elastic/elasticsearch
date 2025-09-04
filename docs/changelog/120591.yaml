@@ -1,5 +1,0 @@
-pr: 120591
-summary: Increase field limit for OTel metrics to 10 000
-area: TSDB
-type: enhancement
-issues: []

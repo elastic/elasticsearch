@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -83,6 +84,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
@@ -91,6 +93,7 @@ import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -185,7 +188,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
-        assertAcked(indicesAdmin().prepareAliases().addAlias("new_index", "current"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("new_index", "current"));
     }
 
     @Override
@@ -219,24 +222,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(2, distance.size());
 
         assertTrue(distance.containsKey("double"));
-        assertEquals(
-            new FieldCapabilities(
-                "distance",
-                "double",
-                false,
-                true,
-                true,
-                new String[] { "old_index" },
-                null,
-                null,
-                Collections.emptyMap()
-            ),
-            distance.get("double")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("distance", "double").indices("old_index").build(), distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", false, true, false, new String[] { "new_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilitiesBuilder("distance", "text").isAggregatable(false).indices("new_index").build(),
             distance.get("text")
         );
 
@@ -245,10 +235,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, routeLength.size());
 
         assertTrue(routeLength.containsKey("double"));
-        assertEquals(
-            new FieldCapabilities("route_length_miles", "double", false, true, true, null, null, null, Collections.emptyMap()),
-            routeLength.get("double")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("route_length_miles", "double").build(), routeLength.get("double"));
     }
 
     public void testFieldAliasWithWildcard() {
@@ -284,24 +271,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(2, oldField.size());
 
         assertTrue(oldField.containsKey("long"));
-        assertEquals(
-            new FieldCapabilities("old_field", "long", false, true, true, new String[] { "old_index" }, null, null, Collections.emptyMap()),
-            oldField.get("long")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("old_field", "long").indices("old_index").build(), oldField.get("long"));
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities(
-                "old_field",
-                "unmapped",
-                false,
-                false,
-                false,
-                new String[] { "new_index" },
-                null,
-                null,
-                Collections.emptyMap()
-            ),
+            new FieldCapabilitiesBuilder("old_field", "unmapped").isSearchable(false).isAggregatable(false).indices("new_index").build(),
             oldField.get("unmapped")
         );
 
@@ -309,10 +283,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, newField.size());
 
         assertTrue(newField.containsKey("long"));
-        assertEquals(
-            new FieldCapabilities("new_field", "long", false, true, true, null, null, null, Collections.emptyMap()),
-            newField.get("long")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("new_field", "long").build(), newField.get("long"));
     }
 
     public void testWithIndexAlias() {
@@ -431,7 +402,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(idField.containsKey("_id"));
             assertEquals(
-                new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
+                new FieldCapabilitiesBuilder("_id", "_id").isMetadataField(true).isAggregatable(false).build(),
                 idField.get("_id")
             );
 
@@ -439,10 +410,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertEquals(1, testField.size());
 
             assertTrue(testField.containsKey("keyword"));
-            assertEquals(
-                new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
-                testField.get("keyword")
-            );
+            assertEquals(new FieldCapabilitiesBuilder("_test", "keyword").isMetadataField(true).build(), testField.get("keyword"));
         }
     }
 
@@ -557,6 +525,88 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
+    private void populateIndices() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("index-1").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=keyword", "field3", "type=keyword"),
+            prepareCreate("index-2").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field2", "type=long", "field3", "type=long")
+        );
+    }
+
+    public void testIncludeIndices() throws Exception {
+        populateIndices();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("index-*");
+        request.fields("*");
+        request.includeIndices(true);
+
+        final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
+
+    }
+
+    public void testRandomIncludeIndices() throws Exception {
+        populateIndices();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("index-*");
+        request.fields("*");
+        boolean shouldAlwaysIncludeIndices = randomBoolean();
+        request.includeIndices(shouldAlwaysIncludeIndices);
+
+        final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        } else {
+            assertNull(response.getField("timestamp").get("date").indices());
+        }
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+        } else {
+            assertNull(response.getField("field1").get("keyword").indices());
+        }
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+        } else {
+            assertNull(response.getField("field2").get("long").indices());
+        }
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
+
+    }
+
     public void testNoActiveCopy() throws Exception {
         assertAcked(
             prepareCreate("log-index-inactive").setSettings(
@@ -591,11 +641,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
-    private void moveOrCloseShardsOnNodes(String nodeName) throws Exception {
+    private void moveOrCloseShardsOnNodes(String nodeName, Predicate<String> indexName) throws Exception {
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         final ClusterState clusterState = clusterService().state();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
+                if (indexName.test(indexShard.shardId().getIndexName()) == false) {
+                    continue;
+                }
                 if (randomBoolean()) {
                     closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
@@ -637,13 +690,21 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testRelocation() throws Exception {
         populateTimeRangeIndices();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("log-index-*")
+                .setSettings(Settings.builder().put("index.routing.rebalance.enable", "none").build())
+                .get()
+        );
+        ensureGreen("log-index-*");
         try {
             final AtomicBoolean relocated = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService.getInstance(node)
                     .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (relocated.compareAndSet(false, true)) {
-                            moveOrCloseShardsOnNodes(node);
+                            moveOrCloseShardsOnNodes(node, indexName -> indexName.startsWith("log-index-"));
                         }
                         handler.messageReceived(request, channel, task);
                     });
@@ -740,7 +801,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
                     Level.TRACE,
-                    "clear index responses on cancellation"
+                    "clear index responses on cancellation submitted"
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
@@ -928,6 +989,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            // skip rewriting on the coordinator
+            if (queryRewriteContext.convertToCoordinatorRewriteContext() != null) {
+                return this;
+            }
             try {
                 blockingLatch.await();
             } catch (InterruptedException e) {

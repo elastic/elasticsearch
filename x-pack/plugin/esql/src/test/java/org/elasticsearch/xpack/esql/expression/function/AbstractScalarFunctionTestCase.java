@@ -11,6 +11,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
@@ -43,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -110,12 +114,44 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
-            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+            Page row = row(testCase.getDataValues());
+            try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
                 result = toJavaObjectUnsignedLongAware(block, 0);
+                extraBlockTests(row, block);
+            } finally {
+                row.releaseBlocks();
             }
         }
         assertTestCaseResultAndWarnings(result);
+    }
+
+    /**
+     * Extra assertions on the output block.
+     */
+    protected void extraBlockTests(Page in, Block out) {}
+
+    protected final void assertIsOrdIfInIsOrd(Page in, Block out) {
+        BytesRefBlock inBytes = in.getBlock(0);
+        BytesRefBlock outBytes = (BytesRefBlock) out;
+
+        BytesRefVector inVec = inBytes.asVector();
+        if (inVec == null) {
+            assertThat(outBytes.asVector(), nullValue());
+            return;
+        }
+        BytesRefVector outVec = outBytes.asVector();
+
+        if (inVec.isConstant()) {
+            assertTrue(outVec.isConstant());
+            return;
+        }
+
+        if (inVec.asOrdinals() != null) {
+            assertThat(outBytes.asOrdinals(), not(nullValue()));
+            return;
+        }
+        assertThat(outBytes.asOrdinals(), nullValue());
     }
 
     /**
@@ -227,10 +263,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 }
                 b++;
             }
-            try (
-                ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
-            ) {
+            Page in = new Page(positions, manyPositionsBlocks);
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(in)) {
                 if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                     assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
                 }
@@ -247,6 +281,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                     block.blockFactory(),
                     either(sameInstance(context.blockFactory())).or(sameInstance(inputBlockFactory))
                 );
+                extraBlockTests(in, block);
             }
         } finally {
             Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));
@@ -269,6 +304,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
+
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
@@ -332,6 +368,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
+        if (expression instanceof SurrogateExpression s) {
+            Expression surrogate = s.surrogate();
+            if (surrogate != null) {
+                expression = surrogate;
+            }
+        }
         Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());

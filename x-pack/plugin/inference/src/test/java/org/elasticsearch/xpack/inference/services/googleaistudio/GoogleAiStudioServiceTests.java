@@ -12,15 +12,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -28,7 +31,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModelTests;
@@ -64,15 +67,15 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -89,7 +92,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class GoogleAiStudioServiceTests extends ESTestCase {
+public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
@@ -100,7 +103,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -249,7 +252,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -264,7 +267,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -283,7 +286,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -302,7 +305,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -656,10 +659,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -684,10 +689,49 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    public void testInfer_ThrowsValidationErrorWhenInputTypeIsSpecifiedForModelThatDoesNotAcceptTaskType() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel("model", getUrl(webServer), "secret");
+
+        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    null,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for model [model];")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                     "candidates": [
@@ -737,6 +781,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("input"),
                 false,
                 new HashMap<>(),
@@ -773,7 +819,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                      "embeddings": [
@@ -794,10 +840,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of(input),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -818,7 +866,9 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input)))
+                            Map.of("parts", List.of(Map.of("text", input))),
+                            "taskType",
+                            "RETRIEVAL_DOCUMENT"
                         )
                     )
                 )
@@ -844,11 +894,11 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
     private void testChunkedInfer(String modelId, String apiKey, GoogleAiStudioEmbeddingsModel model) throws IOException {
 
-        var input = List.of("foo", "bar");
+        var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                      "embeddings": [
@@ -871,7 +921,15 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.chunkedInfer(
+                model,
+                null,
+                input,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
@@ -881,12 +939,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
-                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0123f, -0.0123f },
-                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding()
+                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -896,12 +954,12 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
-                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0456f, -0.0456f },
-                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding()
+                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -920,13 +978,17 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(0))))
+                            Map.of("parts", List.of(Map.of("text", input.get(0).input()))),
+                            "taskType",
+                            "RETRIEVAL_DOCUMENT"
                         ),
                         Map.of(
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(1))))
+                            Map.of("parts", List.of(Map.of("text", input.get(1).input()))),
+                            "taskType",
+                            "RETRIEVAL_DOCUMENT"
                         )
                     )
                 )
@@ -937,7 +999,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     public void testInfer_ResourceNotFound() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -952,6 +1014,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -968,135 +1032,9 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-        var modelId = "model";
-        var apiKey = "apiKey";
-
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "embeddings": [
-                         {
-                             "values": [
-                                 0.0123,
-                                 -0.0123
-                             ]
-                         }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = GoogleAiStudioEmbeddingsModelTests.createModel(getUrl(webServer), modelId, apiKey, 1, similarityMeasure);
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            // Updates dimensions to two as two embeddings were returned instead of one as specified before
-            assertThat(
-                result,
-                is(GoogleAiStudioEmbeddingsModelTests.createModel(getUrl(webServer), modelId, apiKey, 2, similarityMeasure))
-            );
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var oneDimension = 1;
-        var modelId = "model";
-        var apiKey = "apiKey";
-
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "embeddings": [
-                         {
-                             "values": [
-                                 0.0123
-                             ]
-                         }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = GoogleAiStudioEmbeddingsModelTests.createModel(getUrl(webServer), modelId, apiKey, oneDimension, null);
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(
-                result,
-                is(
-                    GoogleAiStudioEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        apiKey,
-                        oneDimension,
-                        SimilarityMeasure.DOT_PRODUCT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var oneDimension = 1;
-        var modelId = "model";
-        var apiKey = "apiKey";
-
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "embeddings": [
-                         {
-                             "values": [
-                                 0.0123
-                             ]
-                         }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = GoogleAiStudioEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                apiKey,
-                oneDimension,
-                SimilarityMeasure.COSINE
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(
-                result,
-                is(
-                    GoogleAiStudioEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        apiKey,
-                        oneDimension,
-                        SimilarityMeasure.COSINE
-                    )
-                )
-            );
-        }
-    }
-
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = GoogleAiStudioCompletionModelTests.createModel(randomAlphaOfLength(10), randomAlphaOfLength(10));
             assertThrows(
                 ElasticsearchStatusException.class,
@@ -1115,7 +1053,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var embeddingSize = randomNonNegativeInt();
             var model = GoogleAiStudioEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -1187,7 +1125,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1234,6 +1172,15 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
     }
 
     private GoogleAiStudioService createGoogleAiStudioService() {
-        return new GoogleAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new GoogleAiStudioService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createGoogleAiStudioService();
     }
 }

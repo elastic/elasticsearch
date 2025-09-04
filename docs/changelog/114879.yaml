@@ -1,5 +1,0 @@
-pr: 114879
-summary: Add refresh `.security` index call between security migrations
-area: Security
-type: enhancement
-issues: []

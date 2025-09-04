@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,7 +43,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
@@ -59,6 +59,7 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -97,7 +99,6 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -187,6 +188,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ApiKeyService apiKeyService;
     private ServiceAccountService serviceAccountService;
     private SecurityIndexManager securityIndex;
+    private SecurityIndexManager.IndexState projectIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
@@ -309,16 +311,18 @@ public class AuthenticationServiceTests extends ESTestCase {
             return builder;
         }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         securityIndex = mock(SecurityIndexManager.class);
+        projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         final ClusterSettings clusterSettings = new ClusterSettings(
             settings,
             Sets.union(
@@ -368,6 +372,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
     }
@@ -553,7 +558,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // Authenticate against the smart chain.
         // "SecondRealm" will be at the top of the list and will successfully authc.
         // "FirstRealm" will not be used
-        Mockito.reset(operatorPrivilegesService);
+        reset(operatorPrivilegesService);
         service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             assertThat(result, notNullValue());
@@ -616,27 +621,27 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertEquals(expectedInvalidation, service.getNumInvalidation());
 
         // existing to no longer present
-        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        SecurityIndexManager.State currentState = dummyState(null);
-        service.onSecurityIndexStateChange(previousState, currentState);
+        SecurityIndexManager.IndexState previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.IndexState currentState = dummyState(null);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, service.getNumInvalidation());
 
         // doesn't exist to exists
         previousState = dummyState(null);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, service.getNumInvalidation());
 
         // green or yellow to red
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(ClusterHealthStatus.RED);
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
 
         // red to non red
         previousState = dummyState(ClusterHealthStatus.RED);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, service.getNumInvalidation());
 
         // green to yellow or yellow to green
@@ -644,7 +649,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         currentState = dummyState(
             previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
         );
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
     }
 
@@ -661,6 +666,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
         User user = new User("_username", "r1");
@@ -695,7 +701,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
 
         completed.set(false);
-        Mockito.reset(operatorPrivilegesService);
+        reset(operatorPrivilegesService);
         service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             assertThat(result, notNullValue());
@@ -1031,7 +1037,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // checking authentication from the context
         InternalRequest message1 = new InternalRequest();
         ThreadPool threadPool1 = new TestThreadPool("testAutheticateTransportContextAndHeader1");
-        Mockito.reset(operatorPrivilegesService);
+        reset(operatorPrivilegesService);
         try {
             ThreadContext threadContext1 = threadPool1.getThreadContext();
             service = new AuthenticationService(
@@ -1045,6 +1051,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService,
+                mock(),
                 MeterRegistry.NOOP
             );
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1075,7 +1082,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // checking authentication from the user header
         ThreadPool threadPool2 = new TestThreadPool("testAutheticateTransportContextAndHeader2");
-        Mockito.reset(operatorPrivilegesService);
+        reset(operatorPrivilegesService);
         try {
             ThreadContext threadContext2 = threadPool2.getThreadContext();
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1096,6 +1103,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     apiKeyService,
                     serviceAccountService,
                     operatorPrivilegesService,
+                    mock(),
                     MeterRegistry.NOOP
                 );
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
@@ -1120,6 +1128,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService,
+                mock(),
                 MeterRegistry.NOOP
             );
             service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
@@ -1183,6 +1192,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
 
@@ -1228,6 +1238,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
         doAnswer(invocationOnMock -> {
@@ -1239,7 +1250,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     new GetResult(
                         request.index(),
                         request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        UNASSIGNED_SEQ_NO,
                         UNASSIGNED_PRIMARY_TERM,
                         -1L,
                         false,
@@ -1293,6 +1304,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
         RestRequest request = new FakeRestRequest();
@@ -1330,6 +1342,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
         RestRequest request = new FakeRestRequest();
@@ -1362,6 +1375,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
         InternalRequest message = new InternalRequest();
@@ -1398,6 +1412,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
+            mock(),
             MeterRegistry.NOOP
         );
 
@@ -1508,7 +1523,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         if (throwElasticsearchSecurityException) {
             throwE = new ElasticsearchSecurityException("authentication error", RestStatus.UNAUTHORIZED);
             if (withAuthenticateHeader) {
-                ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
+                ((ElasticsearchSecurityException) throwE).addBodyHeader("WWW-Authenticate", selectedScheme);
             }
         }
         mockAuthenticate(secondRealm, token, throwE, true);
@@ -1520,13 +1535,13 @@ public class AuthenticationServiceTests extends ESTestCase {
         if (throwElasticsearchSecurityException) {
             assertThat(e.getMessage(), is("authentication error"));
             if (withAuthenticateHeader) {
-                assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
+                assertThat(e.getBodyHeader("WWW-Authenticate"), contains(selectedScheme));
             } else {
-                assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+                assertThat(e.getBodyHeader("WWW-Authenticate"), contains(basicScheme));
             }
         } else {
             assertThat(e.getMessage(), is("error attempting to authenticate request"));
-            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+            assertThat(e.getBodyHeader("WWW-Authenticate"), contains(basicScheme));
         }
         if (requestIdAlreadyPresent) {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
@@ -1558,7 +1573,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             () -> authenticateBlocking("_action", transportRequest, null, null)
         );
         assertThat(e.getMessage(), is("unable to authenticate user [" + principal + "] for action [_action]"));
-        assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        assertThat(e.getBodyHeader("WWW-Authenticate"), contains(basicScheme));
         if (requestIdAlreadyPresent) {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
         } else {
@@ -1920,10 +1935,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         String token = tokenFuture.get().getAccessToken();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client));
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), false, null, client);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1957,14 +1971,20 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
 
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         // An invalid token might decode to something that looks like a UUID
         // Randomise it being invalid because the index doesn't exist, or the document doesn't exist
         if (randomBoolean()) {
-            when(securityIndex.isAvailable(any())).thenReturn(false);
-            when(securityIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
+            when(projectIndex.isAvailable(any())).thenReturn(false);
+            when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
         } else {
-            when(securityIndex.isAvailable(any())).thenReturn(true);
+            when(projectIndex.isAvailable(any())).thenReturn(true);
+            doAnswer(invocationOnMock -> {
+                Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+                runnable.run();
+                return null;
+            }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
             doAnswer(inv -> {
                 final GetRequest request = inv.getArgument(0);
                 final ActionListener<GetResponse> listener = inv.getArgument(1);
@@ -2060,10 +2080,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testExpiredToken() throws Exception {
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = AuthenticationTestHelper.builder()
             .user(user)
@@ -2087,10 +2106,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenFuture.get().getAccessToken();
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), true, null, client);
+
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -2190,7 +2210,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                         new GetResult(
                             request.index(),
                             request.id(),
-                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            UNASSIGNED_SEQ_NO,
                             1,
                             -1L,
                             false,
@@ -2268,7 +2288,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                         new GetResult(
                             request.index(),
                             request.id(),
-                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            UNASSIGNED_SEQ_NO,
                             1,
                             -1L,
                             false,
@@ -2302,7 +2322,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testCanAuthenticateServiceAccount() {
-        Mockito.reset(serviceAccountService);
+        reset(serviceAccountService);
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -2331,7 +2351,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testServiceAccountFailureWillNotFallthrough() throws IOException {
-        Mockito.reset(serviceAccountService);
+        reset(serviceAccountService);
         final ElasticsearchSecurityException bailOut = new ElasticsearchSecurityException("bail out", RestStatus.UNAUTHORIZED);
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -2368,7 +2388,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    static class InternalRequest extends TransportRequest {
+    static class InternalRequest extends AbstractTransportRequest {
         @Override
         public void writeTo(StreamOutput out) {}
     }
@@ -2548,23 +2568,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.compareAndSet(false, true));
     }
 
-    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(
-            Instant.now(),
-            true,
-            true,
-            true,
-            true,
-            true,
-            null,
-            null,
-            null,
-            null,
-            concreteSecurityIndexName,
-            indexStatus,
-            IndexMetadata.State.OPEN,
-            "my_uuid",
-            Set.of()
+    private SecurityIndexManager.IndexState dummyState(ClusterHealthStatus indexStatus) {
+
+        return this.securityIndex.new IndexState(
+            Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true,
+            null, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 

@@ -1,6 +1,0 @@
-pr: 120937
-summary: Use the system index descriptor in the snapshot blob cache cleanup task
-area: Snapshot/Restore
-type: bug
-issues:
- - 120518

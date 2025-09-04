@@ -1,6 +1,0 @@
-pr: 119054
-summary: "[Security Solution] allows `kibana_system` user to manage .reindexed-v8-*\
-  \ Security Solution indices"
-area: Authorization
-type: enhancement
-issues: []

@@ -7,18 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores $type$ values.
@@ -76,6 +76,19 @@ $endif$
     @Override
     $Type$Block filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default $Type$Block deepCopy(BlockFactory blockFactory) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     $Type$Block keepMask(BooleanVector mask);
 
@@ -84,17 +97,6 @@ $endif$
 
     @Override
     $Type$Block expand();
-
-    @Override
-    default String getWriteableName() {
-        return "$Type$Block";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
-
-    private static $Type$Block readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

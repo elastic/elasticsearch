@@ -152,47 +152,25 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put(
-            "text",
-            new FieldCapabilities("title", "text", false, true, false, false, null, null, null, null, null, null, Collections.emptyMap())
-        );
+        titleCapabilities.put("text", new FieldCapabilitiesBuilder("title", "text").isAggregatable(false).build());
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
         ratingCapabilities.put(
             "long",
-            new FieldCapabilities(
-                "rating",
-                "long",
-                false,
-                true,
-                false,
-                false,
-                TimeSeriesParams.MetricType.COUNTER,
-                new String[] { "index1", "index2" },
-                null,
-                new String[] { "index1" },
-                new String[] { "index4" },
-                null,
-                Collections.emptyMap()
-            )
+            new FieldCapabilitiesBuilder("rating", "long").isAggregatable(false)
+                .metricType(TimeSeriesParams.MetricType.COUNTER)
+                .indices("index1", "index2")
+                .nonAggregatableIndices("index1")
+                .nonDimensionIndices("index4")
+                .build()
         );
         ratingCapabilities.put(
             "keyword",
-            new FieldCapabilities(
-                "rating",
-                "keyword",
-                false,
-                false,
-                true,
-                true,
-                null,
-                new String[] { "index3", "index4" },
-                new String[] { "index4" },
-                null,
-                null,
-                null,
-                Collections.emptyMap()
-            )
+            new FieldCapabilitiesBuilder("rating", "keyword").isSearchable(false)
+                .isDimension(true)
+                .indices("index3", "index4")
+                .nonSearchableIndices("index4")
+                .build()
         );
 
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();

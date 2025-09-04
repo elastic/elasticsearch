@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -44,6 +45,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.index.get.ShardGetService.maybeExcludeSyntheticVectorFields;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -83,12 +86,18 @@ public final class FetchPhase {
         try {
             hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
         } finally {
-            // Always finish profiling
-            ProfileResult profileResult = profiler.finish();
-            // Only set the shardResults if building search hits was successful
-            if (hits != null) {
-                context.fetchResult().shardResult(hits, profileResult);
-                hits.decRef();
+            try {
+                // Always finish profiling
+                ProfileResult profileResult = profiler.finish();
+                // Only set the shardResults if building search hits was successful
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                    hits = null;
+                }
+            } finally {
+                if (hits != null) {
+                    hits.decRef();
+                }
             }
         }
     }
@@ -104,9 +113,22 @@ public final class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
-
-        FetchContext fetchContext = new FetchContext(context);
-        SourceLoader sourceLoader = context.newSourceLoader();
+        // Optionally remove sparse and dense vector fields early to:
+        // - Reduce the in-memory size of the source
+        // - Speed up retrieval of the synthetic source
+        // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
+        // but they are typically accessed through doc values instead (e.g: re-scorer).
+        var res = maybeExcludeSyntheticVectorFields(
+            context.getSearchExecutionContext().getMappingLookup(),
+            context.getSearchExecutionContext().getIndexSettings(),
+            context.fetchSourceContext(),
+            context.fetchFieldsContext()
+        );
+        if (context.fetchSourceContext() != res.v1()) {
+            context.fetchSourceContext(res.v1());
+        }
+        SourceLoader sourceLoader = context.newSourceLoader(res.v2());
+        FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
@@ -129,7 +151,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-
+        final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -143,17 +165,21 @@ public final class FetchPhase {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
-                this.ctx = ctx;
-                this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
-                this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
-                this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
-                this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
-                fieldLookupProvider.setNextReader(ctx);
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.setNextReader(ctx);
-                }
-                if (timer != null) {
-                    timer.stop();
+                try {
+                    this.ctx = ctx;
+                    this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
+                    this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
+                    this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                    this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
+
+                    fieldLookupProvider.setNextReader(ctx);
+                    for (FetchSubPhaseProcessor processor : processors) {
+                        processor.setNextReader(ctx);
+                    }
+                } finally {
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             }
 
@@ -162,6 +188,11 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
+                if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
+                    // if we checked the real memory breaker, we restart our local accounting
+                    locallyAccumulatedBytes[0] = 0;
+                }
+
                 HitContext hit = prepareHitContext(
                     context,
                     requiresSource,
@@ -180,6 +211,11 @@ public final class FetchPhase {
                     fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
                     for (FetchSubPhaseProcessor processor : processors) {
                         processor.process(hit);
+                    }
+
+                    BytesReference sourceRef = hit.hit().getSourceRef();
+                    if (sourceRef != null) {
+                        locallyAccumulatedBytes[0] += sourceRef.length();
                     }
                     success = true;
                     return hit.hit();
@@ -369,8 +405,8 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
+        SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity);
+        return new HitContext(nestedHit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 
     interface Profiler {

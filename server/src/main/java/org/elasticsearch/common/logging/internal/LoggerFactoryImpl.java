@@ -10,6 +10,8 @@
 package org.elasticsearch.common.logging.internal;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 
@@ -29,5 +31,16 @@ public class LoggerFactoryImpl extends LoggerFactory {
         // just delegate to use the String class name so that regardless of which
         // classloader a class comes from, we will use the root logging config.
         return getLogger(clazz.getName());
+    }
+
+    @Override
+    public void setRootLevel(Level level) {
+        var log4jLevel = LevelUtil.log4jLevel(level);
+        Loggers.setLevel(LogManager.getRootLogger(), log4jLevel);
+    }
+
+    @Override
+    public Level getRootLevel() {
+        return LevelUtil.elasticsearchLevel(LogManager.getRootLogger().getLevel());
     }
 }

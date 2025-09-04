@@ -20,9 +20,11 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -41,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueueTests.mockQueueCreator;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettingsEmpty;
@@ -50,8 +52,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -63,7 +65,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     @Before
     public void init() {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -79,7 +81,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     public void testQueueSize_IsOne() {
         var service = createRequestExecutorServiceWithMocks();
-        service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
+        service.execute(
+            RequestManagerTests.createMock(),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            null,
+            new PlainActionFuture<>()
+        );
 
         assertThat(service.queueSize(), is(1));
     }
@@ -132,7 +139,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         service.execute(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "id", null, threadPool),
-            new DocumentsOnlyInput(List.of()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             null,
             listener
         );
@@ -156,7 +163,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         var requestManager = RequestManagerTests.createMock("id");
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -175,11 +182,16 @@ public class RequestExecutorServiceTests extends ESTestCase {
     public void testExecute_Throws_WhenQueueIsFull() {
         var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
 
-        service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
+        service.execute(
+            RequestManagerTests.createMock(),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            null,
+            new PlainActionFuture<>()
+        );
 
         var requestManager = RequestManagerTests.createMock("id");
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -195,7 +207,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertFalse(thrownException.isExecutorShutdown());
     }
 
-    public void testTaskThrowsError_CallsOnFailure() {
+    public void testTaskThrowsError_CallsOnFailure() throws InterruptedException {
         var requestSender = mock(RetryingHttpSender.class);
 
         var service = createRequestExecutorService(null, requestSender);
@@ -209,7 +221,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         service.execute(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "id", null, threadPool),
-            new DocumentsOnlyInput(List.of()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             null,
             listener
         );
@@ -218,6 +230,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is(format("Failed to send request from inference entity id [%s]", "id")));
         assertThat(thrownException.getCause(), instanceOf(IllegalArgumentException.class));
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
     }
 
@@ -236,7 +250,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var service = createRequestExecutorServiceWithMocks();
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), TimeValue.timeValueNanos(1), listener);
+        service.execute(
+            RequestManagerTests.createMock(),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            TimeValue.timeValueNanos(1),
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -292,7 +311,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
             }
         };
 
-        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(
+            RequestManagerTests.createMock(requestSender),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            null,
+            listener
+        );
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -307,7 +331,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         var requestManager = RequestManagerTests.createMock(mock(RequestSender.class), "id");
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         service.shutdown();
         service.start();
@@ -340,13 +364,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
             createRequestExecutorServiceSettingsEmpty(),
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
         );
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMock(requestSender, "id");
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         when(queue.poll()).thenThrow(new ElasticsearchException("failed")).thenAnswer(invocation -> {
             service.shutdown();
@@ -354,36 +377,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         });
         service.start();
 
-        assertTrue(service.isTerminated());
-    }
-
-    public void testSleep_ThrowingInterruptedException_TerminatesService() throws Exception {
-        @SuppressWarnings("unchecked")
-        BlockingQueue<RejectableTask> queue = mock(LinkedBlockingQueue.class);
-        var sleeper = mock(RequestExecutorService.Sleeper.class);
-        doThrow(new InterruptedException("failed")).when(sleeper).sleep(any());
-
-        var service = new RequestExecutorService(
-            threadPool,
-            mockQueueCreator(queue),
-            null,
-            createRequestExecutorServiceSettingsEmpty(),
-            mock(RetryingHttpSender.class),
-            Clock.systemUTC(),
-            sleeper,
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
-        );
-
-        Future<?> executorTermination = threadPool.generic().submit(() -> {
-            try {
-                service.start();
-            } catch (Exception e) {
-                fail(Strings.format("Failed to shutdown executor: %s", e));
-            }
-        });
-
-        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         assertTrue(service.isTerminated());
     }
 
@@ -393,12 +387,17 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var settings = createRequestExecutorServiceSettings(1);
         var service = new RequestExecutorService(threadPool, null, settings, requestSender);
 
-        service.execute(RequestManagerTests.createMock(requestSender), new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
+        service.execute(
+            RequestManagerTests.createMock(requestSender),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            null,
+            new PlainActionFuture<>()
+        );
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMock(requestSender, "id");
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -440,20 +439,20 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         service.execute(
             RequestManagerTests.createMock(requestSender, "id"),
-            new DocumentsOnlyInput(List.of()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             null,
             new PlainActionFuture<>()
         );
         service.execute(
             RequestManagerTests.createMock(requestSender, "id"),
-            new DocumentsOnlyInput(List.of()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             null,
             new PlainActionFuture<>()
         );
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMock(requestSender, "id");
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
         assertThat(service.queueSize(), is(3));
 
         settings.setQueueCapacity(1);
@@ -500,11 +499,16 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var service = new RequestExecutorService(threadPool, null, settings, requestSender);
         var requestManager = RequestManagerTests.createMock(requestSender);
 
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, new PlainActionFuture<>());
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, new PlainActionFuture<>());
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        service.execute(RequestManagerTests.createMock(requestSender, "id"), new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(
+            RequestManagerTests.createMock(requestSender, "id"),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            null,
+            listener
+        );
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -550,13 +554,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             rateLimiterCreator
         );
         var requestManager = RequestManagerTests.createMock(requestSender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), null), null, listener);
 
         doAnswer(invocation -> {
             service.shutdown();
@@ -566,6 +569,46 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.start();
 
         verifyNoInteractions(requestSender);
+    }
+
+    public void testDoesNotAttemptToReserveTokens_WhenRateLimitSettingsDisabled() throws ExecutionException, InterruptedException,
+        TimeoutException {
+        var mockRateLimiter = mock(RateLimiter.class);
+        RequestExecutorService.RateLimiterCreator rateLimiterCreator = (a, b, c) -> mockRateLimiter;
+
+        var requestSender = mock(RetryingHttpSender.class);
+        var settings = createRequestExecutorServiceSettings(1);
+        var service = new RequestExecutorService(
+            threadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            rateLimiterCreator
+        );
+        var requestManager = RequestManagerTests.createMock(requestSender, "id", RateLimitSettings.DISABLED_INSTANCE);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), null), null, listener);
+
+        var waitToShutdown = new CountDownLatch(1);
+        var waitToReturnFromSend = new CountDownLatch(1);
+        // There is a request already queued, and its execution path will initiate shutting down the service
+        doAnswer(invocation -> {
+            waitToShutdown.countDown();
+            waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any(), any());
+
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
+
+        service.start();
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+
+        // The request manager that we create has RateLimitSettings.DISABLED_INSTANCE, so we should never call the rate limiter
+        verify(mockRateLimiter, never()).timeToReserve(anyInt());
+        verify(mockRateLimiter, never()).reserve(anyInt());
     }
 
     public void testDoesNotExecuteTask_WhenCannotReserveTokens_AndThenCanReserve_AndExecutesTask() {
@@ -583,23 +626,26 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             rateLimiterCreator
         );
         var requestManager = RequestManagerTests.createMock(requestSender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         when(mockRateLimiter.timeToReserve(anyInt())).thenReturn(TimeValue.timeValueDays(1)).thenReturn(TimeValue.timeValueDays(0));
 
         doAnswer(invocation -> {
             service.shutdown();
+            ActionListener<InferenceServiceResults> passedListener = invocation.getArgument(4);
+            passedListener.onResponse(null);
+
             return Void.TYPE;
         }).when(requestSender).send(any(), any(), any(), any(), any());
 
         service.start();
 
+        listener.actionGet(TIMEOUT);
         verify(requestSender, times(1)).send(any(), any(), any(), any(), any());
     }
 
@@ -617,13 +663,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             clock,
-            RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
         );
         var requestManager = RequestManagerTests.createMock(requestSender, "id1");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        service.execute(requestManager, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         assertThat(service.numberOfRateLimitGroups(), is(1));
         // the time is moved to after the stale duration, so now we should remove this grouping
@@ -632,7 +677,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.numberOfRateLimitGroups(), is(0));
 
         var requestManager2 = RequestManagerTests.createMock(requestSender, "id2");
-        service.execute(requestManager2, new DocumentsOnlyInput(List.of()), null, listener);
+        service.execute(requestManager2, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         assertThat(service.numberOfRateLimitGroups(), is(1));
     }
@@ -651,7 +696,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
         );
 

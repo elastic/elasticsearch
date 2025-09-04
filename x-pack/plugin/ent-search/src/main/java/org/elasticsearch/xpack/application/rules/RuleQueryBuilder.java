@@ -252,8 +252,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
                     for (MultiGetItemResponse item : multiGetResponse) {
                         String rulesetId = item.getId();
+                        // this usually happens when the system index does not exist because no query rules were created yet
+                        if (item.isFailed()) {
+                            listener.onFailure(item.getFailure().getFailure());
+                            return;
+                        }
+
                         GetResponse getResponse = item.getResponse();
 
+                        // this happens when an individual query ruleset cannot be found
                         if (getResponse.isExists() == false) {
                             listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
                             return;

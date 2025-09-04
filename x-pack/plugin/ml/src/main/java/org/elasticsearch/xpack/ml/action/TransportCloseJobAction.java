@@ -19,12 +19,14 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
@@ -149,7 +151,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             final boolean isForce = request.isForce();
             final TimeValue timeout = request.getCloseTimeout();
 
-            PersistentTasksCustomMetadata tasksMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             jobConfigProvider.expandJobsIds(
                 request.getJobId(),
                 request.allowNoMatch(),
@@ -181,11 +183,10 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                         forceCloseJob(state, request, jobIdsToForceClose, delegate3);
                                     } else {
                                         Set<String> executorNodes = new HashSet<>();
-                                        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
                                         for (String resolvedJobId : request.getOpenJobIds()) {
                                             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(
                                                 resolvedJobId,
-                                                tasks
+                                                tasksMetadata
                                             );
                                             if (jobTask == null) {
                                                 // This should not happen, because openJobIds was
@@ -507,7 +508,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> jobIdsToForceClose,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         final int numberOfJobs = jobIdsToForceClose.size();
         final AtomicInteger counter = new AtomicInteger();
@@ -575,7 +576,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> closingJobIds,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         WaitForCloseRequest waitForCloseRequest = buildWaitForCloseRequest(openJobIds, closingJobIds, tasks, auditor);
 
@@ -643,7 +644,12 @@ public class TransportCloseJobAction extends TransportTasksAction<
         ActionListener<CloseJobAction.Response> listener,
         Set<String> movedJobs
     ) {
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
             for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : waitForCloseRequest.persistentTasks) {
                 String originalPersistentTaskId = originalPersistentTask.getId();
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(

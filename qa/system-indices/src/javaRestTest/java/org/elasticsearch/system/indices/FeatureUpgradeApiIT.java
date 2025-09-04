@@ -12,12 +12,8 @@ package org.elasticsearch.system.indices;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.util.Collections;
@@ -29,18 +25,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeApiIT extends ESRestTestCase {
-
-    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
+public class FeatureUpgradeApiIT extends AbstractSystemIndicesIT {
 
     @After
     public void resetFeatures() throws Exception {
         client().performRequest(new Request("POST", "/_features/_reset"));
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
     public void testCreatingSystemIndex() throws Exception {

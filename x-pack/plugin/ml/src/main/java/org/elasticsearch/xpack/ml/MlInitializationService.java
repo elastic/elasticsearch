@@ -193,7 +193,10 @@ public final class MlInitializationService implements ClusterStateListener {
 
         // Step 4: Extract ML internal aliases that are not hidden and make them hidden.
         ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(getAliasesResponse -> {
-            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            );
             for (var entry : getAliasesResponse.getAliases().entrySet()) {
                 for (AliasMetadata existingAliasMetadata : entry.getValue()) {
                     if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {

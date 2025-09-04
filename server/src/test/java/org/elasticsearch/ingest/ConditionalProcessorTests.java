@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -61,7 +62,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
@@ -150,7 +152,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                 return true;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
@@ -206,9 +209,9 @@ public class ConditionalProcessorTests extends ESTestCase {
             if (fail.get()) {
                 throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
             } else {
-                return params -> new IngestConditionalScript(params) {
+                return (params, ctxMap) -> new IngestConditionalScript(params, ctxMap) {
                     @Override
-                    public boolean execute(Map<String, Object> ctx) {
+                    public boolean execute() {
                         return false;
                     }
                 };
@@ -226,9 +229,9 @@ public class ConditionalProcessorTests extends ESTestCase {
     public void testRuntimeError() {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
-            code -> params -> new IngestConditionalScript(params) {
+            code -> (params, ctxMapWrapper) -> new IngestConditionalScript(params, ctxMapWrapper) {
                 @Override
-                public boolean execute(Map<String, Object> ctx) {
+                public boolean execute() {
                     throw new IllegalArgumentException("runtime problem");
                 }
             },
@@ -254,7 +257,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                 return false;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(

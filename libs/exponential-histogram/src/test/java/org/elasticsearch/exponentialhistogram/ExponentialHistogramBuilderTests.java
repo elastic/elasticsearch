@@ -73,6 +73,18 @@ public class ExponentialHistogramBuilderTests extends ExponentialHistogramTestCa
         }
     }
 
+    public void testDuplicateBucketOverrides() {
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, breaker());
+        builder.setPositiveBucket(1, 10);
+        builder.setNegativeBucket(2, 1);
+        builder.setPositiveBucket(1, 100);
+        builder.setNegativeBucket(2, 123);
+        try (ReleasableExponentialHistogram histogram = builder.build()) {
+            assertBuckets(histogram.positiveBuckets(), List.of(1L), List.of(100L));
+            assertBuckets(histogram.negativeBuckets(), List.of(2L), List.of(123L));
+        }
+    }
+
     private static void assertBuckets(ExponentialHistogram.Buckets buckets, List<Long> indices, List<Long> counts) {
         List<Long> actualIndices = new java.util.ArrayList<>();
         List<Long> actualCounts = new java.util.ArrayList<>();

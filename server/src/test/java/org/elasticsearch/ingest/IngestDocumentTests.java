@@ -189,6 +189,90 @@ public class IngestDocumentTests extends ESTestCase {
         doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), action);
     }
 
+    private void assertPathValid(IngestDocument doc, String path) {
+        // The fields being checked do not exist, so they all return false when running hasField
+        assertFalse(doc.hasField(path));
+    }
+
+    private void assertPathInvalid(IngestDocument doc, String path, String errorMessage) {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> doc.hasField(path));
+        assertThat(expected.getMessage(), equalTo(errorMessage));
+    }
+
+    public void testPathParsingLogic() throws Exception {
+        // Force a blank document for this test
+        document = new IngestDocument("index", "id", 1, null, null, new HashMap<>());
+
+        doWithRandomAccessPattern((doc) -> {
+            assertPathInvalid(doc, null, "path cannot be null nor empty");
+            assertPathInvalid(doc, "", "path cannot be null nor empty");
+            assertPathValid(doc, "a");
+            assertPathValid(doc, "ab");
+            assertPathValid(doc, "abc");
+            assertPathValid(doc, "a.b");
+            assertPathValid(doc, "a.b.c");
+            // Trailing empty strings are trimmed by field path parsing logic
+            assertPathValid(doc, "a.");
+            assertPathValid(doc, "a..");
+            assertPathValid(doc, "a...");
+            // Empty field names are not allowed in the beginning or middle of the path though
+            assertPathInvalid(doc, ".a.b", "fieldName cannot be empty");
+            assertPathInvalid(doc, "a..b", "fieldName cannot be empty");
+        });
+
+        doWithAccessPattern(CLASSIC, (doc) -> {
+            // Classic allows number fields because they are treated as either field names or array indices depending on context
+            assertPathValid(doc, "a.0");
+            // Classic allows square brackets because it is not part of it's syntax
+            assertPathValid(doc, "a[0]");
+            assertPathValid(doc, "a[]");
+            assertPathValid(doc, "a][");
+            assertPathValid(doc, "[");
+            assertPathValid(doc, "a[");
+            assertPathValid(doc, "[a");
+            assertPathValid(doc, "]");
+            assertPathValid(doc, "a]");
+            assertPathValid(doc, "]a");
+            assertPathValid(doc, "[]");
+            assertPathValid(doc, "][");
+            assertPathValid(doc, "[a]");
+            assertPathValid(doc, "]a[");
+            assertPathValid(doc, "[]a");
+            assertPathValid(doc, "][a");
+        });
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            // Flexible has specific handling of square brackets
+            assertPathInvalid(doc, "a[0]", "path [a[0]] is not valid");
+            assertPathInvalid(doc, "a[]", "path [a[]] is not valid");
+            assertPathInvalid(doc, "a][", "path [a][] is not valid");
+            assertPathInvalid(doc, "[", "path [[] is not valid");
+            assertPathInvalid(doc, "a[", "path [a[] is not valid");
+            assertPathInvalid(doc, "[a", "path [[a] is not valid");
+            assertPathInvalid(doc, "]", "path []] is not valid");
+            assertPathInvalid(doc, "a]", "path [a]] is not valid");
+            assertPathInvalid(doc, "]a", "path []a] is not valid");
+            assertPathInvalid(doc, "[]", "path [[]] is not valid");
+            assertPathInvalid(doc, "][", "path [][] is not valid");
+            assertPathInvalid(doc, "[a]", "path [[a]] is not valid");
+            assertPathInvalid(doc, "]a[", "path []a[] is not valid");
+            assertPathInvalid(doc, "[]a", "path [[]a] is not valid");
+            assertPathInvalid(doc, "][a", "path [][a] is not valid");
+
+            assertPathInvalid(doc, "a[0].b", "path [a[0].b] is not valid");
+            assertPathInvalid(doc, "a[0].b[1]", "path [a[0].b[1]] is not valid");
+            assertPathInvalid(doc, "a[0].b[1].c", "path [a[0].b[1].c] is not valid");
+            assertPathInvalid(doc, "a[0].b[1].c[2]", "path [a[0].b[1].c[2]] is not valid");
+            assertPathInvalid(doc, "a[0][1].c[2]", "path [a[0][1].c[2]] is not valid");
+            assertPathInvalid(doc, "a[0].b[1][2]", "path [a[0].b[1][2]] is not valid");
+            assertPathInvalid(doc, "a[0][1][2]", "path [a[0][1][2]] is not valid");
+
+            assertPathInvalid(doc, "a[0][", "path [a[0][] is not valid");
+            assertPathInvalid(doc, "a[0]]", "path [a[0]]] is not valid");
+            assertPathInvalid(doc, "a[0]blahblah", "path [a[0]blahblah] is not valid");
+        });
+    }
+
     public void testSimpleGetFieldValue() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             assertThat(doc.getFieldValue("foo", String.class), equalTo("bar"));

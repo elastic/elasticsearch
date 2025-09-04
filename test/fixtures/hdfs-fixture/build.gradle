@@ -19,11 +19,13 @@ def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
 
 configurations {
   hdfs2 {
+    transitive = false
     attributes {
       attribute(hdfs2patched, true)
     }
   }
   hdfs3 {
+    transitive = false
     attributes {
       attribute(hdfs3patched, true)
     }
@@ -74,8 +76,27 @@ dependencies {
       matchingArtifacts = ["hadoop3-common"]
     }
   }
+  constraints {
+//    implementation("commons-codec:commons-codec:1.9")
+//    implementation("commons-logging:commons-logging:1.2")
+//    implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+  }
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
 
-  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
+  compileOnly("commons-io:commons-io:2.16.1")
+  compileOnly("org.apache.hadoop:hadoop-common:2.8.5")
+  compileOnly("org.apache.hadoop:hadoop-annotations:2.8.5")
+  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5")
+  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5:tests")
+  compileOnly("org.apache.hadoop:hadoop-hdfs-client:2.8.5") {
+    exclude group: "org.apache.hadoop", module: "hadoop-common"
+  }
+  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5:tests") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5") {
+    transitive = false
+  }
   api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
     transitive = false
   }
@@ -116,13 +137,36 @@ dependencies {
     [group: "org.slf4j", module: "slf4j-api"],
   ]
 
-  hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5") {
-    commonExcludes.each { exclude it }
-    exclude group: "org.apache.commons", module: "commons-math3"
-    exclude group: "xmlenc", module: "xmlenc"
-    exclude group: "net.java.dev.jets3t", module: "jets3t"
-    exclude group: "org.apache.directory.server", module: "apacheds-i18n"
-    exclude group: "xerces", module: "xercesImpl"
+//    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5")
+    hdfs2("commons-io:commons-io:2.16.1")
+    hdfs2("com.google.protobuf:protobuf-java:3.25.5")
+    hdfs2("org.apache.htrace:htrace-core4:4.0.1-incubating")
+    hdfs2("org.mortbay.jetty:jetty:6.1.26")
+    hdfs2("org.mortbay.jetty:jetty-util:6.1.26")
+    hdfs2("org.mortbay.jetty:jetty-sslengine:6.1.26")
+    hdfs2("org.mortbay.jetty:servlet-api:2.5-20081211")
+    hdfs2("org.codehaus.jackson:jackson-mapper-asl:1.9.13")
+    hdfs2("org.codehaus.jackson:jackson-core-asl:1.9.13")
+    hdfs2("com.sun.jersey:jersey-servlet:1.19")
+    hdfs2("com.sun.jersey:jersey-server:1.19")
+    hdfs2("com.sun.jersey:jersey-core:1.19")
+    hdfs2("commons-collections:commons-collections:3.2.1")
+    hdfs2("commons-configuration:commons-configuration:1.6")
+    hdfs2("commons-lang:commons-lang:2.6")
+    hdfs2("org.apache.hadoop:hadoop-auth:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-common:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-common:2.8.5:tests")
+    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5:tests")
+    hdfs2("org.apache.hadoop:hadoop-annotations:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5") {
+      commonExcludes.each { exclude it }
+      exclude group: "org.apache.commons", module: "commons-math3"
+      exclude group: "xmlenc", module: "xmlenc"
+      exclude group: "net.java.dev.jets3t", module: "jets3t"
+      exclude group: "org.apache.directory.server", module: "apacheds-i18n"
+      exclude group: "xerces", module: "xercesImpl"
   }
 
   hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1") {

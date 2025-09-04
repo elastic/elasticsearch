@@ -18,13 +18,11 @@ public abstract class Log4jRule implements ComponentMetadataRule {
     @Override
     public void execute(ComponentMetadataContext context) {
         context.getDetails().withVariant("apiElements", variantMetadata -> {
-            variantMetadata.withDependencies(
-                deps -> {
-                    deps.add("org.jspecify:jspecify:1.0.0");
-                    deps.add("com.github.spotbugs:spotbugs-annotations:4.9.3");
-                    deps.add("com.google.errorprone:error_prone_annotations:2.38.0");
-                }
-            );
+            variantMetadata.withDependencies(deps -> {
+                deps.add("org.jspecify:jspecify:1.0.0");
+                deps.add("com.github.spotbugs:spotbugs-annotations:4.9.3");
+                deps.add("com.google.errorprone:error_prone_annotations:2.38.0");
+            });
         });
     }
 }

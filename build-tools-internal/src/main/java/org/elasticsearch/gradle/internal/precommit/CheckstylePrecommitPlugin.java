@@ -94,10 +94,11 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         CheckstyleExtension checkstyle = project.getExtensions().getByType(CheckstyleExtension.class);
         checkstyle.getConfigDirectory().set(checkstyleDir);
         Configuration configuration = project.getConfigurations().getByName("checkstyle");
-        configuration.getAttributes().attribute(
-            DependencyContext.CONTEXT_ATTRIBUTE,
-            project.getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
-        );
+        configuration.getAttributes()
+            .attribute(
+                DependencyContext.CONTEXT_ATTRIBUTE,
+                project.getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
+            );
         DependencyHandler dependencies = project.getDependencies();
         Provider<String> conventionsDependencyProvider = project.provider(
             () -> "org.elasticsearch:build-conventions:" + project.getVersion()

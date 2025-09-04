@@ -57,7 +57,11 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder queryFields(FieldsInfo fieldsInfo, QueryRewriteContext indexMetadataContext) {
+    protected QueryBuilder queryFields(
+        Map<String, Float> inferenceFields,
+        Map<String, Float> nonInferenceFields,
+        QueryRewriteContext indexMetadataContext
+    ) {
         QueryBuilder rewritten;
         MappedFieldType fieldType = indexMetadataContext.getFieldType(getField());
         if (fieldType == null) {

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
@@ -89,7 +89,11 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
     );
 
-    protected abstract QueryBuilder queryFields(FieldsInfo fieldsInfo, QueryRewriteContext indexMetadataContext);
+    protected abstract QueryBuilder queryFields(
+        Map<String, Float> inferenceFields,
+        Map<String, Float> nonInferenceFields,
+        QueryRewriteContext indexMetadataContext
+    );
 
     protected abstract boolean resolveWildcards();
 
@@ -140,8 +144,23 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         QueryRewriteContext indexMetadataContext = queryRewriteContext.convertToIndexMetadataContext();
         if (indexMetadataContext != null) {
             // We are performing an index metadata rewrite on the data node
-            FieldsInfo fieldsInfo = buildFieldsInfo(indexMetadataContext);
-            return queryFields(fieldsInfo, indexMetadataContext);
+            String indexName = indexMetadataContext.getFullyQualifiedIndex().getName();
+            Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = inferenceFieldInfoMap.get(indexName);
+            if (indexInferenceFieldInfoMap == null) {
+                throw new IllegalStateException("No inference field info for index [" + indexName + "]");
+            }
+
+            Map<String, Float> inferenceFieldsToQuery = indexInferenceFieldInfoMap.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getWeight()));
+
+            Map<String, Float> nonInferenceFieldsToQuery = getFields();
+            if (useDefaultFields() && nonInferenceFieldsToQuery.isEmpty()) {
+                nonInferenceFieldsToQuery = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
+            }
+            nonInferenceFieldsToQuery.keySet().removeAll(inferenceFieldsToQuery.keySet());
+
+            return queryFields(inferenceFieldsToQuery, nonInferenceFieldsToQuery, indexMetadataContext);
         }
 
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
@@ -203,41 +222,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         }
 
         return this;
-    }
-
-    private FieldsInfo buildFieldsInfo(QueryRewriteContext indexMetadataContext) {
-        Map<String, Float> queryFields = getFields();
-        if (useDefaultFields() && queryFields.isEmpty()) {
-            queryFields = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
-        }
-
-        Map<String, Float> inferenceFieldsToQuery = new HashMap<>();
-        Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadataContext.getMappingLookup().inferenceFields();
-        for (Map.Entry<String, Float> entry : queryFields.entrySet()) {
-            String queryField = entry.getKey();
-            Float weight = entry.getValue();
-
-            if (indexInferenceFields.containsKey(queryField)) {
-                // No wildcards in field name
-                addToInferenceFieldsMap(inferenceFieldsToQuery, queryField, weight);
-                continue;
-            }
-            if (resolveWildcards()) {
-                if (Regex.isMatchAllPattern(queryField)) {
-                    indexInferenceFields.keySet().forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
-                } else if (Regex.isSimpleMatchPattern(queryField)) {
-                    indexInferenceFields.keySet()
-                        .stream()
-                        .filter(f -> Regex.simpleMatch(queryField, f))
-                        .forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
-                }
-            }
-        }
-
-        Map<String, Float> nonInferenceFieldsToQuery = new HashMap<>(queryFields);
-        nonInferenceFieldsToQuery.keySet().removeAll(inferenceFieldsToQuery.keySet());
-
-        return new FieldsInfo(inferenceFieldsToQuery, nonInferenceFieldsToQuery);
     }
 
     private static Set<String> getInferenceIdsForFields(
@@ -311,10 +295,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
 
-    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
-        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
-    }
-
     private static void addToInnerInferenceFieldsInfoMap(
         Map<String, InferenceFieldInfo> innerInferenceFieldInfoMap,
         String field,
@@ -325,13 +305,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             field,
             (k, v) -> v == null ? new InferenceFieldInfo(inferenceId, weight) : v.updateWeight(weight)
         );
-    }
-
-    protected record FieldsInfo(Map<String, Float> inferenceFields, Map<String, Float> nonInferenceFields) {
-        protected FieldsInfo(Map<String, Float> inferenceFields, Map<String, Float> nonInferenceFields) {
-            this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
-            this.nonInferenceFields = Collections.unmodifiableMap(nonInferenceFields);
-        }
     }
 
     protected static class InferenceFieldInfo implements Writeable {
@@ -378,5 +351,5 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         public int hashCode() {
             return Objects.hash(inferenceId, weight);
         }
-    };
+    }
 }

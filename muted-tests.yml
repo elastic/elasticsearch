@@ -516,12 +516,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/134019
-- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
-  method: testDesiredNodesAreTakenIntoAccountInAutoExpandReplicas
-  issue: https://github.com/elastic/elasticsearch/issues/134049
-- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
-  method: testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState
-  issue: https://github.com/elastic/elasticsearch/issues/134050
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/134088
@@ -534,6 +528,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.DocIdsWriterTests
   method: testSorted
   issue: https://github.com/elastic/elasticsearch/issues/134106
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.ForkWithMixOfCommands}
+  issue: https://github.com/elastic/elasticsearch/issues/134135
 
 # Examples:
 #

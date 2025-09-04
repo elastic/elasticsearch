@@ -83,13 +83,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         this.historyStore = historyStore;
     }
 
-    static List<String> findStaleRegisteredSnapshotIds(ProjectState projectState, String policyId) {
+    static List<String> findCompletedRegisteredSnapshotIds(ProjectState projectState, String policyId) {
         Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(projectState.cluster());
 
         RegisteredPolicySnapshots registeredSnapshots = projectState.metadata()
             .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
 
-        List<String> staleRegisterSnapshotIds = registeredSnapshots.getSnapshots()
+        return registeredSnapshots.getSnapshots()
             .stream()
             // look for snapshots of this SLM policy, leave the rest to the policy that owns it
             .filter(policySnapshot -> policySnapshot.getPolicy().equals(policyId))
@@ -97,8 +97,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             .filter(policySnapshot -> runningSnapshots.contains(policySnapshot.getSnapshotId()) == false)
             .map(policySnapshot -> policySnapshot.getSnapshotId().getName())
             .toList();
-
-        return staleRegisterSnapshotIds;
     }
 
     @Override
@@ -123,20 +121,20 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     }
 
     /**
-     * Find SLM registered snapshots that are no longer running, and fetch their snapshot info. These snapshots are considered stale
-     * because they should have been removed from the registered set when they completed, but they were not, likely due to failure in
-     * the previous SLM completion handling. These stale snapshots should be cleaned up and their stats be recorded in SLM
-     * cluster state based on their snapshot info.
+     * Find SLM registered snapshots that are no longer running, and fetch their snapshot info. These snapshots should have been removed
+     * from the registered set by WriteJobStatus when they were completed. However, they were not removed likely due to the master being
+     * shutdown at the same time of a SLM run, causing WriteJobStatus to fail. These registered snapshots will be cleaned up in the next SLM
+     * run and their stats will be retroactively recorded in SLM cluster state based on their status.
      */
-    private static void findStaleRegisteredSnapshotInfo(
+    private static void findCompletedRegisteredSnapshotInfo(
         final ProjectState projectState,
         final String policyId,
         final Client client,
         final ActionListener<List<SnapshotInfo>> listener
     ) {
-        var staleSnapshotIds = findStaleRegisteredSnapshotIds(projectState, policyId);
+        var snapshotIds = findCompletedRegisteredSnapshotIds(projectState, policyId);
 
-        if (staleSnapshotIds.isEmpty() == false) {
+        if (snapshotIds.isEmpty() == false) {
             var policyMetadata = getSnapPolicyMetadataById(projectState.metadata(), policyId);
             if (policyMetadata.isPresent() == false) {
                 listener.onFailure(new IllegalStateException(format("snapshot lifecycle policy [%s] no longer exists", policyId)));
@@ -147,9 +145,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             GetSnapshotsRequest request = new GetSnapshotsRequest(
                 TimeValue.MAX_VALUE,    // do not time out internal request in case of slow master node
                 new String[] { policy.getRepository() },
-                staleSnapshotIds.toArray(new String[0])
+                snapshotIds.toArray(new String[0])
             );
             request.ignoreUnavailable(true);
+            request.includeIndexNames(false);
 
             client.admin()
                 .cluster()
@@ -216,7 +215,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                         // retrieve the current project state after snapshot is completed, since snapshotting can take a while
                         ProjectState currentProjectState = clusterService.state().projectState(projectId);
-                        findStaleRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
+                        findCompletedRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
                             @Override
                             public void onResponse(List<SnapshotInfo> snapshotInfo) {
                                 submitUnbatchedTask(
@@ -268,7 +267,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                     // retrieve the current project state after snapshot is completed, since snapshotting can take a while
                     ProjectState currentProjectState = clusterService.state().projectState(projectId);
-                    findStaleRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
+                    findCompletedRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
                         @Override
                         public void onResponse(List<SnapshotInfo> snapshotInfo) {
                             submitUnbatchedTask(
@@ -432,7 +431,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotId snapshotId,
             long snapshotStartTime,
             long snapshotFinishTime,
-            List<SnapshotInfo> staleSnapshotInfo
+            List<SnapshotInfo> registeredSnapshotInfo
         ) {
             return new WriteJobStatus(
                 projectId,
@@ -440,7 +439,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 snapshotId,
                 snapshotStartTime,
                 snapshotFinishTime,
-                staleSnapshotInfo,
+                registeredSnapshotInfo,
                 Optional.empty()
             );
         }
@@ -450,10 +449,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             String policyId,
             SnapshotId snapshotId,
             long timestamp,
-            List<SnapshotInfo> staleSnapshotInfo,
+            List<SnapshotInfo> registeredSnapshotInfo,
             Exception exception
         ) {
-            return new WriteJobStatus(projectId, policyId, snapshotId, timestamp, timestamp, staleSnapshotInfo, Optional.of(exception));
+            return new WriteJobStatus(projectId, policyId, snapshotId, timestamp, timestamp, registeredSnapshotInfo, Optional.of(exception));
         }
 
         @Override

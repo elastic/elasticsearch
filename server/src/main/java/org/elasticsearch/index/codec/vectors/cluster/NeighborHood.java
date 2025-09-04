@@ -11,8 +11,8 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
@@ -25,79 +25,18 @@ import java.io.IOException;
 
 public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
+    private static final int M = 8;
+    private static final int EF_CONSTRUCTION = 150;
+
     static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
 
-    public static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
-        final UpdateableRandomVectorScorer scorer = new UpdateableRandomVectorScorer() {
-            int scoringOrdinal;
-
-            @Override
-            public float score(int node) {
-                return VectorSimilarityFunction.EUCLIDEAN.compare(centers[scoringOrdinal], centers[node]);
-            }
-
-            @Override
-            public int maxOrd() {
-                return centers.length;
-            }
-
-            @Override
-            public void setScoringOrdinal(int node) {
-                scoringOrdinal = node;
-            }
-        };
-        final RandomVectorScorerSupplier supplier = new RandomVectorScorerSupplier() {
-            @Override
-            public UpdateableRandomVectorScorer scorer() {
-                return scorer;
-            }
-
-            @Override
-            public RandomVectorScorerSupplier copy() {
-                return this;
-            }
-        };
-        final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, 16, 100, 42L).build(centers.length);
-        final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
-        final SingleBit singleBit = new SingleBit(centers.length);
-        for (int i = 0; i < centers.length; i++) {
-            scorer.setScoringOrdinal(i);
-            singleBit.indexSet = i;
-            final KnnCollector collector = HnswGraphSearcher.search(scorer, clustersPerNeighborhood, graph, singleBit, Integer.MAX_VALUE);
-            final ScoreDoc[] scoreDocs = collector.topDocs().scoreDocs;
-            if (scoreDocs.length == 0) {
-                // no neighbors, skip
-                neighborhoods[i] = NeighborHood.EMPTY;
-                continue;
-            }
-            final int[] neighbors = new int[scoreDocs.length];
-            for (int j = 0; j < neighbors.length; j++) {
-                neighbors[j] = scoreDocs[j].doc;
-                assert neighbors[j] != i;
-            }
-            final float minCompetitiveSimilarity = (1f / scoreDocs[neighbors.length - 1].score) - 1;
-            neighborhoods[i] = new NeighborHood(neighbors, minCompetitiveSimilarity);
-        }
-        return neighborhoods;
-    }
-
-    private static class SingleBit implements Bits {
-
-        private final int length;
-        private int indexSet;
-
-        SingleBit(int length) {
-            this.length = length;
-        }
-
-        @Override
-        public boolean get(int index) {
-            return index != indexSet;
-        }
-
-        @Override
-        public int length() {
-            return length;
+    public static NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
+        assert centers.length > clustersPerNeighborhood;
+        // experiments shows that below 15k, we better use brute force, otherwise hnsw gives us a nice speed up
+        if (centers.length < 15_000) {
+            return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
+        } else {
+            return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
         }
     }
 
@@ -144,5 +83,129 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             neighborhoods[i] = new NeighborHood(neighbors, maxIntraDistance);
         }
         return neighborhoods;
+    }
+
+    public static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
+        final UpdateableRandomVectorScorer scorer = new UpdateableRandomVectorScorer() {
+            int scoringOrdinal;
+
+            @Override
+            public float score(int node) {
+                return VectorSimilarityFunction.EUCLIDEAN.compare(centers[scoringOrdinal], centers[node]);
+            }
+
+            @Override
+            public int maxOrd() {
+                return centers.length;
+            }
+
+            @Override
+            public void setScoringOrdinal(int node) {
+                scoringOrdinal = node;
+            }
+        };
+        final RandomVectorScorerSupplier supplier = new RandomVectorScorerSupplier() {
+            @Override
+            public UpdateableRandomVectorScorer scorer() {
+                return scorer;
+            }
+
+            @Override
+            public RandomVectorScorerSupplier copy() {
+                return this;
+            }
+        };
+        final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L).build(centers.length);
+        final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
+        // oversample the number of neighbors we collect to improve recall
+        final ReusableKnnCollector collector = new ReusableKnnCollector(2 * clustersPerNeighborhood);
+        for (int i = 0; i < centers.length; i++) {
+            collector.reset(i);
+            scorer.setScoringOrdinal(i);
+            HnswGraphSearcher.search(scorer, collector, graph, null);
+            NeighborQueue queue = collector.queue;
+            if (queue.size() == 0) {
+                // no neighbors, skip
+                neighborhoods[i] = NeighborHood.EMPTY;
+                continue;
+            }
+            while (queue.size() > clustersPerNeighborhood) {
+                queue.pop();
+            }
+            final float minScore = queue.topScore();
+            final int[] neighbors = new int[queue.size()];
+            for (int j = 1; j <= neighbors.length; j++) {
+                neighbors[neighbors.length - j] = queue.pop();
+            }
+            neighborhoods[i] = new NeighborHood(neighbors, (1f / minScore) - 1);
+        }
+        return neighborhoods;
+    }
+
+    private static class ReusableKnnCollector implements KnnCollector {
+
+        private final NeighborQueue queue;
+        private final int k;
+        int visitedCount;
+        int currenOrd;
+
+        ReusableKnnCollector(int k) {
+            this.k = k;
+            this.queue = new NeighborQueue(k, false);
+        }
+
+        void reset(int ord) {
+            queue.clear();
+            visitedCount = 0;
+            currenOrd = ord;
+        }
+
+        @Override
+        public boolean earlyTerminated() {
+            return false;
+        }
+
+        @Override
+        public void incVisitedCount(int count) {
+            visitedCount += count;
+        }
+
+        @Override
+        public long visitedCount() {
+            return visitedCount;
+        }
+
+        @Override
+        public long visitLimit() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public int k() {
+            return k;
+        }
+
+        @Override
+        public boolean collect(int docId, float similarity) {
+            if (currenOrd != docId) {
+                return queue.insertWithOverflow(docId, similarity);
+            }
+            return false;
+        }
+
+        @Override
+        public float minCompetitiveSimilarity() {
+            return queue.size() >= k() ? queue.topScore() : Float.NEGATIVE_INFINITY;
+        }
+
+        @Override
+        public TopDocs topDocs() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public KnnSearchStrategy getSearchStrategy() {
+            return null;
+        }
     }
 }

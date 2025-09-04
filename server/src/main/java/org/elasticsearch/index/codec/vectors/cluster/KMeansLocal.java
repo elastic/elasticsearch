@@ -210,16 +210,6 @@ class KMeansLocal {
         return bestCentroidOffset;
     }
 
-    private NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
-        assert centers.length > clustersPerNeighborhood;
-        // experiments shows that below 15k, we better use brute force, otherwise hnsw gives us a nice speed up
-        if (centers.length < 15_000) {
-            return NeighborHood.computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
-        } else {
-            return NeighborHood.computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
-        }
-    }
-
     private void assignSpilled(
         FloatVectorValues vectors,
         KMeansIntermediate kmeansIntermediate,
@@ -350,7 +340,7 @@ class KMeansLocal {
         NeighborHood[] neighborhoods = null;
         // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
         if (neighborAware && centroids.length > clustersPerNeighborhood) {
-            neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
+            neighborhoods = NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood);
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
         if (neighborAware && soarLambda >= 0) {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -31,9 +34,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -45,14 +52,17 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
  */
 public class IgnoreNullMetricsTests extends ESTestCase {
 
-    private Analyzer analyzer;
+    private static Analyzer analyzer;
+    private static EsqlParser parser;
+    private static LogicalPlanOptimizer logicalOptimizer;
 
-    private LogicalPlan analyze(String query) {
-        EsqlParser parser = new EsqlParser();
+    @BeforeClass
+    private static void init() {
+        parser = new EsqlParser();
         EnrichResolution enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
         LogicalOptimizerContext logicalOptimizerCtx = unboundLogicalOptimizerContext();
-        LogicalPlanOptimizer logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
+        logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
 
         Map<String, EsField> mapping = Map.of(
             "dimension_1",
@@ -81,12 +91,32 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
+    }
 
-        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+    private LogicalPlan plan(String query, Analyzer analyzer) {
+        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    protected LogicalPlan plan(String query) {
+        return plan(query, analyzer);
+    }
+
+    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
+        LocalLogicalOptimizerContext localContext = new LocalLogicalOptimizerContext(
+            EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
+            searchStats
+        );
+        return new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+    }
+
+    private LogicalPlan localPlan(String query) {
+        return localPlan(plan(query), TEST_SEARCH_STATS);
     }
 
     public void testSimple() {
-        LogicalPlan actual = analyze("""
+        LogicalPlan actual = localPlan("""
             TS test
             | STATS max(max_over_time(metric_1))
             | LIMIT 10
@@ -102,9 +132,11 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     }
 
     public void testRuleDoesNotApplyInNonTSMode() {
-        LogicalPlan actual = analyze("""
+        // NOTE: it is necessary to have the `BY dimension 1` grouping here, otherwise the InfernonNullAggConstraint rule
+        // will add the same filter IgnoreNullMetrics would have.
+        LogicalPlan actual = localPlan("""
             FROM test
-            | STATS max(metric_1)
+            | STATS max(metric_1) BY dimension_1
             | LIMIT 10
             """);
         Limit limit = as(actual, Limit.class);
@@ -114,7 +146,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
 
     public void testDimensionsAreNotFiltered() {
 
-        LogicalPlan actual = analyze("""
+        LogicalPlan actual = localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)) BY dimension_1
             | LIMIT 10
@@ -131,7 +163,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
 
     public void testFiltersAreJoinedWithOr() {
 
-        LogicalPlan actual = analyze("""
+        LogicalPlan actual = localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
             | LIMIT 10
@@ -166,7 +198,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     public void testSkipCoalescedMetrics() {
         // Note: this test is passing because the reference attribute metric_2 in the stats block does not inherit the
         // metric property from the original field.
-        LogicalPlan actual = analyze("""
+        LogicalPlan actual = localPlan("""
             TS test
             | EVAL metric_2 = coalesce(metric_2, 0)
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
@@ -187,7 +219,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
      * check that stats blocks after the first are not sourced for adding metrics to the filter
      */
     public void testMultipleStats() {
-        LogicalPlan actual = analyze("""
+        LogicalPlan actual = localPlan("""
             TS test
             | STATS m = max(max_over_time(metric_1))
             | STATS sum(m)

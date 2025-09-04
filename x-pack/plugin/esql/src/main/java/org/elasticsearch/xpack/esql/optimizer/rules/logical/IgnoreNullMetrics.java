@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -24,10 +23,14 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
+ * <p><strong>NOTE: THIS RULE IS INTENDED TO BE RUN ONLY ONCE. DO NOT INCLUDE IT IN MULTI-RUN BATCHES.</strong> The expectation is that
+ * this will be run as part of the {@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer} in the local rewrite batch</p>
+ * <p>
  * TSDB often ends up storing many null values for metrics columns (since not every time series contains every metric).  However, loading
  * many null values can negatively impact query performance.  To reduce that, this rule applies filters to remove null values on all
  * metrics involved in the query.  In the case that there are multiple metrics, the not null checks are OR'd together, so we accept rows
  * where any of the metrics have values.
+ * </p>
  */
 public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
     @Override

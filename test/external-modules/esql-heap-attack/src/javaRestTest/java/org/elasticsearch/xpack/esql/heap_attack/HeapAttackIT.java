@@ -698,7 +698,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testLookupExplosion() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 10000;
-        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
@@ -706,18 +706,34 @@ public class HeapAttackIT extends ESRestTestCase {
         int sensorDataCount = 400;
         int lookupEntries = 1000;
         int joinFieldsCount = 990;
-        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatchesManyFields() throws IOException {
         // 1500, 10000 is enough locally, but some CI machines need more.
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000, 30));
+        int lookupEntries = 10000;
+        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 30, lookupEntries));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
         // 1500, 10000 is enough locally, but some CI machines need more.
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000, 1));
+        int lookupEntries = 10000;
+        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 1, lookupEntries));
+    }
+
+    public void testLookupExplosionManyMatchesFiltered() throws IOException {
+        // This test will only work with the expanding join optimization
+        // that pushes the filter to the right side of the lookup.
+        // Without the optimization, it will fail with circuit_breaking_exception
+        int sensorDataCount = 10000;
+        int lookupEntries = 10000;
+        int reductionFactor = 1000; // reduce the number of matches by this factor
+        // lookupEntries % reductionFactor must be 0 to ensure the number of rows returned matches the expected value
+        assertTrue(0 == lookupEntries % reductionFactor);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries / reductionFactor);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries / reductionFactor))));
+
     }
 
     public void testLookupExplosionNoFetch() throws IOException {
@@ -744,7 +760,8 @@ public class HeapAttackIT extends ESRestTestCase {
         assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 500, 1));
     }
 
-    private Map<String, Object> lookupExplosion(int sensorDataCount, int lookupEntries, int joinFieldsCount) throws IOException {
+    private Map<String, Object> lookupExplosion(int sensorDataCount, int lookupEntries, int joinFieldsCount, int lookupEntriesToKeep)
+        throws IOException {
         try {
             lookupExplosionData(sensorDataCount, lookupEntries, joinFieldsCount);
             StringBuilder query = startQuery();
@@ -755,7 +772,14 @@ public class HeapAttackIT extends ESRestTestCase {
                 }
                 query.append("id").append(i);
             }
-            query.append(" | STATS COUNT(location)\"}");
+            if (lookupEntries != lookupEntriesToKeep) {
+                // add a filter to reduce the number of matches
+                // we add both a Lucene pushable filter and a non-pushable filter
+                // this is to make sure that even if there are non-pushable filters the pushable filters is still applied
+                query.append(" | WHERE ABS(filter_key) > -1 AND filter_key < ").append(lookupEntriesToKeep);
+
+            }
+            query.append(" | STATS COUNT(location) | LIMIT 100\"}");
             return responseAsMap(query(query.toString(), null));
         } finally {
             deleteIndex("sensor_data");
@@ -1038,7 +1062,8 @@ public class HeapAttackIT extends ESRestTestCase {
             createIndexBuilder.append("\"id").append(i).append("\": { \"type\": \"long\" },");
         }
         createIndexBuilder.append("""
-                    "location": { "type": "geo_point" }
+                    "location": { "type": "geo_point" },
+                    "filter_key": { "type": "integer" }
                 }
             }""");
         CreateIndexResponse response = createIndex(
@@ -1058,7 +1083,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 data.append(String.format(Locale.ROOT, "\"id%d\":%d, ", j, sensor));
             }
             data.append(String.format(Locale.ROOT, """
-                "location": "POINT(%s)"}\n""", location.apply(sensor)));
+                "location": "POINT(%s)", "filter_key": %d}\n""", location.apply(sensor), i));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_lookup", data.toString());
                 data.setLength(0);

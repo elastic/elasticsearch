@@ -240,7 +240,7 @@ public class PutLifecycleMetadataService {
          * <p>
          * It disables verbose logging and has no filtered headers.
          */
-        UpdateLifecyclePolicyTask(
+        public UpdateLifecyclePolicyTask(
             ProjectId projectId,
             PutLifecycleRequest request,
             XPackLicenseState licenseState,

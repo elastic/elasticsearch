@@ -110,25 +110,28 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Block inputBlock,
         Warnings warnings
     ) {
-        List<QueryList> queryLists = new ArrayList<>();
-        for (int i = 0; i < request.matchFields.size(); i++) {
-            MatchConfig matchField = request.matchFields.get(i);
-            QueryList q = termQueryList(
-                context.getFieldType(matchField.fieldName().string()),
-                context,
-                aliasFilter,
-                request.inputPage.getBlock(matchField.channel()),
-                matchField.type()
-            ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
-            queryLists.add(q);
-        }
+        if (request.joinOnConditions == null) {
+            List<QueryList> queryLists = new ArrayList<>();
+            for (int i = 0; i < request.matchFields.size(); i++) {
+                MatchConfig matchField = request.matchFields.get(i);
+                QueryList q = termQueryList(
+                    context.getFieldType(matchField.fieldName().string()),
+                    context,
+                    aliasFilter,
+                    request.inputPage.getBlock(matchField.channel()),
+                    matchField.type()
+                ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                queryLists.add(q);
+            }
 
-        PhysicalPlan physicalPlan = request.rightPreJoinPlan;
-        physicalPlan = localLookupNodePlanning(physicalPlan);
-        if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false && request.joinOnConditions == null) {
-            return queryLists.getFirst();
+            PhysicalPlan physicalPlan = localLookupNodePlanning(request.rightPreJoinPlan);
+            if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false) {
+                return queryLists.getFirst();
+            }
+            return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService, request, aliasFilter, warnings);
         }
-        return new ExpressionQueryList(queryLists, context, physicalPlan, clusterService, request, aliasFilter, warnings);
+        PhysicalPlan physicalPlan = localLookupNodePlanning(request.rightPreJoinPlan);
+        return new ExpressionQueryList(List.of(), context, physicalPlan, clusterService, request, aliasFilter, warnings);
 
     }
 

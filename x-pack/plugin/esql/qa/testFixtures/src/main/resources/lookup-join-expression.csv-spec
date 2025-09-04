@@ -393,6 +393,45 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword | is_act
 8               | Hank              | 1              | Alice            | true                   | true
 ;
 
+lookupMultiColMixedGtEqSwapLeftRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable
+| RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS is_active_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int < left_id AND is_active_left == is_active_bool
+| KEEP left_id, left_name, id_int, name_str, is_active_left, is_active_bool
+| SORT left_id, left_name, id_int, name_str, is_active_left, is_active_left
+| LIMIT 20
+;
+
+warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int < left_id AND is_active_left == is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+
+left_id:integer | left_name:keyword | id_int:integer | name_str:keyword | is_active_left:boolean | is_active_bool:boolean
+1               | Alice             | null           | null             | true                   | null
+[1, 19, 21]     | Sophia            | null           | null             | true                   | null
+2               | Bob               | null           | null             | false                  | null
+3               | Charlie           | 1              | Alice            | true                   | true
+3               | Charlie           | 1              | Alice            | true                   | true
+4               | David             | 2              | Bob              | false                  | false
+4               | David             | 3              | Charlie          | false                  | false
+5               | Eve               | 1              | Alice            | true                   | true
+5               | Eve               | 1              | Alice            | true                   | true
+5               | Eve               | 3              | Charlie          | true                   | true
+6               | null              | 1              | Alice            | true                   | true
+6               | null              | 1              | Alice            | true                   | true
+6               | null              | 3              | Charlie          | true                   | true
+6               | null              | 5              | Eve              | true                   | true
+6               | null              | 5              | Eve              | true                   | true
+7               | Grace             | 2              | Bob              | false                  | false
+7               | Grace             | 3              | Charlie          | false                  | false
+7               | Grace             | 4              | David            | false                  | false
+8               | Hank              | 1              | Alice            | true                   | true
+8               | Hank              | 1              | Alice            | true                   | true
+;
+
 lookupMultiColMixedLtNeqEq
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
@@ -511,4 +550,188 @@ left_id:integer | left_name:keyword | left_is_active:boolean | left_ip:ip  | id_
 2               | Bob               | false                  | 192.168.1.3 | 12             | Liam             | true                   | 192.168.1.12
 2               | Bob               | false                  | 192.168.1.3 | 14             | Nina             | true                   | 192.168.1.14
 2               | Bob               | false                  | 192.168.1.3 | 16             | Paul             | true                   | 192.168.1.16
+;
+
+
+lookupJoinOnSameLeftFieldTwice
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable
+| RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND  name_left == name_str AND  id_left < other2
+| KEEP id_left, name_left, extra1, other1, other2
+| SORT id_left, name_left, extra1, other1, other2
+;
+
+warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND  name_left == name_str AND  id_left < other2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_left:integer | name_left:keyword | extra1:keyword | other1:keyword | other2:integer
+1               | Alice             | foo            | alpha          | 1000
+1               | Alice             | foo            | beta           | 2000
+[1, 19, 21]     | Sophia            | zyx            | null           | null
+2               | Bob               | bar            | gamma          | 3000
+3               | Charlie           | baz            | delta          | 4000
+3               | Charlie           | baz            | epsilon        | 5000
+4               | David             | qux            | zeta           | 6000
+5               | Eve               | quux           | eta            | 7000
+5               | Eve               | quux           | theta          | 8000
+6               | null              | corge          | null           | null
+7               | Grace             | grault         | kappa          | 10000
+8               | Hank              | garply         | lambda         | 11000
+9               | Ivy               | waldo          | null           | null
+10              | John              | fred           | null           | null
+12              | Liam              | xyzzy          | nu             | 13000
+13              | Mia               | thud           | xi             | 14000
+14              | Nina              | foo2           | omicron        | 15000
+15              | Oscar             | bar2           | null           | null
+[17, 18]        | Olivia            | xyz            | null           | null
+null            | Kate              | plugh          | null           | null
+;
+
+lookupJoinOnSameRightFieldTwice
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable
+| RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND  name_left == name_str AND  extra2 > id_int
+| KEEP id_left, name_left, extra1, other1, other2
+| SORT id_left, name_left, extra1, other1, other2
+;
+
+warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND  name_left == name_str AND  extra2 > id_int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+
+id_left:integer | name_left:keyword | extra1:keyword | other1:keyword | other2:integer
+1               | Alice             | foo            | alpha          | 1000
+1               | Alice             | foo            | beta           | 2000
+[1, 19, 21]     | Sophia            | zyx            | null           | null
+2               | Bob               | bar            | gamma          | 3000
+3               | Charlie           | baz            | delta          | 4000
+3               | Charlie           | baz            | epsilon        | 5000
+4               | David             | qux            | zeta           | 6000
+5               | Eve               | quux           | eta            | 7000
+5               | Eve               | quux           | theta          | 8000
+6               | null              | corge          | null           | null
+7               | Grace             | grault         | kappa          | 10000
+8               | Hank              | garply         | lambda         | 11000
+9               | Ivy               | waldo          | null           | null
+10              | John              | fred           | null           | null
+12              | Liam              | xyzzy          | nu             | 13000
+13              | Mia               | thud           | xi             | 14000
+14              | Nina              | foo2           | omicron        | 15000
+15              | Oscar             | bar2           | null           | null
+[17, 18]        | Olivia            | xyz            | null           | null
+null            | Kate              | plugh          | null           | null
+;
+
+lookupJoinOnSameRightFieldTwiceEval
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable
+| RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
+| EVAL left_id2 = ((extra2 / 200)::integer)*2
+| LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND  name_left == name_str AND  left_id2 != id_int
+| KEEP id_left, name_left, extra1, other1, other2, left_id2
+| SORT id_left, name_left, extra1, other1, other2, left_id2
+;
+
+warning:Line 4:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND  name_left == name_str AND  left_id2 != id_int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_left:integer | name_left:keyword | extra1:keyword | other1:keyword | other2:integer | left_id2:integer
+1               | Alice             | foo            | alpha          | 1000           | 0
+1               | Alice             | foo            | beta           | 2000           | 0
+[1, 19, 21]     | Sophia            | zyx            | null           | null           | 210
+2               | Bob               | bar            | null           | null           | 2
+3               | Charlie           | baz            | delta          | 4000           | 2
+3               | Charlie           | baz            | epsilon        | 5000           | 2
+4               | David             | qux            | null           | null           | 4
+5               | Eve               | quux           | eta            | 7000           | 4
+5               | Eve               | quux           | theta          | 8000           | 4
+6               | null              | corge          | null           | null           | 6
+7               | Grace             | grault         | kappa          | 10000          | 6
+8               | Hank              | garply         | null           | null           | 8
+9               | Ivy               | waldo          | null           | null           | 8
+10              | John              | fred           | null           | null           | 10
+12              | Liam              | xyzzy          | null           | null           | 12
+13              | Mia               | thud           | xi             | 14000          | 12
+14              | Nina              | foo2           | null           | null           | 14
+15              | Oscar             | bar2           | null           | null           | 14
+[17, 18]        | Olivia            | xyz            | null           | null           | 170
+null            | Kate              | plugh          | null           | null           | 10
+;
+
+twoLookupJoinsInSameQuery
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM multi_column_joinable
+| WHERE id_int == 1
+| RENAME id_int AS id_left, name_str AS name_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND name_left == name_str
+| RENAME other1 AS other1_from_first_join, id_int AS id_from_first_join, name_str AS name_from_first_join
+| LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND other1_from_first_join != other1
+| KEEP id_left, name_left, other1_from_first_join, other1
+| SORT id_left, name_left, other1_from_first_join, other1
+;
+
+warning:Line 2:9: evaluation of [id_int == 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 6:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND other1_from_first_join != other1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_left:integer | name_left:keyword | other1_from_first_join:keyword | other1:keyword
+1               | Alice             | alpha                          | beta
+1               | Alice             | beta                           | alpha
+;
+
+lookupOnExpressionOnTheCoordinator
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| EVAL language_code_left = languages
+| LOOKUP JOIN languages_lookup ON language_code_left == language_code
+| KEEP emp_no, language_code_left, language_name
+;
+
+emp_no:integer | language_code_left:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
+;
+
+lookupJoinExpressionWithPushableFilterOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| RENAME id_int AS id_left, is_active_bool AS is_active_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int == id_left and is_active_left == is_active_bool
+| WHERE other2 > 5000
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int == id_left and is_active_left == is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
 ;

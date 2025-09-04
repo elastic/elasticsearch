@@ -63,7 +63,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false) && request.getJoinOnConditions() == null) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
         }
-        this.queryLists = queryLists;
+        this.queryLists = new ArrayList<>(queryLists);
         this.context = context;
         this.aliasFilter = aliasFilter;
         buildJoinOnConditions(request, clusterService, warnings);
@@ -80,10 +80,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             // the join on conditions are already populated via the queryLists
             // there is nothing to do here
             return;
-        } else {
-            // clear the join on conditions in the query lists
-            // the join on condition needs to come from the expression
-            queryLists.clear();
+        } else if (queryLists.isEmpty() == false) {
+            throw new IllegalArgumentException("ExpressionQueryList called with both join on expression and join on fields");
         }
         List<Expression> expressions = Predicates.splitAnd(filter);
         for (Expression expr : expressions) {

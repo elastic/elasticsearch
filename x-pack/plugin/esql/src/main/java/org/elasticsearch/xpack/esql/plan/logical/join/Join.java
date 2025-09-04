@@ -232,23 +232,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                     .toList();
                 output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
             } else {
-                // suppose we have
-                // index1 a, b, c, d
-                // index2 c, d, e, f
-                // we have expression join on (index1.b > index2.c AND index1.d > index2.d)
-                // We keep a,b,d from the left side (a, b only on left, d is join key, so we keep it from the left)
-                // we keep c,e,f from the right side(c is not part of the join key on the left so gets shadowed, e,f only on right)
-                Set<String> leftJoinKeyNames = config.leftFields()
-                    .stream()
-                    .map(Attribute::name)
-                    .collect(java.util.stream.Collectors.toSet());
-                // as we can do (left_key > right_key) now as join condition, we want to preserve the right_key
-                // unless it is also a key on the left side,
-                // but we need to do name equality only
-                List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
-                    .filter(attr -> leftJoinKeyNames.contains(attr.name()) == false)
-                    .toList();
-                output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+                // We don't allow any attributes in the joinOnConditions that don't have unique names
+                // so right always overwrites left in case of name clashes
+                output = mergeOutputAttributes(rightOutput, leftOutput);
             }
 
         } else {

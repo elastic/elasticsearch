@@ -720,7 +720,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
-        private List<Expression> resolveJoinFilters(List<Expression> filters, List<Attribute> leftOutput, List<Attribute> rightOutput) {
+        private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
+            List<Expression> filters,
+            List<Attribute> leftOutput,
+            List<Attribute> rightOutput
+        ) {
             if (filters.isEmpty()) {
                 return emptyList();
             }
@@ -729,9 +733,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             List<Expression> resolvedFilters = new ArrayList<>(filters.size());
             for (Expression filter : filters) {
-                resolvedFilters.add(filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput)));
+                Expression filterResolved = filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                resolvedFilters.add(resolveAndOrientJoinCondition(filterResolved, leftOutput, rightOutput));
             }
             return resolvedFilters;
+        }
+
+        private Expression resolveAndOrientJoinCondition(Expression condition, List<Attribute> leftOutput, List<Attribute> rightOutput) {
+            if (condition instanceof EsqlBinaryComparison comp
+                && comp.left() instanceof Attribute leftAttr
+                && comp.right() instanceof Attribute rightAttr) {
+
+                boolean leftIsFromLeft = leftOutput.contains(leftAttr);
+                boolean rightIsFromRight = rightOutput.contains(rightAttr);
+
+                if (leftIsFromLeft && rightIsFromRight) {
+                    return comp; // Correct orientation
+                }
+
+                boolean leftIsFromRight = rightOutput.contains(leftAttr);
+                boolean rightIsFromLeft = leftOutput.contains(rightAttr);
+
+                if (leftIsFromRight && rightIsFromLeft) {
+                    return comp.swapLeftAndRight(); // Swapped orientation
+                }
+
+                // Invalid orientation (e.g., both from left or both from right)
+                throw new EsqlIllegalArgumentException(
+                    "Join condition must be between attributes on the left and right side, but found: " + condition.sourceText()
+                );
+            }
+            return condition; // Not a binary comparison between two attributes, no change needed.
         }
 
         private Join resolveLookupJoin(LookupJoin join) {
@@ -763,16 +795,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Expression> resolvedFilters = new ArrayList<>();
                 List<Attribute> matchKeys;
                 if (join.config().joinOnConditions() != null) {
-                    resolvedFilters = resolveJoinFilters(
+                    resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
                         Predicates.splitAnd(join.config().joinOnConditions()),
                         join.left().output(),
                         join.right().output()
                     );
-                    // build leftKeys and rightKeys using the left side of the resolvedFilters.
+                    // build leftKeys and rightKeys using the correct side of the resolvedFilters.
+                    // resolveJoinFiltersAndSwapIfNeeded already put the left and right on the correct side
                     for (Expression expression : resolvedFilters) {
-                        if (expression instanceof EsqlBinaryComparison binaryComparison) {
-                            leftKeys.add((Attribute) binaryComparison.left());
-                            rightKeys.add((Attribute) binaryComparison.right());
+                        if (expression instanceof EsqlBinaryComparison binaryComparison
+                            && binaryComparison.left() instanceof Attribute leftAttribute
+                            && binaryComparison.right() instanceof Attribute rightAttribute) {
+                            leftKeys.add(leftAttribute);
+                            rightKeys.add(rightAttribute);
                         } else {
                             throw new EsqlIllegalArgumentException("Unsupported join filter expression: " + expression);
                         }

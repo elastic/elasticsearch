@@ -715,7 +715,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         }
-        validateJoinFields(joinFields);
         return new JoinInfo(joinFields, joinExpressions);
     }
 

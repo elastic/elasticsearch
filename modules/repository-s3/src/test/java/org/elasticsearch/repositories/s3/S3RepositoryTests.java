@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -55,7 +56,7 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Service extends S3Service {
 
         DummyS3Service(Environment environment, ResourceWatcherService resourceWatcherService) {
-            super(environment, Settings.EMPTY, resourceWatcherService, () -> null);
+            super(environment, Settings.EMPTY, resourceWatcherService, () -> Region.of(randomIdentifier()));
         }
 
         @Override

@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
@@ -290,7 +291,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
             ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-                super(environment, nodeSettings, resourceWatcherService, () -> null);
+                super(environment, nodeSettings, resourceWatcherService, () -> Region.of(randomIdentifier()));
             }
 
             @Override

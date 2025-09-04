@@ -452,7 +452,15 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             List<SnapshotInfo> registeredSnapshotInfo,
             Exception exception
         ) {
-            return new WriteJobStatus(projectId, policyId, snapshotId, timestamp, timestamp, registeredSnapshotInfo, Optional.of(exception));
+            return new WriteJobStatus(
+                projectId,
+                policyId,
+                snapshotId,
+                timestamp,
+                timestamp,
+                registeredSnapshotInfo,
+                Optional.of(exception)
+            );
         }
 
         @Override

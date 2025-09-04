@@ -242,8 +242,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
 
     /*

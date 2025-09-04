@@ -120,7 +120,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             if (changedPath.contains(referablePrefix) == false) {
                 continue;
             }
-            String name = changedPath.substring(referablePrefix.length() + 1 /* skip slash */, changedPath.length() - 4 /* .csv */);
+            int lastSlashNdx = changedPath.lastIndexOf('/');
+            String name = changedPath.substring(lastSlashNdx + 1, changedPath.length() - 4 /* .csv */);
             changedDefinitions.add(name);
         }
         return changedDefinitions;

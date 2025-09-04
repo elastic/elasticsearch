@@ -82,6 +82,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         Set<String> releaseBranches = getTargetReleaseBranches();
         checkReleaseBranches(mainUpperBounds, releaseBranches);
 
+        getLogger().lifecycle("Generating transport version name: " + name);
         if (name.isEmpty()) {
             resetAllUpperBounds(resources);
         } else {

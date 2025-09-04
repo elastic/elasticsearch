@@ -297,7 +297,6 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         transportVersionUpperBound("9.2", "test_tv", "8124000")
         referableAndReferencedTransportVersion("test_tv", "8124000")
 
-
         when:
         def result = runGenerateAndValidateTask().build()
 
@@ -414,5 +413,34 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [9.0, 9.1, 9.2]")
+    }
+
+    def "name can be found from committed definition"() {
+        given:
+        referableAndReferencedTransportVersion("new_tv", "8123000")
+        execute("git add .")
+        execute("git commit -m added")
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "new_tv,8124000")
+        assertReferableDefinition("new_tv", "8124000")
+    }
+
+    def "name can be found from staged definition"() {
+        given:
+        referableAndReferencedTransportVersion("new_tv", "8123000")
+        execute("git add .")
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "new_tv,8124000")
+        assertReferableDefinition("new_tv", "8124000")
     }
 }

@@ -124,6 +124,14 @@ public class DocIdsWriterTests extends LuceneTestCase {
     }
 
     private void test(Directory dir, int[] ints) throws Exception {
+        if (random().nextBoolean()) {
+            testSingleBlock(dir, ints);
+        } else {
+            testMultiBlock(dir, ints);
+        }
+    }
+
+    private void testSingleBlock(Directory dir, int[] ints) throws Exception {
         final long len;
         // It is hard to get BPV24-encoded docs in TextLuceneXXPointsFormat, test bwc here as well.
         DocIdsWriter docIdsWriter = new DocIdsWriter();
@@ -137,6 +145,52 @@ public class DocIdsWriterTests extends LuceneTestCase {
         try (IndexInput in = dir.openInput("tmp", IOContext.READONCE)) {
             int[] read = new int[ints.length];
             docIdsWriter.readInts(in, ints.length, read);
+            assertArrayEquals(ints, read);
+            assertEquals(len, in.getFilePointer());
+        }
+        dir.deleteFile("tmp");
+    }
+
+    private void testMultiBlock(Directory dir, int[] ints) throws Exception {
+        final long len;
+        final int blockSize = 16 + random().nextInt(100);
+        DocIdsWriter docIdsWriter = new DocIdsWriter();
+        try (IndexOutput out = dir.createOutput("tmp", IOContext.DEFAULT)) {
+            byte encoding = docIdsWriter.calculateBlockEncoding(i -> ints[i], ints.length, blockSize);
+            out.writeByte(encoding);
+            int limit = ints.length - blockSize + 1;
+            int i = 0;
+            for (; i < limit; i += blockSize) {
+                int offset = i;
+                docIdsWriter.writeDocIds(d -> ints[d + offset], blockSize, encoding, out);
+            }
+            // handle tail
+            if (i < ints.length) {
+                int offset = i;
+                docIdsWriter.writeDocIds(d -> ints[d + offset], ints.length - i, encoding, out);
+            }
+            len = out.getFilePointer();
+            if (random().nextBoolean()) {
+                out.writeLong(0); // garbage
+            }
+        }
+        try (IndexInput in = dir.openInput("tmp", IOContext.READONCE)) {
+            int[] read = new int[ints.length];
+            int[] block = new int[blockSize];
+            int limit = ints.length - blockSize + 1;
+            byte encoding = in.readByte();
+            int i = 0;
+            for (; i < limit; i += blockSize) {
+                int offset = i;
+                docIdsWriter.readInts(in, blockSize, encoding, block);
+                System.arraycopy(block, 0, read, offset, blockSize);
+            }
+            // handle tail
+            if (i < ints.length) {
+                int offset = i;
+                docIdsWriter.readInts(in, ints.length - i, encoding, block);
+                System.arraycopy(block, 0, read, offset, ints.length - i);
+            }
             assertArrayEquals(ints, read);
             assertEquals(len, in.getFilePointer());
         }

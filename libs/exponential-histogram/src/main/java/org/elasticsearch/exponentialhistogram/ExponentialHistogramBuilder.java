@@ -107,7 +107,7 @@ public class ExponentialHistogramBuilder {
 
     /**
      * Sets the given bucket of the positive buckets.
-     * Buckets may be set in arbitrary order. If the bucket already exists, it will be overridden.
+     * Buckets may be set in arbitrary order. If the bucket already exists, it will be replaced.
      *
      * @param index the index of the bucket
      * @param count the count of the bucket, must be at least 1

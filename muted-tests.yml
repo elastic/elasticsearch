@@ -411,9 +411,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/132382
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/132558
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/132349
@@ -468,9 +465,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:change_point.Values null column}
   issue: https://github.com/elastic/elasticsearch/issues/133334
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/133364
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
@@ -495,39 +489,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/133507
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testIntBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133596
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
-  method: testSyntheticSourceMany
-  issue: https://github.com/elastic/elasticsearch/issues/133598
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testDoubleBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133606
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testBooleanBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133608
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testLongBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133618
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
-- class: org.elasticsearch.compute.data.BasicBlockTests
-  method: testFloatBlock
-  issue: https://github.com/elastic/elasticsearch/issues/133621
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/133220
-- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
-  method: testHighNodeWriteLoadPreventsNewShardAllocation
-  issue: https://github.com/elastic/elasticsearch/issues/133857
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseOrQuery
   issue: https://github.com/elastic/elasticsearch/issues/133863
@@ -537,9 +507,33 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
-- class: org.elasticsearch.xpack.logsdb.LogsIndexingIT
-  method: testShrink
-  issue: https://github.com/elastic/elasticsearch/issues/133875
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/131481
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithCustomFeatureProcessors
+  issue: https://github.com/elastic/elasticsearch/issues/134001
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/134019
+- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
+  method: testDesiredNodesAreTakenIntoAccountInAutoExpandReplicas
+  issue: https://github.com/elastic/elasticsearch/issues/134049
+- class: org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderIT
+  method: testShardsAreKeptInPreferredTierUntilTheNextTierIsInItsFinalState
+  issue: https://github.com/elastic/elasticsearch/issues/134050
+- class: org.elasticsearch.cluster.ClusterInfoServiceIT
+  method: testMaxQueueLatenciesInClusterInfo
+  issue: https://github.com/elastic/elasticsearch/issues/134088
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.ForkBeforeStats}
+  issue: https://github.com/elastic/elasticsearch/issues/134100
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/134104
+- class: org.elasticsearch.index.codec.vectors.DocIdsWriterTests
+  method: testSorted
+  issue: https://github.com/elastic/elasticsearch/issues/134106
 
 # Examples:
 #

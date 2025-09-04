@@ -534,6 +534,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkWithMixOfCommands}
   issue: https://github.com/elastic/elasticsearch/issues/134135
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:inlinestats.MultiIndexInlinestatsOfMultiTypedField}
+  issue: https://github.com/elastic/elasticsearch/issues/133973
 
 # Examples:
 #

@@ -751,7 +751,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 try {
                     coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
                 } catch (EsRejectedExecutionException e) {
-                    indexRequest.source(originalSource, indexRequest.getContentType());
+                    indexRequest.sourceContext().source(originalSource.retain(), indexRequest.getContentType());
                     item.abort(
                         item.index(),
                         new InferenceException(

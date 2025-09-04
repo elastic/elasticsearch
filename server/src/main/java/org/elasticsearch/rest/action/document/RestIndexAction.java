@@ -132,7 +132,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(source, request.getXContentType());
+        indexRequest.sourceContext().source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -157,7 +157,7 @@ public class RestIndexAction extends BaseRestHandler {
                 indexRequest,
                 ActionListener.releaseAfter(
                     new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
-                    source
+                    indexRequest.sourceContext()
                 )
             );
         };

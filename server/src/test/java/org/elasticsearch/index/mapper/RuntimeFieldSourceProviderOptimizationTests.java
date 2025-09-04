@@ -31,6 +31,10 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests that source provider optimization that filters _source based on the same of source only runtime fields kick in.
+ * This is important for synthetic source, otherwise many doc value and stored fields get loaded in the process.
+ */
 public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTestCase {
 
     public void testWithSourceProviderOptimization() throws IOException {

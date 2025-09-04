@@ -64,6 +64,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
@@ -228,6 +229,8 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             composableIndexTemplate.template().settings().hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
             equalTo(manuallyAddedRoutingPathSetting)
         );
+        // the index.dimensions setting will not be present in the template settings, it is added at index creation time
+        assertThat(composableIndexTemplate.template().settings().get(IndexMetadata.INDEX_DIMENSIONS.getKey()), nullValue());
     }
 
     private void indexDocs(final String dataStream, int numDocs, long startTime) {

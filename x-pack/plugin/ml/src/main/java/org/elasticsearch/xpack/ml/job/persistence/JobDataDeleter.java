@@ -107,15 +107,7 @@ public class JobDataDeleter {
      */
     public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(
-                new BulkByScrollResponse(
-                    TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    false
-                )
-            );
+            listener.onResponse(emptyBulkByScrollResponse());
             return;
         }
 
@@ -132,7 +124,12 @@ public class JobDataDeleter {
             indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
         }
 
-        String[] indicesToQuery = removeReadOnlyIndices(new ArrayList<>(indices), listener, "model snapshots", null);
+        String[] indicesToQuery = removeReadOnlyIndices(
+            new ArrayList<>(indices),
+            listener,
+            "model snapshots",
+            () -> listener.onResponse(emptyBulkByScrollResponse())
+        );
         if (indicesToQuery.length == 0) return;
 
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
@@ -143,6 +140,16 @@ public class JobDataDeleter {
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+    }
+
+    private static BulkByScrollResponse emptyBulkByScrollResponse() {
+        return new BulkByScrollResponse(
+            TimeValue.ZERO,
+            new BulkByScrollTask.Status(Collections.emptyList(), null),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            false
+        );
     }
 
     /**
@@ -309,7 +316,7 @@ public class JobDataDeleter {
             List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
             listener,
             "datafeed timing stats",
-            null
+            () -> listener.onResponse(emptyBulkByScrollResponse())
         );
         if (indicesToQuery.length == 0) return;
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
@@ -502,7 +509,12 @@ public class JobDataDeleter {
         ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
             logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
             ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-            String[] indicesToQuery = removeReadOnlyIndices(List.of(indices), listener, "results", null);
+            String[] indicesToQuery = removeReadOnlyIndices(
+                List.of(indices),
+                listener,
+                "results",
+                () -> listener.onResponse(emptyBulkByScrollResponse())
+            );
             if (indicesToQuery.length == 0) return;
             DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
                 .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))

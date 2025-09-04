@@ -174,7 +174,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             byte[] values = new byte[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomByte();
+                // to avoid vectors with zero magnitude
+                values[j] = (byte) Math.max(1, randomByte());
             }
             chunks.add(
                 new ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk(values, input, new ChunkedInference.TextOffset(0, input.length()))
@@ -188,7 +189,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             float[] values = new float[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomFloat();
+                // to avoid vectors with zero magnitude
+                values[j] = Math.max(1e-6f, randomFloat());
             }
             chunks.add(
                 new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(values, input, new ChunkedInference.TextOffset(0, input.length()))
@@ -206,7 +208,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
-                tokens.add(new WeightedToken(token, withFloats ? randomFloat() : randomIntBetween(1, 255)));
+                tokens.add(new WeightedToken(token, withFloats ? Math.max(Float.MIN_NORMAL, randomFloat()) : randomIntBetween(1, 255)));
             }
             chunks.add(
                 new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, input, new ChunkedInference.TextOffset(0, input.length()))

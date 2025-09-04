@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
@@ -55,6 +56,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,6 +66,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -176,6 +179,9 @@ class Elasticsearch {
      * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
+        // always start by dumping what we know about the process to the log
+        logSystemInfo();
+
         final ServerArgs args = bootstrap.args();
         final SecureSettings secrets = args.secrets();
         bootstrap.setSecureSettings(secrets);
@@ -261,6 +267,7 @@ class Elasticsearch {
                 scopeResolver::resolveClassToScope,
                 nodeEnv.settings()::getValues,
                 nodeEnv.dataDirs(),
+                nodeEnv.sharedDataDir(),
                 nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
@@ -287,6 +294,35 @@ class Elasticsearch {
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static void logSystemInfo() {
+        final Logger logger = LogManager.getLogger(Elasticsearch.class);
+        logger.info(
+            "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+            Build.current().qualifiedVersion(),
+            ProcessHandle.current().pid(),
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date(),
+            Constants.OS_NAME,
+            Constants.OS_VERSION,
+            Constants.OS_ARCH,
+            Constants.JVM_VENDOR,
+            Constants.JVM_NAME,
+            System.getProperty("java.version"),
+            Runtime.version().toString()
+        );
+        boolean isBundledJdk = System.getProperty("es.java.type", "").equals("bundled JDK");
+        logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), isBundledJdk);
+        logger.info("JVM arguments {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
+        logger.info("Default Locale [{}]", Locale.getDefault());
+        if (Build.current().isProductionRelease() == false) {
+            logger.warn(
+                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                Build.current().qualifiedVersion()
+            );
+        }
     }
 
     private static Map<String, String> collectPluginPolicyPatches(

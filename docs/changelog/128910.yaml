@@ -1,5 +1,0 @@
-pr: 128910
-summary: Fix `FieldAttribute` name usage in `InferNonNullAggConstraint`
-area: ES|QL
-type: bug
-issues: []

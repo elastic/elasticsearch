@@ -43,6 +43,14 @@
       "include_defaults":{
         "type":"boolean",
         "description":"Return all default configurations for the component template (default: false)"
+      },
+      "flat_settings":{
+        "type":"boolean",
+        "description":"Return settings in flat format (default: false)"
+      },
+      "settings_filter":{
+        "type":"string",
+        "description":"Filter out results, for example to filter out sensitive information. Supports wildcards or full settings keys"
       }
     }
   }

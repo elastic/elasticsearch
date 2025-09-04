@@ -73,6 +73,15 @@
         "description":"Determines the geometry type for features in the aggs layer.",
         "default":"grid"
       },
+      "grid_agg":{
+        "type":"enum",
+        "options":[
+          "geotile",
+          "geohex"
+        ],
+        "description":"Aggregation used to create a grid for `field`.",
+        "default":"geotile"
+      },
       "size":{
         "type":"int",
         "description":"Maximum number of features to return in the hits layer. Accepts 0-10000.",

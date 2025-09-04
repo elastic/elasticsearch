@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -576,21 +578,27 @@ public class EsqlSession {
         }
 
         AttributeSet references = new AttributeSet();
-        // "keep" attributes are special whenever a wildcard is used in their name
-        // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        AttributeSet keepCommandReferences = new AttributeSet();
-        AttributeSet keepJoinReferences = new AttributeSet();
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
+        // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
+        // wildcards.
+        //
+        // E.g. "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
+        // "from test | eval first_name = 1 | drop first_name | drop *name" should also consider "*name" as valid field to ask for
+        //
+        // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
+        // Except in KEEP and DROP.
+        var keepRefs = new AttributeSet();
+        var dropWildcardRefs = new AttributeSet();
+        // fields required to request for lookup joins to work
+        var joinRefs = new AttributeSet();
+        // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         boolean[] canRemoveAliases = new boolean[] { true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                // remove other down-the-tree references to the extracted fields
-                for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
-                }
-                // but keep the inputs needed by Grok/Dissect
+                // keep the inputs needed by Grok/Dissect
                 references.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
@@ -601,14 +609,14 @@ public class EsqlSession {
                 references.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinReferences.addAll(usingJoinType.columns());
+                    joinRefs.addAll(usingJoinType.columns());
                 }
-                if (keepCommandReferences.isEmpty()) {
+                if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinReferences.addAll(keepCommandReferences);
+                    joinRefs.addAll(keepRefs);
                 }
             } else {
                 references.addAll(p.references());
@@ -621,11 +629,15 @@ public class EsqlSession {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     references.add(ua);
                     if (p instanceof Keep) {
-                        keepCommandReferences.add(ua);
+                        keepRefs.add(ua);
+                    } else if (p instanceof Drop) {
+                        dropWildcardRefs.add(ua);
+                    } else {
+                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
                     }
                 });
                 if (p instanceof Keep) {
-                    keepCommandReferences.addAll(p.references());
+                    keepRefs.addAll(p.references());
                 }
             }
 
@@ -640,28 +652,32 @@ public class EsqlSession {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && couldOverrideAliases(p)) {
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
                 canRemoveAliases[0] = false;
             }
             if (canRemoveAliases[0]) {
                 // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
                 // for example "from test | eval x = salary | stats max = max(x) by gender"
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+                // also remove other down-the-tree references to the extracted fields from "grok" and "dissect"
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
-                p.forEachExpressionDown(Alias.class, alias -> {
-                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
-                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                    if (fieldNames.contains(alias.name())) {
+                p.forEachExpressionDown(NamedExpression.class, ne -> {
+                    if ((ne instanceof Alias || ne instanceof ReferenceAttribute) == false) {
                         return;
                     }
-                    references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                    if (fieldNames.contains(ne.name())) {
+                        return;
+                    }
+                    references.removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
                 });
             }
         });
 
         // Add JOIN ON column references afterward to avoid Alias removal
-        references.addAll(keepJoinReferences);
+        references.addAll(joinRefs);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);
@@ -703,7 +719,8 @@ public class EsqlSession {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof Rename
-            || p instanceof TopN) == false;
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

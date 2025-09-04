@@ -30,7 +30,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -1209,7 +1208,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
-                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
             );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
@@ -2452,7 +2451,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             var transportVersion = getTransportVersionWithFallback(
                 objectPath.evaluate("nodes." + id + ".version"),
                 objectPath.evaluate("nodes." + id + ".transport_version"),
-                () -> TransportVersions.MINIMUM_COMPATIBLE
+                () -> TransportVersion.minimumCompatible()
             );
             if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
                 minTransportVersion = transportVersion;

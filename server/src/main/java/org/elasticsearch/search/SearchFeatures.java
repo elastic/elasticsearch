@@ -22,9 +22,10 @@ public final class SearchFeatures implements FeatureSpecification {
     }
 
     public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
+    public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETRIEVER_RESCORER_ENABLED);
+        return Set.of(RETRIEVER_RESCORER_ENABLED, SEARCH_WITH_NO_DIMENSIONS_BUGFIX);
     }
 }

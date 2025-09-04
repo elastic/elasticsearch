@@ -51,7 +51,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
     def "resolves expanded bwc versions from source"() {
         given:
         internalBuild()
-        bwcMinorProjectSetup()
+        bwcMajor1ProjectSetup()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 
@@ -72,16 +72,16 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
         def result = gradleRunner("setupDistro").build()
         then:
-        result.task(":distribution:bwc:minor:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/elastic-distro",
+        assertExtractedDistroIsCreated("distribution/bwc/major1/build/install/elastic-distro",
                 'bwc-marker.txt')
     }
 
     def "fails on resolving bwc versions with no bundled jdk"() {
         given:
         internalBuild()
-        bwcMinorProjectSetup()
+        bwcMajor1ProjectSetup()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 
@@ -105,12 +105,12 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 "without a bundled JDK is not supported.")
     }
 
-    private void bwcMinorProjectSetup() {
+    private void bwcMajor1ProjectSetup() {
         settingsFile << """
-        include ':distribution:bwc:minor'
+        include ':distribution:bwc:major1'
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "bwc", "minor")
-        new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=minor"
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "bwc", "major1")
+        new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=major1"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             apply plugin:'base'
 
@@ -167,6 +167,11 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                     }
                 }
             }
+
+            tasks.named('assemble').configure {
+                dependsOn buildTar
+            }
+
             artifacts {
                 it.add("default", buildTar)
                 it.add("extracted", buildExpanded)

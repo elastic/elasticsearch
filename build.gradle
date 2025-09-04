@@ -22,6 +22,8 @@ import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 
+import groovy.xml.XmlParser;
+import groovy.xml.XmlNodePrinter;
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -36,11 +38,11 @@ buildscript {
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.jdk-download'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
-  id 'elasticsearch.jdk-download'
-  id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
@@ -180,6 +182,21 @@ tasks.register("updateCIBwcVersions") {
       ],
       [
         new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(buildParams.bwcVersions.allIndexCompatible), variable: "BWC_STEPS"),
+      ]
+    )
+
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic-java-ea.yml",
+      ".buildkite/pipelines/periodic-java-ea.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic-java-ea.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
       ]
     )
 

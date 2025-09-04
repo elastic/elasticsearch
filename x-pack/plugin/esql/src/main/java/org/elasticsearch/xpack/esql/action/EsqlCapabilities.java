@@ -734,7 +734,39 @@ public class EsqlCapabilities {
          * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
          * https://github.com/elastic/elasticsearch/issues/126419
          */
-        FIX_JOIN_MASKING_EVAL;
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467</a>
+         */
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
+         * found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER;
 
         private final boolean enabled;
 

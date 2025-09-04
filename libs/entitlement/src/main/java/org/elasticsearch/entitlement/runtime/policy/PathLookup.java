@@ -20,6 +20,7 @@ public interface PathLookup {
         USER_HOME,
         CONFIG,
         DATA,
+        SHARED_DATA,
         SHARED_REPO,
         LIB,
         MODULES,

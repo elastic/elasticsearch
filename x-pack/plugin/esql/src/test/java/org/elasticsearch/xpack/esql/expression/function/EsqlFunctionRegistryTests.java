@@ -29,6 +29,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -159,6 +160,9 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         );
         def = r.resolveFunction(r.resolveAlias("DUMMY"));
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
+
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     private static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {

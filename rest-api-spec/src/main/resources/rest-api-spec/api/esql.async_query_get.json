@@ -26,6 +26,10 @@
       ]
     },
     "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
       "wait_for_completion_timeout":{
         "type":"time",
         "description":"Specify the time that the request should block waiting for the final response"

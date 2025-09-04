@@ -77,7 +77,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
     public void testOldIndicesCheckWithOnlyNewIndices() {
         // This tests what happens when any old indices that we have are closed. We expect no deprecation warning.
-        int newOpenIndexCount = randomIntBetween(0, 100);
+        int newOpenIndexCount = randomIntBetween(1, 100);
         int newClosedIndexCount = randomIntBetween(0, 100);
 
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();

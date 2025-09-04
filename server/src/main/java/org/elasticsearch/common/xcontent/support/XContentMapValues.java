@@ -560,6 +560,9 @@ public class XContentMapValues {
      * Otherwise the node is treated as a comma-separated string.
      */
     public static String[] nodeStringArrayValue(Object node) {
+        if (node == null) {
+            throw new ElasticsearchParseException("Expected a list of strings but got null");
+        }
         if (isArray(node)) {
             List<?> list = (List<?>) node;
             String[] arr = new String[list.size()];

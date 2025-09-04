@@ -69,6 +69,7 @@ public class EntitlementBootstrap {
      * @param scopeResolver a functor to map a Java Class to the component and module it belongs to.
      * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
+     * @param sharedDataDir  shared data directory for Elasticsearch (deprecated)
      * @param sharedRepoDirs shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
      * @param libDir         the lib directory for Elasticsearch
@@ -86,6 +87,7 @@ public class EntitlementBootstrap {
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
+        Path sharedDataDir,
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
@@ -109,6 +111,7 @@ public class EntitlementBootstrap {
                 getUserHome(),
                 configDir,
                 dataDirs,
+                sharedDataDir,
                 sharedRepoDirs,
                 libDir,
                 modulesDir,
@@ -122,7 +125,12 @@ public class EntitlementBootstrap {
             suppressFailureLogPackages
         );
         exportInitializationToAgent();
+
         loadAgent(findAgentJar());
+
+        if (EntitlementInitialization.getError() != null) {
+            throw EntitlementInitialization.getError();
+        }
     }
 
     private static Path getUserHome() {
@@ -143,7 +151,7 @@ public class EntitlementBootstrap {
                 vm.detach();
             }
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
         }
     }
 

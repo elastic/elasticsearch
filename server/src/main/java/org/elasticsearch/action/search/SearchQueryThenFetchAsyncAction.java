@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -32,6 +34,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
+    private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
     private final SearchProgressListener progressListener;
 
@@ -121,7 +124,17 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                     }
                 }
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            try {
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            } catch (Exception e) {
+                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
+                logger.debug(
+                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
+                    result.getShardIndex(),
+                    Arrays.toString(topDocs.fields),
+                    e
+                );
+            }
         }
         super.onShardResult(result, shardIt);
     }

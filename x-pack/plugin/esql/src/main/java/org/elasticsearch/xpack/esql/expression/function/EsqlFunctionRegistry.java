@@ -1042,10 +1042,10 @@ public class EsqlFunctionRegistry {
         String... names
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            if (children.size() > 1) {
+            if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
             }
-            Expression ex = children.size() == 1 ? children.get(0) : null;
+            Expression ex = children.get(0);
             return ctorRef.build(source, ex, cfg);
         };
         return def(function, builder, names);

@@ -1335,11 +1335,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
+        final Engine engine = getEngineOrNull();
         return new FlushStats(
             flushMetric.count(),
             periodicFlushMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
-            getEngineOrNull() != null ? getEngineOrNull().getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+            engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
         );
     }
 

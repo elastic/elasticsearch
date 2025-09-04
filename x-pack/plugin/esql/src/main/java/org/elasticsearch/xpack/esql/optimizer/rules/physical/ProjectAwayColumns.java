@@ -57,7 +57,22 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
-                        List<Attribute> output = new ArrayList<>(requiredAttributes.get());
+                        // we should respect the order of the attributes
+                        List<Attribute> output = new ArrayList<>();
+                        for (Attribute attribute : logicalFragment.output()) {
+                            if (requiredAttributes.get().contains(attribute)) {
+                                output.add(attribute);
+                            }
+                        }
+                        // requiredAttributes should only have attributes that are also in the fragment's output.
+                        // This assumption can be wrong in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
+                        // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
+                        if (output.size() != requiredAttributes.get().size()) {
+                            AttributeSet alreadyAdded = new AttributeSet(output);
+                            AttributeSet remaining = requiredAttributes.get().subtract(alreadyAdded);
+                            output.addAll(remaining);
+                        }
+
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant

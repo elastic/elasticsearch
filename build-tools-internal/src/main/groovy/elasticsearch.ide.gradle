@@ -7,6 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+
+import groovy.xml.XmlNodePrinter
+import groovy.xml.XmlParser
+
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
@@ -16,6 +20,8 @@ import org.jetbrains.gradle.ext.JUnit
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import groovy.xml.XmlParser
+import groovy.xml.XmlNodePrinter
 
 allprojects {
   apply plugin: 'idea'

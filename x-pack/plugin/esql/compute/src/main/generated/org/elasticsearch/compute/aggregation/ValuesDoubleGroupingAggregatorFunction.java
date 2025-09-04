@@ -41,7 +41,7 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
 
   public static ValuesDoubleGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new ValuesDoubleGroupingAggregatorFunction(channels, ValuesDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new ValuesDoubleGroupingAggregatorFunction(channels, ValuesDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

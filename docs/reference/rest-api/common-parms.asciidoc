@@ -1337,7 +1337,7 @@ This value determines the size of the individual result sets per
 query. A higher value will improve result relevance at the cost of performance. The final
 ranked result set is pruned down to the search request's <<search-size-param, size>>.
 `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
-Defaults to the `size` parameter.
+Defaults to 10.
 end::compound-retriever-rank-window-size[]
 
 tag::compound-retriever-filter[]

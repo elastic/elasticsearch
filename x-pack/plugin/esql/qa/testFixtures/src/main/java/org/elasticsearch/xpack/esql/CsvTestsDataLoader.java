@@ -17,6 +17,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.apache.lucene.util.IOConsumer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -402,41 +403,6 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         IndexCreator indexCreator
     ) throws IOException {
-        if (PARALLEL_THREADS > 1) {
-            loadDataSetIntoEsParallel(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, indexCreator);
-        } else {
-            loadDataSetIntoEsSequential(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, indexCreator);
-        }
-    }
-
-    private static void loadDataSetIntoEsSequential(
-        RestClient client,
-        boolean supportsIndexModeLookup,
-        boolean supportsSourceFieldMapping,
-        boolean inferenceEnabled,
-        IndexCreator indexCreator
-    ) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-
-        Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
-            createIndex(client, dataset, indexCreator);
-            loadData(client, dataset, logger);
-            loadedDatasets.add(dataset.indexName);
-        }
-        forceMerge(client, loadedDatasets, logger);
-        for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
-        }
-    }
-
-    private static void loadDataSetIntoEsParallel(
-        RestClient client,
-        boolean supportsIndexModeLookup,
-        boolean supportsSourceFieldMapping,
-        boolean inferenceEnabled,
-        IndexCreator indexCreator
-    ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
         Set<TestDataset> datasets = availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled);
         ExecutorService executor = Executors.newFixedThreadPool(PARALLEL_THREADS);
@@ -461,11 +427,6 @@ public class CsvTestsDataLoader {
         } finally {
             executor.shutdown();
         }
-    }
-
-    @FunctionalInterface
-    private interface IOConsumer<T> {
-        void accept(T t) throws IOException;
     }
 
     private static <T> void executeInParallel(ExecutorService executor, Iterable<T> items, IOConsumer<T> consumer, String errorMessage)

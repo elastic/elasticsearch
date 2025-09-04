@@ -778,7 +778,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -794,7 +794,7 @@ steps:
             BWC_VERSION: ["7.17.30", "8.18.7", "8.19.4"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -823,7 +823,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -843,7 +843,7 @@ steps:
             BWC_VERSION: ["7.17.30", "8.18.7", "8.19.4"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -953,7 +953,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$/
+    if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

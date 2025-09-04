@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.IncludingAltitude;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -47,9 +48,12 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
-            MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.YES),
-            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.YES),
-            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.geohashCases(1, 1000),
+            MultiRowTestCaseSupplier.geotileCases(1, 1000),
+            MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(PresentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));

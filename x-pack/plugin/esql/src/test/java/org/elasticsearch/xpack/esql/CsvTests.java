@@ -173,7 +173,7 @@ import static org.mockito.Mockito.mock;
  *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);

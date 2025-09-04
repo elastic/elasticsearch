@@ -104,6 +104,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for presence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for presence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for presence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for presence."

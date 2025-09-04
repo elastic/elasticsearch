@@ -13,6 +13,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -30,7 +33,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EnrichExec extends UnaryExec implements EstimatesRowSize {
+public class EnrichExec extends UnaryExec implements EstimatesRowSize, PostPhysicalOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EnrichExec",
@@ -219,5 +222,15 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), mode, matchType, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+    }
+
+    @Override
+    public void postPhysicalOptimizationVerification(Failures failures) {
+        if (mode == Enrich.Mode.REMOTE) {
+            // check that there is no FragmentedExec in the child plan - that would mean we're on the wrong side of the remote boundary
+            child().forEachDown(FragmentExec.class, f -> {
+                failures.add(Failure.fail(this, "Remote enrich cannot be performed on the coordinator side"));
+            });
+        }
     }
 }

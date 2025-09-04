@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -77,6 +78,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong submittedMergeTaskCount = new AtomicLong();
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
+    // used to know if merges are still running while we're closing the scheduler
+    private final Semaphore executingMergesPermits = new Semaphore(Integer.MAX_VALUE);
     private volatile boolean closed = false;
     private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
 
@@ -336,16 +339,26 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      * Does the actual merge, by calling {@link org.apache.lucene.index.MergeScheduler.MergeSource#merge}
      */
     void doMerge(MergeSource mergeSource, MergePolicy.OneMerge oneMerge) {
+        boolean hasPermit = oneMerge.isAborted() == false;
         try {
+            if (hasPermit) {
+                executingMergesPermits.acquire();
+            }
             mergeSource.merge(oneMerge);
         } catch (Throwable t) {
             // OK to ignore MergeAbortedException. This is what Lucene's ConcurrentMergeScheduler does.
             if (t instanceof MergePolicy.MergeAbortedException == false) {
+                assert executingMergesPermits.availablePermits() == 0;
+                hasPermit = false;
                 // A merge thread that thrown an exception that closed the IndexWriter causes other merge threads to be aborted, but it is
                 // not itself aborted: instead the current merge is just completed and the thrown exception is set in the package-private
                 // OneMerge.error field. Here we set such merge as aborted too so that it is not considered as successful later.
                 oneMerge.setAborted();
                 handleMergeException(t);
+            }
+        } finally {
+            if (hasPermit) {
+                executingMergesPermits.release();
             }
         }
     }
@@ -627,42 +640,30 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public void close() throws IOException {
         synchronized (this) {
+            if (closed) {
+                return;
+            }
             closed = true;
             // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
             enqueueBackloggedTasks();
         }
-        // waits for any running merge threads to finish, similar to what ConcurrentMergeScheduler#sync does.
-        boolean interrupted = false;
         try {
-            while (true) {
-                Thread toSync = null;
-                synchronized (this) {
-                    for (var runningMergeTask : runningMergeTasks.values()) {
-                        var mergeThread = runningMergeTask.runningThread.get();
-                        assert mergeThread != null : " running merge task has no owner thread";
-                        // In case a merge thread is calling us, don't try to sync on itself, since that will never finish!
-                        if (mergeThread.isAlive() && mergeThread != Thread.currentThread()) {
-                            toSync = mergeThread;
-                            break;
-                        }
+            // in case a merge thread is calling us, release its permit
+            synchronized (this) {
+                for (var runningMergeTask : runningMergeTasks.values()) {
+                    var mergeThread = runningMergeTask.runningThread.get();
+                    assert mergeThread != null : " running merge task has no owner thread";
+                    if (mergeThread.isAlive() && mergeThread == Thread.currentThread()) {
+                        executingMergesPermits.release();
+                        break;
                     }
-                }
-                if (toSync != null) {
-                    try {
-                        toSync.join();
-                    } catch (InterruptedException e) {
-                        // ignore this Exception, we will retry until all threads are dead
-                        interrupted = true;
-                    }
-                } else {
-                    break;
                 }
             }
+            // waits for any running merge threads to finish
+            executingMergesPermits.acquire(Integer.MAX_VALUE);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } finally {
-            // finally, restore interrupt status:
-            if (interrupted) {
-                Thread.currentThread().interrupt();
-            }
             // this closes an executor that may be used by ongoing merges, so better close it only after all running merges finished
             super.close();
         }

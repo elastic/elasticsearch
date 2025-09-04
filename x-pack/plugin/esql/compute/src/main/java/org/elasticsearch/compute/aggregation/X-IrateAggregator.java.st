@@ -33,47 +33,43 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = {
-        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
-        @IntermediateState(name = "resets", type = "DOUBLE") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
-public class IRate$Type$Aggregator {
+public class Irate$Type$Aggregator {
 
-    public static $Type$IRateGroupingState initGrouping(DriverContext driverContext) {
-        return new $Type$IRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
+    public static $Type$IrateGroupingState initGrouping(DriverContext driverContext) {
+        return new $Type$IrateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine($Type$IRateGroupingState current, int groupId, $type$ value, long timestamp) {
+    public static void combine($Type$IrateGroupingState current, int groupId, $type$ value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
-        $Type$IRateGroupingState current,
+        $Type$IrateGroupingState current,
         int groupId,
         LongBlock timestamps,
         $Type$Block values,
-        double reset,
         int otherPosition
     ) {
-        current.combine(groupId, timestamps, values, reset, otherPosition);
+        current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal($Type$IRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal($Type$IrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class $Type$IRateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$IRateState.class);
+    private static class $Type$IrateState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$IrateState.class);
         final long[] timestamps; // descending order
         final $type$[] values;
 
-        $Type$IRateState(int initialSize) {
+        $Type$IrateState(int initialSize) {
             this.timestamps = new long[initialSize];
             this.values = new $type$[initialSize];
         }
 
-        $Type$IRateState(long[] ts, $type$[] vs) {
+        $Type$IrateState(long[] ts, $type$[] vs) {
             this.timestamps = ts;
             this.values = vs;
         }
@@ -96,13 +92,13 @@ public class IRate$Type$Aggregator {
         }
     }
 
-    public static final class $Type$IRateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
-        private ObjectArray<$Type$IRateState> states;
+    public static final class $Type$IrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private ObjectArray<$Type$IrateState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
 
-        $Type$IRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+        $Type$IrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
@@ -122,20 +118,20 @@ public class IRate$Type$Aggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker($Type$IRateState.bytesUsed(1));
-                state = new $TypeIState(new long[] { timestamp }, new $type$[] { value });
+                adjustBreaker($Type$IrateState.bytesUsed(1));
+                state = new $Type$IrateState(new long[] { timestamp }, new $type$[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
-                    adjustBreaker($Type$IRateState.bytesUsed(2));
-                    state = new $Type$IRateState(new long[] { state.timestamps[0], timestamp }, new $type$[] { state.values[0], value });
+                    adjustBreaker($Type$IrateState.bytesUsed(2));
+                    state = new $Type$IrateState(new long[] { state.timestamps[0], timestamp }, new $type$[] { state.values[0], value });
                     states.set(groupId, state);
-                    adjustBreaker(-$Type$IRateState.bytesUsed(1)); // old state
+                    adjustBreaker(-$Type$IrateState.bytesUsed(1)); // old state
                 }
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, $Type$Block values, double reset, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, $Type$Block values, int otherPosition) {
             // TODO: Check this method pabloem
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
@@ -145,8 +141,8 @@ public class IRate$Type$Aggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker($Type$IRateState.bytesUsed(valueCount));
-                state = new $Type$IRateState(valueCount);
+                adjustBreaker($Type$IrateState.bytesUsed(valueCount));
+                state = new $Type$IrateState(valueCount);
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
@@ -154,15 +150,15 @@ public class IRate$Type$Aggregator {
                     state.values[i] = values.get$Type$(firstIndex + i);
                 }
             } else {
-                adjustBreaker($Type$IRateState.bytesUsed(state.entries() + valueCount));
-                var newState = new $Type$IRateState(state.entries() + valueCount);
+                adjustBreaker($Type$IrateState.bytesUsed(state.entries() + valueCount));
+                var newState = new $Type$IrateState(state.entries() + valueCount);
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
-                adjustBreaker(-$Type$IRateState.bytesUsed(state.entries())); // old state
+                adjustBreaker(-$Type$IrateState.bytesUsed(state.entries())); // old state
             }
         }
 
-        void merge($Type$IRateState curr, $Type$IRateState dst, int firstIndex, int rightCount, LongBlock timestamps, $Type$Block values) {
+        void merge($Type$IrateState curr, $Type$IrateState dst, int firstIndex, int rightCount, LongBlock timestamps, $Type$Block values) {
             int i = 0, j = 0, k = 0;
             final int leftCount = curr.entries();
             // We do not merge more than two entries because we only need the last two.
@@ -183,10 +179,9 @@ public class IRate$Type$Aggregator {
             }
         }
 
-        $Type$IRateState mergeState($Type$IRateState s1, $Type$IRateState s2) {
-            adjustBreaker($Type$IRateState.bytesUsed(newLen));
-            var dst = new $Type$IRateState(newLen);
-            dst.reset = s1.reset + s2.reset;
+        $Type$IrateState mergeState($Type$IrateState s1, $Type$IrateState s2) {
+            adjustBreaker($Type$IrateState.bytesUsed(2));
+            var dst = new $Type$IrateState(2);
             int i = 0, j = 0, k = 0;
             while (i < s1.entries() && j < s2.entries() && k < 2) {
                 if (s1.timestamps[i] > s2.timestamps[j]) {
@@ -221,7 +216,6 @@ public class IRate$Type$Aggregator {
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
-                DoubleVector.FixedBuilder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -238,16 +232,13 @@ public class IRate$Type$Aggregator {
                             values.append$Type$(v);
                         }
                         values.endPositionEntry();
-                        resets.appendDouble(i, state.reset);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        resets.appendDouble(i, 0);
                     }
                 }
                 blocks[offset] = timestamps.build();
                 blocks[offset + 1] = values.build();
-                blocks[offset + 3] = resets.build().asBlock();
             }
         }
 
@@ -262,7 +253,9 @@ public class IRate$Type$Aggregator {
                         continue;
                     }
                     int len = state.entries();
-                    final double ydiff = state.values[0] > state.values[1] ? state.values[0] - state.values[1] : state.values[1] - state.values[0];
+                    final double ydiff = state.values[0] > state.values[1]
+                        ? state.values[0] - state.values[1]
+                        : state.values[1] - state.values[0];
                     final long xdiff = state.timestamps[0] - state.timestamps[1];
                     rates.appendDouble(ydiff / xdiff * 1000);
                 }

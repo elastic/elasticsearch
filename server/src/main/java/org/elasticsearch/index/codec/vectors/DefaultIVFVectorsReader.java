@@ -550,7 +550,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
             int count = 0;
             for (; i < vectors; i++) {
-                int doc = docIdsScratch[count];
+                int doc = docIdsScratch[count++];
                 if (acceptDocs == null || acceptDocs.get(doc)) {
                     quantizeQueryIfNecessary();
                     float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);

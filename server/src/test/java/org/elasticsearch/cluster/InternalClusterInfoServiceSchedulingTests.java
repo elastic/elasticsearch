@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
@@ -56,6 +57,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test");
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
         final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
+        final DiscoveryNode joiner = DiscoveryNodeUtils.create("joiner");
+        final DiscoveryNodes withJoiner = DiscoveryNodes.builder(localMaster).add(joiner).build();
 
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName())
@@ -128,6 +131,41 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             setFlagOnSuccess(becameMaster1)
         );
         runUntilFlag(deterministicTaskQueue, becameMaster1);
+
+        // A node joins the cluster
+        {
+            Mockito.clearInvocations(mockEstimatedHeapUsageCollector, nodeUsageStatsForThreadPoolsCollector);
+            final int initialRequestCount = client.requestCount;
+            final AtomicBoolean nodeJoined = new AtomicBoolean();
+            clusterApplierService.onNewClusterState(
+                "node joins",
+                () -> ClusterState.builder(new ClusterName("cluster")).nodes(withJoiner).build(),
+                setFlagOnSuccess(nodeJoined)
+            );
+            runUntilFlag(deterministicTaskQueue, nodeJoined);
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests
+            verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
+            verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
+        }
+
+        // ... then leaves
+        {
+            Mockito.clearInvocations(mockEstimatedHeapUsageCollector, nodeUsageStatsForThreadPoolsCollector);
+            final int initialRequestCount = client.requestCount;
+            final AtomicBoolean nodeLeft = new AtomicBoolean();
+            clusterApplierService.onNewClusterState(
+                "node leaves",
+                () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
+                setFlagOnSuccess(nodeLeft)
+            );
+            runUntilFlag(deterministicTaskQueue, nodeLeft);
+            deterministicTaskQueue.runAllRunnableTasks();
+            // departing nodes don't trigger refreshes
+            assertThat(client.requestCount, equalTo(initialRequestCount));
+            verifyNoInteractions(mockEstimatedHeapUsageCollector);
+            verifyNoInteractions(nodeUsageStatsForThreadPoolsCollector);
+        }
 
         final AtomicBoolean failMaster1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(

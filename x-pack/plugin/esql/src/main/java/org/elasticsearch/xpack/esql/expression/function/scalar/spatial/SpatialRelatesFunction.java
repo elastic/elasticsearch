@@ -74,6 +74,11 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         super(in, leftDocValues, rightDocValues, false, false);
     }
 
+    protected SpatialRelatesFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean supportsGrid)
+        throws IOException {
+        super(in, leftDocValues, rightDocValues, false, supportsGrid);
+    }
+
     public abstract ShapeRelation queryRelation();
 
     @Override

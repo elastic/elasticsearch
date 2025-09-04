@@ -113,7 +113,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     }
 
     private SpatialDisjoint(StreamInput in) throws IOException {
-        super(in, false, false);
+        super(in, false, false, true);
     }
 
     @Override

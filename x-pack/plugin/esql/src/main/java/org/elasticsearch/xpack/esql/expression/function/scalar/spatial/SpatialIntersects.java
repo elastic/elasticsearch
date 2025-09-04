@@ -111,7 +111,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     private SpatialIntersects(StreamInput in) throws IOException {
-        super(in, false, false);
+        super(in, false, false, true);
     }
 
     @Override

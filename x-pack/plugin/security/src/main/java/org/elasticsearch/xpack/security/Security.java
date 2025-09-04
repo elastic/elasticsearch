@@ -298,9 +298,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -411,12 +411,16 @@ import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
+import org.elasticsearch.xpack.security.support.CrossClusterAccessSecurityExtension;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.support.RemoteClusterSecurityComponents;
+import org.elasticsearch.xpack.security.support.RemoteClusterSecurityExtension;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -602,7 +606,6 @@ public class Security extends Plugin
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
-    private final SetOnce<CrossClusterAccessAuthenticationService> crossClusterAccessAuthcService = new SetOnce<>();
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
@@ -631,6 +634,8 @@ public class Security extends Plugin
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
+    private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
+    private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -1162,19 +1167,33 @@ public class Security extends Plugin
         components.add(ipFilter.get());
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
-        components.add(crossClusterAccessAuthcService.get());
+
+        if (this.remoteClusterSecurityExtensionProvider.get() == null) {
+            this.remoteClusterSecurityExtensionProvider.set(new CrossClusterAccessSecurityExtension.Provider());
+        }
+        RemoteClusterSecurityExtension.Components rcsComponents = new RemoteClusterSecurityComponents(
+            authcService.get(),
+            authzService,
+            getLicenseState(),
+            apiKeyService,
+            resourceWatcherService,
+            clusterService,
+            environment,
+            threadPool,
+            settings
+        );
+        RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtensionProvider.get().getExtension(rcsComponents);
+        remoteClusterAuthenticationService.set(rcsExtension.getRemoteClusterAuthenticationService());
+        components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = rcsExtension.getTransportInterceptor();
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
-                settings,
-                threadPool,
-                authcService.get(),
-                authzService,
-                getSslService(),
-                securityContext.get(),
+                remoteClusterTransportInterceptor,
                 destructiveOperations,
-                crossClusterAccessAuthcService.get(),
-                getLicenseState()
+                securityContext.get(),
+                getSslService(),
+                threadPool,
+                settings
             )
         );
 
@@ -2003,7 +2022,7 @@ public class Security extends Plugin
                         ipFilter,
                         getSslService(),
                         getNettySharedGroupFactory(settings),
-                        crossClusterAccessAuthcService.get()
+                        remoteClusterAuthenticationService.get()
                     )
                 );
                 return transportReference.get();
@@ -2437,6 +2456,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, remoteClusterSecurityExtensionProvider, RemoteClusterSecurityExtension.Provider.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

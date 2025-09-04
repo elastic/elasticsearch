@@ -64,8 +64,6 @@ restResources {
     }
 }
 
-val hollowTtlMs = buildParams.random.nextInt(0, 1)
-
 tasks {
     test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
@@ -89,6 +87,8 @@ tasks {
      */
     val internalClusterTestWithHollow = register<Test>("internalClusterTestWithHollow") {
         val sourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+        val hollowTtlMs = buildParams.random.map { r -> r.nextInt(0,1) }.get()
+
         setTestClassesDirs(sourceSet.getOutput().getClassesDirs())
         setClasspath(sourceSet.getRuntimeClasspath())
         jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")

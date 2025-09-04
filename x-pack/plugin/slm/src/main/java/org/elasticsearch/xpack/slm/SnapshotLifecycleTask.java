@@ -103,7 +103,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
-        ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        ProjectMetadata projectMetadata = clusterService.state().getMetadata().getProject(projectId);
         final Optional<String> snapshotName = maybeTakeSnapshot(projectMetadata, event.jobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse

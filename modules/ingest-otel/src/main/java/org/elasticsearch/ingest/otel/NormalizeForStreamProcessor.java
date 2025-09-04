@@ -50,7 +50,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
      */
     private static final Map<String, String> RENAME_KEYS = Map.ofEntries(
-        // PRTODO: Dots mixed in to different keys. It seems that these dotted fields are meant to be normalized
+        // PRTODO: It seems that these dotted fields are meant to be always normalized
         entry("span.id", "span_id"),
         entry("message", "body.text"),
         entry("log.level", "severity_text"),
@@ -71,8 +71,8 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         Set<String> renamedTopLevelFields = new HashSet<>();
         for (String value : RENAME_KEYS.values()) {
             // if the renamed field is nested, we only need to know the top level field
-            // PRTODO: This takes the field body.text and converts it to just body. If we added a `body.text` field, then we'd
-            //  treat it differently.
+            // PRTODO: This takes the value `body.text` and converts it to just `body`. If we added a dotted field named `body.text` to the
+            //  document, then we'd miss it since we only look for `body`.
             int dotIndex = value.indexOf('.');
             if (dotIndex != -1) {
                 renamedTopLevelFields.add(value.substring(0, dotIndex));
@@ -167,6 +167,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
 
         source.put(ATTRIBUTES_KEY, newAttributes);
 
+        // PRTODO: Note directly below
         renameSpecialKeys(document);
 
         // move all top level keys except from specific ones to the "attributes" namespace
@@ -174,8 +175,8 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         while (sourceItr.hasNext()) {
             final var entry = sourceItr.next();
             // PRTODO: When we call renameSpecialKeys above in flexible mode, there is a chance that the keys we added end up as
-            //  dotted field names in the root of the document source. As such, these keep keys will miss those dotted fields because
-            //  they only look for the root field.
+            //  dotted field names in the root of the document source. As such, these "keep keys" will miss those dotted fields because
+            //  they only look for the root part of the field name.
             if (KEEP_KEYS.contains(entry.getKey()) == false) {
                 newAttributes.put(entry.getKey(), entry.getValue());
                 sourceItr.remove();
@@ -280,8 +281,8 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                     // PRTODO: Not true - in flexible mode, if nonOtelName is a kind of dotted field name, then we either removed the
                     //  whole field, or a portion of it. For example, removing field a.b.c.d will get rid of fields named `a.b.c.d`,
                     //  `a`.`b`.`c`.`d`, `a.b`.`c.d`, etc... This means that if we removed the field `c.d` off the end, there is still
-                    //  `a.b` at the front to remove. We'd need to get each field parent combination while ignoring missing, removing
-                    //  it if empty.
+                    //  `a.b` at the front to remove. We'd need to call getFieldValue on each field parent combination while ignoring
+                    //  missing, removing it if empty.
                     @SuppressWarnings("unchecked")
                     Map<String, Object> parent = (Map<String, Object>) document.getFieldValue(parentName, Map.class);
                     if (parent.isEmpty()) {
@@ -302,7 +303,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
             }
             if (fieldExists) {
                 // PRTODO: In flexible mode, this could create a dotted field name if the parent field does not exist. In classic mode
-                //  we create the parent path to the field being set. In flexible mode we just create a dotted field name.
+                //  we don't have to worry because we create the parent path to the field being set.
                 document.setFieldValue(otelName, value);
             }
         });

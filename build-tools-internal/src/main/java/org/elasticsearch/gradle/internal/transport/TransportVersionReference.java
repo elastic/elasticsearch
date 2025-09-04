@@ -12,12 +12,15 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
 
@@ -41,6 +44,14 @@ record TransportVersionReference(String name, String location) {
     static void addArtifactAttribute(AttributeContainer attributes) {
         attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "csv");
         attributes.attribute(REFERENCES_ATTRIBUTE, true);
+    }
+
+    static Set<String> collectNames(Iterable<File> referencesFiles) throws IOException {
+        Set<String> names = new HashSet<>();
+        for (var referencesFile : referencesFiles) {
+            listFromFile(referencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(names::add);
+        }
+        return names;
     }
 
     @Override

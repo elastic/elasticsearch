@@ -40,7 +40,7 @@ public class ForkGenerator implements CommandGenerator {
             completeCommand.append(command.commandString());
         }
 
-        final int branchCount = randomIntBetween(2, 3);
+        final int branchCount = randomIntBetween(2, 8);
         final int branchToRetain = randomIntBetween(1, branchCount);
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");

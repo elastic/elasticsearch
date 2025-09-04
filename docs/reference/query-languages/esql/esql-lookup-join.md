@@ -6,7 +6,7 @@ mapped_pages:
 
 # Join data from multiple indices with `LOOKUP JOIN` [esql-lookup-join-reference]
 
-The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
@@ -18,7 +18,7 @@ For example, you can use `LOOKUP JOIN` to:
 
 ## Compare with `ENRICH`
 
-[`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
+[`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) is similar to [`ENRICH`](/reference/query-languages/esql/commands/enrich.md) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
@@ -141,7 +141,7 @@ A successful query will output a table. In this example, you can see that the `s
 
 ### Additional examples
 
-Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) command reference for more examples.
+Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) command reference for more examples.
 
 ## Prerequisites [esql-lookup-join-prereqs]
 
@@ -175,7 +175,7 @@ In addition to the [{{esql}} unsupported field types](/reference/query-languages
 * Temporal intervals like `DURATION`, `PERIOD`
 
 ```{note}
-For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join).
+For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/lookup-join.md).
 ```
 
 ## Usage notes

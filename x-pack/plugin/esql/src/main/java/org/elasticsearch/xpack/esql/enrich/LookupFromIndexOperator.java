@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -25,6 +26,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +48,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        PhysicalPlan rightPreJoinPlan
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -60,6 +63,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
+            stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
@@ -76,7 +80,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupIndexPattern,
                 lookupIndex,
                 loadFields,
-                source
+                source,
+                rightPreJoinPlan
             );
         }
     }
@@ -89,11 +94,16 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final List<NamedExpression> loadFields;
     private final Source source;
     private long totalRows = 0L;
-    private List<MatchConfig> matchFields;
+    private final List<MatchConfig> matchFields;
+    private final PhysicalPlan rightPreJoinPlan;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
     private long emittedPages = 0L;
+    /**
+     * Total number of rows emitted by this {@link Operator}.
+     */
+    private long emittedRows = 0L;
     /**
      * The ongoing join or {@code null} none is ongoing at the moment.
      */
@@ -109,7 +119,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        PhysicalPlan rightPreJoinPlan
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
@@ -120,6 +131,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.lookupIndex = lookupIndex;
         this.loadFields = loadFields;
         this.source = source;
+        this.rightPreJoinPlan = rightPreJoinPlan;
     }
 
     @Override
@@ -146,7 +158,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             newMatchFields,
             new Page(inputBlockArray),
             loadFields,
-            source
+            source,
+            rightPreJoinPlan
         );
         lookupService.lookupAsync(
             request,
@@ -170,7 +183,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Page right = ongoing.itr.next();
             emittedPages++;
             try {
-                return ongoing.join.join(right);
+                Page joinedPage = ongoing.join.join(right);
+                emittedRows += joinedPage.getPositionCount();
+                return joinedPage;
             } finally {
                 right.releaseBlocks();
             }
@@ -183,6 +198,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return null;
         }
         emittedPages++;
+        emittedRows += remaining.get().getPositionCount();
         return remaining.get();
     }
 
@@ -203,6 +219,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 .append(" inputChannel=")
                 .append(matchField.channel());
         }
+
+        stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
         stringBuilder.append("]");
         return stringBuilder.toString();
     }
@@ -229,7 +247,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalRows, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalRows, emittedPages, emittedRows);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -239,22 +257,36 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
+        private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
+            "esql_lookup_operator_emitted_rows"
+        );
+
         private final long totalRows;
         /**
          * Total number of pages emitted by this {@link Operator}.
          */
         private final long emittedPages;
+        /**
+         * Total number of rows emitted by this {@link Operator}.
+         */
+        private final long emittedRows;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalRows, long emittedPages) {
-            super(receivedPages, completedPages, totalTimeInMillis);
+        Status(long receivedPages, long completedPages, long processNanos, long totalRows, long emittedPages, long emittedRows) {
+            super(receivedPages, completedPages, processNanos);
             this.totalRows = totalRows;
             this.emittedPages = emittedPages;
+            this.emittedRows = emittedRows;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
             this.totalRows = in.readVLong();
             this.emittedPages = in.readVLong();
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+                this.emittedRows = in.readVLong();
+            } else {
+                this.emittedRows = 0L;
+            }
         }
 
         @Override
@@ -262,6 +294,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             super.writeTo(out);
             out.writeVLong(totalRows);
             out.writeVLong(emittedPages);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+                out.writeVLong(emittedRows);
+            }
+
         }
 
         @Override
@@ -273,6 +309,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return emittedPages;
         }
 
+        public long emittedRows() {
+            return emittedPages;
+        }
+
         public long totalRows() {
             return totalRows;
         }
@@ -281,8 +321,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             super.innerToXContent(builder);
-            builder.field("emitted_pages", emittedPages());
-            builder.field("total_rows", totalRows());
+            builder.field("pages_emitted", emittedPages);
+            builder.field("rows_emitted", emittedRows);
+            builder.field("total_rows", totalRows);
             return builder.endObject();
         }
 
@@ -295,12 +336,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 return false;
             }
             Status status = (Status) o;
-            return totalRows == status.totalRows && emittedPages == status.emittedPages;
+            return totalRows == status.totalRows && emittedPages == status.emittedPages && emittedRows == status.emittedRows;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), totalRows, emittedPages);
+            return Objects.hash(super.hashCode(), totalRows, emittedPages, emittedRows);
         }
     }
 

@@ -4156,9 +4156,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
                 final String partName = fileInfo.partName(i);
                 logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
-                final long startMillis = threadPool.relativeTimeInMillis();
+                final long startMillis = threadPool.rawRelativeTimeInMillis();
                 shardContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, partName, inputStream, partBytes, false);
-                final long uploadTimeInMillis = threadPool.relativeTimeInMillis() - startMillis;
+                final long uploadTimeInMillis = threadPool.rawRelativeTimeInMillis() - startMillis;
                 blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
                 logger.trace(
                     "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",

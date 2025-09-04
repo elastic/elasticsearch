@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.esql.spatial;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class StGeotileLicenseIT extends SpatialGridLicenseTestCase {
     @Override
@@ -30,13 +29,13 @@ public class StGeotileLicenseIT extends SpatialGridLicenseTestCase {
     }
 
     @Override
-    protected Map<Long, Long> expectedValues() {
-        Map<Long, Long> expected = new HashMap<>();
-        for (Point point : testData) {
-            long gridId = StGeotile.unboundedGrid.calculateGridId(point, precision());
-            expected.compute(gridId, (k, v) -> v == null ? 1 : v + 1);
-        }
-        return expected;
+    protected DataType gridType() {
+        return DataType.GEOTILE;
+    }
+
+    @Override
+    protected long pointToGridId(Point point) {
+        return StGeotile.unboundedGrid.calculateGridId(point, precision());
     }
 
     public void testGeoGridWithShapes() {

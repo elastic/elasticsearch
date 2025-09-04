@@ -34,6 +34,19 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
     @Override
     FloatBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default FloatVector deepCopy(BlockFactory blockFactory) {
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 

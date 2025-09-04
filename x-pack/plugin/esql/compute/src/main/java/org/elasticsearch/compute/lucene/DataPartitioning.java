@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.compute.operator.Driver;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * How we partition the data across {@link Driver}s. Each request forks into
@@ -54,5 +56,19 @@ public enum DataPartitioning {
      *       their own tasks. See {@link LuceneSliceQueue#nextSlice(LuceneSlice)}.</li>
      * </ol>
      */
-    DOC
+    DOC;
+
+    @FunctionalInterface
+    public interface AutoStrategy {
+        Function<Query, LuceneSliceQueue.PartitioningStrategy> pickStrategy(int limit);
+
+        AutoStrategy DEFAULT = LuceneSourceOperator.Factory::autoStrategy;
+        AutoStrategy DEFAULT_TIME_SERIES = limit -> {
+            if (limit == LuceneOperator.NO_LIMIT) {
+                return q -> LuceneSliceQueue.PartitioningStrategy.DOC;
+            } else {
+                return DEFAULT.pickStrategy(limit);
+            }
+        };
+    }
 }

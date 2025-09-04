@@ -13,7 +13,8 @@ import com.google.common.collect.Comparators;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -21,44 +22,32 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.process.ExecOperations;
-import org.gradle.process.ExecResult;
+import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.VerificationTask;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.regex.Pattern;
-
-import javax.inject.Inject;
-
-import static org.elasticsearch.gradle.internal.transport.TransportVersionReference.listFromFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.definitionFilePath;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.latestFilePath;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readDefinitionFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readLatestFile;
 
 /**
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionResourcesTask extends DefaultTask {
+public abstract class ValidateTransportVersionResourcesTask extends DefaultTask implements VerificationTask {
 
     @InputDirectory
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getResourcesDirectory();
+    public Path getResourcesDir() {
+        return getResources().get().getTransportResourcesDir();
+    }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -68,211 +57,164 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
 
-    private final Path rootPath;
-    private final ExecOperations execOperations;
-
-    // all transport version names referenced
-    private final Set<String> allNames = new HashSet<>();
-    // direct lookup of definition by name
-    private final Map<String, TransportVersionDefinition> definitions = new HashMap<>();
-    // which resource files already existed
-    private final Set<String> existingResources = new HashSet<>();
-    // reverse lookup of ids back to name
-    private final Map<Integer, String> definedIds = new HashMap<>();
-    // lookup of base ids back to definition
-    private final Map<Integer, List<IdAndDefinition>> idsByBase = new HashMap<>();
-    // direct lookup of latest for each branch
-    Map<String, TransportVersionLatest> latestByBranch = new HashMap<>();
-
-    @Inject
-    public ValidateTransportVersionResourcesTask(ExecOperations execOperations) {
-        this.execOperations = execOperations;
-        this.rootPath = getProject().getRootProject().getLayout().getProjectDirectory().getAsFile().toPath();
-    }
+    @ServiceReference("transportVersionResources")
+    abstract Property<TransportVersionResourcesService> getResources();
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path resourcesDir = getResourcesDirectory().getAsFile().get().toPath();
-        Path definitionsDir = resourcesDir.resolve("definitions");
-        Path latestDir = resourcesDir.resolve("latest");
+        TransportVersionResourcesService resources = getResources().get();
+        Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
+        Map<String, TransportVersionDefinition> referableDefinitions = resources.getReferableDefinitions();
+        Map<String, TransportVersionDefinition> unreferableDefinitions = resources.getUnreferableDefinitions();
+        Map<String, TransportVersionDefinition> allDefinitions = collectAllDefinitions(referableDefinitions, unreferableDefinitions);
+        Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(allDefinitions.values());
+        Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
 
-        // first check which resource files already exist in main
-        recordExistingResources();
-
-        // then collect all names referenced in the codebase
-        for (var referencesFile : getReferencesFiles()) {
-            listFromFile(referencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(allNames::add);
+        for (var definition : referableDefinitions.values()) {
+            validateNamedDefinition(definition, referencedNames);
         }
 
-        // now load all definitions, do some validation and record them by various keys for later quick lookup
-        // NOTE: this must run after loading referenced names and existing definitions
-        // NOTE: this is sorted so that the order of cross validation is deterministic
-        for (String subDir : List.of("initial", "named")) {
-            try (var definitionsStream = Files.list(definitionsDir.resolve(subDir)).sorted()) {
-                for (var definitionFile : definitionsStream.toList()) {
-                    recordAndValidateDefinition(readDefinitionFile(definitionFile));
-                }
-            }
+        for (var definition : unreferableDefinitions.values()) {
+            validateUnreferencedDefinition(definition);
         }
 
-        // cleanup base lookup so we can check ids
-        // NOTE: this must run after definition recording
         for (var entry : idsByBase.entrySet()) {
-            cleanupAndValidateBase(entry.getKey(), entry.getValue());
+            validateBase(entry.getKey(), entry.getValue());
         }
 
-        // now load all latest versions and do validation
-        // NOTE: this must run after definition recording and idsByBase cleanup
-        try (var latestStream = Files.list(latestDir)) {
-            for (var latestFile : latestStream.toList()) {
-                recordAndValidateLatest(readLatestFile(latestFile));
+        for (var upperBound : upperBounds.values()) {
+            validateUpperBound(upperBound, allDefinitions, idsByBase);
+        }
+
+        validateLargestIdIsUsed(upperBounds, allDefinitions);
+    }
+
+    private Map<String, TransportVersionDefinition> collectAllDefinitions(
+        Map<String, TransportVersionDefinition> referableDefinitions,
+        Map<String, TransportVersionDefinition> unreferableDefinitions
+    ) {
+        Map<String, TransportVersionDefinition> allDefinitions = new HashMap<>(referableDefinitions);
+        for (var entry : unreferableDefinitions.entrySet()) {
+            TransportVersionDefinition existing = allDefinitions.put(entry.getKey(), entry.getValue());
+            if (existing != null) {
+                Path unreferablePath = getResources().get().getUnreferableDefinitionRepositoryPath(entry.getValue());
+                throwDefinitionFailure(existing, "has same name as unreferable definition [" + unreferablePath + "]");
             }
         }
+        return allDefinitions;
     }
 
-    private String gitCommand(String... args) {
-        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+    private Map<Integer, List<IdAndDefinition>> collectIdsByBase(Collection<TransportVersionDefinition> definitions) {
+        Map<Integer, List<IdAndDefinition>> idsByBase = new HashMap<>();
 
-        List<String> command = new ArrayList<>();
-        Collections.addAll(command, "git", "-C", rootPath.toAbsolutePath().toString());
-        Collections.addAll(command, args);
-
-        ExecResult result = execOperations.exec(spec -> {
-            spec.setCommandLine(command);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stdout);
-            spec.setIgnoreExitValue(true);
-        });
-
-        if (result.getExitValue() != 0) {
-            throw new RuntimeException(
-                "git command failed with exit code "
-                    + result.getExitValue()
-                    + System.lineSeparator()
-                    + "command: "
-                    + String.join(" ", command)
-                    + System.lineSeparator()
-                    + "output:"
-                    + System.lineSeparator()
-                    + stdout.toString(StandardCharsets.UTF_8)
-            );
+        // first collect all ids, organized by base
+        for (TransportVersionDefinition definition : definitions) {
+            for (TransportVersionId id : definition.ids()) {
+                idsByBase.computeIfAbsent(id.base(), k -> new ArrayList<>()).add(new IdAndDefinition(id, definition));
+            }
         }
 
-        return stdout.toString(StandardCharsets.UTF_8);
-    }
-
-    private void recordExistingResources() {
-        String resourcesPath = relativePath(getResourcesDirectory().getAsFile().get().toPath());
-        String output = gitCommand("ls-tree", "--name-only", "-r", "main", resourcesPath);
-        Collections.addAll(existingResources, output.split(System.lineSeparator()));
-    }
-
-    private void recordAndValidateDefinition(TransportVersionDefinition definition) {
-        definitions.put(definition.name(), definition);
-        // record the ids for each base id so we can ensure compactness later
-        for (TransportVersionId id : definition.ids()) {
-            idsByBase.computeIfAbsent(id.base(), k -> new ArrayList<>()).add(new IdAndDefinition(id, definition));
+        // now sort the ids within each base so we can check density later
+        for (var ids : idsByBase.values()) {
+            // first sort the ids list so we can check compactness and quickly lookup the highest id later
+            ids.sort(Comparator.comparingInt(a -> a.id().complete()));
         }
+
+        return idsByBase;
+    }
+
+    private void validateNamedDefinition(TransportVersionDefinition definition, Set<String> referencedNames) {
 
         // validate any modifications
         Map<Integer, TransportVersionId> existingIdsByBase = new HashMap<>();
-        TransportVersionDefinition originalDefinition = readExistingDefinition(definition.name());
+        TransportVersionDefinition originalDefinition = getResources().get().getReferableDefinitionFromMain(definition.name());
         if (originalDefinition != null) {
-
-            int primaryId = definition.ids().get(0).complete();
-            int originalPrimaryId = originalDefinition.ids().get(0).complete();
-            if (primaryId != originalPrimaryId) {
-                throwDefinitionFailure(definition.name(), "has modified primary id from " + originalPrimaryId + " to " + primaryId);
-            }
-
+            validateIdenticalPrimaryId(definition, originalDefinition);
             originalDefinition.ids().forEach(id -> existingIdsByBase.put(id.base(), id));
         }
 
-        if (allNames.contains(definition.name()) == false && definition.name().startsWith("initial_") == false) {
-            throwDefinitionFailure(definition.name(), "is not referenced");
+        if (referencedNames.contains(definition.name()) == false) {
+            throwDefinitionFailure(definition, "is not referenced");
         }
         if (NAME_FORMAT.matcher(definition.name()).matches() == false) {
-            throwDefinitionFailure(definition.name(), "does not have a valid name, must be lowercase alphanumeric and underscore");
+            throwDefinitionFailure(definition, "does not have a valid name, must be lowercase alphanumeric and underscore");
         }
         if (definition.ids().isEmpty()) {
-            throwDefinitionFailure(definition.name(), "does not contain any ids");
+            throwDefinitionFailure(definition, "does not contain any ids");
         }
-        if (Comparators.isInOrder(definition.ids(), Comparator.reverseOrder()) == false) {
-            throwDefinitionFailure(definition.name(), "does not have ordered ids");
+        if (Comparators.isInOrder(definition.ids(), Comparator.naturalOrder()) == false) {
+            throwDefinitionFailure(definition, "does not have ordered ids");
         }
         for (int ndx = 0; ndx < definition.ids().size(); ++ndx) {
             TransportVersionId id = definition.ids().get(ndx);
 
-            String existing = definedIds.put(id.complete(), definition.name());
-            if (existing != null) {
-                throwDefinitionFailure(
-                    definition.name(),
-                    "contains id " + id + " already defined in [" + definitionRelativePath(existing) + "]"
-                );
-            }
-
             if (ndx == 0) {
-                // TODO: initial versions will only be applicable to a release branch, so they won't have an associated
-                // main version. They will also be loaded differently in the future, but until they are separate, we ignore them here.
-                if (id.patch() != 0 && definition.name().startsWith("initial_") == false) {
-                    throwDefinitionFailure(definition.name(), "has patch version " + id.complete() + " as primary id");
+                if (id.patch() != 0) {
+                    throwDefinitionFailure(definition, "has patch version " + id.complete() + " as primary id");
                 }
             } else {
                 if (id.patch() == 0) {
-                    throwDefinitionFailure(definition.name(), "contains bwc id [" + id + "] with a patch part of 0");
+                    throwDefinitionFailure(definition, "contains bwc id [" + id + "] with a patch part of 0");
                 }
             }
 
             // check modifications of ids on same branch, ie sharing same base
             TransportVersionId maybeModifiedId = existingIdsByBase.get(id.base());
             if (maybeModifiedId != null && maybeModifiedId.complete() != id.complete()) {
-                throwDefinitionFailure(definition.name(), "modifies existing patch id from " + maybeModifiedId + " to " + id);
+                throwDefinitionFailure(definition, "modifies existing patch id from " + maybeModifiedId + " to " + id);
             }
         }
     }
 
-    private TransportVersionDefinition readExistingDefinition(String name) {
-        return readExistingFile(name, this::definitionRelativePath, TransportVersionDefinition::fromString);
+    private void validateUnreferencedDefinition(TransportVersionDefinition definition) {
+        TransportVersionDefinition originalDefinition = getResources().get().getUnreferableDefinitionFromMain(definition.name());
+        if (originalDefinition != null) {
+            validateIdenticalPrimaryId(definition, originalDefinition);
+        }
+        if (definition.ids().isEmpty()) {
+            throwDefinitionFailure(definition, "does not contain any ids");
+        }
+        if (definition.ids().size() > 1) {
+            throwDefinitionFailure(definition, " contains more than one id");
+        }
+        // note: no name validation, anything that is a valid filename is ok, this allows eg initial_8.9.1
     }
 
-    private TransportVersionLatest readExistingLatest(String branch) {
-        return readExistingFile(branch, this::latestRelativePath, TransportVersionLatest::fromString);
+    private void validateIdenticalPrimaryId(TransportVersionDefinition definition, TransportVersionDefinition originalDefinition) {
+        assert definition.name().equals(originalDefinition.name());
+
+        int primaryId = definition.ids().get(0).complete();
+        int originalPrimaryId = originalDefinition.ids().get(0).complete();
+        if (primaryId != originalPrimaryId) {
+            throwDefinitionFailure(definition, "has modified primary id from " + originalPrimaryId + " to " + primaryId);
+        }
     }
 
-    private <T> T readExistingFile(String name, Function<String, String> pathFunction, BiFunction<String, String, T> parser) {
-        String relativePath = pathFunction.apply(name);
-        if (existingResources.contains(relativePath) == false) {
-            return null;
+    private void validateUpperBound(
+        TransportVersionUpperBound upperBound,
+        Map<String, TransportVersionDefinition> definitions,
+        Map<Integer, List<IdAndDefinition>> idsByBase
+    ) {
+        TransportVersionDefinition upperBoundDefinition = definitions.get(upperBound.name());
+        if (upperBoundDefinition == null) {
+            throwUpperBoundFailure(upperBound, "contains transport version name [" + upperBound.name() + "] which is not defined");
         }
-        String content = gitCommand("show", "main:" + relativePath).strip();
-        return parser.apply(relativePath, content);
-    }
-
-    private void recordAndValidateLatest(TransportVersionLatest latest) {
-        latestByBranch.put(latest.branch(), latest);
-
-        TransportVersionDefinition latestDefinition = definitions.get(latest.name());
-        if (latestDefinition == null) {
-            throwLatestFailure(latest.branch(), "contains transport version name [" + latest.name() + "] which is not defined");
-        }
-        if (latestDefinition.ids().contains(latest.id()) == false) {
-            throwLatestFailure(
-                latest.branch(),
-                "has id " + latest.id() + " which is not in definition [" + definitionRelativePath(latest.name()) + "]"
-            );
+        if (upperBoundDefinition.ids().contains(upperBound.id()) == false) {
+            Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(upperBoundDefinition);
+            throwUpperBoundFailure(upperBound, "has id " + upperBound.id() + " which is not in definition [" + relativePath + "]");
         }
 
-        List<IdAndDefinition> baseIds = idsByBase.get(latest.id().base());
+        List<IdAndDefinition> baseIds = idsByBase.get(upperBound.id().base());
         IdAndDefinition lastId = baseIds.getLast();
-        if (lastId.id().complete() != latest.id().complete()) {
-            throwLatestFailure(
-                latest.branch(),
+        if (lastId.id().complete() != upperBound.id().complete()) {
+            throwUpperBoundFailure(
+                upperBound,
                 "has id "
-                    + latest.id()
+                    + upperBound.id()
                     + " from ["
-                    + latest.name()
+                    + upperBound.name()
                     + "] with base "
-                    + latest.id().base()
+                    + upperBound.id().base()
                     + " but another id "
                     + lastId.id().complete()
                     + " from ["
@@ -281,49 +223,68 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionLatest existingLatest = readExistingLatest(latest.branch());
-        if (existingLatest != null) {
-            if (latest.id().patch() != 0 && latest.id().base() != existingLatest.id().base()) {
-                throwLatestFailure(latest.branch(), "modifies base id from " + existingLatest.id().base() + " to " + latest.id().base());
+        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromMain(upperBound.branch());
+        if (existingUpperBound != null) {
+            if (upperBound.id().patch() != 0 && upperBound.id().base() != existingUpperBound.id().base()) {
+                throwUpperBoundFailure(
+                    upperBound,
+                    "modifies base id from " + existingUpperBound.id().base() + " to " + upperBound.id().base()
+                );
             }
         }
     }
 
-    private void cleanupAndValidateBase(int base, List<IdAndDefinition> ids) {
-        // first sort the ids list so we can check compactness and quickly lookup the highest id later
-        ids.sort(Comparator.comparingInt(a -> a.id().complete()));
-
+    private void validateBase(int base, List<IdAndDefinition> ids) {
         // TODO: switch this to a fully dense check once all existing transport versions have been migrated
         IdAndDefinition previous = ids.getLast();
         for (int ndx = ids.size() - 2; ndx >= 0; --ndx) {
-            IdAndDefinition next = ids.get(ndx);
-            // note that next and previous are reversed here because we are iterating in reverse order
-            if (previous.id().complete() - 1 != next.id().complete()) {
-                throw new IllegalStateException(
-                    "Transport version base id " + base + " is missing patch ids between " + next.id() + " and " + previous.id()
+            IdAndDefinition current = ids.get(ndx);
+
+            if (previous.id().equals(current.id())) {
+                Path existingDefinitionPath = getResources().get().getReferableDefinitionRepositoryPath(previous.definition);
+                throwDefinitionFailure(
+                    current.definition(),
+                    "contains id " + current.id + " already defined in [" + existingDefinitionPath + "]"
                 );
             }
-            previous = next;
+
+            if (previous.id().complete() - 1 != current.id().complete()) {
+                throw new IllegalStateException(
+                    "Transport version base id " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
+                );
+            }
+            previous = current;
         }
     }
 
-    private void throwDefinitionFailure(String name, String message) {
-        throw new IllegalStateException("Transport version definition file [" + definitionRelativePath(name) + "] " + message);
+    private void validateLargestIdIsUsed(
+        Map<String, TransportVersionUpperBound> upperBounds,
+        Map<String, TransportVersionDefinition> allDefinitions
+    ) {
+        // first id is always the highest within a definition, and validated earlier
+        // note we use min instead of max because the id comparator is in descending order
+        var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
+        var highestId = highestDefinition.ids().get(0);
+
+        for (var upperBound : upperBounds.values()) {
+            if (upperBound.id().equals(highestId)) {
+                return;
+            }
+        }
+
+        throwDefinitionFailure(
+            highestDefinition,
+            "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
+        );
     }
 
-    private void throwLatestFailure(String branch, String message) {
-        throw new IllegalStateException("Latest transport version file [" + latestRelativePath(branch) + "] " + message);
+    private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {
+        Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(definition);
+        throw new VerificationException("Transport version definition file [" + relativePath + "] " + message);
     }
 
-    private String definitionRelativePath(String name) {
-        return relativePath(definitionFilePath(getResourcesDirectory().get(), name));
-    }
-
-    private String latestRelativePath(String branch) {
-        return relativePath(latestFilePath(getResourcesDirectory().get(), branch));
-    }
-
-    private String relativePath(Path file) {
-        return rootPath.relativize(file).toString();
+    private void throwUpperBoundFailure(TransportVersionUpperBound upperBound, String message) {
+        Path relativePath = getResources().get().getUpperBoundRepositoryPath(upperBound);
+        throw new VerificationException("Transport version upper bound file [" + relativePath + "] " + message);
     }
 }

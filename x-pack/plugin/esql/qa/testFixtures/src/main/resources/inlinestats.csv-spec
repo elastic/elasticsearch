@@ -2915,9 +2915,9 @@ required_capability: inlinestats_v11
 FROM sample_data, sample_data_ts_nanos
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
 | INLINESTATS count=count(*) BY @timestamp
-| SORT count DESC, @timestamp ASC
 | KEEP count, @timestamp
 | STATS count=count(*) BY @timestamp
+| SORT count DESC, @timestamp ASC
 ;
 
 count:long  |  @timestamp:date
@@ -2931,9 +2931,9 @@ required_capability: inlinestats_v11
 FROM sample_data, sample_data_ts_nanos
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATE_NANOS(@timestamp))
 | INLINESTATS count=count(*) BY @timestamp
-| SORT count DESC, @timestamp ASC
 | KEEP count, @timestamp
 | STATS count=count(*) BY @timestamp
+| SORT count DESC, @timestamp ASC
 ;
 
 count:long  |  @timestamp:date_nanos

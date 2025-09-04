@@ -49,7 +49,7 @@ public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
                     conditional = new IsNotNull(logicalPlan.source(), metric);
                 } else {
                     // Join the is not null checks with OR nodes
-                    conditional = new Or(logicalPlan.source(), conditional, new IsNotNull(Source.EMPTY, metric));
+                    conditional = new Or(logicalPlan.source(), conditional, new IsNotNull(logicalPlan.source(), metric));
                 }
             }
             return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));

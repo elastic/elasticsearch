@@ -151,7 +151,8 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         {
             List<IndexableField> fields = doc.rootDoc().getFields("field.template_id");
             assertEquals(1, fields.size());
-            assertEquals("D3OycqSEnDM", fields.get(0).binaryValue().utf8ToString());
+            // Template is an empty string, so the templateId hash has value AAAAAAAAAAA
+            assertEquals("AAAAAAAAAAA", fields.get(0).binaryValue().utf8ToString());
             IndexableFieldType fieldType = fields.get(0).fieldType();
             assertThat(fieldType.omitNorms(), equalTo(true));
             assertFalse(fieldType.tokenized());

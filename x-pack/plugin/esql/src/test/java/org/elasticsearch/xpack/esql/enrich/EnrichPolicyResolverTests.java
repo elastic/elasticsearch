@@ -51,6 +51,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -434,7 +435,6 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
 
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
-            PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
             EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
             for (String cluster : clusters) {
                 esqlExecutionInfo.swapCluster(cluster, (k, v) -> new EsqlExecutionInfo.Cluster(cluster, "*"));
@@ -452,7 +452,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            super.resolvePolicies(unresolvedPolicies, esqlExecutionInfo, future);
+            PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
+            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 

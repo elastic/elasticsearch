@@ -536,7 +536,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For source indices of the Cloud Detection & Response (CDR) packages
                 // that ships a transform and has ILM policy
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-m365_defender.vulnerability-*", "logs-microsoft_defender_endpoint.vulnerability-*")
+                    .indices(
+                        "logs-m365_defender.vulnerability-*",
+                        "logs-microsoft_defender_endpoint.vulnerability-*",
+                        "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-sentinel_one.application_risk-*"
+                    )
                     .privileges(
                         "read",
                         "view_index_metadata",
@@ -544,10 +549,11 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop and QualysGAV specific actions. Kibana reads, writes and manages this index
+                // For ExtraHop, QualysGAV, and SentinelOne Application Dataset specific actions. Kibana reads, writes and manages this
+                // index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*")
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*", "logs-sentinel_one.application-*")
                     .privileges(
                         "manage",
                         "create_index",

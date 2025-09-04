@@ -373,12 +373,10 @@ public class EsqlSession {
         }
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
-
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
         var listener = SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l))
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
@@ -424,8 +422,8 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution)),
-            false
+            false,
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
 
@@ -655,10 +653,10 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
+                    includeAllDimensions,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
-                    }),
-                    includeAllDimensions
+                    })
                 );
             }
         } else {
@@ -698,7 +696,9 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                if (executionInfo.clusterInfo.isEmpty() == false) {
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                }
             }
             LogicalPlan plan = analyzedPlan(parsed, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);

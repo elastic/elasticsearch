@@ -31,6 +31,8 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
         var resourceRoot = getResourceRoot(project);
 
+        String taskGroup = "Transport Versions";
+
         project.getGradle()
             .getSharedServices()
             .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
@@ -53,7 +55,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionResources", ValidateTransportVersionResourcesTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getShouldValidateDensity().convention(true);
@@ -63,7 +65,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("Generate a manifest resource for all transport version definitions");
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
@@ -73,7 +75,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
         var generateDefinitionsTask = project.getTasks()
             .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getPrimaryIncrement().convention(1000);

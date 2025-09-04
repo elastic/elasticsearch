@@ -112,6 +112,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getMainFile(resourcePath, TransportVersionDefinition::fromString);
     }
 
+    /** Get the definition names which have local changes relative to the main branch */
     List<String> getChangedReferableDefinitionNames() {
         List<String> changedDefinitions = new ArrayList<>();
         String referablePrefix = REFERABLE_DIR.toString();

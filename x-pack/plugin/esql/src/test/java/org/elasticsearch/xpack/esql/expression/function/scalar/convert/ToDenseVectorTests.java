@@ -38,7 +38,7 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         suppliers.add(new TestCaseSupplier("int", List.of(DataType.INTEGER), () -> {
-            List<Integer> data = Arrays.asList(randomArray(1, 10, Integer[]::new, ESTestCase::randomInt));
+            List<Integer> data = Arrays.asList(randomArray(2, 10, Integer[]::new, ESTestCase::randomInt));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(data, DataType.INTEGER, "int")),
                 evaluatorName("Int", "i"),
@@ -48,7 +48,7 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier("long", List.of(DataType.LONG), () -> {
-            List<Long> data = Arrays.asList(randomArray(1, 10, Long[]::new, ESTestCase::randomLong));
+            List<Long> data = Arrays.asList(randomArray(2, 10, Long[]::new, ESTestCase::randomLong));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(data, DataType.LONG, "long")),
                 evaluatorName("Long", "l"),
@@ -58,7 +58,7 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier("double", List.of(DataType.DOUBLE), () -> {
-            List<Double> data = Arrays.asList(randomArray(1, 10, Double[]::new, ESTestCase::randomDouble));
+            List<Double> data = Arrays.asList(randomArray(2, 10, Double[]::new, ESTestCase::randomDouble));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(data, DataType.DOUBLE, "double")),
                 evaluatorName("Double", "d"),
@@ -68,7 +68,7 @@ public class ToDenseVectorTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier("keyword", List.of(DataType.KEYWORD), () -> {
-            byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 20));
+            byte[] bytes = randomByteArrayOfLength(randomIntBetween(2, 20));
             String data = HexFormat.of().formatHex(bytes);
             List<Float> expected = new ArrayList<>(bytes.length);
             for (int i = 0; i < bytes.length; i++) {

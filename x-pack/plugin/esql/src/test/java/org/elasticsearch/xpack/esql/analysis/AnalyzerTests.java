@@ -2494,7 +2494,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testVectorFunctionHexImplicitCastingError() {
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {

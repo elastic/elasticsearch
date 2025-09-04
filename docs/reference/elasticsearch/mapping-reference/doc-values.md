@@ -9,7 +9,7 @@ Most fields are [indexed](/reference/elasticsearch/mapping-reference/mapping-ind
 
 Sorting, aggregations, and access to field values in scripts requires a different data access pattern. Instead of looking up the term and finding documents, we need to be able to look up the document and find the terms that it has in a field.
 
-The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation. 
+The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation.
 
 Doc values are supported on most field types, excluding `text` and `annotated_text` fields. See also [Disabling doc values](#_disabling_doc_values).
 
@@ -73,6 +73,13 @@ PUT my-index-000001
 1. The `status_code` field has `doc_values` enabled by default.
 2. The `session_id` has `doc_values` disabled, but can still be queried.
 
+## Multi-valued doc values note
+
+Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates may be lost.
+This implementation detail of doc values is visible when features directly interact with doc values, which may be the case for example in ES|QL or aggregations in the search API. Note, that _source always returns arrays in the way that was provided at index time.
+
+How the ordering differs depends on whether the array is mapped as keyword or a numeric field type. In case of the `keyword` field type, the multi-valued values for each document are ordered lexicographically and duplicates are lost. If retaining duplicates is important then the `counted_keyword` field type should be used.
+In case of numeric field types (e.g. `long`, `double`, `scaled_float`, etc.), the multi-valued values for each document are ordered in natural order and duplicates are retained.
 
 
 

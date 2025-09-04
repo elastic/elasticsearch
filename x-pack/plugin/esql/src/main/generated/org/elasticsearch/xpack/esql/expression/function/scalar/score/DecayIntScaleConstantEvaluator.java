@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Decay}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayIntEvaluator.class);
+public final class DecayIntScaleConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayIntScaleConstantEvaluator.class);
 
   private final Source source;
 
@@ -34,7 +34,7 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final EvalOperator.ExpressionEvaluator origin;
 
-  private final EvalOperator.ExpressionEvaluator scale;
+  private final int scale;
 
   private final int offset;
 
@@ -46,9 +46,9 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings;
 
-  public DecayIntEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator origin, EvalOperator.ExpressionEvaluator scale, int offset,
-      double decay, BytesRef functionType, DriverContext driverContext) {
+  public DecayIntScaleConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
+      EvalOperator.ExpressionEvaluator origin, int scale, int offset, double decay,
+      BytesRef functionType, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
@@ -63,21 +63,15 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
   public Block eval(Page page) {
     try (IntBlock valueBlock = (IntBlock) value.eval(page)) {
       try (IntBlock originBlock = (IntBlock) origin.eval(page)) {
-        try (IntBlock scaleBlock = (IntBlock) scale.eval(page)) {
-          IntVector valueVector = valueBlock.asVector();
-          if (valueVector == null) {
-            return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock);
-          }
-          IntVector originVector = originBlock.asVector();
-          if (originVector == null) {
-            return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock);
-          }
-          IntVector scaleVector = scaleBlock.asVector();
-          if (scaleVector == null) {
-            return eval(page.getPositionCount(), valueBlock, originBlock, scaleBlock);
-          }
-          return eval(page.getPositionCount(), valueVector, originVector, scaleVector).asBlock();
+        IntVector valueVector = valueBlock.asVector();
+        if (valueVector == null) {
+          return eval(page.getPositionCount(), valueBlock, originBlock);
         }
+        IntVector originVector = originBlock.asVector();
+        if (originVector == null) {
+          return eval(page.getPositionCount(), valueBlock, originBlock);
+        }
+        return eval(page.getPositionCount(), valueVector, originVector).asBlock();
       }
     }
   }
@@ -87,12 +81,10 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += value.baseRamBytesUsed();
     baseRamBytesUsed += origin.baseRamBytesUsed();
-    baseRamBytesUsed += scale.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, IntBlock valueBlock, IntBlock originBlock,
-      IntBlock scaleBlock) {
+  public DoubleBlock eval(int positionCount, IntBlock valueBlock, IntBlock originBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
@@ -117,28 +109,16 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        if (scaleBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (scaleBlock.getValueCount(p) != 1) {
-          if (scaleBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Decay.processInt(valueBlock.getInt(valueBlock.getFirstValueIndex(p)), originBlock.getInt(originBlock.getFirstValueIndex(p)), scaleBlock.getInt(scaleBlock.getFirstValueIndex(p)), this.offset, this.decay, this.functionType));
+        result.appendDouble(Decay.processScaleConstant(valueBlock.getInt(valueBlock.getFirstValueIndex(p)), originBlock.getInt(originBlock.getFirstValueIndex(p)), this.scale, this.offset, this.decay, this.functionType));
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, IntVector valueVector, IntVector originVector,
-      IntVector scaleVector) {
+  public DoubleVector eval(int positionCount, IntVector valueVector, IntVector originVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.processInt(valueVector.getInt(p), originVector.getInt(p), scaleVector.getInt(p), this.offset, this.decay, this.functionType));
+        result.appendDouble(p, Decay.processScaleConstant(valueVector.getInt(p), originVector.getInt(p), this.scale, this.offset, this.decay, this.functionType));
       }
       return result.build();
     }
@@ -146,12 +126,12 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public String toString() {
-    return "DecayIntEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+    return "DecayIntScaleConstantEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(value, origin, scale);
+    Releasables.closeExpectNoException(value, origin);
   }
 
   private Warnings warnings() {
@@ -173,7 +153,7 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
     private final EvalOperator.ExpressionEvaluator.Factory origin;
 
-    private final EvalOperator.ExpressionEvaluator.Factory scale;
+    private final int scale;
 
     private final int offset;
 
@@ -182,8 +162,7 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
     private final BytesRef functionType;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
-        EvalOperator.ExpressionEvaluator.Factory origin,
-        EvalOperator.ExpressionEvaluator.Factory scale, int offset, double decay,
+        EvalOperator.ExpressionEvaluator.Factory origin, int scale, int offset, double decay,
         BytesRef functionType) {
       this.source = source;
       this.value = value;
@@ -195,13 +174,13 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public DecayIntEvaluator get(DriverContext context) {
-      return new DecayIntEvaluator(source, value.get(context), origin.get(context), scale.get(context), offset, decay, functionType, context);
+    public DecayIntScaleConstantEvaluator get(DriverContext context) {
+      return new DecayIntScaleConstantEvaluator(source, value.get(context), origin.get(context), scale, offset, decay, functionType, context);
     }
 
     @Override
     public String toString() {
-      return "DecayIntEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+      return "DecayIntScaleConstantEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
     }
   }
 }

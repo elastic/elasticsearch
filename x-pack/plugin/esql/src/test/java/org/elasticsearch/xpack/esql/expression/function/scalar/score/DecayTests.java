@@ -622,7 +622,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
-                    startsWith("DecayIntEvaluator["),
+                    startsWith("DecayInt"),
                     DataType.DOUBLE,
                     equalTo(expected)
                 )
@@ -656,7 +656,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
                         .forceLiteral()
                 ),
-                startsWith("DecayIntEvaluator["),
+                startsWith("DecayInt"),
                 DataType.DOUBLE,
                 equalTo(scoreScriptNumericResult)
             );

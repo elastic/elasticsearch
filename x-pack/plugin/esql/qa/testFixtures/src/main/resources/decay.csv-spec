@@ -102,6 +102,8 @@ decay_result:double
 ;
 
 intMultipleRows
+required_capability: decay_function
+
 FROM employees
 | EVAL decay_result = decay(salary, 0, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
 | KEEP decay_result
@@ -113,6 +115,87 @@ decay_result:double
 0.691
 0.819155
 0.682385
+;
+
+intOriginReference
+required_capability: decay_function
+
+ROW value = 5, origin = 10
+| EVAL decay_result = decay(value, origin, 10, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intScaleReference
+required_capability: decay_function
+
+ROW value = 5, scale = 10
+| EVAL decay_result = decay(value, 10, scale, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intScaleAndOriginReference
+required_capability: decay_function
+
+ROW value = 5, origin = 10, scale = 10
+| EVAL decay_result = decay(value, origin, scale, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intMultipleRowsOriginReference
+required_capability: decay_function
+
+FROM employees
+| EVAL decay_result = decay(salary, salary, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
+| KEEP decay_result
+| LIMIT 5;
+
+decay_result:double
+1.0
+1.0
+1.0
+1.0
+1.0
+;
+
+intMultipleRowsOriginAndScaleReference
+required_capability: decay_function
+
+FROM employees
+| EVAL decay_result = decay(salary, salary, salary, {"offset": 5, "decay": 0.5, "type": "linear"})
+| KEEP decay_result
+| LIMIT 5;
+
+decay_result:double
+1.0
+1.0
+1.0
+1.0
+1.0
+;
+
+intMultipleRowsScaleReference
+required_capability: decay_function
+
+FROM employees
+| EVAL decay_result = decay(salary, 0, salary, {"offset": 5, "decay": 0.5, "type": "linear"})
+| KEEP decay_result
+| LIMIT 5;
+
+decay_result:double
+0.5000436262106274
+0.5000443490447216
+0.500040449801796
+0.5000691104107923
+0.5000393527263569
 ;
 
 doubleLinear

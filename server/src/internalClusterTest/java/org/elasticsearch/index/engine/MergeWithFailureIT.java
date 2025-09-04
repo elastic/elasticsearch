@@ -64,11 +64,19 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Test a specific deadlock situation encountered when a merge throws an exception which closes the
+ * {@link org.apache.lucene.index.IndexWriter}, which in turn closes the {@link ThreadPoolMergeScheduler} which would wait for all merges
+ * to be aborted/completed in a manner that would not work if the current thread is one of the merges to be aborted. As a consequence, the
+ *  {@link ThreadPoolMergeScheduler} is blocked indefinitely and the shard's store remains opened.
+ *
+ * This test creates one or more indices with one or more shards, then selects some of those shards and ensures each selected shard throws
+ * an exception during a merge. It finally checks that the shard indeed failed and that their stores were closed correctly.
+ */
 public class MergeWithFailureIT extends ESIntegTestCase {
 
     private static final String FAILING_MERGE_ON_PURPOSE = "Failing merge on purpose";

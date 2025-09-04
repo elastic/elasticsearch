@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -208,8 +210,18 @@ public class PlannerUtils {
     ) {
         final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
+            .stream()
+            .map(x -> ((LookupJoinExec) x).right())
+            .collect(Collectors.toSet());
 
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+            if (lookupJoinExecRightChildren.contains(f)) {
+                // Do not optimize the right child of a lookup join exec
+                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
+                // Also we only ship logical plans across the network, so the plan needs to remain logical
+                return f;
+            }
             isCoordPlan.set(Boolean.FALSE);
             var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
             var physicalFragment = localMapper.map(optimizedFragment);

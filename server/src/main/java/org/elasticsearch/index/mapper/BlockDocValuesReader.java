@@ -864,10 +864,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public static class BytesRefsFromBinaryBlockLoader extends DocValuesBlockLoader {
+    public static class BytesRefsFromCustomBinaryBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 
-        public BytesRefsFromBinaryBlockLoader(String fieldName) {
+        public BytesRefsFromCustomBinaryBlockLoader(String fieldName) {
             this.fieldName = fieldName;
         }
 
@@ -882,16 +882,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues == null) {
                 return new ConstantNullsReader();
             }
-            return new BytesRefsFromBinary(docValues);
+            return new BytesRefsFromCustomBinary(docValues);
         }
     }
 
-    private static class BytesRefsFromBinary extends BlockDocValuesReader {
-        private final BinaryDocValues docValues;
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
-        private final BytesRef scratch = new BytesRef();
+    abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
+        protected final BinaryDocValues docValues;
 
-        BytesRefsFromBinary(BinaryDocValues docValues) {
+        AbstractBytesRefsFromBinary(BinaryDocValues docValues) {
             this.docValues = docValues;
         }
 
@@ -911,7 +909,27 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             read(docId, (BytesRefBuilder) builder);
         }
 
-        private void read(int doc, BytesRefBuilder builder) throws IOException {
+        @Override
+        public int docId() {
+            return docValues.docID();
+        }
+
+        abstract void read(int docId, BytesRefBuilder builder) throws IOException;
+    }
+
+    /**
+     * Read BinaryDocValues encoded by {@link BinaryFieldMapper.CustomBinaryDocValuesField}
+     */
+    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
+        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final BytesRef scratch = new BytesRef();
+
+        BytesRefsFromCustomBinary(BinaryDocValues docValues) {
+            super(docValues);
+        }
+
+        @Override
+        void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == docValues.advanceExact(doc)) {
                 builder.appendNull();
                 return;
@@ -939,8 +957,28 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public int docId() {
-            return docValues.docID();
+        public String toString() {
+            return "BlockDocValuesReader.BytesCustom";
+        }
+    }
+
+    /**
+     * Read BinaryDocValues with no additional structure in the BytesRefs.
+     * Each BytesRef from the doc values maps directly to a value in the block loader.
+     */
+    public static class BytesRefsFromBinary extends AbstractBytesRefsFromBinary {
+        public BytesRefsFromBinary(BinaryDocValues docValues) {
+            super(docValues);
+        }
+
+        @Override
+        void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            BytesRef bytes = docValues.binaryValue();
+            builder.appendBytesRef(bytes);
         }
 
         @Override

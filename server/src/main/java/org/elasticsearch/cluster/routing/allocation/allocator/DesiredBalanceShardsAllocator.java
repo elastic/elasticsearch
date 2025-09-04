@@ -109,6 +109,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
     }
 
+    @FunctionalInterface
+    public interface ShardAllocationExplainer {
+        ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
+    }
+
     public DesiredBalanceShardsAllocator(
         ClusterSettings clusterSettings,
         ShardsAllocator delegateAllocator,
@@ -116,13 +121,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        ShardAllocationExplainer shardAllocationExplainer
     ) {
         this(
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
+            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, shardAllocationExplainer),
             reconciler,
             telemetryProvider,
             nodeAllocationStatsAndWeightsCalculator

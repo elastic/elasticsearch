@@ -3037,8 +3037,8 @@ required_capability: inlinestats_v11
 FROM sample_data, sample_data_ts_long
 | EVAL hour = LEFT(TO_STRING(TO_DATETIME(@timestamp)), 13)
 | INLINESTATS count=count(*) BY hour
-| SORT count DESC, hour ASC
 | STATS count_distinct(count) BY count, hour
+| SORT count DESC, hour ASC
 | KEEP count, hour
 ;
 

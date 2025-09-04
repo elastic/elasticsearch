@@ -975,7 +975,8 @@ public class Security extends Plugin
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
-        ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
+        ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get()
+            .create(clusterService, projectResolver, fileRolesStore.get()::exists);
         components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();

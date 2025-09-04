@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
@@ -389,6 +390,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         );
     }
 
+    static SnapshotInvocationRecord buildSnapshotRecord(SnapshotInfo snapshotInfo, @Nullable String details) {
+        return new SnapshotInvocationRecord(snapshotInfo.snapshotId().getName(), snapshotInfo.startTime(), snapshotInfo.endTime(), details);
+    }
+
     static boolean isSnapshotSuccessful(SnapshotInfo snapshotInfo) {
         return snapshotInfo.state() != null && snapshotInfo.state().completed() && snapshotInfo.failedShards() == 0;
     }
@@ -506,11 +511,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     continue;
                 }
                 if (snapLifecycles.containsKey(registeredSnapshot.getPolicy()) == false) {
-                    // the SLM policy no longer exists, just remove the snapshot from registered set, no need to record stats
+                    // the SLM policy no longer exists, just remove the snapshot from registered set
                     continue;
                 }
                 if (registeredSnapshot.getPolicy().equals(policyName) == false || runningSnapshots.contains(registeredSnapshotId)) {
-                    // the snapshot is for another policy, leave it to that policy to clean up, or the snapshot is still running
+                    // the snapshot is for another policy, leave it to that policy to clean up, or it is still running.
+                    // keep it in the registered set
                     newRegistered.add(registeredSnapshot);
                 } else {
                     // the snapshot was completed and should be removed from registered snapshots, update state accordingly
@@ -518,37 +524,26 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     if (snapshotInfo != null) {
                         if (isSnapshotSuccessful(snapshotInfo)) {
                             newStats = newStats.withTakenIncremented(policyName);
-                            newPolicyMetadata.setLastSuccess(
-                                new SnapshotInvocationRecord(
-                                    snapshotInfo.snapshotId().getName(),
-                                    snapshotInfo.startTime(),
-                                    snapshotInfo.endTime(),
-                                    null
-                                )
-                            );
-                            newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
+                            newPolicyMetadata.setInvocationsSinceLastSuccess(0L).setLastSuccess(buildSnapshotRecord(snapshotInfo, null));
                         } else {
                             newStats = newStats.withFailedIncremented(policyName);
-                            newPolicyMetadata.setLastFailure(
-                                new SnapshotInvocationRecord(
-                                    snapshotInfo.snapshotId().getName(),
-                                    snapshotInfo.startTime(),
-                                    snapshotInfo.endTime(),
-                                    String.format(
-                                        Locale.ROOT,
-                                        "found failed registered snapshot [%s], the master node was likely shutdown during SLM execution",
-                                        snapshotInfo.snapshotId().getName()
+                            newPolicyMetadata.incrementInvocationsSinceLastSuccess()
+                                .setLastFailure(
+                                    buildSnapshotRecord(
+                                        snapshotInfo,
+                                        format(
+                                            "found failed snapshot [%s] in the registered SLM snapshot set",
+                                            snapshotInfo.snapshotId().getName()
+                                        )
                                     )
-                                )
-                            );
-                            newPolicyMetadata.incrementInvocationsSinceLastSuccess();
+                                );
                         }
                     } else {
                         // either the snapshot no longer exist in the repo or its info failed to be retrieved, assume failure to clean it up
                         // so it is not stuck in the registered set forever
+                        newStats = newStats.withFailedIncremented(policyName);
                         newPolicyMetadata.incrementInvocationsSinceLastSuccess()
                             .setLastFailure(buildFailedSnapshotRecord(registeredSnapshotId));
-                        newStats = newStats.withFailedIncremented(policyName);
                     }
                 }
             }

@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.analysis.common.PatternAnalyzer;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -43,6 +46,12 @@ import java.util.function.Supplier;
 public class PatternedTextFieldMapper extends FieldMapper {
 
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
+    private static final NamedAnalyzer ANALYZER;
+
+    static {
+        var analyzer = new PatternAnalyzer(Regex.compile(PatternedTextValueProcessor.DELIMITER, null), true, CharArraySet.EMPTY_SET);
+        ANALYZER = new NamedAnalyzer("pattern_text_analyzer", AnalyzerScope.GLOBAL, analyzer);
+    }
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE_DOCS;
@@ -86,7 +95,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
-                (type, name1) -> Lucene.STANDARD_ANALYZER,
+                (type, name1) -> ANALYZER,
                 m -> ((PatternedTextFieldMapper) m).indexAnalyzer,
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion

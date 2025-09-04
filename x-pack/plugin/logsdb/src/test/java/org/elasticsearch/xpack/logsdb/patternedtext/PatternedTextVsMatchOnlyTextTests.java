@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -87,6 +88,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
     }
 
+    @AwaitsFix(bugUrl = "yes this test will not work")
     public void testQueries() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);

@@ -16,8 +16,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
-import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -129,15 +127,15 @@ public class RestBulkAction extends BaseRestHandler {
                     request.getRestApiVersion()
                 );
             } catch (Exception e) {
-                closeSourceContexts(bulkRequest.requests());
+                Releasables.close(bulkRequest.requests());
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
 
-            // The request list is actually mutable so we make a copy for close.
-            List<DocWriteRequest<?>> toClose = new ArrayList<>(bulkRequest.requests());
+            // The actual bulk request items are mutable during the bulk process so we must create a copy
+            List<DocWriteRequest<?>> toClose = bulkRequest.requests();
             return channel -> client.bulk(
                 bulkRequest,
-                ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> closeSourceContexts(toClose))
+                ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> Releasables.close(toClose))
             );
         } else {
             request.ensureContent();
@@ -237,7 +235,10 @@ public class RestBulkAction extends BaseRestHandler {
                         }
                         data = new ReleasableBytesReference(CompositeBytesReference.of(components), () -> Releasables.close(components));
                     } else {
-                        data = chunk.retain();
+                        // We are creating a dedicated ref count for the application layer here. Otherwise, the leak tracking infrastructure
+                        // will be hit every time a source is released for each doc. We still have leak tracking since the child references
+                        // the parent. There is just a single reference instead of one for every doc.
+                        data = chunk.retainChild();
                     }
 
                     try (ReleasableBytesReference toClose = data) {
@@ -262,14 +263,14 @@ public class RestBulkAction extends BaseRestHandler {
                     assert channel != null;
                     ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                     items.clear();
-                    handler.lastItems(toPass, () -> closeSourceContexts(toPass), new RestRefCountedChunkedToXContentListener<>(channel));
+                    handler.lastItems(toPass, new RestRefCountedChunkedToXContentListener<>(channel));
                 }
                 handler.updateWaitForChunkMetrics(TimeUnit.NANOSECONDS.toMillis(totalChunkWaitTimeInNanos));
                 totalChunkWaitTimeInNanos = 0L;
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
-                handler.addItems(toPass, () -> closeSourceContexts(toPass), () -> {
+                handler.addItems(toPass, () -> {
                     requestNextChunkTime = System.nanoTime();
                     request.contentStream().next();
                 });
@@ -291,7 +292,7 @@ public class RestBulkAction extends BaseRestHandler {
             shortCircuited = true;
             Releasables.close(handler);
             Releasables.close(unParsedChunks);
-            closeSourceContexts(items);
+            Releasables.close(items);
             items.clear();
             unParsedChunks.clear();
         }
@@ -309,15 +310,6 @@ public class RestBulkAction extends BaseRestHandler {
             }
         }
 
-    }
-
-    private static void closeSourceContexts(List<DocWriteRequest<?>> requests) {
-        for (DocWriteRequest<?> request : requests) {
-            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(request);
-            if (indexRequest != null) {
-                indexRequest.sourceContext().close();
-            }
-        }
     }
 
     @Override

@@ -52,6 +52,7 @@ public class SourceContext implements Writeable, Releasable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert isClosed == false;
         if (contentType != null) {
             out.writeBoolean(true);
             XContentHelper.writeTo(out, contentType);
@@ -62,23 +63,32 @@ public class SourceContext implements Writeable, Releasable {
     }
 
     public XContentType contentType() {
+        assert isClosed == false;
         return contentType;
     }
 
     public BytesReference bytes() {
+        assert isClosed == false;
         return source;
     }
 
     public ReleasableBytesReference retainedBytes() {
+        assert isClosed == false;
         return source.retain();
     }
 
     public boolean hasSource() {
+        assert isClosed == false;
         return source != null;
     }
 
     public int byteLength() {
+        assert isClosed == false;
         return source == null ? 0 : source.length();
+    }
+
+    public boolean isClosed() {
+        return isClosed;
     }
 
     @Override
@@ -91,6 +101,7 @@ public class SourceContext implements Writeable, Releasable {
     }
 
     public Map<String, Object> sourceAsMap() {
+        assert isClosed == false;
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
@@ -239,6 +250,7 @@ public class SourceContext implements Writeable, Releasable {
     }
 
     private void setSource(ReleasableBytesReference source, XContentType contentType) {
+        assert isClosed == false;
         Releasable toClose = this.source;
         this.source = source;
         this.contentType = contentType;

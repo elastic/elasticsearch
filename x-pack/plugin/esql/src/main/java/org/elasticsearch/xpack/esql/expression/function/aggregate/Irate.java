@@ -139,4 +139,3 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         return timestamp;
     }
 }
-

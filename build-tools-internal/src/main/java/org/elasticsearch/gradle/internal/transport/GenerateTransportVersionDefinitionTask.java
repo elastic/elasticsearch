@@ -134,7 +134,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return ids;
     }
 
-    private String getTargetDefinitionName(TransportVersionResourcesService resources, Set<String> referencedNames, List<String> changedDefinitions) {
+    private String getTargetDefinitionName(
+        TransportVersionResourcesService resources,
+        Set<String> referencedNames,
+        List<String> changedDefinitions
+    ) {
         if (getDefinitionName().isPresent()) {
             // an explicit definitionName was passed in, so use it
             return getDefinitionName().get();
@@ -180,7 +184,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             List<String> sortedMissing = missingBranches.stream().sorted().toList();
             List<String> sortedKnown = knownUpperBoundNames.stream().sorted().toList();
             throw new IllegalArgumentException(
-                    "Missing upper bounds files for branches " + sortedMissing + ", known branches are " + sortedKnown
+                "Missing upper bounds files for branches " + sortedMissing + ", known branches are " + sortedKnown
             );
         }
 

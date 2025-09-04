@@ -239,7 +239,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                         String upstreamUrl = null;
                         for (String remoteName : remoteNames) {
                             String getUrlOutput = gitCommand("remote", "get-url", remoteName).strip();
-                            if (getUrlOutput.startsWith("git@github.com:elastic/") || getUrlOutput.startsWith("https://github.com/elastic/")) {
+                            if (getUrlOutput.startsWith("git@github.com:elastic/")
+                                || getUrlOutput.startsWith("https://github.com/elastic/")) {
                                 upstreamUrl = getUrlOutput;
                             }
                         }

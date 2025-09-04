@@ -204,11 +204,17 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     ) {
         TransportVersionDefinition upperBoundDefinition = definitions.get(upperBound.definitionName());
         if (upperBoundDefinition == null) {
-            throwUpperBoundFailure(upperBound, "contains transport version definitionName [" + upperBound.definitionName() + "] which is not defined");
+            throwUpperBoundFailure(
+                upperBound,
+                "contains transport version definitionName [" + upperBound.definitionName() + "] which is not defined"
+            );
         }
         if (upperBoundDefinition.ids().contains(upperBound.definitionId()) == false) {
             Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(upperBoundDefinition);
-            throwUpperBoundFailure(upperBound, "has definitionId " + upperBound.definitionId() + " which is not in definition [" + relativePath + "]");
+            throwUpperBoundFailure(
+                upperBound,
+                "has definitionId " + upperBound.definitionId() + " which is not in definition [" + relativePath + "]"
+            );
         }
 
         List<IdAndDefinition> baseIds = idsByBase.get(upperBound.definitionId().base());
@@ -235,7 +241,10 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                 throwUpperBoundFailure(
                     upperBound,
-                    "modifies base definitionId from " + existingUpperBound.definitionId().base() + " to " + upperBound.definitionId().base()
+                    "modifies base definitionId from "
+                        + existingUpperBound.definitionId().base()
+                        + " to "
+                        + upperBound.definitionId().base()
                 );
             }
         }
@@ -257,7 +266,12 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
             if (getShouldValidateDensity().get() && previous.id().complete() - 1 != current.id().complete()) {
                 throw new IllegalStateException(
-                    "Transport version base definitionId " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
+                    "Transport version base definitionId "
+                        + base
+                        + " is missing patch ids between "
+                        + current.id()
+                        + " and "
+                        + previous.id()
                 );
             }
             previous = current;

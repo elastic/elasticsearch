@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -57,7 +58,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -65,7 +65,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isCartesianPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
@@ -208,73 +207,42 @@ public class Decay extends EsqlScalarFunction
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution valueResolution = isNotNull(value, sourceText(), FIRST).and(
+        return validateValue().and(() -> validateOriginAndScale(value.dataType()))
+            .and(() -> Options.resolveWithMultipleDataTypesAllowed(options, source(), FOURTH, ALLOWED_OPTIONS));
+    }
+
+    private TypeResolution validateValue() {
+        return isNotNull(value, sourceText(), FIRST).and(
             isType(value, dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt), sourceText(), FIRST, "numeric, date or spatial point")
         );
-        if (valueResolution.unresolved()) {
-            return valueResolution;
-        }
+    }
 
-        DataType valueDataType = value.dataType();
-        boolean isGeoPoint = isGeoPoint(valueDataType);
-        boolean isCartesianPoint = isCartesianPoint(valueDataType);
+    private TypeResolution validateOriginAndScale(DataType valueType) {
+        if (isSpatialPoint(valueType)) {
+            boolean isGeoPoint = isGeoPoint(valueType);
 
-        // Spatial decay
-        if (isGeoPoint || isCartesianPoint) {
-            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(
-                isType(origin, DataType::isSpatialPoint, sourceText(), SECOND, "spatial point")
+            return validateOriginAndScale(
+                DataType::isSpatialPoint,
+                "spatial point",
+                isGeoPoint ? DataType::isString : DataType::isNumeric,
+                isGeoPoint ? "keyword or text" : "numeric"
             );
-            if (originResolution.unresolved()) {
-                return originResolution;
-            }
-
-            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD);
-            if (scaleResolution.unresolved()) {
-                return scaleResolution;
-            }
-
-            if (isGeoPoint) {
-                // Geo points: scale should be a distance unit string (e.g. "100km")
-                scaleResolution = isType(scale, DataType::isString, sourceText(), THIRD, "keyword or text");
-            } else {
-                // Cartesian points: scale should be numeric (e.g. 100.0)
-                scaleResolution = isType(scale, DataType::isNumeric, sourceText(), THIRD, "numeric");
-            }
-
-            if (scaleResolution.unresolved()) {
-                return scaleResolution;
-            }
+        } else if (isMillisOrNanos(valueType)) {
+            return validateOriginAndScale(DataType::isMillisOrNanos, "datetime or date_nanos", DataType::isTimeDuration, "time_duration");
+        } else {
+            return validateOriginAndScale(DataType::isNumeric, "numeric", DataType::isNumeric, "numeric");
         }
-        // Temporal decay
-        else if (isMillisOrNanos(valueDataType)) {
-            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(
-                isType(origin, DataType::isMillisOrNanos, sourceText(), SECOND, "datetime or date_nanos")
-            );
-            if (originResolution.unresolved()) {
-                return originResolution;
-            }
+    }
 
-            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(
-                isType(scale, DataType::isTimeDuration, sourceText(), THIRD, "time_duration")
-            );
-            if (scaleResolution.unresolved()) {
-                return scaleResolution;
-            }
-        }
-        // Numeric decay
-        else {
-            TypeResolution originResolution = isNotNull(origin, sourceText(), SECOND).and(isNumeric(origin, sourceText(), SECOND));
-            if (originResolution.unresolved()) {
-                return originResolution;
-            }
-
-            TypeResolution scaleResolution = isNotNull(scale, sourceText(), THIRD).and(isNumeric(scale, sourceText(), THIRD));
-            if (scaleResolution.unresolved()) {
-                return scaleResolution;
-            }
-        }
-
-        return Options.resolveWithMultipleDataTypesAllowed(options, source(), FOURTH, ALLOWED_OPTIONS);
+    private TypeResolution validateOriginAndScale(
+        Predicate<DataType> originPredicate,
+        String originDesc,
+        Predicate<DataType> scalePredicate,
+        String scaleDesc
+    ) {
+        return isNotNull(origin, sourceText(), SECOND).and(isType(origin, originPredicate, sourceText(), SECOND, originDesc))
+            .and(isNotNull(scale, sourceText(), THIRD))
+            .and(isType(scale, scalePredicate, sourceText(), THIRD, scaleDesc));
     }
 
     @Override

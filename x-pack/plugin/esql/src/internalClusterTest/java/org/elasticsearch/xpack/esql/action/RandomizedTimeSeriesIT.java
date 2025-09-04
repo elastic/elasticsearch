@@ -243,12 +243,18 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    enum DeltaAgg {
+        RATE,
+        IRATE
+    }
+
     // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
     record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
 
-    static RateStats calculateRateAggregation(
+    static RateStats calculateDeltaAggregation(
         Collection<List<Tuple<String, Tuple<Instant, Double>>>> allTimeseries,
-        Integer secondsInWindow
+        Integer secondsInWindow,
+        DeltaAgg deltaAgg
     ) {
         List<RateRange> allRates = allTimeseries.stream().map(timeseries -> {
             if (timeseries.size() < 2) {
@@ -258,6 +264,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
+            if (deltaAgg.equals(DeltaAgg.IRATE)) {
+                var irate = Math.abs(timeseries.getLast().v2().v2() - timeseries.get(timeseries.size() - 2).v2().v2())
+                    / (lastTs.toEpochMilli() - timeseries.get(timeseries.size() - 2).v2().v1().toEpochMilli()) * 1000;
+                return new RateRange(irate, irate);
+            }
+            assert deltaAgg == DeltaAgg.RATE;
             Double lastValue = null;
             Double counterGrowth = 0.0;
             for (Tuple<String, Tuple<Instant, Double>> point : timeseries) {
@@ -391,7 +403,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var rowKey = getRowKey(row, dimensions, 5);
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateRateAggregation(docsPerTimeseries.values(), windowSize);
+                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, DeltaAgg.RATE);
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);
@@ -430,7 +442,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var windowStart = windowStart(row.get(4), SECONDS_IN_WINDOW);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateRateAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW);
+                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW, DeltaAgg.RATE);
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);

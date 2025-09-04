@@ -87,7 +87,8 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     private ExponentialHistogram copyWithModification(ExponentialHistogram toCopy, Modification modification) {
         ExponentialHistogramBuilder copyBuilder = ExponentialHistogram.builder(toCopy, breaker());
         switch (modification) {
-            case null -> {}
+            case null -> {
+            }
             case SCALE -> copyBuilder.scale((int) createRandomLongBetweenOtherThan(MIN_SCALE, MAX_SCALE, toCopy.scale()));
             case SUM -> copyBuilder.sum(randomDouble());
             case MIN -> copyBuilder.min(randomDouble());
@@ -101,7 +102,7 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
             );
             case POSITIVE_BUCKETS -> modifyBuckets(copyBuilder, toCopy.positiveBuckets(), true);
             case NEGATIVE_BUCKETS -> modifyBuckets(copyBuilder, toCopy.negativeBuckets(), false);
-        };
+        }
 
         ReleasableExponentialHistogram result = copyBuilder.build();
         autoReleaseOnTestEnd(result);

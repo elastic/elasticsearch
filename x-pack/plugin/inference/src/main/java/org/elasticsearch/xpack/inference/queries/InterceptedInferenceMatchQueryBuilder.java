@@ -32,9 +32,10 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     private InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<String, InferenceResults> inferenceResultsMap,
+        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
     ) {
-        super(other, inferenceResultsMap);
+        super(other, inferenceResultsMap, inferenceFieldInfoMap);
     }
 
     @Override
@@ -48,8 +49,11 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap);
+    protected QueryBuilder copy(
+        Map<String, InferenceResults> inferenceResultsMap,
+        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
+    ) {
+        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, inferenceFieldInfoMap);
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,9 +36,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -76,7 +77,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong submittedMergeTaskCount = new AtomicLong();
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
-    private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
     private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
 
@@ -284,6 +284,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // synchronized so that {@code #closed}, {@code #runningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     synchronized Schedule schedule(MergeTask mergeTask) {
         assert mergeTask.hasStartedRunning() == false;
+        assert mergeTask.hasRunningThread() == false;
         if (closed) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
             return Schedule.ABORT;
@@ -293,11 +294,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             }
             return Schedule.ABORT;
         } else if (runningMergeTasks.size() < getMaxThreadCount()) {
+            mergeTask.setRunningThread(Thread.currentThread());
             boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return Schedule.RUN;
         } else {
-            assert mergeTask.hasStartedRunning() == false;
             backloggedMergeTasks.add(mergeTask);
             return Schedule.BACKLOG;
         }
@@ -309,8 +310,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         assert removed : "completed merge task [" + mergeTask + "] not registered as running";
         // when one merge is done, maybe a backlogged one can now execute
         enqueueBackloggedTasks();
-        // signal here, because, when closing, we wait for all currently running merges to finish
-        maybeSignalAllMergesDoneAfterClose();
     }
 
     private void mergeTaskDone(OnGoingMerge merge) {
@@ -318,12 +317,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         mergeMetrics.decrementRunningMergeBytes(merge);
         mergeExecutedOrAborted(merge);
         checkMergeTaskThrottling();
-    }
-
-    private synchronized void maybeSignalAllMergesDoneAfterClose() {
-        if (closed && runningMergeTasks.isEmpty()) {
-            closedWithNoRunningMerges.countDown();
-        }
     }
 
     private synchronized void enqueueBackloggedTasks() {
@@ -348,6 +341,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         } catch (Throwable t) {
             // OK to ignore MergeAbortedException. This is what Lucene's ConcurrentMergeScheduler does.
             if (t instanceof MergePolicy.MergeAbortedException == false) {
+                // A merge thread that thrown an exception that closed the IndexWriter causes other merge threads to be aborted, but it is
+                // not itself aborted: instead the current merge is just completed and the thrown exception is set in the package-private
+                // OneMerge.error field. Here we setsuch merge as aborted too so that it is not considered as successful later.
+                oneMerge.setAborted();
                 handleMergeException(t);
             }
         }
@@ -391,6 +388,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private final boolean supportsIOThrottling;
         private final long mergeMemoryEstimateBytes;
 
+        /**
+         * Thread running the merge task
+         */
+        private final SetOnce<Thread> runningThread;
+
         MergeTask(
             MergeSource mergeSource,
             MergePolicy.OneMerge merge,
@@ -405,6 +407,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
             this.supportsIOThrottling = supportsIOThrottling;
             this.mergeMemoryEstimateBytes = mergeMemoryEstimateBytes;
+            this.runningThread = new SetOnce<>();
         }
 
         Schedule schedule() {
@@ -433,6 +436,18 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         /**
+         * Sets the thread running the merge task.
+         * @param thread  the current thread running the merge task
+         */
+        private void setRunningThread(Thread thread) {
+            runningThread.set(Objects.requireNonNull(thread));
+        }
+
+        private boolean hasRunningThread() {
+            return runningThread.get() != null;
+        }
+
+        /**
          * Runs the merge associated to this task. MUST be invoked after {@link #schedule()} returned {@link Schedule#RUN},
          * to confirm that the associated {@link MergeScheduler} assents to run the merge.
          * Either one of {@link #run()} or {@link #abort()} MUST be invoked exactly once for evey {@link MergeTask}.
@@ -440,6 +455,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          */
         @Override
         public void run() {
+            assert hasRunningThread();
             assert hasStartedRunning() == false;
             assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the merge task";
@@ -614,14 +630,39 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             closed = true;
             // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
             enqueueBackloggedTasks();
-            // signal if there aren't any currently running merges
-            maybeSignalAllMergesDoneAfterClose();
         }
+        // waits for any running merge threads to finish
+        boolean interrupted = false;
         try {
-            closedWithNoRunningMerges.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            while (true) {
+                Thread toSync = null;
+                synchronized (this) {
+                    for (var runningMergeTask : runningMergeTasks.values()) {
+                        var mergeThread = runningMergeTask.runningThread.get();
+                        assert mergeThread != null : " running merge task has no owner thread";
+                        // In case a merge thread is calling us, don't try to sync on itself, since that will never finish!
+                        if (mergeThread.isAlive() && mergeThread != Thread.currentThread()) {
+                            toSync = mergeThread;
+                            break;
+                        }
+                    }
+                }
+                if (toSync != null) {
+                    try {
+                        toSync.join();
+                    } catch (InterruptedException e) {
+                        // ignore this Exception, we will retry until all threads are dead
+                        interrupted = true;
+                    }
+                } else {
+                    break;
+                }
+            }
         } finally {
+            // finally, restore interrupt status:
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
             // this closes an executor that may be used by ongoing merges, so better close it only after all running merges finished
             super.close();
         }

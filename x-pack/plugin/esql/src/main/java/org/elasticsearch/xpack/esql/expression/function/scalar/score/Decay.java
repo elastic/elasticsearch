@@ -128,7 +128,17 @@ public class Decay extends EsqlScalarFunction
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value from a target origin, using configurable decay functions.",
-        // TODO: detailed description
+        detailedDescription = """
+            `DECAY` calculates a score between 0 and 1 based on how far a field value is from a specified origin point (called distance).
+            The distance can be a numeric distance, spatial distance or temporal distance depending on the specific data type.
+
+            `DECAY` can use <<esql-function-named-params,function named parameters>> to specify additional `options`
+            for the decay function.
+
+            For spatial queries, scale and offset for geo points use distance units (e.g., "10km", "5mi"),
+            while cartesian points use numeric values. For date queries, scale and offset use time_duration values.
+            For numeric queries you also use numeric values.
+            """,
         examples = { @Example(file = "decay", tag = "decay") }
     )
     public Decay(

@@ -659,22 +659,6 @@ subprojects {
   }
 }
 
-['archives:windows-zip',
- 'archives:darwin-tar',
- 'archives:darwin-aarch64-tar',
- 'archives:linux-aarch64-tar',
- 'archives:linux-tar',
- 'archives:integ-test-zip',
- 'packages:rpm', 'packages:deb',
- 'packages:aarch64-rpm', 'packages:aarch64-deb',
-].forEach { subName ->
-  Project subproject = project("${project.path}:${subName}")
-  Configuration configuration = configurations.create(subproject.name)
-  dependencies {
-    "${configuration.name}" project(path: subproject.path, configuration:'default')
-  }
-}
-
 // This artifact makes it possible for other projects to pull
 // in the final log4j2.properties configuration, as it appears in the
 // archive distribution.

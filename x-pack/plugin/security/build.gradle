@@ -167,9 +167,10 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-artifacts {
+
+tasks.named('assemble').configure {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
+  dependsOn tasks.named('jar')
 }
 
 tasks.named("dependencyLicenses").configure {

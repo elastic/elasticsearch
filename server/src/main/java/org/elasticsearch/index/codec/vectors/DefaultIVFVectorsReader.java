@@ -498,6 +498,15 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
         }
 
+        private void readDocIds(int count) throws IOException {
+            idsWriter.readInts(indexInput, count, docEncoding, docIdsScratch);
+            // reconstitute from the deltas
+            for (int j = 0; j < count; j++) {
+                docBase += docIdsScratch[j];
+                docIdsScratch[j] = docBase;
+            }
+        }
+
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
             indexInput.seek(slicePos);
@@ -508,12 +517,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             // read Docs
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
-                idsWriter.readInts(indexInput, BULK_SIZE, docEncoding, docIdsScratch);
-                // reconstitute from the deltas
-                for (int j = 0; j < BULK_SIZE; j++) {
-                    docBase += docIdsScratch[j];
-                    docIdsScratch[j] = docBase;
-                }
+                readDocIds(BULK_SIZE);
                 final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, 0, acceptDocs);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
@@ -543,12 +547,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             // process tail
             // read the doc ids
             if (i < vectors) {
-                idsWriter.readInts(indexInput, vectors - i, docEncoding, docIdsScratch);
-                // reconstitute from the deltas
-                for (int j = 0; j < vectors - i; j++) {
-                    docBase += docIdsScratch[j];
-                    docIdsScratch[j] = docBase;
-                }
+                readDocIds(vectors - i);
             }
             int count = 0;
             for (; i < vectors; i++) {

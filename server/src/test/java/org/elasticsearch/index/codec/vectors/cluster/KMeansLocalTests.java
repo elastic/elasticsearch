@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class KMeansLocalTests extends ESTestCase {
 
@@ -146,7 +146,7 @@ public class KMeansLocalTests extends ESTestCase {
     }
 
     public void testComputeNeighbours() throws IOException {
-        int numCentroids = randomIntBetween(100, 10000);
+        int numCentroids = randomIntBetween(100, 1000);
         int dims = randomIntBetween(10, 200);
         float[][] vectors = new float[numCentroids][dims];
         for (int i = 0; i < numCentroids; i++) {
@@ -154,15 +154,15 @@ public class KMeansLocalTests extends ESTestCase {
                 vectors[i][j] = randomFloat();
             }
         }
-        int clustersPerNeighbour = randomIntBetween(6, 32);
-        KMeansLocal.NeighborHood[] neighborHoodsGraph = KMeansLocal.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
-        KMeansLocal.NeighborHood[] neighborHoodsBruteForce = KMeansLocal.computeNeighborhoodsBruteForce(vectors, clustersPerNeighbour);
+        int clustersPerNeighbour = randomIntBetween(32, 64);
+        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
+        NeighborHood[] neighborHoodsBruteForce = NeighborHood.computeNeighborhoodsBruteForce(vectors, clustersPerNeighbour);
         assertEquals(neighborHoodsGraph.length, neighborHoodsBruteForce.length);
         for (int i = 0; i < neighborHoodsGraph.length; i++) {
             assertEquals(neighborHoodsBruteForce[i].neighbors().length, neighborHoodsGraph[i].neighbors().length);
             int matched = compareNN(i, neighborHoodsBruteForce[i].neighbors(), neighborHoodsGraph[i].neighbors());
             double recall = (double) matched / neighborHoodsGraph[i].neighbors().length;
-            assertThat(recall, greaterThan(0.4));
+            assertThat(recall, greaterThanOrEqualTo(0.7));
             if (recall == 1.0) {
                 // we cannot assert on array equality as there can be small differences due to numerical errors
                 assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-5f);

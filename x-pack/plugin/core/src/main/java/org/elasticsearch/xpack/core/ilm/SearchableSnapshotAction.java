@@ -461,7 +461,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         );
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
-            conditionalDeleteForceMergedIndexKey,
+            forceMergeIndex ? conditionalDeleteForceMergedIndexKey : dataStreamCheckBranchingKey,
             (index, lifecycleState) -> getRestoredIndexPrefix(copyLifecyclePolicySettingKey) + index,
             LifecycleSettings.LIFECYCLE_NAME
         );
@@ -548,8 +548,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
             steps.add(replicateForStep);
             steps.add(dropReplicasStep);
         }
-        steps.add(conditionalDeleteForceMergedIndexStep);
-        steps.add(deleteForceMergedIndexStep);
+        if (forceMergeIndex) {
+            steps.add(conditionalDeleteForceMergedIndexStep);
+            steps.add(deleteForceMergedIndexStep);
+        }
         steps.add(isDataStreamBranchingStep);
         steps.add(replaceDataStreamBackingIndex);
         steps.add(deleteSourceIndexStep);

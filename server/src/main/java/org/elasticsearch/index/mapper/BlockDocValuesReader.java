@@ -958,7 +958,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.Bytes";
+            return "BlockDocValuesReader.BytesCustom";
         }
     }
 
@@ -966,8 +966,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
      * Read BinaryDocValues with no additional structure in the BytesRefs.
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
-    public static class BytesRefsFromSimpleBinary extends AbstractBytesRefsFromBinary {
-        public BytesRefsFromSimpleBinary(BinaryDocValues docValues) {
+    public static class BytesRefsFromBinary extends AbstractBytesRefsFromBinary {
+        public BytesRefsFromBinary(BinaryDocValues docValues) {
             super(docValues);
         }
 
@@ -983,7 +983,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.BytesSimple";
+            return "BlockDocValuesReader.Bytes";
         }
     }
 

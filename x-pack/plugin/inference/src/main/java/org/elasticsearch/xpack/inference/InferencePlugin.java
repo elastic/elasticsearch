@@ -95,8 +95,10 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.NewSemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
-import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
@@ -430,6 +432,13 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
         entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                InterceptedInferenceQueryBuilder.class,
+                InterceptedInferenceMatchQueryBuilder.NAME,
+                InterceptedInferenceMatchQueryBuilder::new
+            )
+        );
         return entries;
     }
 
@@ -582,7 +591,7 @@ public class InferencePlugin extends Plugin
     public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
-            new SemanticMatchQueryRewriteInterceptor(),
+            new NewSemanticMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }

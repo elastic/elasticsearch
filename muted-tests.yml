@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseOrQuery
   issue: https://github.com/elastic/elasticsearch/issues/133863
+- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
+  method: testWriteLoadForecastGetsPopulatedDuringRollovers
+  issue: https://github.com/elastic/elasticsearch/issues/134123
 
 # Examples:
 #

@@ -782,9 +782,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
 
             List<NamedExpression> groupings = List.of(idAttr, indexAttr);
-            Fuse.FuseType fuseType = Fuse.FuseType.RRF;
 
-            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType);
+            MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
+            Fuse.FuseType fuseType = ctx.fuseType != null && ctx.fuseType.LINEAR() != null ? Fuse.FuseType.LINEAR : Fuse.FuseType.RRF;
+
+            if (fuseType == Fuse.FuseType.LINEAR) {
+                throw new ParsingException(source(ctx), "LINEAR fuse type is not yet supported");
+            }
+
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType, options);
         };
     }
 

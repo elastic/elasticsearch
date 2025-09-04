@@ -331,5 +331,10 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE
+    : DEV_FUSE (fuseType=fuseMethod)? fuseOptions=commandNamedParameters
+    ;
+
+fuseMethod
+    : RRF
+    | LINEAR
     ;

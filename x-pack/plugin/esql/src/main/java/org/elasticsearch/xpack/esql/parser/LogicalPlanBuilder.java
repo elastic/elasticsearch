@@ -465,7 +465,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
-        return p -> {
+        return child -> {
             var source = source(ctx);
             Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
             Mode mode = tuple.v1();
@@ -484,9 +484,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
+
+            // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            if (mode == Mode.REMOTE) {
+                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+            }
+
             return new Enrich(
                 source,
-                p,
+                child,
                 mode,
                 Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
@@ -716,7 +722,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };

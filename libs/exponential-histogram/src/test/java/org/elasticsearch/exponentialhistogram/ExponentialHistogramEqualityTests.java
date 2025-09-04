@@ -25,7 +25,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
@@ -41,6 +40,7 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
         SCALE,
         SUM,
         MIN,
+        MAX,
         ZERO_THRESHOLD,
         ZERO_COUNT,
         POSITIVE_BUCKETS,
@@ -60,7 +60,8 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
 
     public void testEquality() {
         ExponentialHistogram histo = randomHistogram();
-        ExponentialHistogram copy = copyWithModification(histo, null);
+        ReleasableExponentialHistogram copy = ExponentialHistogram.builder(histo, breaker()).build();
+        autoReleaseOnTestEnd(copy);
         ExponentialHistogram modifiedCopy = copyWithModification(histo, modification);
 
         assertThat(histo, equalTo(copy));
@@ -85,41 +86,31 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     }
 
     private ExponentialHistogram copyWithModification(ExponentialHistogram toCopy, Modification modification) {
-        int totalBucketCount = getBucketCount(toCopy.positiveBuckets(), toCopy.negativeBuckets());
-        FixedCapacityExponentialHistogram copy = createAutoReleasedHistogram(totalBucketCount + 2);
-        if (modification == Modification.SCALE) {
-            copy.resetBuckets((int) createRandomLongBetweenOtherThan(MIN_SCALE, MAX_SCALE, toCopy.scale()));
-        } else {
-            copy.resetBuckets(toCopy.scale());
+        ExponentialHistogramBuilder copyBuilder = ExponentialHistogram.builder(toCopy, breaker());
+        switch (modification) {
+            case SCALE -> copyBuilder.scale((int) createRandomLongBetweenOtherThan(MIN_SCALE, MAX_SCALE, toCopy.scale()));
+            case SUM -> copyBuilder.sum(randomDouble());
+            case MIN -> copyBuilder.min(randomDouble());
+            case MAX -> copyBuilder.max(randomDouble());
+            case ZERO_THRESHOLD -> copyBuilder.zeroBucket(ZeroBucket.create(randomDouble(), toCopy.zeroBucket().count()));
+            case ZERO_COUNT -> copyBuilder.zeroBucket(
+                ZeroBucket.create(
+                    toCopy.zeroBucket().zeroThreshold(),
+                    createRandomLongBetweenOtherThan(0, Long.MAX_VALUE, toCopy.zeroBucket().count())
+                )
+            );
+            case POSITIVE_BUCKETS -> modifyBuckets(copyBuilder, toCopy.positiveBuckets(), true);
+            case NEGATIVE_BUCKETS -> modifyBuckets(copyBuilder, toCopy.negativeBuckets(), false);
         }
-        if (modification == Modification.SUM) {
-            copy.setSum(randomDouble());
-        } else {
-            copy.setSum(toCopy.sum());
-        }
-        if (modification == Modification.MIN) {
-            copy.setMin(randomDouble());
-        } else {
-            copy.setMin(toCopy.min());
-        }
-        long zeroCount = toCopy.zeroBucket().count();
-        double zeroThreshold = toCopy.zeroBucket().zeroThreshold();
-        if (modification == Modification.ZERO_COUNT) {
-            zeroCount = createRandomLongBetweenOtherThan(0, Long.MAX_VALUE, zeroCount);
-        } else if (modification == Modification.ZERO_THRESHOLD) {
-            zeroThreshold = randomDouble();
-        }
-        copy.setZeroBucket(ZeroBucket.create(zeroThreshold, zeroCount));
-        copyBuckets(copy, toCopy.negativeBuckets(), modification == Modification.NEGATIVE_BUCKETS, false);
-        copyBuckets(copy, toCopy.positiveBuckets(), modification == Modification.POSITIVE_BUCKETS, true);
 
-        return copy;
+        ReleasableExponentialHistogram result = copyBuilder.build();
+        autoReleaseOnTestEnd(result);
+        return result;
     }
 
-    private void copyBuckets(
-        FixedCapacityExponentialHistogram into,
+    private ExponentialHistogramBuilder modifyBuckets(
+        ExponentialHistogramBuilder builder,
         ExponentialHistogram.Buckets buckets,
-        boolean modify,
         boolean isPositive
     ) {
         List<Long> indices = new ArrayList<>();
@@ -130,29 +121,28 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
             counts.add(it.peekCount());
             it.advance();
         }
-        if (modify) {
-            if (counts.isEmpty() == false && randomBoolean()) {
-                int toModify = randomIntBetween(0, indices.size() - 1);
-                counts.set(toModify, createRandomLongBetweenOtherThan(1, Long.MAX_VALUE, counts.get(toModify)));
-            } else {
-                insertRandomBucket(indices, counts);
-            }
+        long toModifyIndex;
+        long toModifyCount;
+        if (counts.isEmpty() == false && randomBoolean()) {
+            // Modify existing bucket
+            int position = randomIntBetween(0, indices.size() - 1);
+            toModifyIndex = indices.get(position);
+            toModifyCount = createRandomLongBetweenOtherThan(1, Long.MAX_VALUE, counts.get(position));
+        } else {
+            // Add new bucket
+            long minIndex = indices.stream().mapToLong(Long::longValue).min().orElse(MIN_INDEX);
+            long maxIndex = indices.stream().mapToLong(Long::longValue).min().orElse(MAX_INDEX);
+            do {
+                toModifyIndex = randomLongBetween(Math.max(MIN_INDEX, minIndex - 10), Math.min(MAX_INDEX, maxIndex + 10));
+            } while (indices.contains(toModifyIndex));
+            toModifyCount = randomLongBetween(1, Long.MAX_VALUE);
         }
-        for (int i = 0; i < indices.size(); i++) {
-            into.tryAddBucket(indices.get(i), counts.get(i), isPositive);
+        if (isPositive) {
+            builder.setPositiveBucket(toModifyIndex, toModifyCount);
+        } else {
+            builder.setNegativeBucket(toModifyIndex, toModifyCount);
         }
-    }
-
-    private void insertRandomBucket(List<Long> indices, List<Long> counts) {
-        long minIndex = indices.stream().mapToLong(Long::longValue).min().orElse(MIN_INDEX);
-        long maxIndex = indices.stream().mapToLong(Long::longValue).min().orElse(MAX_INDEX);
-        long newIndex;
-        do {
-            newIndex = randomLongBetween(Math.max(MIN_INDEX, minIndex - 10), Math.min(MAX_INDEX, maxIndex + 10));
-        } while (indices.contains(newIndex));
-        int position = -(Collections.binarySearch(indices, newIndex) + 1);
-        indices.add(position, newIndex);
-        counts.add(position, randomLongBetween(1, Long.MAX_VALUE));
+        return builder;
     }
 
     private static long createRandomLongBetweenOtherThan(long min, long max, long notAllowedValue) {
@@ -162,17 +152,5 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
             result = randomLongBetween(min, max);
         } while (result == notAllowedValue);
         return result;
-    }
-
-    private static int getBucketCount(ExponentialHistogram.Buckets... buckets) {
-        int count = 0;
-        for (ExponentialHistogram.Buckets val : buckets) {
-            BucketIterator it = val.iterator();
-            while (it.hasNext()) {
-                count++;
-                it.advance();
-            }
-        }
-        return count;
     }
 }

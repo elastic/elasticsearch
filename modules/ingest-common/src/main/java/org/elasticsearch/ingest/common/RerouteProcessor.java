@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -17,11 +18,9 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -221,11 +220,6 @@ public final class RerouteProcessor extends AbstractProcessor {
      */
     static final class DataStreamValueSource {
 
-        private static final int MAX_LENGTH = 100;
-        private static final String REPLACEMENT = "_";
-        private static final Pattern DISALLOWED_IN_TYPE = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
-        private static final Pattern DISALLOWED_IN_DATASET = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
-        private static final Pattern DISALLOWED_IN_NAMESPACE = Pattern.compile("[\\\\/*?\"<>| ,#:]");
         static final DataStreamValueSource TYPE_VALUE_SOURCE = type("{{" + DATA_STREAM_TYPE + "}}");
         static final DataStreamValueSource DATASET_VALUE_SOURCE = dataset("{{" + DATA_STREAM_DATASET + "}}");
         static final DataStreamValueSource NAMESPACE_VALUE_SOURCE = namespace("{{" + DATA_STREAM_NAMESPACE + "}}");
@@ -235,24 +229,15 @@ public final class RerouteProcessor extends AbstractProcessor {
         private final Function<String, String> sanitizer;
 
         public static DataStreamValueSource type(String type) {
-            return new DataStreamValueSource(type, ds -> sanitizeDataStreamField(ds, DISALLOWED_IN_TYPE));
+            return new DataStreamValueSource(type, DataStream::sanitizeType);
         }
 
         public static DataStreamValueSource dataset(String dataset) {
-            return new DataStreamValueSource(dataset, ds -> sanitizeDataStreamField(ds, DISALLOWED_IN_DATASET));
+            return new DataStreamValueSource(dataset, DataStream::sanitizeDataset);
         }
 
         public static DataStreamValueSource namespace(String namespace) {
-            return new DataStreamValueSource(namespace, nsp -> sanitizeDataStreamField(nsp, DISALLOWED_IN_NAMESPACE));
-        }
-
-        private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {
-            if (s == null) {
-                return null;
-            }
-            s = s.toLowerCase(Locale.ROOT);
-            s = s.substring(0, Math.min(s.length(), MAX_LENGTH));
-            return disallowedInDataset.matcher(s).replaceAll(REPLACEMENT);
+            return new DataStreamValueSource(namespace, DataStream::sanitizeNamespace);
         }
 
         private DataStreamValueSource(String value, Function<String, String> sanitizer) {

@@ -117,7 +117,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         SimplePauseFieldPlugin.allowEmitting.countDown();
 
         try (EsqlQueryResponse resp = stopAction.actionGet(30, TimeUnit.SECONDS)) {
-            // Compare this to CrossClustersEnrichIT.testEnrichTwiceThenAggs - the results from c2 will be absent
+            // Compare this to CrossClusterEnrichIT.testEnrichTwiceThenAggs - the results from c2 will be absent
             // because we stopped it before processing the data
             assertThat(
                 getValuesList(resp),

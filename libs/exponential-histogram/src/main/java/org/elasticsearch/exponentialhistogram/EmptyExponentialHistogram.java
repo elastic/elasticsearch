@@ -88,6 +88,11 @@ class EmptyExponentialHistogram extends AbstractExponentialHistogram implements 
     }
 
     @Override
+    public double max() {
+        return Double.NaN;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return 0;
     }

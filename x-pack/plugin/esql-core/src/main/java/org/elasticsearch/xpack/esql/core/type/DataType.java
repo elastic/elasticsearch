@@ -395,6 +395,9 @@ public enum DataType {
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
+        // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
+        // so we need to map it here as well
+        map.put("semantic_text", DataType.TEXT);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));

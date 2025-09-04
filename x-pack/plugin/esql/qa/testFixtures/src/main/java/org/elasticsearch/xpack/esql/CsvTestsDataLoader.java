@@ -415,6 +415,10 @@ public class CsvTestsDataLoader {
             createSparseEmbeddingInferenceEndpoint(client);
         }
 
+        if (clusterHasTextEmbeddingInferenceEndpoint(client) == false) {
+            createTextEmbeddingInferenceEndpoint(client);
+        }
+
         if (clusterHasRerankInferenceEndpoint(client) == false) {
             createRerankInferenceEndpoint(client);
         }
@@ -426,11 +430,12 @@ public class CsvTestsDataLoader {
 
     public static void deleteInferenceEndpoints(RestClient client) throws IOException {
         deleteSparseEmbeddingInferenceEndpoint(client);
+        deleteTextEmbeddingInferenceEndpoint(client);
         deleteRerankInferenceEndpoint(client);
         deleteCompletionInferenceEndpoint(client);
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    /** The semantic_text mapping type requires inference endpoints that need to be setup before creating the index. */
     public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
                   {
@@ -441,12 +446,36 @@ public class CsvTestsDataLoader {
             """);
     }
 
+    public static void createTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference", """
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                        "model": "my_model",
+                        "api_key": "abc64",
+                        "dimensions": 3,
+                        "similarity": "l2_norm",
+                        "element_type": "float"
+                    },
+                   "task_settings": { }
+                 }
+            """);
+    }
+
     public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         deleteInferenceEndpoint(client, "test_sparse_inference");
     }
 
+    public static void deleteTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_dense_inference");
+    }
+
     public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         return clusterHasInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference");
+    }
+
+    public static boolean clusterHasTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference");
     }
 
     public static void createRerankInferenceEndpoint(RestClient client) throws IOException {

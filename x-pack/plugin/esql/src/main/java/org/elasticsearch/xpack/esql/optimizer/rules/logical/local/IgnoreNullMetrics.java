@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -32,31 +33,29 @@ import java.util.Set;
  * where any of the metrics have values.
  * </p>
  */
-public final class IgnoreNullMetrics extends Rule<LogicalPlan, LogicalPlan> {
+public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
-    public LogicalPlan apply(LogicalPlan logicalPlan) {
-        return logicalPlan.transformUp(TimeSeriesAggregate.class, agg -> {
-            Set<Attribute> metrics = new HashSet<>();
-            agg.forEachExpression(Attribute.class, attr -> {
-                if (attr.isMetric()) {
-                    metrics.add(attr);
-                }
-            });
-            if (metrics.isEmpty()) {
-                return agg;
+    public LogicalPlan rule(TimeSeriesAggregate agg) {
+        Set<Attribute> metrics = new HashSet<>();
+        agg.forEachExpression(Attribute.class, attr -> {
+            if (attr.isMetric()) {
+                metrics.add(attr);
             }
-            Expression conditional = null;
-            for (Attribute metric : metrics) {
-                // Create an is not null check for each metric
-                if (conditional == null) {
-                    conditional = new IsNotNull(logicalPlan.source(), metric);
-                } else {
-                    // Join the is not null checks with OR nodes
-                    conditional = new Or(logicalPlan.source(), conditional, new IsNotNull(logicalPlan.source(), metric));
-                }
-            }
-            return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
         });
+        if (metrics.isEmpty()) {
+            return agg;
+        }
+        Expression conditional = null;
+        for (Attribute metric : metrics) {
+            // Create an is not null check for each metric
+            if (conditional == null) {
+                conditional = new IsNotNull(agg.source(), metric);
+            } else {
+                // Join the is not null checks with OR nodes
+                conditional = new Or(agg.source(), conditional, new IsNotNull(agg.source(), metric));
+            }
+        }
+        return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
     }
 
     /**

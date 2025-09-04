@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -57,7 +56,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -92,8 +90,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -836,7 +832,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .build();
 
         int totalBytesRequired = calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(blob1Result);
-        Settings.Builder settings = Settings.builder().put("repositories.blobstore.max_shard_delete_results_size", totalBytesRequired + "b");
+        Settings.Builder settings = Settings.builder()
+            .put("repositories.blobstore.max_shard_delete_results_size", totalBytesRequired + "b");
         final var repo = setupRepo(settings);
         try (var shardBlobsToDelete = repo.new ShardBlobsToDelete(settings.build())) {
             try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
@@ -854,7 +851,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         .execute(
                             ActionRunnable.run(
                                 refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(blob1Result.indexId, blob1Result.shardId, blob1Result.shardGeneration, blob1Result.blobsToDelete)
+                                () -> shardBlobsToDelete.addShardDeleteResult(
+                                    blob1Result.indexId,
+                                    blob1Result.shardId,
+                                    blob1Result.shardGeneration,
+                                    blob1Result.blobsToDelete
+                                )
                             )
                         );
                 }
@@ -871,7 +873,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         .execute(
                             ActionRunnable.run(
                                 refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(blob2Result.indexId, blob2Result.shardId, blob2Result.shardGeneration, blob2Result.blobsToDelete)
+                                () -> shardBlobsToDelete.addShardDeleteResult(
+                                    blob2Result.indexId,
+                                    blob2Result.shardId,
+                                    blob2Result.shardGeneration,
+                                    blob2Result.blobsToDelete
+                                )
                             )
                         );
                 }
@@ -892,9 +899,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
     public void testShardBlobsToDeleteWithSmallHeapSpace() {
         TestShardSnapshotMetaDeleteResult result = generateTestShardSnapshotMetaDeleteResult(0, 20);
-        final var expectedShardGenerations = ShardGenerations.builder()
-            .put(result.indexId, result.shardId, result.shardGeneration)
-            .build();
+        final var expectedShardGenerations = ShardGenerations.builder().put(result.indexId, result.shardId, result.shardGeneration).build();
 
         int totalBytesRequired = calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(result);
         int heapSpace = randomIntBetween(1, totalBytesRequired - 1);
@@ -916,10 +921,14 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         .execute(
                             ActionRunnable.run(
                                 refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(result.indexId, result.shardId, result.shardGeneration, result.blobsToDelete)
+                                () -> shardBlobsToDelete.addShardDeleteResult(
+                                    result.indexId,
+                                    result.shardId,
+                                    result.shardGeneration,
+                                    result.blobsToDelete
+                                )
                             )
                         );
-
 
                 }
                 safeAwait(countDownLatch);
@@ -937,9 +946,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
     public void testShardBlobsToDeleteWithOutHeapSpace() {
         TestShardSnapshotMetaDeleteResult result = generateTestShardSnapshotMetaDeleteResult(0, 20);
-        final var expectedShardGenerations = ShardGenerations.builder()
-            .put(result.indexId, result.shardId, result.shardGeneration)
-            .build();
+        final var expectedShardGenerations = ShardGenerations.builder().put(result.indexId, result.shardId, result.shardGeneration).build();
 
         Settings.Builder settings = Settings.builder().put("repositories.blobstore.max_shard_delete_results_size", "0b");
         final var repo = setupRepo(settings);
@@ -959,10 +966,14 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         .execute(
                             ActionRunnable.run(
                                 refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(result.indexId, result.shardId, result.shardGeneration, result.blobsToDelete)
+                                () -> shardBlobsToDelete.addShardDeleteResult(
+                                    result.indexId,
+                                    result.shardId,
+                                    result.shardGeneration,
+                                    result.blobsToDelete
+                                )
                             )
                         );
-
 
                 }
                 safeAwait(countDownLatch);
@@ -974,7 +985,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
     }
 
-    private record TestShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, Collection<String> blobsToDelete, ShardGeneration shardGeneration) {}
+    private record TestShardSnapshotMetaDeleteResult(
+        IndexId indexId,
+        int shardId,
+        Collection<String> blobsToDelete,
+        ShardGeneration shardGeneration
+    ) {}
 
     private TestShardSnapshotMetaDeleteResult generateTestShardSnapshotMetaDeleteResult(int minBlobSize, int maxBlobSize) {
         return new TestShardSnapshotMetaDeleteResult(
@@ -993,11 +1009,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     private String generateRepoPath(BlobStoreRepository repo, TestShardSnapshotMetaDeleteResult result) {
-        return repo.basePath()
-            .add("indices")
-            .add(result.indexId.getId())
-            .add(Integer.toString(result.shardId))
-            .buildAsString();
+        return repo.basePath().add("indices").add(result.indexId.getId()).add(Integer.toString(result.shardId)).buildAsString();
     }
 
     private List<String> generateRandomBlobsToDelete() {
@@ -1008,10 +1020,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         return randomList(
             minSize,
             maxSize,
-            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
-                "",
-                METADATA_BLOB_NAME_SUFFIX
-            )
+            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom("", METADATA_BLOB_NAME_SUFFIX)
         );
     }
 

@@ -110,10 +110,12 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
-            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
-            .endObject();
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
+        if (knnSearch.visitPercentage != null) {
+            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
+        }
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
+        builder.endObject();
 
         builder.field(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), "some-field");
         builder.endObject();
@@ -137,10 +139,12 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
-            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
-            .endObject();
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
+        if (knnSearch.visitPercentage != null) {
+            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
+        }
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
+        builder.endObject();
 
         builder.array(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), "field1", "field2", "field3");
         builder.endObject();
@@ -300,10 +304,12 @@ public class KnnSearchRequestParserTests extends ESTestCase {
         builder.startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
-            .field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
-            .endObject();
+            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
+        if (knnSearch.visitPercentage != null) {
+            builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
+        }
+        builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);
+        builder.endObject();
 
         if (filters.isEmpty() == false) {
             builder.field(KnnSearchRequestParser.FILTER_FIELD.getPreferredName());

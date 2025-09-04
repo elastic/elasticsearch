@@ -72,20 +72,33 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
-    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        "knn",
-        args -> new KnnVectorQueryBuilder(
-            (String) args[0],
-            (VectorData) args[1],
-            (QueryVectorBuilder) args[6],
-            null,
-            (Integer) args[2],
-            (Integer) args[3],
-            (Float) args[4],
-            (RescoreVectorBuilder) args[7],
-            (Float) args[5]
-        )
-    );
+    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
+        if (IVF_FORMAT.isEnabled()) {
+            return new KnnVectorQueryBuilder(
+                (String) args[0],
+                (VectorData) args[1],
+                (QueryVectorBuilder) args[6],
+                null,
+                (Integer) args[2],
+                (Integer) args[3],
+                (Float) args[4],
+                (RescoreVectorBuilder) args[7],
+                (Float) args[5]
+            );
+        } else {
+            return new KnnVectorQueryBuilder(
+                (String) args[0],
+                (VectorData) args[1],
+                (QueryVectorBuilder) args[5],
+                null,
+                (Integer) args[2],
+                (Integer) args[3],
+                null,
+                (RescoreVectorBuilder) args[6],
+                (Float) args[4]
+            );
+        }
+    });
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);

@@ -69,16 +69,29 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             } else {
                 vectorArray = null;
             }
-            return new KnnRetrieverBuilder(
-                (String) args[0],
-                vectorArray,
-                (QueryVectorBuilder) args[2],
-                (int) args[3],
-                (int) args[4],
-                (Float) args[5],
-                (RescoreVectorBuilder) args[7],
-                (Float) args[6]
-            );
+            if (IVF_FORMAT.isEnabled()) {
+                return new KnnRetrieverBuilder(
+                    (String) args[0],
+                    vectorArray,
+                    (QueryVectorBuilder) args[2],
+                    (int) args[3],
+                    (int) args[4],
+                    (Float) args[5],
+                    (RescoreVectorBuilder) args[7],
+                    (Float) args[6]
+                );
+            } else {
+                return new KnnRetrieverBuilder(
+                    (String) args[0],
+                    vectorArray,
+                    (QueryVectorBuilder) args[2],
+                    (int) args[3],
+                    (int) args[4],
+                    null,
+                    (RescoreVectorBuilder) args[6],
+                    (Float) args[5]
+                );
+            }
         }
     );
 

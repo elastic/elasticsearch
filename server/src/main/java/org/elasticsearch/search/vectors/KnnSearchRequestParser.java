@@ -211,7 +211,11 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
+            if (IVF_FORMAT.isEnabled()) {
+                return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
+            } else {
+                return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], null);
+            }
         });
 
         static {

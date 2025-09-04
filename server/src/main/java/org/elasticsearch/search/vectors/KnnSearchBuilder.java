@@ -63,14 +63,24 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder.Builder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
         // TODO optimize parsing for when BYTE values are provided
-        return new Builder().field((String) args[0])
-            .queryVector((VectorData) args[1])
-            .queryVectorBuilder((QueryVectorBuilder) args[5])
-            .k((Integer) args[2])
-            .numCandidates((Integer) args[3])
-            .visitPercentage((Float) args[4])
-            .similarity((Float) args[6])
-            .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
+        if (IVF_FORMAT.isEnabled()) {
+            return new Builder().field((String) args[0])
+                .queryVector((VectorData) args[1])
+                .queryVectorBuilder((QueryVectorBuilder) args[5])
+                .k((Integer) args[2])
+                .numCandidates((Integer) args[3])
+                .visitPercentage((Float) args[4])
+                .similarity((Float) args[6])
+                .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
+        } else {
+            return new Builder().field((String) args[0])
+                .queryVector((VectorData) args[1])
+                .queryVectorBuilder((QueryVectorBuilder) args[4])
+                .k((Integer) args[2])
+                .numCandidates((Integer) args[3])
+                .similarity((Float) args[5])
+                .rescoreVectorBuilder((RescoreVectorBuilder) args[6]);
+        }
     });
 
     static {

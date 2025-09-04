@@ -173,6 +173,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_827_0_00);
     public static final TransportVersion ADD_INDEX_BLOCK_TWO_PHASE = def(8_828_0_00);
     public static final TransportVersion RESOLVE_CLUSTER_NO_INDEX_EXPRESSION = def(8_829_0_00);
+    public static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = def(8_830_0_00);
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_0_00);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_0_00);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_0_00);
@@ -189,7 +190,6 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_6 = def(8_840_0_08);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_7 = def(8_840_0_09);
 
     /*

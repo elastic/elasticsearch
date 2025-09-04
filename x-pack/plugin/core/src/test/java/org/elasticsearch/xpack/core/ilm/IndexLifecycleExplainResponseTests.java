@@ -337,7 +337,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 phaseExecutionInfo,
                 skip,
                 // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
-                instance.getForceMergeIndexName()
+                instance.getForceMergeCloneIndexName()
             );
         } else {
             return switch (between(0, 1)) {

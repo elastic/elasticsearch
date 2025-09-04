@@ -1205,11 +1205,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 indicesSettings.size(),
                 equalTo(1)
             );
-            final String forceMergeIndexName = indicesSettings.keySet().iterator().next();
-            assertThat(forceMergeIndexName, startsWith(FORCE_MERGE_CLONE_INDEX_PREFIX));
-            assertThat(forceMergeIndexName, endsWith(backingIndexName));
+            final String forceMergeCloneIndexName = indicesSettings.keySet().iterator().next();
+            assertThat(forceMergeCloneIndexName, startsWith(FORCE_MERGE_CLONE_INDEX_PREFIX));
+            assertThat(forceMergeCloneIndexName, endsWith(backingIndexName));
             @SuppressWarnings("unchecked")
-            final var forceMergeIndexResponse = (Map<String, Object>) indicesSettings.get(forceMergeIndexName);
+            final var forceMergeIndexResponse = (Map<String, Object>) indicesSettings.get(forceMergeCloneIndexName);
             @SuppressWarnings("unchecked")
             final Map<String, Object> forceMergeIndexSettings = (Map<String, Object>) forceMergeIndexResponse.get("settings");
             assertThat(forceMergeIndexSettings.get("index.number_of_shards"), equalTo(String.valueOf(numberOfPrimaries)));

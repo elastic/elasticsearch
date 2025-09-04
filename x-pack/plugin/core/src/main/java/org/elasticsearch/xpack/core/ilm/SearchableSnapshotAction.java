@@ -73,11 +73,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
     /** An index name supplier that always returns the force merge index name (possibly null). */
     public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER = (
         indexName,
-        state) -> state.forceMergeIndexName();
+        state) -> state.forceMergeCloneIndexName();
     /** An index name supplier that returns the force merge index name if it exists, or the original index name if not. */
     public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER = (
         indexName,
-        state) -> state.forceMergeIndexName() != null ? state.forceMergeIndexName() : indexName;
+        state) -> state.forceMergeCloneIndexName() != null ? state.forceMergeCloneIndexName() : indexName;
 
     private static final Settings CLONE_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
     private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> CLONE_SETTINGS;
@@ -382,7 +382,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             generateCloneIndexNameKey,
             cloneIndexKey,
             FORCE_MERGE_CLONE_INDEX_PREFIX,
-            (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setForceMergeIndexName(generatedIndexName)
+            (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setForceMergeCloneIndexName(generatedIndexName)
         );
         // Clone the index with 0 replicas.
         ResizeIndexStep cloneIndexStep = new ResizeIndexStep(
@@ -475,7 +475,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             (index, project) -> {
                 IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
-                String cloneIndexName = indexMetadata.getLifecycleExecutionState().forceMergeIndexName();
+                String cloneIndexName = indexMetadata.getLifecycleExecutionState().forceMergeCloneIndexName();
                 return cloneIndexName != null && project.index(cloneIndexName) != null;
             }
         );

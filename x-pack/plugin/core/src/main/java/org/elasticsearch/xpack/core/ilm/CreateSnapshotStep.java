@@ -102,7 +102,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
         // If we performed the force merge step on the cloned index, we need to snapshot that index instead of the original.
-        final String clonedIndexName = lifecycleState.forceMergeIndexName();
+        final String clonedIndexName = lifecycleState.forceMergeCloneIndexName();
         final String forceMergedIndexName = clonedIndexName != null ? clonedIndexName : indexName;
         CreateSnapshotRequest request = new CreateSnapshotRequest(TimeValue.MAX_VALUE, snapshotRepository, snapshotName);
         request.indices(forceMergedIndexName);

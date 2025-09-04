@@ -1670,27 +1670,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
             EsqlFunctionRegistry registry
         ) {
+            // Perform implicit casting for dense_vector from numeric and keyword values
             List<Expression> args = vectorFunction.arguments();
             List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
             List<Expression> newArgs = new ArrayList<>();
-            // Perform implicit casting for numeric and keyword values
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
-                if (targetDataTypes.get(i) == DENSE_VECTOR) {
-                    if (arg.resolved()) {
-                        var dataType = arg.dataType();
-                        if (dataType == KEYWORD) {
-                            if (arg.foldable()) {
-                                Expression exp = castStringLiteral(arg, DENSE_VECTOR);
-                                if (exp != arg) {
-                                    newArgs.add(exp);
-                                    continue;
-                                }
+                if (targetDataTypes.get(i) == DENSE_VECTOR && arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable()) {
+                            Expression exp = castStringLiteral(arg, DENSE_VECTOR);
+                            if (exp != arg) {
+                                newArgs.add(exp);
+                                continue;
                             }
-                        } else if (arg.dataType().isNumeric()) {
-                            newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
-                            continue;
                         }
+                    } else if (dataType.isNumeric()) {
+                        newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
+                        continue;
                     }
                 }
                 newArgs.add(arg);

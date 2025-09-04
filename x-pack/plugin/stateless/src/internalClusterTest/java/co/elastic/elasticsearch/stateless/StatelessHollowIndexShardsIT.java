@@ -88,6 +88,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -1750,13 +1751,13 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     safeSleep(randomLongBetween(10, 100));
                     int docs = numOfShards / numIndexingThreads;
                     var bulkResponse = indexDocs(indexName, docs);
-                    logger.info("Inserted {} docs", docs);
                     insertedDocsCount.addAndGet(Arrays.stream(bulkResponse.getItems()).filter(r -> r.isFailed() == false).count());
-                    insertedDocs.addAll(
-                        randomSubsetOf(
-                            Arrays.stream(bulkResponse.getItems()).filter(r -> r.isFailed() == false).map(e -> e.getId()).toList()
-                        )
-                    );
+                    final var validIds = Arrays.stream(bulkResponse.getItems())
+                        .filter(r -> r.isFailed() == false)
+                        .map(e -> e.getId())
+                        .toList();
+                    insertedDocs.addAll(randomSubsetOf(validIds));
+                    logger.info("Inserted {} valid docs: {}", validIds.size(), String.join(", ", validIds));
                     switch (randomInt(2)) {
                         case 0:
                             try {
@@ -1856,6 +1857,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 if (docIds.isEmpty()) {
                     continue;
                 }
+                logger.info("Updating {} docs: {}", docIds.size(), String.join(", ", docIds));
                 var client = client();
                 var bulkRequestBuilder = client.prepareBulk();
                 for (String docId : docIds) {
@@ -1906,6 +1908,13 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         doTestStress(false, false);
     }
 
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.commits.HollowShardsService:trace,"
+            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:trace,"
+            + "org.elasticsearch.index.shard.IndexShard:trace,"
+            + "org.elasticsearch.index.engine.InternalEngine:trace",
+        reason = "https://github.com/elastic/elasticsearch-serverless/issues/4349"
+    )
     public void testStressWithRelocationFailures() throws Exception {
         doTestStress(true, false);
     }

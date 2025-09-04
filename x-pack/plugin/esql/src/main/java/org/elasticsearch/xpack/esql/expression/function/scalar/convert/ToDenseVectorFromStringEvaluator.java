@@ -104,11 +104,11 @@ class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.AbstractE
         Releasables.closeExpectNoException(field);
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
         private final Source source;
         private final EvalOperator.ExpressionEvaluator.Factory field;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
             this.source = source;
             this.field = field;
         }

@@ -943,6 +943,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
             );
+        if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
+            builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
+        }
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),

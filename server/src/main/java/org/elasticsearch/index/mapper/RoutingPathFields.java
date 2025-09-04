@@ -59,9 +59,9 @@ public final class RoutingPathFields implements RoutingFields {
      * Builds the routing. Used for building {@code _id}. If null then skipped.
      */
     @Nullable
-    private final IndexRouting.ExtractFromSource.Builder routingBuilder;
+    private final IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder;
 
-    public RoutingPathFields(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
+    public RoutingPathFields(@Nullable IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder) {
         this.routingBuilder = routingBuilder;
     }
 
@@ -69,7 +69,7 @@ public final class RoutingPathFields implements RoutingFields {
         return Collections.unmodifiableSortedMap(routingValues);
     }
 
-    IndexRouting.ExtractFromSource.Builder routingBuilder() {
+    IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder() {
         return routingBuilder;
     }
 
@@ -205,6 +205,11 @@ public final class RoutingPathFields implements RoutingFields {
             throw new IllegalArgumentException("Routing field cannot be serialized.", e);
         }
         return this;
+    }
+
+    @Override
+    public boolean isNoop() {
+        return false;
     }
 
     private void add(String fieldName, BytesReference encoded) throws IOException {

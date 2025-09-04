@@ -22,6 +22,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
@@ -175,8 +176,9 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                 new SegmentReadState(
                     segmentWriteState.segmentInfo.dir,
                     segmentWriteState.segmentInfo,
-                    segmentWriteState.fieldInfos,
-                    segmentWriteState.context
+                    new FieldInfos(fields.stream().map(x -> x.fieldInfo).toArray(FieldInfo[]::new)),
+                    IOContext.DEFAULT,
+                    segmentWriteState.segmentSuffix
                 )
             )
         ) {
@@ -479,13 +481,13 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                     if (dataType == CuVSMatrix.DataType.FLOAT) {
                         float[] vector = new float[fieldInfo.getVectorDimension()];
                         for (int i = 0; i < numVectors; ++i) {
-                            input.readFloats(vector, fieldInfo.getVectorDimension() * i, fieldInfo.getVectorDimension());
+                            input.readFloats(vector, 0, fieldInfo.getVectorDimension());
                         }
                     } else {
                         assert dataType == CuVSMatrix.DataType.BYTE;
                         byte[] vector = new byte[fieldInfo.getVectorDimension()];
                         for (int i = 0; i < numVectors; ++i) {
-                            input.readBytes(vector, fieldInfo.getVectorDimension() * i, fieldInfo.getVectorDimension());
+                            input.readBytes(vector, 0, fieldInfo.getVectorDimension());
                         }
                     }
                     dataset = builder.build();

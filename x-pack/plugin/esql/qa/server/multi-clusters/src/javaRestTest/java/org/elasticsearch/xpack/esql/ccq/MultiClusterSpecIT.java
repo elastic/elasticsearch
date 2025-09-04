@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SPATIAL_GRID_INTERSECTS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -147,7 +148,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
             );
         }
-        // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
+        // Some calls to ST_INTERSECTS with GRID are not yet supported in CCS
+        // See https://github.com/elastic/elasticsearch/issues/134110
+        assumeFalse(
+            "SPATIAL_GRID_INTERSECTS not yet supported in CCS",
+            testCase.requiredCapabilities.contains(SPATIAL_GRID_INTERSECTS.capabilityName())
+        );
+        // Unmapped fields require a correct capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse(

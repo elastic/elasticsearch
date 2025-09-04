@@ -864,10 +864,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public static class BytesRefsFromBinaryBlockLoader extends DocValuesBlockLoader {
+    public static class BytesRefsFromCustomBinaryBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 
-        public BytesRefsFromBinaryBlockLoader(String fieldName) {
+        public BytesRefsFromCustomBinaryBlockLoader(String fieldName) {
             this.fieldName = fieldName;
         }
 
@@ -882,7 +882,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues == null) {
                 return new ConstantNullsReader();
             }
-            return new BytesRefsFromBinary(docValues);
+            return new BytesRefsFromCustomBinary(docValues);
         }
     }
 
@@ -920,11 +920,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     /**
      * Read BinaryDocValues encoded by {@link BinaryFieldMapper.CustomBinaryDocValuesField}
      */
-    static class BytesRefsFromBinary extends AbstractBytesRefsFromBinary {
+    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
         private final ByteArrayStreamInput in = new ByteArrayStreamInput();
         private final BytesRef scratch = new BytesRef();
 
-        BytesRefsFromBinary(BinaryDocValues docValues) {
+        BytesRefsFromCustomBinary(BinaryDocValues docValues) {
             super(docValues);
         }
 

@@ -1766,7 +1766,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 int bytesToWriteBlobsToDelete = StreamOutput.bytesInStringCollection(blobsToDelete);
                 int totalBytesRequired = bytesToWriteIndexId + bytesToWriteShardId + bytesToWriteBlobsToDelete;
 
-                int i = shardDeleteResults.size();
                 // Only perform the write if there is capacity left
                 if (shardDeleteResults.size() + totalBytesRequired <= shardDeleteResultsMaxSize) {
                     new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);

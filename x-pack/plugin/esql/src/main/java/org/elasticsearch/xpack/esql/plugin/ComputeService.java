@@ -35,6 +35,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -596,7 +597,7 @@ public class ComputeService {
             var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
 
                 @Override
-                public SourceProvider createSourceProvider() {
+                public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
                     return new ReinitializingSourceProvider(super::createSourceProvider);
                 }
             };

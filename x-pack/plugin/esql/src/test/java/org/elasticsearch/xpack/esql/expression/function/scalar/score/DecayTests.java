@@ -28,6 +28,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -923,6 +924,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
     private static String randomDistance() {
         return String.format(
+            Locale.ROOT,
             "%d%s",
             randomNonNegativeInt(),
             randomFrom(

@@ -1432,7 +1432,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES;
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot());
 
         private final boolean enabled;
 

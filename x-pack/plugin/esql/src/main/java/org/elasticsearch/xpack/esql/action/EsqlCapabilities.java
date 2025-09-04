@@ -1291,7 +1291,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V4(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.

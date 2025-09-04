@@ -343,7 +343,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             if (t instanceof MergePolicy.MergeAbortedException == false) {
                 // A merge thread that thrown an exception that closed the IndexWriter causes other merge threads to be aborted, but it is
                 // not itself aborted: instead the current merge is just completed and the thrown exception is set in the package-private
-                // OneMerge.error field. Here we setsuch merge as aborted too so that it is not considered as successful later.
+                // OneMerge.error field. Here we set such merge as aborted too so that it is not considered as successful later.
                 oneMerge.setAborted();
                 handleMergeException(t);
             }
@@ -631,7 +631,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
             enqueueBackloggedTasks();
         }
-        // waits for any running merge threads to finish
+        // waits for any running merge threads to finish, similar to what ConcurrentMergeScheduler#sync does.
         boolean interrupted = false;
         try {
             while (true) {

@@ -56,6 +56,7 @@ public class QueryRewriteContext {
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
     protected final IndexSettings indexSettings;
+    private final String localClusterAlias;
     protected final Index fullyQualifiedIndex;
     protected final Predicate<String> indexNameMatcher;
     protected final NamedWriteableRegistry writeableRegistry;
@@ -82,6 +83,7 @@ public class QueryRewriteContext {
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
         final IndexSettings indexSettings,
+        final String localClusterAlias,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
         final NamedWriteableRegistry namedWriteableRegistry,
@@ -102,6 +104,7 @@ public class QueryRewriteContext {
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
         this.indexSettings = indexSettings;
+        this.localClusterAlias = localClusterAlias;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
         this.writeableRegistry = namedWriteableRegistry;
@@ -132,10 +135,12 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             false
         );
     }
 
+    // TODO: Pass cluster alias to this constructor
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
         final Client client,
@@ -147,6 +152,7 @@ public class QueryRewriteContext {
         this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
     }
 
+    // TODO: Pass cluster alias to this constructor
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
         final Client client,
@@ -163,6 +169,7 @@ public class QueryRewriteContext {
             null,
             MappingLookup.EMPTY,
             Collections.emptyMap(),
+            null,
             null,
             null,
             null,
@@ -343,6 +350,13 @@ public class QueryRewriteContext {
                 action.accept(client, internalListener);
             }
         }
+    }
+
+    /**
+     * Returns the local cluster alias. Returns null if it is unknown.
+     */
+    public String getLocalClusterAlias() {
+        return localClusterAlias;
     }
 
     /**

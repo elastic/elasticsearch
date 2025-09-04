@@ -149,7 +149,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -192,7 +191,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled())
+            new DateMillisToNanosInEsRelation()
         ),
         new Batch<>(
             "Resolution",
@@ -1975,42 +1974,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
 
-        private final boolean isSnapshot;
-
-        DateMillisToNanosInEsRelation(boolean isSnapshot) {
-            this.isSnapshot = isSnapshot;
-        }
-
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (isSnapshot) {
-                return plan.transformUp(EsRelation.class, relation -> {
-                    if (relation.indexMode() == IndexMode.LOOKUP) {
-                        return relation;
+            return plan.transformUp(EsRelation.class, relation -> {
+                if (relation.indexMode() == IndexMode.LOOKUP) {
+                    return relation;
+                }
+                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        var convert = new ToDateNanos(f.source(), f);
+                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        return new FieldAttribute(
+                            f.source(),
+                            f.parentName(),
+                            f.qualifier(),
+                            f.name(),
+                            resolvedField,
+                            f.nullable(),
+                            f.id(),
+                            f.synthetic()
+                        );
                     }
-                    return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                        if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
-                            HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                            var convert = new ToDateNanos(f.source(), f);
-                            imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                            var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
-                            return new FieldAttribute(
-                                f.source(),
-                                f.parentName(),
-                                f.qualifier(),
-                                f.name(),
-                                resolvedField,
-                                f.nullable(),
-                                f.id(),
-                                f.synthetic()
-                            );
-                        }
-                        return f;
-                    });
+                    return f;
                 });
-            } else {
-                return plan;
-            }
+            });
         }
     }
 

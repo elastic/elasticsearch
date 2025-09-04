@@ -454,54 +454,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public enum ElementType {
-
-        BYTE(new ElementTypeByteBehavior()),
-        FLOAT(new ElementTypeFloatBehavior()),
-        BIT(new ElementTypeBitBehavior());
-
-        private final ElementTypeBehavior behavior;
-
-        ElementType(ElementTypeBehavior behavior) {
-            this.behavior = behavior;
-        }
+        BYTE, FLOAT, BIT;
 
         @Override
         public String toString() {
             return super.toString().toLowerCase(Locale.ROOT);
         }
+    }
 
-        public void writeValue(ByteBuffer byteBuffer, float value) {
-            behavior.writeValue(byteBuffer, value);
-        }
+    public static final Element BYTE_ELEMENT = new ByteElement();
+    public static final Element FLOAT_ELEMENT = new FloatElement();
+    public static final Element BIT_ELEMENT = new BitElement();
 
-        public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
-            behavior.readAndWriteValue(byteBuffer, b);
-        }
+    public static final Map<String, ElementType> namesToElementType = Map.of(
+        ElementType.BYTE.toString(),
+        ElementType.BYTE,
+        ElementType.FLOAT.toString(),
+        ElementType.FLOAT,
+        ElementType.BIT.toString(),
+        ElementType.BIT
+    );
 
-        IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext) {
-            return behavior.fielddataBuilder(denseVectorFieldType, fieldDataContext);
-        }
+    private static final Map<ElementType, Element> elements = Map.of(
+        ElementType.BYTE,
+        BYTE_ELEMENT,
+        ElementType.FLOAT,
+        FLOAT_ELEMENT,
+        ElementType.BIT,
+        BIT_ELEMENT);
 
-        void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
-            behavior.parseKnnVectorAndIndex(context, fieldMapper);
-        }
-
-        public VectorData parseKnnVector(
-            DocumentParserContext context,
-            int dims,
-            IntBooleanConsumer dimChecker,
-            VectorSimilarity similarity
-        ) throws IOException {
-            return behavior.parseKnnVector(context, dims, dimChecker, similarity);
-        }
-
-        public int getNumBytes(int dimensions) {
-            return behavior.getNumBytes(dimensions);
-        }
-
-        public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
-            return behavior.createByteBuffer(indexVersion, numBytes);
-        }
+    public static abstract class Element {
 
         /**
          * Checks the input {@code vector} is one of the {@code possibleTypes},
@@ -513,7 +495,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // assume the types are in order of specificity
             StringBuilder[] errors = new StringBuilder[possibleTypes.length];
             for (int i = 0; i < possibleTypes.length; i++) {
-                StringBuilder error = possibleTypes[i].behavior.checkVectorErrors(vector);
+                StringBuilder error = elements.get(possibleTypes[i]).checkVectorErrors(vector);
                 if (error == null) {
                     // this one works - use it
                     return possibleTypes[i];
@@ -530,35 +512,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 message.append("Vector is not a ").append(possibleTypes[i]).append(" vector: ").append(errors[i]);
             }
-            throw new IllegalArgumentException(ElementTypeFloatBehavior.appendErrorElements(message, vector).toString());
+            throw new IllegalArgumentException(FloatElement.appendErrorElements(message, vector).toString());
         }
-
-        public void checkVectorBounds(float[] vector) {
-            behavior.checkVectorBounds(vector);
-        }
-
-        void checkVectorMagnitude(VectorSimilarity similarity, UnaryOperator<StringBuilder> errorElementsAppender, float squaredMagnitude) {
-            behavior.checkVectorMagnitude(similarity, errorElementsAppender, squaredMagnitude);
-        }
-
-        public void checkDimensions(Integer dvDims, int qvDims) {
-            behavior.checkDimensions(dvDims, qvDims);
-        }
-
-        public int parseDimensionCount(DocumentParserContext context) throws IOException {
-            return behavior.parseDimensionCount(context);
-        }
-
-        public double computeSquaredMagnitude(VectorData vectorData) {
-            return behavior.computeSquaredMagnitude(vectorData);
-        }
-
-        public static ElementType fromString(String name) {
-            return valueOf(name.trim().toUpperCase(Locale.ROOT));
-        }
-    }
-
-    private abstract static class ElementTypeBehavior {
 
         abstract ElementType elementType();
 
@@ -584,7 +539,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         void checkVectorBounds(float[] vector) {
             StringBuilder errors = checkVectorErrors(vector);
             if (errors != null) {
-                throw new IllegalArgumentException(ElementTypeFloatBehavior.appendErrorElements(errors, vector).toString());
+                throw new IllegalArgumentException(FloatElement.appendErrorElements(errors, vector).toString());
             }
         }
 
@@ -653,7 +608,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract double computeSquaredMagnitude(VectorData vectorData);
     }
 
-    private static class ElementTypeByteBehavior extends ElementTypeBehavior {
+    private static class ByteElement extends Element {
 
         @Override
         ElementType elementType() {
@@ -905,7 +860,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static class ElementTypeFloatBehavior extends ElementTypeBehavior {
+    private static class FloatElement extends Element {
 
         @Override
         ElementType elementType() {
@@ -1090,7 +1045,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static class ElementTypeBitBehavior extends ElementTypeByteBehavior {
+    private static class BitElement extends ByteElement {
 
         @Override
         ElementType elementType() {
@@ -1151,15 +1106,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super.checkDimensions(dvDims, qvDims * Byte.SIZE);
         }
     }
-
-    public static final Map<String, ElementType> namesToElementType = Map.of(
-        ElementType.BYTE.toString(),
-        ElementType.BYTE,
-        ElementType.FLOAT.toString(),
-        ElementType.FLOAT,
-        ElementType.BIT.toString(),
-        ElementType.BIT
-    );
 
     public enum VectorSimilarity {
         L2_NORM {
@@ -2275,6 +2221,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {
         private final ElementType elementType;
+        private final Element element;
         private final Integer dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
@@ -2301,6 +2248,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
             this.isSyntheticSource = isSyntheticSource;
+
+            this.element = elements.get(elementType);
+            assert this.element != null;
         }
 
         @Override
@@ -2338,7 +2288,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return elementType.fielddataBuilder(this, fieldDataContext);
+            return element.fielddataBuilder(this, fieldDataContext);
         }
 
         @Override
@@ -2373,25 +2323,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private Query createExactKnnBitQuery(byte[] queryVector) {
-            elementType.checkDimensions(dims, queryVector.length);
+            elements.get(elementType).checkDimensions(dims, queryVector.length);
             return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
         private Query createExactKnnByteQuery(byte[] queryVector) {
-            elementType.checkDimensions(dims, queryVector.length);
+            elements.get(elementType).checkDimensions(dims, queryVector.length);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementTypeByteBehavior.errorElementsAppender(queryVector), squaredMagnitude);
+                elements.get(elementType).checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
             return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
         private Query createExactKnnFloatQuery(float[] queryVector) {
-            elementType.checkDimensions(dims, queryVector.length);
-            elementType.checkVectorBounds(queryVector);
+            element.checkDimensions(dims, queryVector.length);
+            element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementTypeFloatBehavior.errorElementsAppender(queryVector), squaredMagnitude);
+                element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isNormalized() && isNotUnitVector(squaredMagnitude)) {
                     float length = (float) Math.sqrt(squaredMagnitude);
                     queryVector = Arrays.copyOf(queryVector, queryVector.length);
@@ -2476,7 +2426,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination
         ) {
-            elementType.checkDimensions(dims, queryVector.length);
+            element.checkDimensions(dims, queryVector.length);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 var exactKnnQuery = parentFilter != null
@@ -2515,11 +2465,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination
         ) {
-            elementType.checkDimensions(dims, queryVector.length);
+            element.checkDimensions(dims, queryVector.length);
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementTypeByteBehavior.errorElementsAppender(queryVector), squaredMagnitude);
+                element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
@@ -2577,11 +2527,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy knnSearchStrategy,
             boolean hnswEarlyTermination
         ) {
-            elementType.checkDimensions(dims, queryVector.length);
-            elementType.checkVectorBounds(queryVector);
+            element.checkDimensions(dims, queryVector.length);
+            element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementTypeFloatBehavior.errorElementsAppender(queryVector), squaredMagnitude);
+                element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isNormalized() && isNotUnitVector(squaredMagnitude)) {
                     float length = (float) Math.sqrt(squaredMagnitude);
                     queryVector = Arrays.copyOf(queryVector, queryVector.length);
@@ -2768,7 +2718,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().dims == null) {
-            int dims = fieldType().elementType.parseDimensionCount(context);
+            int dims = fieldType().element.parseDimensionCount(context);
             DenseVectorFieldMapper.Builder builder = (Builder) getMergeBuilder();
             builder.dimensions(dims);
             Mapper update = builder.build(context.createDynamicMapperBuilderContext());
@@ -2783,20 +2733,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private void parseKnnVectorAndIndex(DocumentParserContext context) throws IOException {
-        fieldType().elementType.parseKnnVectorAndIndex(context, this);
+        fieldType().element.parseKnnVectorAndIndex(context, this);
     }
 
     private void parseBinaryDocValuesVectorAndIndex(DocumentParserContext context) throws IOException {
         // encode array of floats as array of integers and store into buf
         // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
         int dims = fieldType().dims;
-        ElementType elementType = fieldType().elementType;
+        Element element = fieldType().element;
         int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(dims) + MAGNITUDE_BYTES
-            : elementType.getNumBytes(dims);
+            ? element.getNumBytes(dims) + MAGNITUDE_BYTES
+            : element.getNumBytes(dims);
 
-        ByteBuffer byteBuffer = elementType.createByteBuffer(indexCreatedVersion, numBytes);
-        VectorData vectorData = elementType.parseKnnVector(context, dims, (i, b) -> {
+        ByteBuffer byteBuffer = element.createByteBuffer(indexCreatedVersion, numBytes);
+        VectorData vectorData = element.parseKnnVector(context, dims, (i, b) -> {
             if (b) {
                 checkDimensionMatches(i, context);
             } else {
@@ -2806,7 +2756,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         vectorData.addToBuffer(byteBuffer);
         if (indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
             // encode vector magnitude at the end
-            double dotProduct = elementType.computeSquaredMagnitude(vectorData);
+            double dotProduct = element.computeSquaredMagnitude(vectorData);
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
@@ -3099,7 +3049,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             int dims = fieldType().elementType == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
             for (int dim = 0; dim < dims; dim++) {
-                fieldType().elementType.readAndWriteValue(byteBuffer, b);
+                fieldType().element.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
         }

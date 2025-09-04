@@ -60,7 +60,8 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
 
     public void testEquality() {
         ExponentialHistogram histo = randomHistogram();
-        ExponentialHistogram copy = copyWithModification(histo, null);
+        ReleasableExponentialHistogram copy = ExponentialHistogram.builder(histo, breaker()).build();
+        autoReleaseOnTestEnd(copy);
         ExponentialHistogram modifiedCopy = copyWithModification(histo, modification);
 
         assertThat(histo, equalTo(copy));
@@ -87,8 +88,6 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     private ExponentialHistogram copyWithModification(ExponentialHistogram toCopy, Modification modification) {
         ExponentialHistogramBuilder copyBuilder = ExponentialHistogram.builder(toCopy, breaker());
         switch (modification) {
-            case null -> {
-            }
             case SCALE -> copyBuilder.scale((int) createRandomLongBetweenOtherThan(MIN_SCALE, MAX_SCALE, toCopy.scale()));
             case SUM -> copyBuilder.sum(randomDouble());
             case MIN -> copyBuilder.min(randomDouble());

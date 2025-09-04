@@ -10,18 +10,9 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.HnswGraphBuilder;
-import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.SampleReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -148,40 +139,40 @@ class KMeansLocal {
         NeighborHood neighborhood,
         float[] distances
     ) {
-        final int limit = neighborhood.neighbors.length - 3;
+        final int limit = neighborhood.neighbors().length - 3;
         int bestCentroidOffset = centroidIdx;
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
         float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
         int i = 0;
         for (; i < limit; i += 4) {
-            if (minDsq < neighborhood.maxIntraDistance) {
+            if (minDsq < neighborhood.maxIntraDistance()) {
                 // if the distance found is smaller than the maximum intra-cluster distance
                 // we don't consider it for further re-assignment
                 return bestCentroidOffset;
             }
             ESVectorUtil.squareDistanceBulk(
                 vector,
-                centroids[neighborhood.neighbors[i]],
-                centroids[neighborhood.neighbors[i + 1]],
-                centroids[neighborhood.neighbors[i + 2]],
-                centroids[neighborhood.neighbors[i + 3]],
+                centroids[neighborhood.neighbors()[i]],
+                centroids[neighborhood.neighbors()[i + 1]],
+                centroids[neighborhood.neighbors()[i + 2]],
+                centroids[neighborhood.neighbors()[i + 3]],
                 distances
             );
             for (int j = 0; j < distances.length; j++) {
                 float dsq = distances[j];
                 if (dsq < minDsq) {
                     minDsq = dsq;
-                    bestCentroidOffset = neighborhood.neighbors[i + j];
+                    bestCentroidOffset = neighborhood.neighbors()[i + j];
                 }
             }
         }
-        for (; i < neighborhood.neighbors.length; i++) {
-            if (minDsq < neighborhood.maxIntraDistance) {
+        for (; i < neighborhood.neighbors().length; i++) {
+            if (minDsq < neighborhood.maxIntraDistance()) {
                 // if the distance found is smaller than the maximum intra-cluster distance
                 // we don't consider it for further re-assignment
                 return bestCentroidOffset;
             }
-            int offset = neighborhood.neighbors[i];
+            int offset = neighborhood.neighbors()[i];
             // float score = neighborhood.scores[i];
             assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
             // compute the distance to the centroid
@@ -223,129 +214,10 @@ class KMeansLocal {
         assert centers.length > clustersPerNeighborhood;
         // experiments shows that below 15k, we better use brute force, otherwise hnsw gives us a nice speed up
         if (centers.length < 15_000) {
-            return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
+            return NeighborHood.computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
         } else {
-            return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
+            return NeighborHood.computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
         }
-    }
-
-    static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
-        final UpdateableRandomVectorScorer scorer = new UpdateableRandomVectorScorer() {
-            int scoringOrdinal;
-
-            @Override
-            public float score(int node) {
-                return VectorSimilarityFunction.EUCLIDEAN.compare(centers[scoringOrdinal], centers[node]);
-            }
-
-            @Override
-            public int maxOrd() {
-                return centers.length;
-            }
-
-            @Override
-            public void setScoringOrdinal(int node) {
-                scoringOrdinal = node;
-            }
-        };
-        final RandomVectorScorerSupplier supplier = new RandomVectorScorerSupplier() {
-            @Override
-            public UpdateableRandomVectorScorer scorer() {
-                return scorer;
-            }
-
-            @Override
-            public RandomVectorScorerSupplier copy() {
-                return this;
-            }
-        };
-        final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, 16, 100, 42L).build(centers.length);
-        final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
-        final SingleBit singleBit = new SingleBit(centers.length);
-        for (int i = 0; i < centers.length; i++) {
-            scorer.setScoringOrdinal(i);
-            singleBit.indexSet = i;
-            final KnnCollector collector = HnswGraphSearcher.search(scorer, clustersPerNeighborhood, graph, singleBit, Integer.MAX_VALUE);
-            final ScoreDoc[] scoreDocs = collector.topDocs().scoreDocs;
-            if (scoreDocs.length == 0) {
-                // no neighbors, skip
-                neighborhoods[i] = NeighborHood.EMPTY;
-                continue;
-            }
-            final int[] neighbors = new int[scoreDocs.length];
-            for (int j = 0; j < neighbors.length; j++) {
-                neighbors[j] = scoreDocs[j].doc;
-                assert neighbors[j] != i;
-            }
-            final float minCompetitiveSimilarity = (1f / scoreDocs[neighbors.length - 1].score) - 1;
-            neighborhoods[i] = new NeighborHood(neighbors, minCompetitiveSimilarity);
-        }
-        return neighborhoods;
-    }
-
-    private static class SingleBit implements Bits {
-
-        private final int length;
-        private int indexSet;
-
-        SingleBit(int length) {
-            this.length = length;
-        }
-
-        @Override
-        public boolean get(int index) {
-            return index != indexSet;
-        }
-
-        @Override
-        public int length() {
-            return length;
-        }
-    }
-
-    static NeighborHood[] computeNeighborhoodsBruteForce(float[][] centers, int clustersPerNeighborhood) {
-        int k = centers.length;
-        NeighborQueue[] neighborQueues = new NeighborQueue[k];
-        for (int i = 0; i < k; i++) {
-            neighborQueues[i] = new NeighborQueue(clustersPerNeighborhood, true);
-        }
-        final float[] scores = new float[4];
-        final int limit = k - 3;
-        for (int i = 0; i < k - 1; i++) {
-            float[] center = centers[i];
-            int j = i + 1;
-            for (; j < limit; j += 4) {
-                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], scores);
-                for (int h = 0; h < 4; h++) {
-                    neighborQueues[j + h].insertWithOverflow(i, scores[h]);
-                    neighborQueues[i].insertWithOverflow(j + h, scores[h]);
-                }
-            }
-            for (; j < k; j++) {
-                float dsq = VectorUtil.squareDistance(center, centers[j]);
-                neighborQueues[j].insertWithOverflow(i, dsq);
-                neighborQueues[i].insertWithOverflow(j, dsq);
-            }
-        }
-
-        NeighborHood[] neighborhoods = new NeighborHood[k];
-        for (int i = 0; i < k; i++) {
-            NeighborQueue queue = neighborQueues[i];
-            if (queue.size() == 0) {
-                // no neighbors, skip
-                neighborhoods[i] = NeighborHood.EMPTY;
-                continue;
-            }
-            // consume the queue into the neighbors array and get the maximum intra-cluster distance
-            int[] neighbors = new int[queue.size()];
-            float maxIntraDistance = queue.topScore();
-            int iter = 0;
-            while (queue.size() > 0) {
-                neighbors[neighbors.length - ++iter] = queue.pop();
-            }
-            neighborhoods[i] = new NeighborHood(neighbors, maxIntraDistance);
-        }
-        return neighborhoods;
     }
 
     private void assignSpilled(
@@ -391,8 +263,8 @@ class KMeansLocal {
             if (neighborhoods != null) {
                 assert neighborhoods[currAssignment] != null;
                 NeighborHood neighborhood = neighborhoods[currAssignment];
-                centroidCount = neighborhood.neighbors.length;
-                centroidOrds = c -> neighborhood.neighbors[c];
+                centroidCount = neighborhood.neighbors().length;
+                centroidOrds = c -> neighborhood.neighbors()[c];
             } else {
                 centroidCount = centroids.length - 1;
                 centroidOrds = c -> c < currAssignment ? c : c + 1; // skip the current centroid
@@ -434,10 +306,6 @@ class KMeansLocal {
             assert bestAssignment != -1 : "Failed to assign soar vector to centroid";
             spilledAssignments[i] = bestAssignment;
         }
-    }
-
-    record NeighborHood(int[] neighbors, float maxIntraDistance) {
-        static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
     }
 
     /**

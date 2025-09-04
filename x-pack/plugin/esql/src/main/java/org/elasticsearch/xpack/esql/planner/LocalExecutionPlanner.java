@@ -92,6 +92,8 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -104,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
@@ -740,8 +743,8 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
-        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+        EsRelation esRelation = findEsRelation(join.lookup());
+        if (esRelation == null || esRelation.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
@@ -749,10 +752,10 @@ public class LocalExecutionPlanner {
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
         Map.Entry<String, IndexMode> entry;
-        if (localSourceExec.indexNameWithModes().size() == 1) {
-            entry = localSourceExec.indexNameWithModes().entrySet().iterator().next();
+        if (esRelation.indexNameWithModes().size() == 1) {
+            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
         } else {
-            var maybeEntry = localSourceExec.indexNameWithModes()
+            var maybeEntry = esRelation.indexNameWithModes()
                 .entrySet()
                 .stream()
                 .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
@@ -788,7 +791,6 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -796,13 +798,24 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 ctx -> lookupFromIndexService,
-                localSourceExec.indexPattern(),
+                esRelation.indexPattern(),
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
-                join.source()
+                join.source(),
+                join.right()
             ),
             layout
         );
+    }
+
+    private static EsRelation findEsRelation(PhysicalPlan node) {
+        if (node instanceof FragmentExec fragmentExec) {
+            List<LogicalPlan> esRelations = fragmentExec.fragment().collectFirstChildren(x -> x instanceof EsRelation);
+            if (esRelations.size() == 1) {
+                return (EsRelation) esRelations.get(0);
+            }
+        }
+        return null;
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

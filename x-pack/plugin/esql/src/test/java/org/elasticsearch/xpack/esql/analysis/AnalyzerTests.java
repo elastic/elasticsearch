@@ -2348,7 +2348,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         checkDenseVectorCastingKnn("float_vector");
     }
@@ -4139,7 +4139,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 

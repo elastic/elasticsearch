@@ -2,6 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>elastic/renovate-config:only-chainguard",
+    "github>elastic/renovate-config:ci-agent-images",
     ":disableDependencyDashboard"
   ],
   "schedule": [
@@ -10,6 +11,7 @@
   "labels": [
     ">non-issue",
     ":Delivery/Packaging",
+    ":Delivery/Build",
     "Team:Delivery",
     "auto-merge-without-approval"
   ],

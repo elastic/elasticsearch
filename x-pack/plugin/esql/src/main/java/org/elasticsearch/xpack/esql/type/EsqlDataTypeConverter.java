@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -74,6 +75,8 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -88,6 +91,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -149,7 +153,8 @@ public class EsqlDataTypeConverter {
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
         entry(VERSION, ToVersion::new),
         entry(DATE_PERIOD, ToDatePeriod::new),
-        entry(TIME_DURATION, ToTimeDuration::new)
+        entry(TIME_DURATION, ToTimeDuration::new),
+        entry(DENSE_VECTOR, ToDenseVector::new)
     );
 
     public enum INTERVALS {
@@ -271,6 +276,9 @@ public class EsqlDataTypeConverter {
             }
             if (to == DataType.DATE_PERIOD) {
                 return EsqlConverter.STRING_TO_DATE_PERIOD;
+            }
+            if (to == DENSE_VECTOR) {
+                return EsqlConverter.STRING_TO_DENSE_VECTOR;
             }
         }
         Converter converter = DataTypeConverter.converterFor(from, to);
@@ -732,6 +740,19 @@ public class EsqlDataTypeConverter {
         return n instanceof BigInteger || n.longValue() != 0;
     }
 
+    public static List<Float> stringToDenseVector(String field) {
+        try {
+            byte[] bytes = HexFormat.of().parseHex(field);
+            List<Float> vector = new ArrayList<>(bytes.length);
+            for (byte value : bytes) {
+                vector.add((float) value);
+            }
+            return vector;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "%s is not a valid hex string: %s", field, e.getMessage()));
+        }
+    }
+
     public static long booleanToUnsignedLong(boolean number) {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
@@ -827,7 +848,8 @@ public class EsqlDataTypeConverter {
         STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x))),
         STRING_TO_GEOHASH(x -> Geohash.longEncode(BytesRefs.toString(x))),
         STRING_TO_GEOTILE(x -> GeoTileUtils.longEncode(BytesRefs.toString(x))),
-        STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x)));
+        STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x))),
+        STRING_TO_DENSE_VECTOR(x -> EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(x)));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

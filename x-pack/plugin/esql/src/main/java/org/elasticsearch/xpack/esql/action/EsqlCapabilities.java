@@ -1432,7 +1432,12 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES;
+        ENABLE_FORK_FOR_REMOTE_INDICES,
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

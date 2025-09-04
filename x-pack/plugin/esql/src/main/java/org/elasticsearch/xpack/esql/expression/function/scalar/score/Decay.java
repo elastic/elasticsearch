@@ -18,10 +18,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -80,7 +82,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-public class Decay extends EsqlScalarFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
+public class Decay extends EsqlScalarFunction
+    implements
+        OptionalArgument,
+        PostAnalysisPlanVerificationAware,
+        PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
 
@@ -306,134 +312,78 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
         FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
+        Object originFolded = origin.fold(foldCtx);
+        Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
         Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
         BytesRef typeFolded = typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION;
 
-        switch (valueDataType) {
-            case INTEGER -> {
-                return toIntEvaluator(toEvaluator, (Integer) offsetFolded, valueFactory, foldCtx, valueDataType, decayFolded, typeFolded);
-            }
-            case DOUBLE -> {
-                return new DecayDoubleEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    (Double) origin.fold(foldCtx),
-                    (Double) getFoldedScale(foldCtx, valueDataType),
-                    (Double) offsetFolded,
-                    decayFolded,
-                    typeFolded
-                );
-            }
-            case LONG -> {
-                return new DecayLongEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    (Long) origin.fold(foldCtx),
-                    (Long) getFoldedScale(foldCtx, valueDataType),
-                    (Long) offsetFolded,
-                    decayFolded,
-                    typeFolded
-                );
-            }
-            case GEO_POINT -> {
-                return new DecayGeoPointEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    (BytesRef) origin.fold(foldCtx),
-                    (BytesRef) getFoldedScale(foldCtx, valueDataType),
-                    (BytesRef) offsetFolded,
-                    decayFolded,
-                    typeFolded
-                );
-            }
-            case CARTESIAN_POINT -> {
-                return new DecayCartesianPointEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    (BytesRef) origin.fold(foldCtx),
-                    (Double) getFoldedScale(foldCtx, valueDataType),
-                    (Double) offsetFolded,
-                    decayFolded,
-                    typeFolded
-                );
-            }
-            case DATETIME -> {
-                return new DecayDatetimeEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    (Long) origin.fold(foldCtx),
-                    (Long) getFoldedScale(foldCtx, valueDataType),
-                    (Long) offsetFolded,
-                    decayFolded,
-                    typeFolded
-                );
-            }
-            case DATE_NANOS -> {
-                return new DecayDateNanosEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    (Long) origin.fold(foldCtx),
-                    (Long) getFoldedScale(foldCtx, valueDataType),
-                    (Long) offsetFolded,
-                    decayFolded,
-                    typeFolded
-                );
-            }
+        return switch (valueDataType) {
+            case INTEGER -> new DecayIntEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Integer) originFolded,
+                (Integer) scaleFolded,
+                (Integer) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
+            case DOUBLE -> new DecayDoubleEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Double) originFolded,
+                (Double) scaleFolded,
+                (Double) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
+            case LONG -> new DecayLongEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
+            case GEO_POINT -> new DecayGeoPointEvaluator.Factory(
+                source(),
+                valueFactory,
+                (BytesRef) originFolded,
+                (BytesRef) scaleFolded,
+                (BytesRef) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
+            case CARTESIAN_POINT -> new DecayCartesianPointEvaluator.Factory(
+                source(),
+                valueFactory,
+                (BytesRef) originFolded,
+                (Double) scaleFolded,
+                (Double) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
+            case DATETIME -> new DecayDatetimeEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
+            case DATE_NANOS -> new DecayDateNanosEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                typeFolded
+            );
             default -> throw new UnsupportedOperationException("Unsupported data typeExpr: " + valueDataType);
-        }
-    }
-
-    private EvalOperator.ExpressionEvaluator.Factory toIntEvaluator(
-        ToEvaluator toEvaluator,
-        Integer offsetFolded,
-        EvalOperator.ExpressionEvaluator.Factory valueFactory,
-        FoldContext foldCtx,
-        DataType valueDataType,
-        Double decayFolded,
-        BytesRef typeFolded
-    ) {
-        if (origin.foldable() && scale.foldable()) {
-            return new DecayIntOriginAndScaleConstantEvaluator.Factory(
-                source(),
-                valueFactory,
-                (Integer) origin.fold(foldCtx),
-                (Integer) getFoldedScale(foldCtx, valueDataType),
-                offsetFolded,
-                decayFolded,
-                typeFolded
-            );
-        } else if (scale.foldable()) {
-            return new DecayIntScaleConstantEvaluator.Factory(
-                source(),
-                valueFactory,
-                toEvaluator.apply(origin),
-                (Integer) getFoldedScale(foldCtx, valueDataType),
-                offsetFolded,
-                decayFolded,
-                typeFolded
-            );
-        } else if (origin.foldable()) {
-            return new DecayIntOriginConstantEvaluator.Factory(
-                source(),
-                valueFactory,
-                (Integer) origin.fold(foldCtx),
-                toEvaluator.apply(scale),
-                offsetFolded,
-                decayFolded,
-                typeFolded
-            );
-        } else {
-            return new DecayIntEvaluator.Factory(
-                source(),
-                valueFactory,
-                toEvaluator.apply(origin),
-                toEvaluator.apply(scale),
-                offsetFolded,
-                decayFolded,
-                typeFolded
-            );
-        }
+        };
     }
 
     @Override
@@ -448,7 +398,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
             constantExpressions.put(DECAY, decay);
             constantExpressions.put(TYPE, type);
 
-            // Verify parameter except "value" is constant
+            // Verify options are constant foldable
             constantExpressions.forEach((exprName, expr) -> {
                 if (Objects.nonNull(expr) && expr.foldable() == false) {
                     failures.add(fail(expr, "Function [{}] has non-constant value [{}] [{}].", sourceText(), exprName, expr.sourceText()));
@@ -457,37 +407,18 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
         };
     }
 
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        // Verify that "origin" and "scale" are literal values
+        Map.of(ORIGIN, origin, SCALE, scale).forEach((exprName, expr) -> {
+            if ((expr instanceof Literal) == false) {
+                failures.add(fail(expr, "Function [{}] has non-literal value [{}].", sourceText(), exprName));
+            }
+        });
+    }
+
     @Evaluator(extraName = "Int")
-    static double processInt(int value, int origin, int scale, @Fixed int offset, @Fixed double decay, @Fixed BytesRef functionType) {
-        return intDecay(value, origin, scale, offset, decay, functionType);
-    }
-
-    @Evaluator(extraName = "IntOriginConstant")
-    static double processOriginConstant(
-        int value,
-        @Fixed int origin,
-        int scale,
-        @Fixed int offset,
-        @Fixed double decay,
-        @Fixed BytesRef functionType
-    ) {
-        return intDecay(value, origin, scale, offset, decay, functionType);
-    }
-
-    @Evaluator(extraName = "IntScaleConstant")
-    static double processScaleConstant(
-        int value,
-        int origin,
-        @Fixed int scale,
-        @Fixed int offset,
-        @Fixed double decay,
-        @Fixed BytesRef functionType
-    ) {
-        return intDecay(value, origin, scale, offset, decay, functionType);
-    }
-
-    @Evaluator(extraName = "IntOriginAndScaleConstant")
-    static double processOriginAndScaleConstant(
+    static double process(
         int value,
         @Fixed int origin,
         @Fixed int scale,
@@ -495,10 +426,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
         @Fixed double decay,
         @Fixed BytesRef functionType
     ) {
-        return intDecay(value, origin, scale, offset, decay, functionType);
-    }
-
-    private static double intDecay(int value, int origin, int scale, int offset, double decay, BytesRef functionType) {
         return switch (functionType.utf8ToString()) {
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
@@ -708,4 +635,5 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostA
             default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
     }
+
 }

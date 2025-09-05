@@ -827,12 +827,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(
-        String leafName,
-        MappedFieldType mappedFieldType,
-        BuilderParams builderParams,
-        Builder builder
-    ) {
+    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
         this.ignoreAbove = builder.ignoreAbove.get();

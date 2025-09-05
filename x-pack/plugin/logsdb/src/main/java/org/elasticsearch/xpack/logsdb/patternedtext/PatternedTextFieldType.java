@@ -30,7 +30,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -63,6 +62,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;
+    private final boolean hasPositions;
 
     PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
         // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
@@ -70,14 +70,21 @@ public class PatternedTextFieldType extends StringFieldType {
         super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
+        this.hasPositions = tsi.hasPositions();
     }
 
-    PatternedTextFieldType(String name) {
+    // For testing only
+    PatternedTextFieldType(String name, boolean hasPositions, boolean syntheticSource) {
         this(
             name,
-            new TextSearchInfo(PatternedTextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            new TextSearchInfo(
+                hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
+                null,
+                Lucene.STANDARD_ANALYZER,
+                Lucene.STANDARD_ANALYZER
+            ),
             Lucene.STANDARD_ANALYZER,
-            false,
+            syntheticSource,
             Collections.emptyMap()
         );
     }
@@ -114,9 +121,13 @@ public class PatternedTextFieldType extends StringFieldType {
         };
     }
 
-    private Query sourceConfirmedQuery(Query query, SearchExecutionContext context) {
-        // Disable scoring
-        return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer));
+    private Query maybeSourceConfirmQuery(Query query, SearchExecutionContext context) {
+        // Disable scoring similarly to match_only_text
+        if (hasPositions) {
+            return new ConstantScoreQuery(query);
+        } else {
+            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer));
+        }
     }
 
     private IntervalsSource toIntervalsSource(IntervalsSource source, Query approximation, SearchExecutionContext searchExecutionContext) {
@@ -221,26 +232,26 @@ public class PatternedTextFieldType extends StringFieldType {
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
         throws IOException {
         final Query textQuery = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
-        return sourceConfirmedQuery(textQuery, queryShardContext);
+        return maybeSourceConfirmQuery(textQuery, queryShardContext);
     }
 
     @Override
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext queryShardContext)
         throws IOException {
         final Query textQuery = textFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
-        return sourceConfirmedQuery(textQuery, queryShardContext);
+        return maybeSourceConfirmQuery(textQuery, queryShardContext);
     }
 
     @Override
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
         throws IOException {
         final Query textQuery = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
-        return sourceConfirmedQuery(textQuery, queryShardContext);
+        return maybeSourceConfirmQuery(textQuery, queryShardContext);
     }
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
+        return new PatternedTextBlockLoader(templateFieldName(), argsFieldName(), argsInfoFieldName());
     }
 
     @Override

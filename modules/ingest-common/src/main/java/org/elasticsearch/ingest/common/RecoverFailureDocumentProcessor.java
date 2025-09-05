@@ -14,6 +14,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -34,13 +35,25 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
     @Override
     @SuppressWarnings("unchecked")
     public IngestDocument execute(IngestDocument document) throws Exception {
-        // Get the nested 'document' field, which holds the original document and metadata.
         if (document.hasField("document") == false) {
             throw new IllegalArgumentException("field [document] not present as part of path [document]");
         }
+
+        if (document.hasField("document.source") == false) {
+            throw new IllegalArgumentException("field [source] not present as part of path [document.source]");
+        }
+
+        if (document.hasField("error") == false) {
+            throw new IllegalArgumentException("field [error] not present as part of path [error]");
+        }
+
+        // store pre-recovery data in ingest metadata
+        storePreRecoveryData(document);
+
+        // Get the nested 'document' field, which holds the original document and metadata.
         Map<String, Object> failedDocument = (Map<String, Object>) document.getFieldValue("document", Map.class);
 
-        // Copy the original index and routing back to the document's metadata.
+        // Copy the original index, routing, and id back to the document's metadata.
         String originalIndex = (String) failedDocument.get("index");
         if (originalIndex != null) {
             document.setFieldValue("_index", originalIndex);
@@ -51,20 +64,18 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
             document.setFieldValue("_routing", originalRouting);
         }
 
+        String originalId = (String) failedDocument.get("id");
+        if (originalId != null) {
+            document.setFieldValue("_id", originalId);
+        }
+
         // Get the original document's source.
         Map<String, Object> originalSource = (Map<String, Object>) failedDocument.get("source");
-        if (originalSource == null) {
-            throw new IllegalArgumentException("field [source] not present as part of path [document.source]");
-        }
 
-        // Remove the 'error' and 'document' fields from the top-level document.
-        document.removeField("error");
-        document.removeField("document");
-
-        // Extract all fields from the original source back to the root of the document.
-        for (Map.Entry<String, Object> entry : originalSource.entrySet()) {
-            document.setFieldValue(entry.getKey(), entry.getValue());
-        }
+        // Source should match original source contents.
+        Map<String, Object> source = document.getSource();
+        source.clear();
+        source.putAll(originalSource);
 
         // Return the modified document.
         return document;
@@ -86,5 +97,30 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
         ) throws Exception {
             return new RecoverFailureDocumentProcessor(processorTag, description);
         }
+    }
+
+    private static void storePreRecoveryData(IngestDocument document) {
+        Map<String, Object> sourceAndMetadataMap = document.getSourceAndMetadata();
+
+        // Create the pre_recovery data structure
+        Map<String, Object> preRecoveryData = new HashMap<>();
+
+        // Copy everything from the current document
+        sourceAndMetadataMap.forEach((key, value) -> {
+            if ("document".equals(key) && value instanceof Map) {
+                // For the document field, copy everything except source
+                @SuppressWarnings("unchecked")
+                Map<String, Object> docMap = (Map<String, Object>) value;
+                Map<String, Object> docCopy = new HashMap<>(docMap);
+                docCopy.remove("source");
+                preRecoveryData.put(key, docCopy);
+            } else {
+                // Copy all other fields as-is
+                preRecoveryData.put(key, value);
+            }
+        });
+
+        // Store directly in ingest metadata
+        document.getIngestMetadata().put("pre_recovery", preRecoveryData);
     }
 }

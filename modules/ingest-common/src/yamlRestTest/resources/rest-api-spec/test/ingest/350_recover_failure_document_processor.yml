@@ -1,7 +1,4 @@
 setup:
-#  - requires:
-#      cluster_features: ["DATA_STREAM_FAILURE_STORE_FEATURE"]
-#      reason: "data stream failure store required"
 
   # Create index template for data stream with failure store enabled
   - do:
@@ -35,7 +32,7 @@ setup:
                 field: count
                 value: "not_a_number"  # This will cause a mapping failure
 
-  # Create a remediation-pipeline with recover_failure_document processor
+  # Create a remediation-pipeline with the recover_failure_document processor
   - do:
       ingest.put_pipeline:
         id: "remediation_pipeline"
@@ -98,6 +95,7 @@ teardown:
   - match: { hits.hits.0._source.document.index: "test-logs-recover_failure_document" }
   - match: { hits.hits.0._source.document.routing: "custom-route-123" }
   - is_true: hits.hits.0._source.error
+  - set: { hits.hits.0._source.@timestamp: original_timestamp }
 
   # Get the failure document ID for remediation
   - set: { hits.hits.0._id: failure_doc_id }
@@ -122,6 +120,17 @@ teardown:
   - is_false: docs.0.doc._source.error
   - is_false: docs.0.doc._source.document
 
+  # Check that ingest metadata's pre_recovery field contains all original failure metadata
+  - is_true: docs.0.doc._ingest.timestamp
+  - is_true: docs.0.doc._ingest.pre_recovery
+  - match: { docs.0.doc._ingest.pre_recovery.@timestamp: "${original_timestamp}" }
+  - match: { docs.0.doc._ingest.pre_recovery._index: "test-logs-recover_failure_document" }
+  - match: { docs.0.doc._ingest.pre_recovery._id: "${failure_doc_id}" }
+  - match: { docs.0.doc._ingest.pre_recovery._version: -3 }
+  - match: { docs.0.doc._ingest.pre_recovery.document.index: "test-logs-recover_failure_document" }
+  - match: { docs.0.doc._ingest.pre_recovery.document.routing: "custom-route-123" }
+  - match: { docs.0.doc._ingest.pre_recovery.error.type: "document_parsing_exception" }
+
 ---
 "Test recover_failure_document processor error handling - missing document field":
   - do:
@@ -135,7 +144,7 @@ teardown:
                 error: "simulated failure"
                 message: "test message"
                 count: 42
-                # Missing "document" field - should cause error
+                # Missing "document" field should cause an exception
 
   - match: { docs.0.error.type: "illegal_argument_exception" }
   - match: { docs.0.error.reason: "field [document] not present as part of path [document]" }
@@ -153,7 +162,7 @@ teardown:
                 error: "simulated failure"
                 document:
                   index: "original-index"
-                  # Missing "source" field - should cause error
+                  # Missing "source" field should cause an exception
 
   - match: { docs.0.error.type: "illegal_argument_exception" }
   - match: { docs.0.error.reason: "field [source] not present as part of path [document.source]" }

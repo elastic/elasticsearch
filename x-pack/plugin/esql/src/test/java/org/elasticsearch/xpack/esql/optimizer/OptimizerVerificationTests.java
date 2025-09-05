@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.INLINESTATS_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -439,13 +440,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | INLINESTATS s = sum(salary) BY first_name
             """, analyzer);
 
-        assertThat(
-            err,
-            containsString(
-                "2:3: Unbounded sort not supported yet [SORT languages] please add a limit\n"
-                    + "line 3:3: inlinestats [INLINESTATS count(*) BY languages] cannot yet have an unbounded sort [SORT languages] before"
-                    + " it : either move the sort after it, or add a limit before the sort"
-            )
-        );
+        assertThat(err, is("""
+            2:3: Unbounded sort not supported yet [SORT languages] please add a limit
+            line 3:3: inlinestats [INLINESTATS count(*) BY languages] cannot yet have an unbounded sort [SORT languages] before\
+             it : either move the sort after it, or add a limit before the sort
+            line 4:3: inlinestats [INLINESTATS s = sum(salary) BY first_name] cannot yet have an unbounded sort [SORT languages]\
+             before it : either move the sort after it, or add a limit before the sort"""));
     }
 }

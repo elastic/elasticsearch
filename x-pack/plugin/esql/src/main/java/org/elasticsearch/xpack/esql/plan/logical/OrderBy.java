@@ -123,10 +123,10 @@ public class OrderBy extends UnaryPlan
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
         return (p, failures) -> {
             if (p instanceof InlineJoin inlineJoin) {
-                // walking up the UnaryPlans only, not to warn twice on consecutive INLINESTATS
-                inlineJoin.left().forEachUp(UnaryPlan.class, unary -> {
-                    if (unary instanceof OrderBy orderBy) {
-                        failures.add(
+                inlineJoin.left()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
                             fail(
                                 inlineJoin,
                                 "inlinestats [{}] cannot yet have an unbounded sort [{}] before it : either move the sort after it,"
@@ -134,9 +134,8 @@ public class OrderBy extends UnaryPlan
                                 inlineJoin.sourceText(),
                                 orderBy.sourceText()
                             )
-                        );
-                    }
-                });
+                        )
+                    );
             } else if (p instanceof OrderBy) {
                 failures.add(fail(p, "Unbounded sort not supported yet [{}] please add a limit", p.sourceText()));
             }

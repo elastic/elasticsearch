@@ -38,7 +38,7 @@ public interface PostOptimizationPlanVerificationAware {
      *      public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
      *          return (p, failures) -> {
      *              if (p instanceof InlineJoin inlineJoin) {
-     *                  inlineJoin.left().forEachUp(OrderBy.class, orderBy -> {
+     *                  inlineJoin.forEachUp(OrderBy.class, orderBy -> {
      *                      failures.add(
      *                          fail(
      *                              inlineJoin,

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -61,6 +62,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     private ClusterApplier clusterApplier;
     private ClusterSettings clusterSettings;
     private GatewayMetaState gatewayMetaState;
+    private ClusterService clusterService;
 
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
         Map<String, Supplier<SeedHostsProvider>> impl();
@@ -88,6 +90,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         clusterApplier = mock(ClusterApplier.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         gatewayMetaState = mock(GatewayMetaState.class);
+        clusterService = mock(ClusterService.class);
     }
 
     @After
@@ -118,7 +121,8 @@ public class DiscoveryModuleTests extends ESTestCase {
             null,
             new NoneCircuitBreakerService(),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            clusterService
         );
     }
 

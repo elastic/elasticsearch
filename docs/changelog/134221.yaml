@@ -1,0 +1,5 @@
+pr: 134221
+summary: Enable skippers on `@timestamp` and `host.name` fields in LogsDB
+area: Logs
+type: feature
+issues: []

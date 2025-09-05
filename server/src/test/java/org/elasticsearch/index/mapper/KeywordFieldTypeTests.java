@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -424,11 +425,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given_as_logsdb_default_but_index_mod_is_not_logsdb() {
         // given
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
         MappingParserContext mappingParserContext = mock(MappingParserContext.class);
         doReturn(settings).when(mappingParserContext).getSettings();
@@ -439,13 +440,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         builder.ignoreAbove(IGNORE_ABOVE_DEFAULT_LOGSDB);
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-                "field",
-                mock(FieldType.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                builder,
-                true
+            "field",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
         );
 
         // when/then

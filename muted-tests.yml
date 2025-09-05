@@ -468,9 +468,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/133370
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133449

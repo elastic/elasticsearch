@@ -9,26 +9,35 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LongScriptDocValues;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests that source provider optimization that filters _source based on the same of source only runtime fields kick in.
@@ -140,6 +149,81 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
                 }
             }
         }
+    }
+
+    public void testNormalAndRuntimeFieldWithSameName() throws IOException {
+        var mapping = jsonBuilder().startObject().startObject("runtime");
+        mapping.startObject("field").field("type", "long").endObject();
+        mapping.startObject("field2").field("type", "long").endObject();
+        mapping.endObject().startObject("properties");
+        mapping.startObject("field").field("type", "long").endObject();
+        mapping.endObject().endObject();
+
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        var indexService = createIndex("test-index", settings, mapping);
+        var fieldType1 = indexService.mapperService().fieldType("field");
+        assertThat(fieldType1, notNullValue());
+        var fieldType2 = indexService.mapperService().fieldType("field2");
+        assertThat(fieldType2, notNullValue());
+
+        // Assert implementations:
+        try (Directory directory = newDirectory(); IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+            iw.addDocument(new Document());
+            try (var indexReader = DirectoryReader.open(iw)) {
+                var searcher = new IndexSearcher(indexReader);
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+
+                // field name 'field' is both mapped as runtime and normal field and so LongScriptBlockLoader is expected:
+                BlockLoader loader = fieldType1.blockLoader(blContext(settings, context.lookup()));
+                assertThat(loader, instanceOf(LongScriptBlockDocValuesReader.LongScriptBlockLoader.class));
+
+                // field name 'field2' is just mapped as runtime field and so FallbackSyntheticSourceBlockLoader is expected:
+                BlockLoader loader2 = fieldType2.blockLoader(blContext(settings, context.lookup()));
+                assertThat(loader2, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+            }
+        }
+
+    }
+
+    static MappedFieldType.BlockLoaderContext blContext(Settings settings, SearchLookup lookup) {
+        String indexName = "test_index";
+        var imd = IndexMetadata.builder(indexName).settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(settings)).build();
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                return indexName;
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                return new IndexSettings(imd, settings);
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                return lookup;
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+        };
     }
 
 }

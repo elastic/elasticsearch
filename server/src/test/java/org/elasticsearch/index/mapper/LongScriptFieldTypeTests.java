@@ -326,7 +326,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 LongScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
 
                 // Assert implementations:
-                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY));
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+                assertThat(loader, instanceOf(LongScriptBlockDocValuesReader.LongScriptBlockLoader.class));
                 // ignored source doesn't support column at a time loading:
                 var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
                 assertThat(columnAtATimeLoader, instanceOf(LongScriptBlockDocValuesReader.class));
@@ -356,7 +357,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 LongScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
 
                 // Assert implementations:
-                BlockLoader loader = fieldType.blockLoader(blContext(settings));
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
                 // ignored source doesn't support column at a time loading:
                 var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
                 assertThat(columnAtATimeLoader, nullValue());
@@ -367,7 +369,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 );
 
                 // Assert values:
-                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType), equalTo(List.of(1L, 2L)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(List.of(1L, 2L)));
             }
         }
     }

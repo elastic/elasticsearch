@@ -111,7 +111,11 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
         var indexSettings = blContext.indexSettings();
-        if (isParsedFromSource && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
+        if (isParsedFromSource && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC
+        // A runtime and normal field can share the same name.
+        // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
+        // We could optimize this, but at this stage feels like a rare scenario.
+            && blContext.lookup().onlyMappedAsRuntimeField(name())) {
             var reader = new NumberType.NumberFallbackSyntheticSourceReader(NumberType.LONG, null, true) {
                 @Override
                 public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {

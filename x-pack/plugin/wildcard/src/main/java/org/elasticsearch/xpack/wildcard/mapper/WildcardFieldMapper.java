@@ -51,7 +51,6 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -92,6 +91,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -211,21 +212,18 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final IndexMode indexMode;
-        final IndexVersion indexVersionCreated;
+        final IndexVersion indexCreatedVersion;
+        final int ignoreAboveDefault;
 
         public Builder(final String name, IndexVersion indexVersionCreated) {
-            this(name, IndexMode.STANDARD, indexVersionCreated);
+            this(name, IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, indexVersionCreated);
         }
 
-        private Builder(String name, IndexMode indexMode, IndexVersion indexVersionCreated) {
+        private Builder(String name, int ignoreAboveDefault, IndexVersion indexCreatedVersion) {
             super(name);
-            this.indexVersionCreated = indexVersionCreated;
-            this.indexMode = indexMode;
-            this.ignoreAbove = Parameter.ignoreAboveParam(
-                m -> toType(m).ignoreAbove,
-                IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexVersionCreated)
-            );
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.ignoreAboveDefault = ignoreAboveDefault;
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove, ignoreAboveDefault);
         }
 
         @Override
@@ -247,17 +245,17 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 leafName(),
-                new WildcardFieldType(context.buildFullName(leafName()), indexVersionCreated, meta.get(), this),
+                new WildcardFieldType(context.buildFullName(leafName()), indexCreatedVersion, meta.get(), this),
                 context.isSourceSynthetic(),
                 builderParams(this, context),
-                indexVersionCreated,
+                indexCreatedVersion,
                 this
             );
         }
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexSettings().getMode(), c.indexVersionCreated())
+        (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 
     public static final char TOKEN_START_OR_END_CHAR = 0;
@@ -998,10 +996,10 @@ public class WildcardFieldMapper extends FieldMapper {
         assert NGRAM_FIELD_TYPE.indexOptions() == IndexOptions.DOCS;
     }
     private final String nullValue;
-    private final IndexMode indexMode;
     private final IndexVersion indexVersionCreated;
 
     private final int ignoreAbove;
+    private final int ignoreAboveDefault;
     private final boolean storeIgnored;
     private final String originalName;
 
@@ -1016,9 +1014,9 @@ public class WildcardFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.nullValue = builder.nullValue.getValue();
         this.storeIgnored = storeIgnored;
-        this.indexMode = builder.indexMode;
         this.indexVersionCreated = indexVersionCreated;
         this.ignoreAbove = builder.ignoreAbove.getValue();
+        this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.originalName = storeIgnored ? fullPath() + "._original" : null;
     }
 
@@ -1094,7 +1092,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexMode, indexVersionCreated).init(this);
+        return new Builder(leafName(), ignoreAboveDefault, indexVersionCreated).init(this);
     }
 
     @Override

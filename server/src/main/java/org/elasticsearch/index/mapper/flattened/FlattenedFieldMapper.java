@@ -38,9 +38,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -84,6 +82,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -152,6 +152,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).eagerGlobalOrdinals.get(),
             false
         );
+        private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
@@ -179,25 +180,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final IndexMode indexMode;
-        private final IndexVersion indexCreatedVersion;
-
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
         }
 
         public Builder(final String name) {
-            this(name, IndexMode.STANDARD, IndexVersion.current());
+            this(name, IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES);
         }
 
-        private Builder(String name, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        private Builder(String name, int ignoreAboveDefault) {
             super(name);
-            this.indexMode = indexMode;
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreAbove = Parameter.ignoreAboveParam(
-                m -> builder(m).ignoreAbove.get(),
-                IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion)
-            );
+            this.ignoreAboveDefault = ignoreAboveDefault;
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
         }
 
@@ -240,9 +234,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexSettings().getMode(), c.indexVersionCreated())
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings())));
 
     /**
      * A field type that represents the values under a particular JSON key, used
@@ -901,7 +893,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexMode, builder.indexCreatedVersion).init(this);
+        return new Builder(leafName(), builder.ignoreAboveDefault).init(this);
     }
 
     @Override

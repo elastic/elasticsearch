@@ -16,7 +16,7 @@
  * limitations under the License.
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.PointValues.IntersectVisitor;
 import org.apache.lucene.store.DataOutput;

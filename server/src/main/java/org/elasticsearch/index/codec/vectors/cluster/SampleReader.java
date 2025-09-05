@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntUnaryOperator;
 
-public class SampleReader extends FloatVectorValues implements HasIndexSlice {
+class SampleReader extends FloatVectorValues implements HasIndexSlice {
     private final FloatVectorValues origin;
     private final int sampleSize;
     private final IntUnaryOperator sampleFunction;
@@ -81,7 +81,7 @@ public class SampleReader extends FloatVectorValues implements HasIndexSlice {
         throw new IllegalStateException("Not supported");
     }
 
-    public static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
+    static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
         // TODO can we do something algorithmically that aligns an ordinal with a unique integer between 0 and numVectors?
         if (k >= origin.size()) {
             new SampleReader(origin, origin.size(), i -> i);
@@ -101,7 +101,7 @@ public class SampleReader extends FloatVectorValues implements HasIndexSlice {
      * @param seed random seed
      * @return array of k samples
      */
-    public static int[] reservoirSample(int n, int k, long seed) {
+    static int[] reservoirSample(int n, int k, long seed) {
         Random rnd = new Random(seed);
         int[] reservoir = new int[k];
         for (int i = 0; i < k; i++) {

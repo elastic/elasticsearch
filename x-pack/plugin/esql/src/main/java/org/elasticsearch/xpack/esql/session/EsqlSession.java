@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -374,14 +373,14 @@ public class EsqlSession {
         }
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
 
         SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices.iterator(), r, executionInfo, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);
     }
@@ -633,26 +632,17 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        List<IndexPattern> indices = preAnalysis.indices;
-        if (indices.size() > 1) {
-            // Note: JOINs are not supported but we detect them when
-            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (indices.size() == 1) {
-            IndexPattern table = indices.getFirst();
-
-            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
-            // based only on available clusters (which could now be an empty list)
+        if (preAnalysis.index() != null) {
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
+                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
                 );
             } else {
                 boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
+                if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
                     includeAllDimensions = true;
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
@@ -673,12 +663,8 @@ public class EsqlSession {
                 );
             }
         } else {
-            try {
-                // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            } catch (Exception ex) {
-                listener.onFailure(ex);
-            }
+            // occurs when dealing with local relations (row a = 1)
+            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
         }
     }
 

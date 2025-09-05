@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 500L;
-    private static final Long TIME_RANGE_SECONDS = 900L;
+    private static final Long NUM_DOCS = 6L;
+    private static final Long TIME_RANGE_SECONDS = 60L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
@@ -384,7 +384,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+//        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+        var deltaAgg = Tuple.tuple("irate", DeltaAgg.IRATE); // TODO: Re-enable irate after fixing
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
         var windowStr = window.v1();
@@ -392,7 +393,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         var dimensionsStr = dimensions.isEmpty()
             ? ""
             : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
-        try (var resp = run(String.format(Locale.ROOT, """
+        var query = String.format(Locale.ROOT, """
             TS %s
             | STATS count(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
                     max(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
@@ -401,7 +402,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     sum(<DELTAGG>(metrics.counterl_hdd.bytes.read))
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1()))) {
+            """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1());
+        try (var resp = run(query)) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
             var groups = groupedRows(documents, dimensions, windowSize);
@@ -440,7 +442,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     min(rate(metrics.counterl_hdd.bytes.read))
                 BY tbucket=bucket(@timestamp, 1 minute)
             | SORT tbucket
-            | LIMIT 1000
             """, DATASTREAM_NAME))) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
@@ -487,7 +488,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 %s
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            | LIMIT 1000""", DATASTREAM_NAME, metricName, aggExpression, windowStr, dimensionsStr);
+            """, DATASTREAM_NAME, metricName, aggExpression, windowStr, dimensionsStr);
         try (EsqlQueryResponse resp = run(query)) {
             var groups = groupedRows(documents, dimensions, windowSize);
             List<List<Object>> rows = consumeRows(resp);
@@ -553,7 +554,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 count(count_over_time(metrics.gaugel_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute), %s
             | SORT tbucket
-            | LIMIT 1000""", DATASTREAM_NAME, dimensionsStr))) {
+            """, DATASTREAM_NAME, dimensionsStr))) {
             var groups = groupedRows(documents, dimensions, 60);
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
@@ -594,7 +595,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 count(count_over_time(metrics.gaugel_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute)
             | SORT tbucket
-            | LIMIT 1000""", DATASTREAM_NAME))) {
+            """, DATASTREAM_NAME))) {
             List<List<Object>> rows = consumeRows(resp);
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {

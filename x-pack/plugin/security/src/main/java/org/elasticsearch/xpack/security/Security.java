@@ -1585,7 +1585,7 @@ public class Security extends Plugin
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 assert dlsBitsetCache.get() != null;
-                module.setReaderWrapper(
+                module.addReaderWrapper(
                     indexService -> new SecurityIndexReaderWrapper(
                         shardId -> indexService.newSearchExecutionContext(
                             shardId.id(),

@@ -475,7 +475,7 @@ public class SecurityTests extends ESTestCase {
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
-        indexModule.setReaderWrapper(null);
+        indexModule.addReaderWrapper(null);
     }
 
     public void testFilteredSettings() throws Exception {

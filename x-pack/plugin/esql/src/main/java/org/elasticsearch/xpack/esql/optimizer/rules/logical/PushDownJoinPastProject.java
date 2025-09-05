@@ -49,7 +49,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
             return join;
         }
 
-        if (join.left() instanceof Project project && join.config().type() == JoinTypes.LEFT && join.config().joinOnConditions() == null) {
+        if (join.left() instanceof Project project && join.config().type() == JoinTypes.LEFT) {
             AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
             var aliasesFromProject = aliasBuilder.build();

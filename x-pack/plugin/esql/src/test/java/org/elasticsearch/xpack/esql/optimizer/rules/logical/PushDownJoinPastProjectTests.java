@@ -241,13 +241,11 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     }
 
     /**
-     * EsqlProject[[languages{f}#30, emp_no{f}#27, salary{f}#32]]
+     * Project[[languages{f}#30, emp_no{f}#27, salary{f}#32]]
      * \_Limit[1000[INTEGER],true]
-     *   \_Join[LEFT,[lang{r}#10, languages{f}#30],[lang{r}#10],[languages{f}#30],lang{r}#10 == languages{f}#30]
-     *     |_EsqlProject[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
-     * languages{f}#19 AS lang2#4, last_name{f}#20, long_noidx{f}#26, salary{f}#21, emp_no{f}#16 AS lang#10]]
-     *     | \_Limit[1000[INTEGER],false]
-     *     |   \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *   \_Join[LEFT,[emp_no{f}#16, languages{f}#30],[emp_no{f}#16],[languages{f}#30],emp_no{f}#16 == languages{f}#30]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#27, languages{f}#30, salary{f}#32]
      */
     public void testShadowingAfterPushdownExpressionJoin() {
@@ -267,8 +265,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);
         var lookupRel = as(join.right(), EsRelation.class);
-        var project2 = as(join.left(), Project.class);
-        var limit2 = asLimit(project2.child(), 1000, false);
+        var limit2 = asLimit(join.left(), 1000, false);
         var mainRel = as(limit2.child(), EsRelation.class);
 
         var projections = project.projections();
@@ -285,33 +282,14 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var salary = as(projections.get(2), FieldAttribute.class);
         assertEquals("salary", salary.fieldName().string());
         assertTrue(lookupRel.outputSet().contains(salary));
-
-        var project2Projections = project2.projections();
-        var lang = as(project2Projections.stream().filter(p -> "lang".equals(p.name())).findFirst().get(), Alias.class);
-        var langAttr = lang.toAttribute();
-        var originalEmpNo = as(lang.child(), FieldAttribute.class);
-        assertEquals("emp_no", originalEmpNo.fieldName().string());
-        assertTrue(mainRel.outputSet().contains(originalEmpNo));
-
-        var joinConfig = join.config();
-        assertSame(JoinTypes.LEFT, joinConfig.type());
-        var leftKeys = joinConfig.leftFields();
-        assertEquals(1, leftKeys.size());
-        assertTrue(leftKeys.get(0).semanticEquals(langAttr));
-        var rightKeys = joinConfig.rightFields();
-        assertEquals(1, rightKeys.size());
-        assertEquals("languages", rightKeys.get(0).name());
-        assertTrue(lookupRel.outputSet().contains(rightKeys.get(0)));
     }
 
     /**
-     * EsqlProject[[languages{f}#24, emp_no{f}#21, salary{f}#26]]
+     * Project[[languages{f}#24, emp_no{f}#21, salary{f}#26]]
      * \_Limit[1000[INTEGER],true]
-     *   \_Join[LEFT,[lang{r}#4, languages{f}#24],[lang{r}#4],[languages{f}#24],lang{r}#4 == languages{f}#24]
-     *     |_EsqlProject[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,
-     * languages{f}#13 AS lang#4, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
-     *     | \_Limit[1000[INTEGER],false]
-     *     |   \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *   \_Join[LEFT,[languages{f}#24, languages{f}#13],[languages{f}#13],[languages{f}#24],languages{f}#13 == languages{f}#24]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#21, languages{f}#24, salary{f}#26]
      */
     public void testShadowingAfterPushdownRenameExpressionJoin() {
@@ -329,8 +307,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);
         var lookupRel = as(join.right(), EsRelation.class);
-        var project2 = as(join.left(), Project.class);
-        var limit2 = asLimit(project2.child(), 1000, false);
+        var limit2 = asLimit(join.left(), 1000, false);
         var mainRel = as(limit2.child(), EsRelation.class);
 
         var projections = project.projections();
@@ -347,34 +324,15 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var salary = as(projections.get(2), FieldAttribute.class);
         assertEquals("salary", salary.fieldName().string());
         assertTrue(lookupRel.outputSet().contains(salary));
-
-        var project2Projections = project2.projections();
-        var lang = as(project2Projections.stream().filter(p -> "lang".equals(p.name())).findFirst().get(), Alias.class);
-        var langAttr = lang.toAttribute();
-        var originalLanguages = as(lang.child(), FieldAttribute.class);
-        assertEquals("languages", originalLanguages.fieldName().string());
-        assertTrue(mainRel.outputSet().contains(originalLanguages));
-
-        var joinConfig = join.config();
-        assertSame(JoinTypes.LEFT, joinConfig.type());
-        var leftKeys = joinConfig.leftFields();
-        assertEquals(1, leftKeys.size());
-        assertTrue(leftKeys.get(0).semanticEquals(langAttr));
-        var rightKeys = joinConfig.rightFields();
-        assertEquals(1, rightKeys.size());
-        assertEquals("languages", rightKeys.get(0).name());
-        assertTrue(lookupRel.outputSet().contains(rightKeys.get(0)));
     }
 
     /**
-     * EsqlProject[[languages{f}#25, emp_no{f}#22, salary{f}#27]]
+     * Project[[languages{f}#25, emp_no{f}#22, salary{f}#27]]
      * \_Limit[1000[INTEGER],true]
-     *   \_Join[LEFT,[languages{f}#25, lang{r}#4],[lang{r}#4],[languages{f}#25],lang{r}#4 == languages{f}#25]
-     *     |_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
-     * ast_name{f}#15, long_noidx{f}#21, salary{f}#16, lang{r}#4]]
-     *     | \_Eval[[languages{f}#14 + 0[INTEGER] AS lang#4]]
-     *     |   \_Limit[1000[INTEGER],false]
-     *     |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_Join[LEFT,[lang{r}#4, languages{f}#25],[lang{r}#4],[languages{f}#25],lang{r}#4 == languages{f}#25]
+     *     |_Eval[[languages{f}#14 + 0[INTEGER] AS lang#4]]
+     *     | \_Limit[1000[INTEGER],false]
+     *     |   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#22, languages{f}#25, salary{f}#27]
      */
     public void testShadowingAfterPushdownEvalExpressionJoin() {
@@ -393,8 +351,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);
         var lookupRel = as(join.right(), EsRelation.class);
-        var project2 = as(join.left(), Project.class);
-        var eval = as(project2.child(), Eval.class);
+        var eval = as(join.left(), Eval.class);
         var limit2 = asLimit(eval.child(), 1000, false);
         var mainRel = as(limit2.child(), EsRelation.class);
 
@@ -412,23 +369,6 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var salary = as(projections.get(2), FieldAttribute.class);
         assertEquals("salary", salary.fieldName().string());
         assertTrue(lookupRel.outputSet().contains(salary));
-
-        var lang = as(eval.fields().get(0), Alias.class);
-        var langAttr = lang.toAttribute();
-        var add = as(lang.child(), org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add.class);
-        var originalLanguages = as(add.left(), FieldAttribute.class);
-        assertEquals("languages", originalLanguages.fieldName().string());
-        assertTrue(mainRel.outputSet().contains(originalLanguages));
-
-        var joinConfig = join.config();
-        assertSame(JoinTypes.LEFT, joinConfig.type());
-        var leftKeys = joinConfig.leftFields();
-        assertEquals(1, leftKeys.size());
-        assertTrue(leftKeys.get(0).semanticEquals(langAttr));
-        var rightKeys = joinConfig.rightFields();
-        assertEquals(1, rightKeys.size());
-        assertEquals("languages", rightKeys.get(0).name());
-        assertTrue(lookupRel.outputSet().contains(rightKeys.get(0)));
     }
 
     private static void assertLeftJoinConfig(

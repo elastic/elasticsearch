@@ -704,8 +704,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             f = handleNegationOfEquals(f);
             if (f instanceof EsqlBinaryComparison comparison
                 && comparison.left() instanceof UnresolvedAttribute left
-                && comparison.right() instanceof UnresolvedAttribute) {
+                && comparison.right() instanceof UnresolvedAttribute right) {
                 joinFields.add(left);
+                joinFields.add(right);
                 joinExpressions.add(f);
             } else {
                 throw new ParsingException(

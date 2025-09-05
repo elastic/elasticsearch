@@ -8996,13 +8996,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Limit[1000[INTEGER],true]
-     * \_Join[LEFT,[languages{f}#8, language_code{f}#16],[languages{f}#8],[language_code{f}#16],languages{f}#8 == language_code{
+     *
+     * Project[[languages{f}#8, language_code{f}#16, language_name{f}#17]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#8, language_code{f}#16],[languages{f}#8],[language_code{f}#16],languages{f}#8 == language_code{
      * f}#16]
-     *   |_EsqlProject[[languages{f}#8]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     *
      */
     public void testLookupJoinExpressionSwapped() {
         LogicalPlan plan = optimizedPlan("""
@@ -9010,8 +9012,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep languages
             | lookup join languages_lookup ON language_code == languages
             """);
-
-        var limit = asLimit(plan, 1000, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
         var join = as(limit.child(), Join.class);
         assertEquals("language_code == languages", join.config().joinOnConditions().toString());
         var equals = as(join.config().joinOnConditions(), Equals.class);
@@ -9020,8 +9022,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var right = as(equals.right(), Attribute.class);
         assertEquals("language_code", right.name());
         assertEquals("languages", left.name());
-        var project = as(join.left(), EsqlProject.class);
-        var limitPastJoin = asLimit(project.child(), 1000, false);
+        var limitPastJoin = asLimit(join.left(), 1000, false);
         as(limitPastJoin.child(), EsRelation.class);
         as(join.right(), EsRelation.class);
     }

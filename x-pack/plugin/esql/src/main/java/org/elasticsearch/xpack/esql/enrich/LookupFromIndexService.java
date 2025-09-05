@@ -265,7 +265,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             Expression joinOnConditions = null;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
-                joinOnConditions = in.readOptionalNamedWriteable(Expression.class);
+                joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -332,7 +332,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
-                out.writeOptionalNamedWriteable(joinOnConditions);
+                planOut.writeOptionalNamedWriteable(joinOnConditions);
             } else {
                 if (joinOnConditions != null) {
                     throw new EsqlIllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");

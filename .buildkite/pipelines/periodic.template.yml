@@ -55,7 +55,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -71,7 +71,7 @@ steps:
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -100,7 +100,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -120,7 +120,7 @@ steps:
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2404
+          image: family/elasticsearch-ubuntu-2204
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:

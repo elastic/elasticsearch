@@ -20,18 +20,17 @@ public final class RemoteClusterResolver extends RemoteClusterAware {
     private final CopyOnWriteArraySet<String> clusters;
 
     public RemoteClusterResolver(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
-        super(settings, linkedProjectConfigService);
-        clusters = new CopyOnWriteArraySet<>(loadAllLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList());
-        listenForUpdates();
-    }
-
-    @Override
-    public void updateLinkedProject(LinkedProjectConfig config) {
-        if (config.isConnectionEnabled()) {
-            clusters.add(config.linkedProjectAlias());
-        } else {
-            clusters.remove(config.linkedProjectAlias());
-        }
+        super(settings);
+        clusters = new CopyOnWriteArraySet<>(
+            linkedProjectConfigService.loadAllLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+        );
+        linkedProjectConfigService.register(config -> {
+            if (config.isConnectionEnabled()) {
+                clusters.add(config.linkedProjectAlias());
+            } else {
+                clusters.remove(config.linkedProjectAlias());
+            }
+        });
     }
 
     public Set<String> remoteClusters() {

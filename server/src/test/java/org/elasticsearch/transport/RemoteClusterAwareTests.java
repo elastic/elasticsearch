@@ -160,11 +160,8 @@ public class RemoteClusterAwareTests extends ESTestCase {
 
     private static class RemoteClusterAwareTest extends RemoteClusterAware {
         RemoteClusterAwareTest() {
-            super(Settings.EMPTY, LinkedProjectConfigService.NOOP);
+            super(Settings.EMPTY);
         }
-
-        @Override
-        public void updateLinkedProject(LinkedProjectConfig config) {}
 
         @Override
         public Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {

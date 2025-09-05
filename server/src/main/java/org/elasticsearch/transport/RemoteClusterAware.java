@@ -19,7 +19,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,14 +27,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Base class for all services and components that need up-to-date information about the registered remote clusters
+ * Base class for services and components that utilize linked projects.
  */
-public abstract class RemoteClusterAware implements LinkedProjectConfigService.LinkedProjectConfigListener {
+public abstract class RemoteClusterAware {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
     protected final Settings settings;
-    private final LinkedProjectConfigService linkedProjectConfigService;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;
 
@@ -43,22 +41,14 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * Creates a new {@link RemoteClusterAware} instance
      * @param settings the nodes level settings
      */
-    protected RemoteClusterAware(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
+    protected RemoteClusterAware(Settings settings) {
         this.settings = settings;
-        this.linkedProjectConfigService = linkedProjectConfigService;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
     protected String getNodeName() {
         return nodeName;
-    }
-
-    /**
-     * Returns all known {@link LinkedProjectConfig}s.
-     */
-    protected Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs() {
-        return linkedProjectConfigService.loadAllLinkedProjectConfigs();
     }
 
     /**
@@ -211,13 +201,6 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
             );
         }
         return perClusterIndices;
-    }
-
-    /**
-     * Registers this instance to listen for linked project updates.
-     */
-    public void listenForUpdates() {
-        linkedProjectConfigService.register(this);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

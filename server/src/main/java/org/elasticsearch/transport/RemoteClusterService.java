@@ -38,6 +38,7 @@ import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteC
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +63,8 @@ public final class RemoteClusterService extends RemoteClusterAware
     implements
         Closeable,
         ReportingService<RemoteClusterServerInfo>,
-        IndicesExpressionGrouper {
+        IndicesExpressionGrouper,
+        LinkedProjectConfigService.LinkedProjectConfigListener {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
@@ -83,13 +85,8 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final ProjectResolver projectResolver;
     private final boolean canUseSkipUnavailable;
 
-    RemoteClusterService(
-        Settings settings,
-        LinkedProjectConfigService linkedProjectConfigService,
-        TransportService transportService,
-        ProjectResolver projectResolver
-    ) {
-        super(settings, linkedProjectConfigService);
+    RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
+        super(settings);
         this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.isStateless = DiscoveryNode.isStateless(settings);
@@ -481,24 +478,18 @@ public final class RemoteClusterService extends RemoteClusterAware
      * Connects to all remote clusters in a blocking fashion. This should be called on node startup to establish an initial connection
      * to all configured seed nodes.
      */
-    void initializeRemoteClusters() {
+    void initializeRemoteClusters(Collection<LinkedProjectConfig> configs) {
+        if (configs.isEmpty()) {
+            return;
+        }
+
         @FixForMultiProject(description = "Refactor for initializing connections to linked projects for each origin project supported.")
         final var projectId = projectResolver.getProjectId();
         final TimeValue timeValue = RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        final var enabledClusters = loadAllLinkedProjectConfigs();
-
-        if (enabledClusters.isEmpty()) {
-            return;
-        }
-
-        CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
-        for (LinkedProjectConfig config : enabledClusters) {
+        CountDownActionListener listener = new CountDownActionListener(configs.size(), future);
+        for (LinkedProjectConfig config : configs) {
             updateRemoteCluster(config, false, listener.map(ignored -> null));
-        }
-
-        if (enabledClusters.isEmpty()) {
-            future.onResponse(null);
         }
 
         try {

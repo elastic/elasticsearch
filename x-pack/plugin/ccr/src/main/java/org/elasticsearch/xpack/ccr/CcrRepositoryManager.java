@@ -12,10 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.LinkedProjectConfig;
 import org.elasticsearch.transport.LinkedProjectConfigService;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
@@ -25,17 +22,26 @@ import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 class CcrRepositoryManager extends AbstractLifecycleComponent {
 
     private final Client client;
-    private final RemoteSettingsUpdateListener updateListener;
+    private final LinkedProjectConfigService linkedProjectConfigService;
 
-    CcrRepositoryManager(Settings settings, LinkedProjectConfigService linkedProjectConfigService, Client client) {
+    CcrRepositoryManager(LinkedProjectConfigService linkedProjectConfigService, Client client) {
         this.client = client;
-        updateListener = new RemoteSettingsUpdateListener(settings, linkedProjectConfigService);
-        updateListener.listenForUpdates();
+        this.linkedProjectConfigService = linkedProjectConfigService;
+        linkedProjectConfigService.register(config -> {
+            String repositoryName = CcrRepository.NAME_PREFIX + config.linkedProjectAlias();
+            if (config.isConnectionEnabled()) {
+                putRepository(repositoryName);
+            } else {
+                deleteRepository(repositoryName);
+            }
+        });
     }
 
     @Override
     protected void doStart() {
-        updateListener.init();
+        for (var config : linkedProjectConfigService.loadAllLinkedProjectConfigs()) {
+            putRepository(CcrRepository.NAME_PREFIX + config.linkedProjectAlias());
+        }
     }
 
     @Override
@@ -56,28 +62,5 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         PlainActionFuture<ActionResponse.Empty> f = new PlainActionFuture<>();
         client.execute(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
-    }
-
-    private class RemoteSettingsUpdateListener extends RemoteClusterAware {
-
-        private RemoteSettingsUpdateListener(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
-            super(settings, linkedProjectConfigService);
-        }
-
-        void init() {
-            for (var config : loadAllLinkedProjectConfigs()) {
-                putRepository(CcrRepository.NAME_PREFIX + config.linkedProjectAlias());
-            }
-        }
-
-        @Override
-        public void updateLinkedProject(LinkedProjectConfig config) {
-            String repositoryName = CcrRepository.NAME_PREFIX + config.linkedProjectAlias();
-            if (config.isConnectionEnabled()) {
-                putRepository(repositoryName);
-            } else {
-                deleteRepository(repositoryName);
-            }
-        }
     }
 }

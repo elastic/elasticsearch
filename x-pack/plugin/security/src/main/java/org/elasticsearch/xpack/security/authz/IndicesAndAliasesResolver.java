@@ -549,20 +549,17 @@ class IndicesAndAliasesResolver {
         private final CopyOnWriteArraySet<String> clusters;
 
         private RemoteClusterResolver(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
-            super(settings, linkedProjectConfigService);
+            super(settings);
             clusters = new CopyOnWriteArraySet<>(
-                loadAllLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+                linkedProjectConfigService.loadAllLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
             );
-            listenForUpdates();
-        }
-
-        @Override
-        public void updateLinkedProject(LinkedProjectConfig config) {
-            if (config.isConnectionEnabled()) {
-                clusters.add(config.linkedProjectAlias());
-            } else {
-                clusters.remove(config.linkedProjectAlias());
-            }
+            linkedProjectConfigService.register(config -> {
+                if (config.isConnectionEnabled()) {
+                    clusters.add(config.linkedProjectAlias());
+                } else {
+                    clusters.remove(config.linkedProjectAlias());
+                }
+            });
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {

@@ -995,6 +995,9 @@ public final class IngestDocument {
     }
 
     private static boolean valueNotEmpty(Object value) {
+        if (value == null) {
+            return false;
+        }
         if (value instanceof String string) {
             return string.isEmpty() == false;
         }

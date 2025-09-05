@@ -1929,7 +1929,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = "remote";
         int numShardsRemote = randomIntBetween(2, 12);
         final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
-        remoteCluster.ensureAtLeastNumDataNodes(5);//randomIntBetween(1, 3));
+        remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
         final Settings.Builder remoteSettings = Settings.builder();
         remoteSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShardsRemote);
         remoteSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1));

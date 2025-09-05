@@ -632,10 +632,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (preAnalysis.index() == null) {
-            // occurs when dealing with local relations (row a = 1)
-            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-        } else {
+        if (preAnalysis.index() != null) {
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
@@ -665,6 +662,9 @@ public class EsqlSession {
                     })
                 );
             }
+        } else {
+            // occurs when dealing with local relations (row a = 1)
+            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
         }
     }
 

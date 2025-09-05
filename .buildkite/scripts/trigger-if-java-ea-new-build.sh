@@ -33,8 +33,8 @@ fi
 
 # Find the latest build for the target JDK version
 LATEST_BUILD=$(echo "$JDK_DATA" | jq -r --arg target "$TARGET_JDK" '
-  .majors[$target].builds | 
-  sort_by(.archived_at) | 
+  .majors[$target].builds |
+  sort_by(.archived_at) |
   last'
 )
 
@@ -77,15 +77,9 @@ fi
 
 echo "SHOULD_TRIGGER: $SHOULD_TRIGGER"
 
-# Format BUILD_TIME as ISO 8601 for EFFECTIVE_START_DATE env in ES BENCH pipeline
-if [[ "$BUILD_TIME" != "0" ]]; then
-  EFFECTIVE_START_DATE=$(date -u -d "@$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -r "$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
-else
-  EFFECTIVE_START_DATE=""
-fi
-
 
 if [[ "$SHOULD_TRIGGER" == "true" ]]; then
+  EFFECTIVE_START_DATE=$(date -u -d "@$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -r "$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
   echo "Triggering performance-esbench-jdk for new jdk build $JDK_IDENTIFIER"
   cat << EOF | buildkite-agent pipeline upload
 steps:
@@ -96,6 +90,6 @@ steps:
     branch: "$BUILDKITE_BRANCH"
     env:
       EFFECTIVE_START_DATE: "$EFFECTIVE_START_DATE"
-      EXECUTION_MODE: "start-test"
+      EXECUTION_MODE: "start-run"
 EOF
 fi

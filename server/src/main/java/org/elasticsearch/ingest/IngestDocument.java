@@ -1349,9 +1349,25 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
             }
             return switch (accessPattern) {
-                case CLASSIC -> pathParts;
+                case CLASSIC -> validateClassicFields(fullPath, pathParts);
                 case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);
             };
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#CLASSIC} ingest doc access pattern. Supports
+         * syntax like context aware array access.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Strings
+         */
+        private static String[] validateClassicFields(String fullPath, String[] pathParts) {
+            for (String pathPart : pathParts) {
+                if (pathPart.isEmpty()) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                }
+            }
+            return pathParts;
         }
 
         /**
@@ -1359,16 +1375,13 @@ public final class IngestDocument {
          * syntax like square bracket array access, which is the only way to index arrays in flexible mode.
          * @param fullPath The un-split path to use for error messages
          * @param pathParts The tokenized field path to parse
-         * @return An array of Elements
+         * @return An array of Strings
          */
         private static String[] parseFlexibleFields(String fullPath, String[] pathParts) {
-            boolean invalidPath = Arrays.stream(pathParts).anyMatch(pathPart -> {
-                int openBracket = pathPart.indexOf('[');
-                int closedBracket = pathPart.indexOf(']');
-                return openBracket != -1 && closedBracket != -1;
-            });
-            if (invalidPath) {
-                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+            for (String pathPart : pathParts) {
+                if (pathPart.isEmpty() || pathPart.indexOf('[') >= 0 || pathPart.indexOf(']') >= 0) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                }
             }
             return pathParts;
         }

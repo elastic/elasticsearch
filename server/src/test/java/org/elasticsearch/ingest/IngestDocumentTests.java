@@ -216,8 +216,8 @@ public class IngestDocumentTests extends ESTestCase {
             assertPathValid(doc, "a..");
             assertPathValid(doc, "a...");
             // Empty field names are not allowed in the beginning or middle of the path though
-            assertPathInvalid(doc, ".a.b", "fieldName cannot be empty");
-            assertPathInvalid(doc, "a..b", "fieldName cannot be empty");
+            assertPathInvalid(doc, ".a.b", "path [.a.b] is not valid");
+            assertPathInvalid(doc, "a..b", "path [a..b] is not valid");
         });
 
         doWithAccessPattern(CLASSIC, (doc) -> {

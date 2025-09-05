@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
@@ -521,7 +522,8 @@ public class EsqlFunctionRegistry {
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") } };
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time")} };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

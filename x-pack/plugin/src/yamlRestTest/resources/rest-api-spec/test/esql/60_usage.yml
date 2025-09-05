@@ -42,6 +42,7 @@ setup:
             - count_over_time
             - count_distinct_over_time
             - cosine_vector_similarity_function
+            - present_over_time
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}

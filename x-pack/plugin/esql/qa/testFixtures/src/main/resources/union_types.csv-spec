@@ -1749,20 +1749,21 @@ FROM apps, apps_short
 | FORK (WHERE true) (WHERE true)
 | DROP _fork
 | SORT x ASC, name ASC, version ASC
+| EVAL x = x + 1
 | LIMIT 10
 ;
 
 id:unsupported | name:keyword | version:version | x:integer
-null           | aaaaa        | 1               | 1
-null           | aaaaa        | 1               | 1
-null           | aaaaa        | 1               | 1
-null           | aaaaa        | 1               | 1
-null           | bbbbb        | 2.1             | 2
-null           | bbbbb        | 2.1             | 2
-null           | bbbbb        | 2.1             | 2
-null           | bbbbb        | 2.1             | 2
-null           | ccccc        | 2.3.4           | 3
-null           | ccccc        | 2.3.4           | 3
+null           | aaaaa        | 1               | 2
+null           | aaaaa        | 1               | 2
+null           | aaaaa        | 1               | 2
+null           | aaaaa        | 1               | 2
+null           | bbbbb        | 2.1             | 3
+null           | bbbbb        | 2.1             | 3
+null           | bbbbb        | 2.1             | 3
+null           | bbbbb        | 2.1             | 3
+null           | ccccc        | 2.3.4           | 4
+null           | ccccc        | 2.3.4           | 4
 ;
 
 ImplicitCastingMultiTypedFieldsKeepSort

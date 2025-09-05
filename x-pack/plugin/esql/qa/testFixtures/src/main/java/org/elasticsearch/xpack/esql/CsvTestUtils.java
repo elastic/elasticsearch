@@ -63,7 +63,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
@@ -149,13 +148,13 @@ public final class CsvTestUtils {
                         return;
                     }
                     stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                } else if (stringValue.contains(",") && type != Type.AGGREGATE_METRIC_DOUBLE) {// multi-value field
+                } else if (stringValue.matches(".*" + COMMA_ESCAPING_REGEX + ".*") && type != Type.AGGREGATE_METRIC_DOUBLE) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
-                    String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
+                    String[] arrayOfValues = stringValue.split(COMMA_ESCAPING_REGEX, -1);
                     List<Object> convertedValues = new ArrayList<>(arrayOfValues.length);
                     for (String value : arrayOfValues) {
-                        convertedValues.add(type.convert(value));
+                        convertedValues.add(type.convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                     }
                     Stream<Object> convertedValuesStream = convertedValues.stream();
                     if (type.sortMultiValues()) {
@@ -167,7 +166,7 @@ public final class CsvTestUtils {
                     return;
                 }
 
-                var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
+                var converted = stringValue.length() == 0 ? null : type.convert(stringValue.replace(ESCAPED_COMMA_SEQUENCE, ","));
                 builderWrapper().append().accept(converted);
             }
 

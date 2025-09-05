@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -328,11 +329,16 @@ public class AppendProcessorTests extends ESTestCase {
         String targetField = RandomDocumentPicks.addRandomField(random(), ingestDocument, targetFieldValue);
         String sourceField = RandomDocumentPicks.addRandomField(random(), ingestDocument, additionalValues);
 
-        Processor appendProcessor = createAppendProcessor(targetField, null, sourceField, false, false);
+        // add two empty values onto the source field, these will be ignored
+        ingestDocument.appendFieldValue(sourceField, null);
+        ingestDocument.appendFieldValue(sourceField, "");
+
+        Processor appendProcessor = createAppendProcessor(targetField, null, sourceField, false, true);
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(targetField, List.class);
         assertThat(fieldValue, sameInstance(targetFieldValue));
         assertThat(fieldValue, containsInAnyOrder(allValues.toArray()));
+        assertThat(fieldValue, not(contains(null, "")));
     }
 
     public void testCopyFromCopiesNonPrimitiveMutableTypes() throws Exception {

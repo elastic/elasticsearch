@@ -348,7 +348,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     static String stringForOperation(BinaryComparisonOperation operation) {
-        return operation == null ? "_field" : "_" + operation.name().toLowerCase();
+        return operation == null ? "_field" : "_" + operation.name().toLowerCase(Locale.ROOT);
     }
 
     private static boolean existingIndex(

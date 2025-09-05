@@ -1101,6 +1101,11 @@ public class EsqlCapabilities {
         FORK_V9,
 
         /**
+         * Support for union types in FORK
+         */
+        FORK_UNION_TYPES,
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

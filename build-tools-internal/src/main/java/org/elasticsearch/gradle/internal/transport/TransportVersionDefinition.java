@@ -25,7 +25,7 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
                 try {
                     ids.add(TransportVersionId.fromString(rawId));
                 } catch (NumberFormatException e) {
-                    throw new IllegalStateException("Failed to parse definitionId " + rawId + " in " + file, e);
+                    throw new IllegalStateException("Failed to parse id " + rawId + " in " + file, e);
                 }
             }
         }

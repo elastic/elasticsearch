@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 
-import java.util.Optional;
-
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.PreAuthorizationUtils.maybeSkipChildrenActionAuthorization;
 import static org.elasticsearch.xpack.security.authz.PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext;
@@ -73,7 +71,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
             shouldRemoveParentAuthorizationFromThreadContext(
                 randomWhitelistedChildAction(parentAction),
                 securityContextWithParentAuthorization,
-                Optional.empty()
+                false
             ),
             equalTo(false)
         );
@@ -83,7 +81,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
             shouldRemoveParentAuthorizationFromThreadContext(
                 randomWhitelistedChildAction(parentAction),
                 new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY)),
-                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null)
+                randomBoolean()
             ),
             equalTo(false)
         );
@@ -94,7 +92,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
             shouldRemoveParentAuthorizationFromThreadContext(
                 randomWhitelistedChildAction(parentAction),
                 securityContextWithParentAuthorization,
-                Optional.of("my_remote_cluster")
+                true
             ),
             equalTo(true)
         );
@@ -106,7 +104,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
             shouldRemoveParentAuthorizationFromThreadContext(
                 randomAlphaOfLengthBetween(3, 8),
                 securityContextWithParentAuthorization,
-                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null)
+                randomBoolean()
             ),
             equalTo(true)
         );

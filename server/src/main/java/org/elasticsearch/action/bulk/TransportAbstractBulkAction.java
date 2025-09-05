@@ -66,7 +66,7 @@ import java.util.function.LongSupplier;
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
     private final Map<String, List<IndexRequest>> samples = new HashMap<>();
-    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(8) {
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(9) {
         {
             add("error_trace");
             add("filter_path");
@@ -75,6 +75,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             add("op_type");
             add("pretty");
             add("refresh");
+            add("require_data_stream");
             add("timeout");
         }
     };

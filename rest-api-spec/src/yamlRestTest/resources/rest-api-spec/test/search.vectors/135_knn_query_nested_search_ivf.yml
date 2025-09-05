@@ -191,3 +191,27 @@ setup:
   - match: {hits.hits.0._id: "3"}
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
   - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+
+---
+"nested kNN search works with visit_percentage":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [-0.5, 90, -10, 14.8, -156]
+                  num_candidates: 3
+                  visit_percentage: 1.0
+  - match: {hits.total.value: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}

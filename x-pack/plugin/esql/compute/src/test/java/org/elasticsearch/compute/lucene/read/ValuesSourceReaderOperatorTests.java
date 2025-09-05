@@ -401,7 +401,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
-                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy()).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy().setMaxMergeAtOnce(5))
+                    .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             )
         ) {
             for (int d = 0; d < size; d++) {

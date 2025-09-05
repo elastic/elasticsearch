@@ -24,19 +24,16 @@ import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -168,7 +165,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         this.limit = limit;
         this.needsScore = needsScore;
-        breaker.addEstimateBytesAndMaybeBreak(reserveSize(), "esql topn");
+        breaker.addEstimateBytesAndMaybeBreak(reserveSize(), "esql lucene topn");
     }
 
     @Override

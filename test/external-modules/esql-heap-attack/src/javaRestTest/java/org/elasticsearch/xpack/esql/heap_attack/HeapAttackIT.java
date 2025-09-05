@@ -212,6 +212,11 @@ public class HeapAttackIT extends ESRestTestCase {
         assertCircuitBreaks(attempt -> sortBySomeLongsLimit(attempt * 500000));
     }
 
+    public void testStupidTopN() throws IOException {
+        initManyLongs(1); // Doesn't actually matter how much data there is.
+        assertCircuitBreaks(attempt -> sortBySomeLongsLimit(2147483630));
+    }
+
     private static final int MAX_ATTEMPTS = 5;
 
     interface TryCircuitBreaking {

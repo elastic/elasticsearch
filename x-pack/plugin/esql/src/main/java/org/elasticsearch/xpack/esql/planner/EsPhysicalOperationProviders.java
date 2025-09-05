@@ -298,7 +298,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
-                estimatedPerRowSortSize += EstimatesRowSize.estimateSize(sort.field().dataType());
+                estimatedPerRowSortSize += EstimatesRowSize.estimateSize(sort.resulType());
             }
             /*
              * In the worst case Lucene's TopN keeps each value in memory twice. Once

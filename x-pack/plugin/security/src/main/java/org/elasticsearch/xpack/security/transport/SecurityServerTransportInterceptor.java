@@ -64,7 +64,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
-    private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final XPackLicenseState licenseState;
 
     public SecurityServerTransportInterceptor(
@@ -113,7 +112,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
-        this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
             crossClusterAccessAuthcService,
             authcService,
@@ -255,7 +253,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        assert securityContext.getParentAuthorization() == null || remoteClusterCredentialsResolver.apply(connection).isEmpty()
+        assert securityContext.getParentAuthorization() == null
+            || false == remoteClusterTransportInterceptor.isRemoteClusterConnection(connection)
             : "parent authorization header should not be set for remote cluster requests";
 
         try {

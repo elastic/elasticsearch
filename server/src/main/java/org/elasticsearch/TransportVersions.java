@@ -201,8 +201,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
@@ -349,7 +347,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = def(9_151_0_00);
     public static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = def(9_152_0_00);
     public static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = def(9_153_0_00);
-    public static final TransportVersion SOURCE_CONTEXT = def(9_154_0_00);
+    public static final TransportVersion VISIT_PERCENTAGE = def(9_154_0_00);
+    public static final TransportVersion SOURCE_CONTEXT = def(9_155_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

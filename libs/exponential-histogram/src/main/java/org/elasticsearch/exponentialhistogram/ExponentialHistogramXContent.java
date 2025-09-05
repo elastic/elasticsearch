@@ -21,9 +21,15 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.elasticsearch.core.Types;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * Handles the serialization of an {@link ExponentialHistogram} to XContent.
@@ -101,4 +107,54 @@ public class ExponentialHistogramXContent {
         b.endObject();
     }
 
+    /**
+     * Parses an {@link ExponentialHistogram} from the provided {@link XContentParser}.
+     * This method is neither optimized, nor does it do any validation of the parsed content.
+     * No estimation for missing sum/min/max is done.
+     * Therefore only intended for testing!
+     *
+     * @param xContent the serialized histogram to read
+     * @return the deserialized histogram
+     * @throws IOException if the XContentParser throws an IOException
+     */
+    public static ExponentialHistogram parseForTesting(XContentParser xContent) throws IOException {
+        return parseForTesting(xContent.map());
+    }
+
+    /**
+     * Parses an {@link ExponentialHistogram} from a {@link Map}.
+     * This method is neither optimized, nor does it do any validation of the parsed content.
+     * No estimation for missing sum/min/max is done.
+     * Therefore only intended for testing!
+     *
+     * @param xContent the serialized histogram as a map
+     * @return the deserialized histogram
+     */
+    public static ExponentialHistogram parseForTesting(Map<String, Object> xContent) {
+        int scale = ((Number) xContent.get(SCALE_FIELD)).intValue();
+        ExponentialHistogramBuilder builder = ExponentialHistogram.builder(scale, ExponentialHistogramCircuitBreaker.noop());
+
+        Map<String, Number> zero = Types.forciblyCast(xContent.getOrDefault(ZERO_FIELD, Collections.emptyMap()));
+        double zeroThreshold = zero.getOrDefault(ZERO_THRESHOLD_FIELD, 0).doubleValue();
+        long zeroCount = zero.getOrDefault(ZERO_COUNT_FIELD, 0).longValue();
+        builder.zeroBucket(ZeroBucket.create(zeroThreshold, zeroCount));
+
+        builder.sum(((Number) xContent.getOrDefault(SUM_FIELD, 0)).doubleValue());
+        builder.min(((Number) xContent.getOrDefault(MIN_FIELD, Double.NaN)).doubleValue());
+        builder.max(((Number) xContent.getOrDefault(MAX_FIELD, Double.NaN)).doubleValue());
+
+        parseBuckets(Types.forciblyCast(xContent.getOrDefault(NEGATIVE_FIELD, Collections.emptyMap())), builder::setNegativeBucket);
+        parseBuckets(Types.forciblyCast(xContent.getOrDefault(POSITIVE_FIELD, Collections.emptyMap())), builder::setPositiveBucket);
+
+        return builder.build();
+    }
+
+    private static void parseBuckets(Map<String, List<Number>> serializedBuckets, BiConsumer<Long, Long> bucketSetter) {
+        List<Number> indices = serializedBuckets.getOrDefault(BUCKET_INDICES_FIELD, Collections.emptyList());
+        List<Number> counts = serializedBuckets.getOrDefault(BUCKET_COUNTS_FIELD, Collections.emptyList());
+        assert indices.size() == counts.size();
+        for (int i = 0; i < indices.size(); i++) {
+            bucketSetter.accept(indices.get(i).longValue(), counts.get(i).longValue());
+        }
+    }
 }

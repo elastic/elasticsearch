@@ -74,6 +74,16 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void write(byte[] b) throws IOException {
+        writeBytes(b, 0, b.length);
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        writeBytes(b, off, len);
+    }
+
+    @Override
     public void writeBytes(byte[] b, int offset, int length) {
         // nothing to copy
         if (length == 0) {
@@ -301,8 +311,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         var bytes = bytes();
         var pages = this.pages;
         this.pages = null;
-
         this.bytesRefBytes = null;
+
         return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
     }
 

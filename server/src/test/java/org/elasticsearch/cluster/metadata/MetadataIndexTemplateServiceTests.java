@@ -2539,16 +2539,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(complexPattern).build();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
-        assertEquals(0, MetadataIndexTemplateService.findConflictingV1Templates(
-                project,
-                "foo",
-                complexPattern
-        ).size());
-        assertEquals(0, MetadataIndexTemplateService.findConflictingV2Templates(
-                project,
-                "foo",
-                complexPattern
-        ).size());
+        assertEquals(0, MetadataIndexTemplateService.findConflictingV1Templates(project, "foo", complexPattern).size());
+        assertEquals(0, MetadataIndexTemplateService.findConflictingV2Templates(project, "foo", complexPattern).size());
     }
 
     /**

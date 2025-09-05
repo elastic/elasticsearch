@@ -356,6 +356,7 @@ public class TransportVersions {
     public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
     public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);
+    public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_150_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

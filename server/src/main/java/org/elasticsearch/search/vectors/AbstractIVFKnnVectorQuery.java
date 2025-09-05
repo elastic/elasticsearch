@@ -63,9 +63,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
     public static final float MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT = 0.004f;
-    public static final float MAX_AFFINITY_MULTIPLIER_ADJUSTMENT = 1.5f;
+    public static final float MAX_AFFINITY_MULTIPLIER_ADJUSTMENT = 1.1f;
     public static final float MIN_AFFINITY_MULTIPLIER_ADJUSTMENT = 0.5f;
     public static final float MIN_AFFINITY = 0.001f;
+    public static final float MAX_AFFINITY = 1f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -209,7 +210,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                         float adjustedVisitRatio = adjustVisitRatioForSegment(
                             normalizedAffinityScore,
-                            normalizedAffinityScores[normalizedAffinityScores.length / 2],
+                            normalizedAffinityScores[normalizedAffinityScores.length / 10],
                             visitRatio
                         );
 
@@ -239,10 +240,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float visitRatio) {
         // for high affinity scores, increase visited ratio
-        float maxAdjustment = visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT;
         if (affinityScore > affinityThreshold) {
-            int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
-            return Math.min(visitRatio * adjustment, visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT);
+            return Math.min(visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT, MAX_AFFINITY);
         }
 
         // for low affinity scores, decrease visited ratio
@@ -308,7 +307,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     double centroidDensity = (double) numCentroids / numVectors;
 
                     // TODO : we may want to include some actual centroids' scores for higher quality estimate
-                    double affinityScore = centroidsScore * (1 + centroidDensity);
+                    double affinityScore = centroidsScore * Math.log10(numVectors) * (1 + centroidDensity);
                     segmentAffinities.add(new SegmentAffinity(context, affinityScore, numVectors));
                 } else {
                     segmentAffinities.add(new SegmentAffinity(context, Float.NaN, 0));

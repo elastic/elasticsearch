@@ -164,8 +164,7 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
 
     @Before
     public void init() {
-        final Settings settings = Settings.builder()
-            .build();
+        final Settings settings = Settings.builder().build();
         threadContext = new ThreadContext(settings);
     }
 
@@ -253,8 +252,9 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
 
     public void testAuthenticateWhenTokenSupportedByBothAuthenticatorsInChain() throws Exception {
 
-        PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(List.of(new TokenAAuthenticator("foo"),
-            new TokenAAuthenticator("bar")));
+        PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(
+            List.of(new TokenAAuthenticator("foo"), new TokenAAuthenticator("bar"))
+        );
         TestTokenA testToken = new TestTokenA("test-value");
 
         Authenticator.Context context = createContext();
@@ -290,13 +290,14 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
         assertThat(result.isAuthenticated(), equalTo(true));
 
         Authentication auth = result.getValue();
-        assertThat(auth.getEffectiveSubject().getUser().principal(), equalTo("token-a-auth-user-foo-test-value")); //id of first
+        assertThat(auth.getEffectiveSubject().getUser().principal(), equalTo("token-a-auth-user-foo-test-value")); // id of first
     }
 
     public void testAuthenticateWhenTokenSupportedByNoAuthenticatorsInChain() throws Exception {
 
-        PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(List.of(new TokenAAuthenticator("foo"),
-            new TokenAAuthenticator("bar")));
+        PluggableAuthenticatorChain chain = new PluggableAuthenticatorChain(
+            List.of(new TokenAAuthenticator("foo"), new TokenAAuthenticator("bar"))
+        );
         AuthenticationToken unknownToken = new AuthenticationToken() {
             @Override
             public String principal() {
@@ -347,15 +348,7 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
     }
 
-
-
     private Authenticator.Context createContext() {
-        return new Authenticator.Context(
-            threadContext,
-            null,
-            null,
-            true,
-            null
-        );
+        return new Authenticator.Context(threadContext, null, null, true, null);
     }
 }

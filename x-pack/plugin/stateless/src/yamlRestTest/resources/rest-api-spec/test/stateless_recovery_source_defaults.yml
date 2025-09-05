@@ -35,4 +35,4 @@
         flush: false
   - gt: { test-index.store_size_in_bytes: 0 }
   - is_false: test-index.fields._recovery_source
-  - is_true: test-index.fields._ignored_source\.ignore_me # just to double check synthetic source is active.
+  - is_true: test-index.fields._ignored_source # just to double check synthetic source is active.

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Collection;
 import java.util.List;
@@ -50,6 +51,7 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
     }
 
     @Override
+    @FixForMultiProject(description = "Refactor to add the linked project IDs associated with the aliases.")
     public Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs() {
         return RemoteClusterSettings.getRemoteClusters(settings)
             .stream()
@@ -57,12 +59,15 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
             .toList();
     }
 
+
     private void settingsChangedCallback(String clusterAlias, Settings newSettings) {
         final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
+        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
         final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
         handleUpdate(config);
     }
 
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
     private void skipUnavailableChangedCallback(String clusterAlias, Boolean skipUnavailable) {
         handleSkipUnavailableChanged(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, skipUnavailable);
     }

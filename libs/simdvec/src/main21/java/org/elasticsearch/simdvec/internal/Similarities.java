@@ -23,6 +23,9 @@ public class Similarities {
 
     static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
+    static final MethodHandle COS_PRODUCT_FLOAT32 = DISTANCE_FUNCS.cosineHandleFloat32();
+    static final MethodHandle DOT_PRODUCT_FLOAT32 = DISTANCE_FUNCS.dotProductHandleFloat32();
+    static final MethodHandle SQR_PRODUCT_FLOAT32 = DISTANCE_FUNCS.squareDistanceHandleFloat32();
 
     static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
@@ -41,6 +44,48 @@ public class Similarities {
     static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) SQUARE_DISTANCE_7U.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static float cosineFloat32(MemorySegment a, MemorySegment b, int elementCount) {
+        try {
+            return (float) COS_PRODUCT_FLOAT32.invokeExact(a, b, elementCount);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static float dotProductFloat32(MemorySegment a, MemorySegment b, int elementCount) {
+        try {
+            return (float) DOT_PRODUCT_FLOAT32.invokeExact(a, b, elementCount);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static float squareDistanceFloat32(MemorySegment a, MemorySegment b, int elementCount) {
+        try {
+            return (float) SQR_PRODUCT_FLOAT32.invokeExact(a, b, elementCount);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

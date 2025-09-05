@@ -91,6 +91,7 @@ import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.sample.TransportPutSampleConfigAction;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -278,6 +279,12 @@ public class ClusterModule extends AbstractModule {
             PersistentTasksCustomMetadata::new,
             PersistentTasksCustomMetadata::readDiffFrom
         );
+        registerProjectCustom(
+            entries,
+            TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME,
+            TransportPutSampleConfigAction.SamplingConfigCustomMetadata::new,
+            TransportPutSampleConfigAction.SamplingConfigCustomMetadata::readDiffFrom
+        );
         // Cluster scoped persistent tasks
         registerMetadataCustom(
             entries,
@@ -356,6 +363,13 @@ public class ClusterModule extends AbstractModule {
                 Metadata.ClusterCustom.class,
                 new ParseField(ClusterPersistentTasksCustomMetadata.TYPE),
                 ClusterPersistentTasksCustomMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME),
+                TransportPutSampleConfigAction.SamplingConfigCustomMetadata::fromXContent
             )
         );
         entries.add(

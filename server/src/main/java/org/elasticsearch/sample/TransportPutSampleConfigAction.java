@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -258,6 +259,10 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
             );
         }
 
+        public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(Metadata.ProjectCustom.class, NAME, in);
+        }
+
         @Override
         public EnumSet<Metadata.XContentContext> context() {
             return ALL_CONTEXTS;
@@ -270,7 +275,7 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
 
         @Override
         public String getWriteableName() {
-            return "sample_config";
+            return NAME;
         }
 
         @Override

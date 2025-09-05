@@ -9,21 +9,28 @@
 
 package org.elasticsearch.sample;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 
-public class TransportGetSampleAction extends HandledTransportAction<GetSampleAction.Request, GetSampleAction.Response> {
+import static org.elasticsearch.sample.GetSampleAction.NodeRequest;
+import static org.elasticsearch.sample.GetSampleAction.NodeResponse;
+import static org.elasticsearch.sample.GetSampleAction.Request;
+import static org.elasticsearch.sample.GetSampleAction.Response;
+
+public class TransportGetSampleAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
     private final SamplingService samplingService;
 
     @Inject
@@ -34,15 +41,37 @@ public class TransportGetSampleAction extends HandledTransportAction<GetSampleAc
         ActionFilters actionFilters,
         SamplingService samplingService
     ) {
-        super(GetSampleAction.NAME, transportService, actionFilters, GetSampleAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            GetSampleAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+        );
         this.samplingService = samplingService;
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     @Override
-    protected void doExecute(Task task, GetSampleAction.Request request, ActionListener<GetSampleAction.Response> listener) {
-        String index = request.indices()[0];
+    protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
+        return new Response(clusterService.getClusterName(), nodeResponses, failures);
+    }
+
+    @Override
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request.indices()[0]);
+    }
+
+    @Override
+    protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new NodeResponse(in);
+    }
+
+    @Override
+    protected NodeResponse nodeOperation(NodeRequest request, Task task) {
+        String index = request.getIndex();
         List<IndexRequest> samples = samplingService.getSamples(index);
-        GetSampleAction.Response response = new GetSampleAction.Response(samples);
-        listener.onResponse(response);
+        return new NodeResponse(transportService.getLocalNode(), samples == null ? List.of() : samples);
     }
 }

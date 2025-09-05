@@ -9,23 +9,30 @@
 
 package org.elasticsearch.sample;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,28 +50,35 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
         super(NAME);
     }
 
-    public static class Response extends ActionResponse implements ChunkedToXContent {
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ChunkedToXContent {
 
-        private final List<IndexRequest> samples;
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
-        public Response(final List<IndexRequest> samples) {
-            this.samples = samples;
+        public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         public List<IndexRequest> getSamples() {
-            return samples;
+            return getNodes().stream().map(n -> n.samples).filter(Objects::nonNull).flatMap(Collection::stream).toList();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(samples);
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readCollectionAsList(NodeResponse::new);
+        }
+
+        @Override
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
+            out.writeCollection(nodes);
         }
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 chunk((builder, p) -> builder.startObject().startArray("samples")),
-                Iterators.flatMap(samples.iterator(), sample -> single((builder, params1) -> {
+                Iterators.flatMap(getSamples().iterator(), sample -> single((builder, params1) -> {
                     Map<String, Object> source = sample.sourceAsMap();
                     builder.value(source);
                     return builder;
@@ -75,38 +89,62 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            GetSampleAction.Response response = (GetSampleAction.Response) o;
-            return samples.equals(response.samples);
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response that = (Response) o;
+            return Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getNodes(), failures());
+        }
+
+    }
+
+    public static class NodeResponse extends BaseNodeResponse {
+        private final List<IndexRequest> samples;
+
+        protected NodeResponse(StreamInput in) throws IOException {
+            super(in);
+            samples = in.readCollectionAsList(IndexRequest::new);
+        }
+
+        protected NodeResponse(DiscoveryNode node, List<IndexRequest> samples) {
+            super(node);
+            this.samples = samples;
+        }
+
+        public List<IndexRequest> getSamples() {
+            return samples;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(samples);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeResponse that = (NodeResponse) o;
+            return samples.equals(that.samples);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(samples);
         }
-
-        @Override
-        public String toString() {
-            return "Response{samples=" + samples + '}';
-        }
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
         private String[] names;
 
         public Request(String[] names) {
-            super();
+            super((String[]) null);
             this.names = names;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.names = in.readStringArray();
         }
 
         @Override
@@ -136,6 +174,29 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
         @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.DEFAULT;
+        }
+    }
+
+    public static class NodeRequest extends AbstractTransportRequest {
+        private final String index;
+
+        public NodeRequest(String index) {
+            this.index = index;
+        }
+
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            this.index = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(index);
+        }
+
+        public String getIndex() {
+            return index;
         }
     }
 }

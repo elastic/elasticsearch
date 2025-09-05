@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
@@ -68,6 +69,8 @@ public class SamplingService {
                     String condition = samplingConfig.condition;
                     if (evaluateCondition(ingestDocument, condition)) {
                         if (Math.random() < samplingConfig.rate) {
+                            indexRequest.incRef();
+                            ((ReleasableBytesReference) indexRequest.source()).incRef();
                             samplesForIndex.add(indexRequest);
                             System.out.println("Sampling " + indexRequest);
                         }

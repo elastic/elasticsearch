@@ -201,14 +201,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_3 = def(9_000_0_12);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_4 = def(9_000_0_13);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_7 = def(9_000_0_16);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
@@ -349,6 +343,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = def(9_151_0_00);
     public static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = def(9_152_0_00);
     public static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = def(9_153_0_00);
+    public static final TransportVersion VISIT_PERCENTAGE = def(9_154_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

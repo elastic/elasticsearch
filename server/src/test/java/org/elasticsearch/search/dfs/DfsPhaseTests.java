@@ -156,7 +156,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 context.request()
                     .source(
                         new SearchSourceBuilder().knnSearch(
-                            List.of(new KnnSearchBuilder("float_vector", new float[] { 0, 0, 0 }, numDocs, numDocs, null, null))
+                            List.of(new KnnSearchBuilder("float_vector", new float[] { 0, 0, 0 }, numDocs, numDocs, 100f, null, null))
                         )
                     );
                 context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));

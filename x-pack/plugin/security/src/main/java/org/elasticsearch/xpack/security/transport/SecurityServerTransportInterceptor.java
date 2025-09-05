@@ -56,15 +56,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
     private final RemoteClusterTransportInterceptor remoteClusterTransportInterceptor;
-    private final AuthenticationService authcService;
-    private final AuthorizationService authzService;
-    private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
     private final ThreadPool threadPool;
-    private final Settings settings;
     private final SecurityContext securityContext;
-    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
-    private final XPackLicenseState licenseState;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -104,14 +98,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         // Inject for simplified testing
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
-        this.settings = settings;
         this.threadPool = threadPool;
-        this.authcService = authcService;
-        this.authzService = authzService;
-        this.sslService = sslService;
         this.securityContext = securityContext;
-        this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.licenseState = licenseState;
         this.remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
             crossClusterAccessAuthcService,
             authcService,

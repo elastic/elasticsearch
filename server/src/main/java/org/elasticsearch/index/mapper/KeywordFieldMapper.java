@@ -515,8 +515,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
-        private static final IndexMode DEFAULT_INDEX_MODE = IndexMode.STANDARD;
-
         private final int ignoreAbove;
         private final int ignoreAboveDefaultValue;
         private final String nullValue;
@@ -525,7 +523,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
         private final boolean isSyntheticSource;
-        private final IndexMode indexMode;
         private final IndexSortConfig indexSortConfig;
         private final boolean hasDocValuesSkipper;
         private final String originalName;
@@ -555,7 +552,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.isSyntheticSource = isSyntheticSource;
-            this.indexMode = builder.indexMode;
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
             this.originalName = isSyntheticSource ? name + "._original" : null;
@@ -567,18 +563,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-
-            final int ignoreAboveDefault = getIgnoreAboveDefaultValue(DEFAULT_INDEX_MODE, IndexVersion.current());
-
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = ignoreAboveDefault;
-            this.ignoreAboveDefaultValue = ignoreAboveDefault;
+            this.ignoreAbove = this.ignoreAboveDefaultValue = getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current());
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.indexMode = DEFAULT_INDEX_MODE;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
             this.originalName = null;
@@ -593,18 +584,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap()
             );
-
-            final int ignoreAboveDefault = getIgnoreAboveDefaultValue(DEFAULT_INDEX_MODE, IndexVersion.current());
-
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = ignoreAboveDefault;
-            this.ignoreAboveDefaultValue = ignoreAboveDefault;
+            this.ignoreAbove = this.ignoreAboveDefaultValue = getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current());
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.indexMode = DEFAULT_INDEX_MODE;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
             this.originalName = null;
@@ -612,18 +598,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
-
-            final int ignoreAboveDefault = getIgnoreAboveDefaultValue(DEFAULT_INDEX_MODE, IndexVersion.current());
-
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = ignoreAboveDefault;
-            this.ignoreAboveDefaultValue = ignoreAboveDefault;
+            this.ignoreAbove = this.ignoreAboveDefaultValue = getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current());
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.indexMode = DEFAULT_INDEX_MODE;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
             this.originalName = null;
@@ -1074,10 +1055,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public boolean hasNormalizer() {
             return normalizer != Lucene.KEYWORD_ANALYZER;
-        }
-
-        public IndexMode getIndexMode() {
-            return indexMode;
         }
 
         public IndexSortConfig getIndexSortConfig() {

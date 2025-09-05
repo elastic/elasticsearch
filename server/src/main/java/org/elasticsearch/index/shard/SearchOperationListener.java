@@ -22,6 +22,26 @@ import java.util.List;
 public interface SearchOperationListener {
 
     /**
+     * Executed before the can-match phase is executed
+     * @param searchContext the current search context
+     */
+    default void onPreCanMatchPhase(SearchContext searchContext) {}
+
+    /**
+     * Executed if a can-match phased failed.
+     * @param searchContext the current search context
+     */
+    default void onFailedCanMatchPhase(SearchContext searchContext) {}
+
+    /**
+     * Executed after the can-match phase successfully finished.
+     * Note: this is not invoked if the can-match phase execution failed.
+     * @param searchContext the current search context
+     * @param tookInNanos the number of nanoseconds the can-match execution took
+     */
+    default void onCanMatchPhase(SearchContext searchContext, long tookInNanos) {}
+
+    /**
      * Executed before the query phase is executed
      * @param searchContext the current search context
      */

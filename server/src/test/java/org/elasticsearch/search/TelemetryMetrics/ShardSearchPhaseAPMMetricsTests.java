@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.DFS_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
@@ -87,6 +88,13 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
+
+        if (isSystemIndex) {
+            assertEquals(0, getNumberOfMeasurementsForPhase(DFS_SEARCH_PHASE_METRIC));
+        } else {
+            checkNumberOfMeasurementsForPhase(DFS_SEARCH_PHASE_METRIC, false);
+        }
+
         checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
         assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
         checkMetricsAttributes(isSystemIndex);

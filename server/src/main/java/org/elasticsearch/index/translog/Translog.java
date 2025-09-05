@@ -64,6 +64,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.CRC32;
+import java.util.zip.CRC32C;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
@@ -1647,7 +1648,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final long start = out.position();
         out.skip(Integer.BYTES);
         op.writeTo(out);
-        CRC32 checksum = new CRC32();
+        CRC32C checksum = new CRC32C();
         out.calculateChecksum(checksum, Math.toIntExact(start + 4));
         out.writeInt((int) checksum.getValue());
         final long end = out.position();

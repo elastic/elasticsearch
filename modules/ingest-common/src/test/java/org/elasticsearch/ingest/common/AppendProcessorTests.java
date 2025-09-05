@@ -263,7 +263,7 @@ public class AppendProcessorTests extends ESTestCase {
         }
     }
 
-    public void testAppendingToNonExistingListEmptyStringAndEmpyValuesDisallowed() throws Exception {
+    public void testAppendingToNonExistingListEmptyStringAndEmptyValuesDisallowed() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String field = RandomDocumentPicks.randomFieldName(random());
         Scalar scalar = Scalar.STRING;

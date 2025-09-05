@@ -59,7 +59,6 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType.TOKEN;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCloudApiKeyRealmRef;
@@ -426,7 +425,7 @@ public final class Authentication implements ToXContentObject {
         assert false == isAuthenticatedInternally();
         assert false == isServiceAccount();
         assert false == isCrossClusterAccess();
-        final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, TOKEN);
+        final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;
     }
 
@@ -605,7 +604,7 @@ public final class Authentication implements ToXContentObject {
         // Run-as is supported for authentication with realm, api_key or token.
         if (AuthenticationType.REALM == getAuthenticationType()
             || AuthenticationType.API_KEY == getAuthenticationType()
-            || TOKEN == getAuthenticationType()) {
+            || AuthenticationType.TOKEN == getAuthenticationType()) {
             return true;
         }
 
@@ -719,7 +718,7 @@ public final class Authentication implements ToXContentObject {
         assert EnumSet.of(
             Authentication.AuthenticationType.REALM,
             Authentication.AuthenticationType.API_KEY,
-            TOKEN,
+            AuthenticationType.TOKEN,
             Authentication.AuthenticationType.ANONYMOUS,
             Authentication.AuthenticationType.INTERNAL
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
@@ -1362,7 +1361,7 @@ public final class Authentication implements ToXContentObject {
         final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
             new Subject(serviceAccountUser, authenticatedBy, TransportVersion.current(), metadata),
-            TOKEN
+            AuthenticationType.TOKEN
         );
         return authentication;
     }
@@ -1387,7 +1386,8 @@ public final class Authentication implements ToXContentObject {
     ) {
         assert authResult.isAuthenticated() : "cloud access token authn result must be successful";
         final User user = authResult.getValue();
-        return new Authentication(new Subject(user, realmRef, TransportVersion.current(), authResult.getMetadata()), TOKEN);
+        return new Authentication(new Subject(user, realmRef, TransportVersion.current(), authResult.getMetadata()),
+            AuthenticationType.TOKEN);
     }
 
     public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {

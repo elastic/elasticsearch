@@ -124,7 +124,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             settings,
             remoteClusterCredentialsResolver
         );
-        this.profileFilters = initializeProfileFilters(destructiveOperations);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
+        this.profileFilters = remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
     }
 
     @Override
@@ -274,12 +275,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         TransportRequestHandler<T> actualHandler
     ) {
         return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters, threadPool);
-    }
-
-    private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
-
-        return remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
     }
 
     public static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {

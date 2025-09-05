@@ -16,7 +16,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,6 +63,7 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.zip.CRC32;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
@@ -610,7 +611,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
             writeOperationWithSize(out, operation);
             final BytesReference bytes = out.bytes();
             readLock.lock();
@@ -1642,10 +1643,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
-    public static void writeOperationWithSize(BytesStreamOutput out, Translog.Operation op) throws IOException {
+    public static void writeOperationWithSize(RecyclerBytesStreamOutput out, Translog.Operation op) throws IOException {
         final long start = out.position();
         out.skip(Integer.BYTES);
-        writeOperationNoSize(new BufferedChecksumStreamOutput(out), op);
+        op.writeTo(out);
+        CRC32 checksum = new CRC32();
+        out.calculateChecksum(checksum, Math.toIntExact(start + 4));
+        out.writeInt((int) checksum.getValue());
         final long end = out.position();
         final int operationSize = (int) (end - Integer.BYTES - start);
         out.seek(start);

@@ -182,7 +182,7 @@ public class AppendProcessorTests extends ESTestCase {
 
     public void testAppendingToListWithNoEmptyValuesAndEmptyValuesDisallowed() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Scalar scalar = randomFrom(Scalar.values());
+        Scalar scalar = randomValueOtherThan(Scalar.NULL, () -> randomFrom(Scalar.values()));
         List<Object> list = new ArrayList<>();
         int size = randomIntBetween(0, 10);
         for (int i = 0; i < size; i++) {

@@ -72,7 +72,7 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
         // Get the original document's source.
         Map<String, Object> originalSource = (Map<String, Object>) failedDocument.get("source");
 
-        // Source should match original source contents.
+        // Overwrite the _source with original source contents.
         Map<String, Object> source = document.getSource();
         source.clear();
         source.putAll(originalSource);

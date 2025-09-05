@@ -157,7 +157,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 :   Converts a string field to lowercase or uppercase.
 
 [`recover_failure_document` processor](/reference/enrich-processor/recover-failure-document-processor.md)
-:   Converts failure store document to its original format.
+:   Converts a failure-store document to its original format.
 
 [`split` processor](/reference/enrich-processor/split-processor.md)
 :   Splits a field into an array of values.

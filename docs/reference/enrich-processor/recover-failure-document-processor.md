@@ -6,11 +6,14 @@ mapped_pages:
 
 # Recover Failure Document processor [recover_failure_document-processor]
 
-Remediates documents that have been stored in a data stream's failure store by restoring them to their original format. This processor is designed to work with documents that failed during ingestion and were automatically stored in the failure store with additional error metadata and document structure wrapping.
+Recovers documents that have been stored in a data stream's failure store by restoring them to their original format. This processor is designed to work with documents that failed during ingestion and were automatically stored in the failure store with additional error metadata and document structure wrapping. The relevant failure store metadata is stashed under _ingest.pre_recovery.
 
 The Recover Failure Document processor performs the following operations:
 
-* Extracts the original document source from the `document.source` field
+* Checks the document is a valid failure store document.
+* Stores the pre-recovery metadata of the document (all document fields except for `document.source`) under the ingest metadata _ingest.pre_recovery.
+* Overwrites `_source` with the original document source from the `document.source` field
+* Restores the original document id from `document._id` to the document metadata
 * Restores the original index name from `document.index` to the document metadata
 * Restores the original routing value from `document.routing` to the document metadata (if present)
 * Removes the failure-related fields (`error` and `document`) from the document
@@ -82,7 +85,27 @@ Which produces the following response:
                     "counter_name": "test"
                 },
                 "_ingest": {
-                    "timestamp": "2025-08-25T23:33:19.183295Z"
+                    "pre_recovery": {
+                        "@timestamp": "2025-05-09T06:41:24.775Z",
+                        "_index": ".fs-my-datastream-ingest-2025.05.09-000001",
+                        "document": {
+                            "index": "my-datastream-ingest"
+                        },
+                        "_id": "HnTJs5YBwrYNjPmaFcri",
+                        "error": {
+                            "pipeline": "complicated-processor",
+                            "processor_type": "set",
+                            "processor_tag": "copy to new counter again",
+                            "pipeline_trace": [
+                                "complicated-processor"
+                            ],
+                            "stack_trace": "j.l.IllegalArgumentException: field [counter] not present as part of path [counter] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java: 202 at o.e.i.c.SetProcessor.execute(SetProcessor.java: 86) 14 more",
+                            "type": "illegal_argument_exception",
+                            "message": "field [counter] not present as part of path [counter]"
+                        },
+                        "_version": -3
+                    },
+                    "timestamp": "2025-09-04T22:32:12.800709Z"
                 }
             }
         }

@@ -6,31 +6,28 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
 package org.elasticsearch.logstashbridge.script;
 
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.script.TemplateScript;
 
 /**
- * An external bridge for {@link TemplateScript}
+ * An external bridge for {@link TemplateScript.Factory}
  */
-public class TemplateScriptBridge {
+public interface TemplateScriptFactoryBridge extends StableBridgeAPI<TemplateScript.Factory> {
+    static TemplateScriptFactoryBridge fromInternal(final TemplateScript.Factory delegate) {
+        return new ProxyInternal(delegate);
+    }
 
     /**
-     * An external bridge for {@link TemplateScript.Factory}
+     * An implementation of {@link TemplateScriptFactoryBridge} that proxies calls through
+     * to an internal {@link TemplateScript.Factory}.
+     * @see StableBridgeAPI.ProxyInternal
      */
-    public static class Factory extends StableBridgeAPI.ProxyInternal<TemplateScript.Factory> {
-        public static Factory fromInternal(final TemplateScript.Factory delegate) {
-            return new Factory(delegate);
-        }
-
-        public Factory(final TemplateScript.Factory delegate) {
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<TemplateScript.Factory> implements TemplateScriptFactoryBridge {
+        ProxyInternal(final TemplateScript.Factory delegate) {
             super(delegate);
-        }
-
-        @Override
-        public TemplateScript.Factory toInternal() {
-            return this.internalDelegate;
         }
     }
 }

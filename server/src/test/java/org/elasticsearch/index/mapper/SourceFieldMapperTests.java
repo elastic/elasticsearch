@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_AUTO_EXCLUDE_TYPES_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -800,4 +802,59 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
     }
+
+    public void testAutoExcludeTypesSetting() throws IOException {
+        String mappings = """
+                {
+                    "_doc" : {
+                        "properties": {
+                            "foo": {
+                                "type": "dense_vector",
+                                "similarity": "l2_norm"
+                            },
+                            "bar": {
+                                "type": "keyword"
+                            },
+                            "baz": {
+                                "type": "object",
+                                "properties": {
+                                    "foo":  {
+                                        "type": "binary",
+                                        "doc_values": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            """;
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName())
+            .putList(INDEX_MAPPER_SOURCE_AUTO_EXCLUDE_TYPES_SETTING.getKey(), List.of("dense_vector", "binary"))
+            .build();
+        MapperService mapperService = createMapperService(settings, mappings);
+        DocumentMapper docMapper = mapperService.documentMapper();
+        final byte[] binaryValue = new byte[100];
+        binaryValue[56] = 1;
+        ParsedDocument doc = docMapper.parse(
+            source("123", b -> b
+                    .field("foo", List.of(3f, 2f, 1.5f))
+                    .field("bar", "value")
+                    .field("baz.foo", binaryValue)
+                , null));
+        SourceFieldMapper source = (SourceFieldMapper) doc.dynamicMappingsUpdate().getMetadataMapperByName("_source");
+        assertNotNull(source);
+        assertTrue(List.of(source.getAutoExcludes()).contains("foo"));
+        assertTrue(List.of(source.getAutoExcludes()).contains("baz.foo"));
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
+        assertThat(sourceAsMap.containsKey("foo"), equalTo(false));
+        assertThat(sourceAsMap.containsKey("bar"), equalTo(true));
+        assertThat(sourceAsMap.containsKey("baz.foo"), equalTo(false));
+    }
 }
+

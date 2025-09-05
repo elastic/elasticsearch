@@ -531,6 +531,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/510_range_query_out_of_bounds/Test range query for float field with out of bounds lower limit}
   issue: https://github.com/elastic/elasticsearch/issues/134184
+- class: org.elasticsearch.health.HealthPeriodicLoggerTests
+  method: testOutputModeNoLogging
+  issue: https://github.com/elastic/elasticsearch/issues/134200
 
 # Examples:
 #

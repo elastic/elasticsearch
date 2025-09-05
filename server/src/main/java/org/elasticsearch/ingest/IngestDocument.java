@@ -716,16 +716,17 @@ public final class IngestDocument {
      */
     public void setFieldValue(String path, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
-        if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
-            if (value == null) {
-                return;
+        if (valueSource instanceof ValueSource.TemplatedValue) {
+            if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+                setFieldValue(path, value);
             }
-            String valueStr = (String) value;
-            if (valueStr.isEmpty()) {
-                return;
-            }
+        } else {
+            // it may seem a little surprising to not bother checking ignoreEmptyValue value here.
+            // but this corresponds to the case of, e.g., a set processor with a literal value.
+            // so if you have `"value": ""` and `"ignore_empty_value": true` right next to each other
+            // in your processor definition, then, well, that's on you for being a bit silly. ;)
+            setFieldValue(path, value);
         }
-        setFieldValue(path, value);
     }
 
     /**

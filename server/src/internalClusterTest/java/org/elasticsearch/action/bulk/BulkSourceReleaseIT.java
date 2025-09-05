@@ -110,7 +110,7 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
             handler.lastItems(List.of(indexRequest, indexRequestNoIngest), future);
 
             // Pause briefly to allow bytes to theoretically be released after ingest processing
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(500));
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
 
             assertTrue(originalBytes.hasReferences());
         } finally {
@@ -214,7 +214,7 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
+            threadPool.executor(ThreadPool.Names.WRITE).execute(blockingTask);
         }
         safeAwait(startBarrier);
     }

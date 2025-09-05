@@ -516,6 +516,9 @@ tests:
 - class: org.elasticsearch.health.HealthPeriodicLoggerTests
   method: testOutputModeNoLogging
   issue: https://github.com/elastic/elasticsearch/issues/134200
+- class: org.elasticsearch.cluster.ClusterInfoServiceIT
+  method: testMaxQueueLatenciesInClusterInfo
+  issue: https://github.com/elastic/elasticsearch/issues/134088
 
 # Examples:
 #

@@ -63,7 +63,6 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.util.zip.CRC32;
 import java.util.zip.CRC32C;
 
 import static org.elasticsearch.core.Strings.format;

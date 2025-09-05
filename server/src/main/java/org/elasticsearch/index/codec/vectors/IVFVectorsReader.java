@@ -353,10 +353,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return fields.get(fieldInfo.number).centroidSlice(ivfCentroids);
     }
 
-    public int getNumCentroids(FieldInfo fieldInfo) {
-        return fields.get(fieldInfo.number).numCentroids;
-    }
-
     public float[] getGlobalCentroid(FieldInfo fieldInfo) {
         return fields.get(fieldInfo.number).globalCentroid;
     }

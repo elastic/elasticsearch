@@ -48,7 +48,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -62,11 +61,11 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
-    public static final float MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT = 0.004f;
-    public static final float MAX_AFFINITY_MULTIPLIER_ADJUSTMENT = 1.1f;
-    public static final float MIN_AFFINITY_MULTIPLIER_ADJUSTMENT = 0.5f;
-    public static final float MIN_AFFINITY = 0.001f;
-    public static final float MAX_AFFINITY = 1f;
+    private static final float MIN_VISIT_RATIO_FOR_AFFINITY_ADJUSTMENT = 0.004f;
+    private static final float MAX_AFFINITY_MULTIPLIER_ADJUSTMENT = 1.1f;
+    private static final float MIN_AFFINITY_MULTIPLIER_ADJUSTMENT = 0.75f;
+    private static final float MIN_AFFINITY = 0.001f;
+    private static final float MAX_AFFINITY = 1f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -179,24 +178,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector(), costs);
                 segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
 
-                double[] affinityScores = segmentAffinities.stream()
-                    .map(SegmentAffinity::affinityScore)
-                    .mapToDouble(Double::doubleValue)
-                    .filter(x -> Double.isNaN(x) == false && Double.isInfinite(x) == false)
-                    .toArray();
-
-                double minAffinity = Arrays.stream(affinityScores).min().orElse(Double.NaN);
-                double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
-
-                double[] normalizedAffinityScores = Arrays.stream(affinityScores)
-                    .map(d -> (d - minAffinity) / (maxAffinity - minAffinity))
-                    .toArray();
-
-                // TODO : enable affinity optimization for filtered case
-                if (filterWeight != null
-                    || normalizedAffinityScores.length != segmentAffinities.size()
-                    || Double.isNaN(minAffinity)
-                    || Double.isNaN(maxAffinity)
+                if (filterWeight != null // TODO : enable affinity optimization for filtered case
                     || leafReaderContexts.size() == 1) {
                     tasks = new ArrayList<>(leafReaderContexts.size());
                     for (LeafReaderContext context : leafReaderContexts) {
@@ -204,18 +186,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     }
                 } else {
                     tasks = new ArrayList<>(segmentAffinities.size());
-                    int j = 0;
                     for (SegmentAffinity segmentAffinity : segmentAffinities) {
-                        double normalizedAffinityScore = normalizedAffinityScores[j];
+                        double affinityScore = segmentAffinity.affinityScore;
 
                         float adjustedVisitRatio = adjustVisitRatioForSegment(
-                            normalizedAffinityScore,
-                            normalizedAffinityScores[normalizedAffinityScores.length / 10],
+                            affinityScore,
+                            segmentAffinities.get(segmentAffinities.size() / 10).affinityScore,
                             visitRatio
                         );
 
                         tasks.add(() -> searchLeaf(segmentAffinity.context(), filterWeight, knnCollectorManager, adjustedVisitRatio));
-                        j++;
                     }
                 }
             } else {
@@ -241,12 +221,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     private float adjustVisitRatioForSegment(double affinityScore, double affinityThreshold, float visitRatio) {
         // for high affinity scores, increase visited ratio
         if (affinityScore > affinityThreshold) {
-            return Math.min(visitRatio * MAX_AFFINITY_MULTIPLIER_ADJUSTMENT, MAX_AFFINITY);
+            double adjustment = Math.min(1 + (affinityScore - affinityThreshold), MAX_AFFINITY_MULTIPLIER_ADJUSTMENT);
+            return Math.min((float) (visitRatio * adjustment), MAX_AFFINITY);
         }
 
         // for low affinity scores, decrease visited ratio
-        if (affinityScore <= affinityThreshold) {
-            return Math.max(visitRatio * MIN_AFFINITY_MULTIPLIER_ADJUSTMENT, MIN_AFFINITY);
+        if (affinityScore < affinityThreshold) {
+            double adjustment = Math.max(1 - (affinityThreshold - affinityScore), MIN_AFFINITY_MULTIPLIER_ADJUSTMENT);
+            return (float) Math.max(visitRatio * adjustment, MIN_AFFINITY);
         }
 
         return visitRatio;
@@ -298,19 +280,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                 + fieldInfo.getVectorDimension()
                         );
                     }
-                    // similarity between query vector and global centroid, higher is better
+
                     float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
 
-                    // clusters per vector (< 1), higher is better (better coverage)
                     int numVectors = costs[i];
-                    int numCentroids = reader.getNumCentroids(fieldInfo);
-                    double centroidDensity = (double) numCentroids / numVectors;
 
                     // TODO : we may want to include some actual centroids' scores for higher quality estimate
-                    double affinityScore = centroidsScore * Math.log10(numVectors) * (1 + centroidDensity);
-                    segmentAffinities.add(new SegmentAffinity(context, affinityScore, numVectors));
+                    double affinityScore = centroidsScore * (Math.log10(numVectors));
+
+                    segmentAffinities.add(new SegmentAffinity(context, affinityScore));
                 } else {
-                    segmentAffinities.add(new SegmentAffinity(context, Float.NaN, 0));
+                    segmentAffinities.add(new SegmentAffinity(context, Float.NaN));
                 }
             }
             i++;
@@ -319,7 +299,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return segmentAffinities;
     }
 
-    private record SegmentAffinity(LeafReaderContext context, double affinityScore, int numVectors) {}
+    private record SegmentAffinity(LeafReaderContext context, double affinityScore) {}
 
     private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {

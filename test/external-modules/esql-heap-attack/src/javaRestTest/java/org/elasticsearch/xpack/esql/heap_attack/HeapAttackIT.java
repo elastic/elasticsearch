@@ -196,9 +196,9 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testSortByManyLongsGiantTopN() throws IOException {
         initManyLongs(10);
-        assertMap(sortBySomeLongsLimit(100000),
-            matchesMap()
-                .entry("took", greaterThan(0))
+        assertMap(
+            sortBySomeLongsLimit(100000),
+            matchesMap().entry("took", greaterThan(0))
                 .entry("is_partial", false)
                 .entry("columns", List.of(Map.of("name", "MAX(a)", "type", "long")))
                 .entry("values", List.of(List.of(9)))

@@ -36,12 +36,13 @@ Combining `query` and `retrievers` is not supported.
     Required when `query` is specified.
     
     When used with the [multi-field query format](../retrievers.md#multi-field-query-format) (`query` parameter), normalizes scores per [field grouping](../retrievers.md#multi-field-field-grouping).
-    Otherwise serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer. {applies_to}`stack: ga 9.2`
+    Otherwise serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer.
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
     See [field grouping](../retrievers.md#multi-field-field-grouping) for more information.
     ::::
+
 `retrievers`
 :   (Optional, array of objects)
 
@@ -73,7 +74,7 @@ Each entry in the `retrievers` array specifies the following parameters:
 
     The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
-`normalizer` {applies_to}`stack: ga 9.1`
+`normalizer`
 :   (Optional, String)
 
     Specifies how the retriever's score will be normalized before applying the specified `weight`.

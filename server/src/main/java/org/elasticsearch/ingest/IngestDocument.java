@@ -739,17 +739,9 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
-        if (ignoreEmptyValue) {
-            if (value == null) {
-                return;
-            }
-            if (value instanceof String string) {
-                if (string.isEmpty()) {
-                    return;
-                }
-            }
+        if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+            setFieldValue(path, value);
         }
-        setFieldValue(path, value);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {

@@ -67,7 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
@@ -144,7 +144,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public EsqlQuery visitStatements(EsqlBaseParser.StatementsContext ctx) {
-        List<QuerySettings> settings = new ArrayList<>();
+        List<QuerySetting> settings = new ArrayList<>();
         for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
             settings.add(visitSetCommand(setCommandContext));
         }
@@ -165,12 +165,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public QuerySettings visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
-        List<Alias> fields = new ArrayList<>();
-        for (EsqlBaseParser.SetFieldContext setFieldContext : ctx.setFields().setField()) {
-            fields.add(visitSetField(setFieldContext));
-        }
-        return new QuerySettings(source(ctx), fields);
+    public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
+        var field = visitSetField(ctx.setField());
+        return new QuerySetting(source(ctx), field);
     }
 
     @Override

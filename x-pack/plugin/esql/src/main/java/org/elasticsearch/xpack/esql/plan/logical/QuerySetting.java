@@ -8,21 +8,31 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.util.List;
 import java.util.Objects;
 
-public class QuerySettings {
+public class QuerySetting {
 
-    private final List<Alias> fields;
+    private final Source source;
+    private final Alias field;
 
-    public QuerySettings(Source source, List<Alias> fields) {
-        this.fields = fields;
+    public QuerySetting(Source source, Alias field) {
+        this.source = source;
+        this.field = field;
     }
 
-    public List<Alias> fields() {
-        return fields;
+    public Alias field() {
+        return field;
+    }
+
+    public String name() {
+        return field.name();
+    }
+
+    public Expression value() {
+        return field.child();
     }
 
     @Override
@@ -33,13 +43,16 @@ public class QuerySettings {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        QuerySettings eval = (QuerySettings) o;
-        return Objects.equals(fields, eval.fields);
+        QuerySetting eval = (QuerySetting) o;
+        return Objects.equals(field, eval.field);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields);
+        return Objects.hash(super.hashCode(), field);
     }
 
+    public Source source() {
+        return source;
+    }
 }

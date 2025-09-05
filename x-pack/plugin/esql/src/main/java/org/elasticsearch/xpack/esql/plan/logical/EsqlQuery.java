@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.util.List;
 
-public record EsqlQuery(LogicalPlan plan, List<QuerySettings> settings) {
+public record EsqlQuery(LogicalPlan plan, List<QuerySetting> settings) {
     /**
      * Returns the expression corresponding to a setting value.
      * If the setting name appears multiple times (in one or more QuerySettings objects), this will return last occurrence.
@@ -24,11 +23,9 @@ public record EsqlQuery(LogicalPlan plan, List<QuerySettings> settings) {
             return null;
         }
         Expression result = null;
-        for (QuerySettings setting : settings) {
-            for (Alias field : setting.fields()) {
-                if (field.name().equals(name)) {
-                    result = field.child();
-                }
+        for (QuerySetting setting : settings) {
+            if (setting.name().equals(name)) {
+                result = setting.value();
             }
         }
         return result;

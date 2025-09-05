@@ -340,11 +340,7 @@ fuseCommand
     ;
 
 setCommand
-    : SET setFields SEMICOLON
-    ;
-
-setFields
-    : setField (COMMA setField)*
+    : SET setField SEMICOLON
     ;
 
 setField

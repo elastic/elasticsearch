@@ -889,18 +889,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSetFields(EsqlBaseParser.SetFieldsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSetFields(EsqlBaseParser.SetFieldsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterSetField(EsqlBaseParser.SetFieldContext ctx) { }
   /**
    * {@inheritDoc}

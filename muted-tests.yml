@@ -480,9 +480,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133461
-- class: org.elasticsearch.xpack.esql.action.TimeSeriesRateIT
-  method: testRateWithTimeBucketAndClusterMultipleMetricsByMin
-  issue: https://github.com/elastic/elasticsearch/issues/133478
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinOthers
   issue: https://github.com/elastic/elasticsearch/issues/133480
@@ -495,9 +492,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/133077
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/133220
 - class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
   method: testParseOrQuery
   issue: https://github.com/elastic/elasticsearch/issues/133863
@@ -513,27 +507,21 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithCustomFeatureProcessors
   issue: https://github.com/elastic/elasticsearch/issues/134001
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/134019
-- class: org.elasticsearch.cluster.ClusterInfoServiceIT
-  method: testMaxQueueLatenciesInClusterInfo
-  issue: https://github.com/elastic/elasticsearch/issues/134088
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBeforeStats}
   issue: https://github.com/elastic/elasticsearch/issues/134100
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/134104
-- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
-  method: testWriteLoadForecastIsOverriddenBySetting
-  issue: https://github.com/elastic/elasticsearch/issues/133455
-- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
-  method: testWriteLoadForecastDoesNotGetPopulatedWithInvalidLicense
-  issue: https://github.com/elastic/elasticsearch/issues/134124
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkWithMixOfCommands}
   issue: https://github.com/elastic/elasticsearch/issues/134135
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:inlinestats.MultiIndexInlinestatsOfMultiTypedField}
+  issue: https://github.com/elastic/elasticsearch/issues/133973
+- class: org.elasticsearch.health.HealthPeriodicLoggerTests
+  method: testOutputModeNoLogging
+  issue: https://github.com/elastic/elasticsearch/issues/134200
 
 # Examples:
 #

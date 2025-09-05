@@ -25,6 +25,7 @@ configurations {
     }
   }
   hdfs3 {
+    transitive = false
     attributes {
       attribute(hdfs3patched, true)
     }
@@ -76,9 +77,9 @@ dependencies {
     }
   }
   constraints {
-    implementation("commons-codec:commons-codec:1.9")
-    implementation("commons-logging:commons-logging:1.2")
-    implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+//    implementation("commons-codec:commons-codec:1.9")
+//    implementation("commons-logging:commons-logging:1.2")
+//    implementation("org.slf4j:slf4j-api:${versions.slf4j}")
   }
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
 
@@ -138,6 +139,17 @@ dependencies {
 
 //    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5")
     hdfs2("commons-io:commons-io:2.16.1")
+    hdfs2("com.google.protobuf:protobuf-java:3.25.5")
+    hdfs2("org.apache.htrace:htrace-core4:4.0.1-incubating")
+    hdfs2("org.mortbay.jetty:jetty:6.1.26")
+    hdfs2("org.mortbay.jetty:jetty-util:6.1.26")
+    hdfs2("org.mortbay.jetty:jetty-sslengine:6.1.26")
+    hdfs2("org.mortbay.jetty:servlet-api:2.5-20081211")
+    hdfs2("org.codehaus.jackson:jackson-mapper-asl:1.9.13")
+    hdfs2("org.codehaus.jackson:jackson-core-asl:1.9.13")
+    hdfs2("com.sun.jersey:jersey-servlet:1.19")
+    hdfs2("com.sun.jersey:jersey-server:1.19")
+    hdfs2("com.sun.jersey:jersey-core:1.19")
     hdfs2("commons-collections:commons-collections:3.2.1")
     hdfs2("commons-configuration:commons-configuration:1.6")
     hdfs2("commons-lang:commons-lang:2.6")

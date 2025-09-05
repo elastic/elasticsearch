@@ -3154,6 +3154,7 @@ count:long  |  message:keyword
 
 multiIndexInlinestatsOfMultiTypedField
 required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
 FROM apps, apps_short
 | INLINESTATS s = sum(id::integer)
 | SORT name, version
@@ -3395,8 +3396,10 @@ warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\]
 2023-10-23T13:53:55.832Z      |2023-10-23T13:53:55.832987654Z|1698069235832987654|19
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_By
+ImplicitCastingMultiTypedDateTruncInlinestats_By-Ignore
 required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
@@ -3413,8 +3416,10 @@ c:long | yr:date_nanos
 8      | 1994-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter-Ignore
 required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
@@ -3431,8 +3436,10 @@ c:long | yr:date_nanos
 0      | 1994-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval-Ignore
 required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
@@ -3450,8 +3457,10 @@ c:long | yr:date_nanos
 8      | 1994-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter-Ignore
 required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 

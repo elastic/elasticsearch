@@ -82,13 +82,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
+import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.getRemotesOf;
+import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.qualifyWithRunningRemotes;
 
 public class EsqlSession {
 
@@ -407,36 +408,20 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        String localPattern = lookupIndexPattern.indexPattern();
-        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
-            : "Lookup index name should not include remote, but got: " + localPattern;
+        String lookupJoinPattern = lookupIndexPattern.indexPattern();
+        assert RemoteClusterAware.isRemoteIndexName(lookupJoinPattern) == false
+            : "Lookup index name should not include remote, but got: " + lookupJoinPattern;
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
-
-        String patternWithRemotes;
-
-        if (executionInfo.getClusters().isEmpty()) {
-            patternWithRemotes = localPattern;
-        } else {
-            // convert index -> cluster1:index,cluster2:index, etc.for each running cluster
-            patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
-                .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
-                .collect(Collectors.joining(","));
-        }
-        if (patternWithRemotes.isEmpty()) {
-            return;
-        }
-        // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            patternWithRemotes,
-            fieldNames,
+            qualifyWithRunningRemotes(lookupJoinPattern, getRemotesOf(result.indices.resolvedIndices()), executionInfo),
+            result.wildcardJoinIndices().contains(lookupJoinPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
             false,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, lookupJoinPattern, executionInfo, indexResolution))
         );
     }
 
@@ -634,51 +619,29 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        List<IndexPattern> indices = preAnalysis.indices;
-        if (indices.size() > 1) {
-            // Note: JOINs are not supported but we detect them when
-            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (indices.size() == 1) {
-            IndexPattern table = indices.getFirst();
-
-            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
-            // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
-                boolean includeAllDimensions = false;
-                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
-                    includeAllDimensions = true;
-                    // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                    if (requestFilter != null) {
-                        requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
-                    } else {
-                        requestFilter = indexModeFilter;
-                    }
-                }
-                indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
-                    result.fieldNames,
+        switch (preAnalysis.indices.size()) {
+            case 0 -> listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
+            case 1 -> indexResolver.resolveAsMergedMapping(
+                preAnalysis.indices.getFirst().indexPattern(),
+                result.fieldNames,
+                merge(
                     requestFilter,
-                    includeAllDimensions,
-                    listener.delegateFailure((l, indexResolution) -> {
-                        l.onResponse(result.withIndexResolution(indexResolution));
-                    })
-                );
-            }
+                    preAnalysis.indexMode == IndexMode.TIME_SERIES
+                        ? new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName())
+                        : null
+                ),
+                preAnalysis.indexMode == IndexMode.TIME_SERIES,
+                listener.delegateFailure((l, indexResolution) -> l.onResponse(result.withIndexResolution(indexResolution)))
+            );
+            default -> listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
+        }
+    }
+
+    private static QueryBuilder merge(QueryBuilder q1, QueryBuilder q2) {
+        if (q1 != null && q2 != null) {
+            return new BoolQueryBuilder().filter(q1).filter(q2);
         } else {
-            try {
-                // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            } catch (Exception ex) {
-                listener.onFailure(ex);
-            }
+            return q1 != null ? q1 : q2;
         }
     }
 

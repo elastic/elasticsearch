@@ -40,7 +40,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
 
@@ -153,30 +155,6 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
-        StringBuilder sb = new StringBuilder();
-        for (String clusterAlias : executionInfo.clusterAliases()) {
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            // Exclude clusters which are either skipped or have no indices matching wildcard, or filtered out.
-            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
-                if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
-                } else {
-                    String indexExpression = executionInfo.getCluster(clusterAlias).getIndexExpression();
-                    for (String index : indexExpression.split(",")) {
-                        sb.append(clusterAlias).append(':').append(index).append(',');
-                    }
-                }
-            }
-        }
-
-        if (sb.length() > 0) {
-            return sb.substring(0, sb.length() - 1);
-        } else {
-            return "";
-        }
-    }
-
     static void updateExecutionInfoWithUnavailableClusters(
         EsqlExecutionInfo execInfo,
         Map<String, List<FieldCapabilitiesFailure>> failures
@@ -206,7 +184,7 @@ public class EsqlCCSUtils {
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)
             .map(Cluster::getClusterAlias)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
@@ -413,5 +391,23 @@ public class EsqlCCSUtils {
         } else {
             return "in remote cluster [" + clusterAlias + "]";
         }
+    }
+
+    public static Set<String> getRemotesOf(Set<String> concreteIndices) {
+        return concreteIndices.stream().map(RemoteClusterAware::parseClusterAlias).collect(toSet());
+    }
+
+    /**
+     * Given input like index=lookup-1 and remotes=[r1,r2,r3] this constructs output like `r1:lookup-1,r2:lookup-1,r3-lookup-1`
+     * This is needed in order to require lookup index is present on every remote in order to correctly execute a query with join.
+     */
+    public static String qualifyWithRunningRemotes(String index, Set<String> remotes, EsqlExecutionInfo executionInfo) {
+        if (remotes.isEmpty()) {
+            return index;
+        }
+        return remotes.stream().filter(remote -> {
+            var cluster = executionInfo.getCluster(remote);
+            return cluster == null || cluster.getStatus() == Cluster.Status.RUNNING;
+        }).map(remote -> RemoteClusterAware.buildRemoteIndexName(remote, index)).collect(joining(","));
     }
 }

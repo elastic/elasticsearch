@@ -481,6 +481,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             running.acquire();
         } catch (InterruptedException e) {
             logger.warn("Interrupted while waiting to run downloader on cluster state", e);
+            return;
         }
         // Get the last seen cluster state and process it.
         final ClusterState clusterState = queue.get();

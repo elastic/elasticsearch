@@ -144,12 +144,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportResponseHandler<T> handler
             ) {
                 assertNoCrossClusterAccessHeadersInContext();
-                final Optional<String> remoteClusterAlias = remoteClusterCredentialsResolver.apply(connection)
-                    .map(RemoteClusterAliasWithCredentials::clusterAlias);
+                final boolean isRemoteClusterConnection = remoteClusterTransportInterceptor.isRemoteClusterConnection(connection);
                 if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(
                     action,
                     securityContext,
-                    remoteClusterAlias.isPresent()
+                    isRemoteClusterConnection
                 )) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
                         sendRequestInner(

@@ -330,7 +330,9 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     @Override
     public boolean isRemoteClusterConnection(Transport.Connection connection) {
-        return false;
+        return remoteClusterCredentialsResolver.apply(connection)
+            .map(RemoteConnectionManager.RemoteClusterAliasWithCredentials::clusterAlias)
+            .isPresent();
     }
 
     @Override

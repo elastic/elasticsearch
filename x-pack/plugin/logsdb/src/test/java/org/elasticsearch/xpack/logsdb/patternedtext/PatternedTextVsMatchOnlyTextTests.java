@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;

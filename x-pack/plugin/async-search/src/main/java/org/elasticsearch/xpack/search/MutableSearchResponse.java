@@ -495,10 +495,11 @@ class MutableSearchResponse implements Releasable {
     public synchronized void close() {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "MutableSearchResponse.close(): byThread={}, finalResponsePresent={}, clusterResponsesCount={},",
+                "MutableSearchResponse.close(): byThread={}, finalResponsePresent={}, clusterResponsesCount={}, stack={}",
                 Thread.currentThread().getName(),
                 finalResponse != null,
-                clusterResponses != null ? clusterResponses.size() : 0
+                clusterResponses != null ? clusterResponses.size() : 0,
+                new Exception().getStackTrace()
             );
         }
 

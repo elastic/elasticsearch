@@ -387,11 +387,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     public void close() {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "AsyncSearchTask.close(): byThread={}, asyncId={}, taskId={}, hasCompleted={}",
+                "AsyncSearchTask.close(): byThread={}, asyncId={}, taskId={}, hasCompleted={}, stack={}",
                 Thread.currentThread().getName(),
                 searchId != null ? searchId.getEncoded() : "<null>",
                 getId(),
-                hasCompleted
+                hasCompleted,
+                new Exception().getStackTrace()
             );
         }
         Releasables.close(searchResponse);

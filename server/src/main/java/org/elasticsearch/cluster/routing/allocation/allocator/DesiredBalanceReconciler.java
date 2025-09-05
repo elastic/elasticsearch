@@ -503,6 +503,7 @@ public class DesiredBalanceReconciler {
 
                 final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                 final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                // TODO (ES-12633): exercise canRemain to say NOT_PREFERRED, without other decider influence, and see that a shard is moved.
                 if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
                     // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                     continue;

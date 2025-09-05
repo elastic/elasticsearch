@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -72,6 +73,23 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     }
 
     /**
+     * Tests that {@link AllocationDecider#canRemain} returning {@link Decision.Type#NO} for a {@code NodeX} will ignore a
+     * {@link AllocationDecider#canAllocate} response of {@link Decision.Type#NOT_PREFERRED} from {@code NodeY} and reassign the shard when
+     * there are no better node options.
+     */
+    public void testShardsAreAssignedToNotPreferredWhenAlternativeIsNo() {
+
+    }
+
+    /**
+     * Tests that rebalancing will not override {@link Decision.Type#NOT_PREFERRED} in order to correct a node weight imbalance above the
+     * {@link BalancedShardsAllocator#THRESHOLD_SETTING} in a cluster.
+     */
+    public void testThatRebalancingWillNotOverrideNotPreferred() {
+
+    }
+
+    /**
      * Uses MockTransportService to set up write load stat responses from the data nodes and tests the allocation decisions made by the
      * balancer, specifically the effect of the {@link WriteLoadConstraintDecider}.
      *
@@ -79,64 +97,27 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      * Node1 while Node3 is hot-spotting, resulting in reassignment of all shards to Node2.
      */
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
-        int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
-        int numberOfWritePoolThreads = randomIntBetween(2, 20);
-        float shardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
-        Settings settings = Settings.builder()
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                randomUtilizationThresholdPercent + "%"
-            )
-            .build();
-
-        final String masterName = internalCluster().startMasterOnlyNode(settings);
-        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
-        final String firstDataNodeName = dataNodes.get(0);
-        final String secondDataNodeName = dataNodes.get(1);
-        final String thirdDataNodeName = dataNodes.get(2);
-        final String firstDataNodeId = getNodeId(firstDataNodeName);
-        final String secondDataNodeId = getNodeId(secondDataNodeName);
-        final String thirdDataNodeId = getNodeId(thirdDataNodeName);
-        ensureStableCluster(4);
-
-        logger.info(
-            "---> first node name "
-                + firstDataNodeName
-                + " and ID "
-                + firstDataNodeId
-                + "; second node name "
-                + secondDataNodeName
-                + " and ID "
-                + secondDataNodeId
-                + "; third node name "
-                + thirdDataNodeName
-                + " and ID "
-                + thirdDataNodeId
-        );
+        TestHarness harness = setUpTestNodes();
 
         /**
          * Exclude assignment of shards to the second and third data nodes via the {@link FilterAllocationDecider} settings.
          * Then create an index with many shards, which will all be assigned to the first data node.
          */
 
-        logger.info("---> Limit shard assignment to node " + firstDataNodeName + " by excluding the other nodes");
+        logger.info("---> Limit shard assignment to node " + harness.firstDataNodeName + " by excluding the other nodes");
         updateClusterSettings(
-            Settings.builder().put("cluster.routing.allocation.exclude._name", secondDataNodeName + "," + thirdDataNodeName)
+            Settings.builder().put("cluster.routing.allocation.exclude._name", harness.secondDataNodeName + "," + harness.thirdDataNodeName)
         );
 
         String indexName = randomIdentifier();
         int randomNumberOfShards = randomIntBetween(10, 20); // Pick a high number of shards, so it is clear assignment is not accidental.
 
         // Calculate the maximum utilization a node can report while still being able to accept all relocating shards
-        double additionalLoadFromAllShards = calculateUtilizationForWriteLoad(
-            shardWriteLoad * randomNumberOfShards,
-            numberOfWritePoolThreads
+        int shardWriteLoadOverhead = shardLoadUtilizationOverhead(
+            harness.randomShardWriteLoad * randomNumberOfShards,
+            harness.randomNumberOfWritePoolThreads
         );
-        int maxUtilizationPercent = randomUtilizationThresholdPercent - (int) (additionalLoadFromAllShards * 100) - 1;
+        int maxUtilizationPercentBelowThreshold = harness.randomUtilizationThresholdPercent - shardWriteLoadOverhead - 1;
 
         var verifyAssignmentToFirstNodeListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             var indexRoutingTable = clusterState.routingTable().index(indexName);
@@ -146,9 +127,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             return checkShardAssignment(
                 clusterState.getRoutingNodes(),
                 indexRoutingTable.getIndex(),
-                firstDataNodeId,
-                secondDataNodeId,
-                thirdDataNodeId,
+                harness.firstDataNodeId,
+                harness.secondDataNodeId,
+                harness.thirdDataNodeId,
                 randomNumberOfShards,
                 0,
                 0
@@ -161,7 +142,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
         ensureGreen(indexName);
 
-        logger.info("---> Waiting for all shards to be assigned to node " + firstDataNodeName);
+        logger.info("---> Waiting for all shards to be assigned to node " + harness.firstDataNodeName);
         safeAwait(verifyAssignmentToFirstNodeListener);
 
         /**
@@ -170,46 +151,45 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
          */
 
-        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
-        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
-        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
         final NodeUsageStatsForThreadPools firstNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
-            firstDiscoveryNode,
-            numberOfWritePoolThreads,
-            randomIntBetween(0, maxUtilizationPercent) / 100f,
+            harness.firstDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, maxUtilizationPercentBelowThreshold) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools secondNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
-            secondDiscoveryNode,
-            numberOfWritePoolThreads,
-            randomIntBetween(0, maxUtilizationPercent) / 100f,
+            harness.secondDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, maxUtilizationPercentBelowThreshold) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
-            thirdDiscoveryNode,
-            numberOfWritePoolThreads,
-            (randomUtilizationThresholdPercent + 1) / 100f,
+            harness.thirdDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
             0
         );
 
-        MockTransportService.getInstance(firstDataNodeName).<NodeUsageStatsForThreadPoolsAction.NodeRequest>addRequestHandlingBehavior(
-            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-            (handler, request, channel, task) -> channel.sendResponse(
-                new NodeUsageStatsForThreadPoolsAction.NodeResponse(firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
-            )
-        );
-        MockTransportService.getInstance(secondDataNodeName)
+        MockTransportService.getInstance(harness.firstDataNodeName).<
+            NodeUsageStatsForThreadPoolsAction
+                .NodeRequest>addRequestHandlingBehavior(
+                    TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+                    (handler, request, channel, task) -> channel.sendResponse(
+                        new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
+                    )
+                );
+        MockTransportService.getInstance(harness.secondDataNodeName)
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
                 )
             );
-        MockTransportService.getInstance(thirdDataNodeName)
+        MockTransportService.getInstance(harness.thirdDataNodeName)
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(thirdDiscoveryNode, thirdNodeHotSpottingNodeStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats)
                 )
             );
 
@@ -218,26 +198,37 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(indexName);
-        MockTransportService.getInstance(firstDataNodeName)
+        MockTransportService.getInstance(harness.firstDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, shardWriteLoad, firstDataNodeId));
+                    shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
                 }
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
-                channel.sendResponse(instance.new NodeResponse(firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of()));
+                TransportIndicesStatsAction instance = internalCluster().getInstance(
+                    TransportIndicesStatsAction.class,
+                    harness.firstDataNodeName
+                );
+                channel.sendResponse(
+                    instance.new NodeResponse(harness.firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of())
+                );
             });
-        MockTransportService.getInstance(secondDataNodeName)
+        MockTransportService.getInstance(harness.secondDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, secondDataNodeName);
-                channel.sendResponse(instance.new NodeResponse(secondDataNodeId, 0, List.of(), List.of()));
+                TransportIndicesStatsAction instance = internalCluster().getInstance(
+                    TransportIndicesStatsAction.class,
+                    harness.secondDataNodeName
+                );
+                channel.sendResponse(instance.new NodeResponse(harness.secondDataNodeId, 0, List.of(), List.of()));
             });
-        MockTransportService.getInstance(thirdDataNodeName)
+        MockTransportService.getInstance(harness.thirdDataNodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, thirdDataNodeName);
-                channel.sendResponse(instance.new NodeResponse(thirdDataNodeId, 0, List.of(), List.of()));
+                TransportIndicesStatsAction instance = internalCluster().getInstance(
+                    TransportIndicesStatsAction.class,
+                    harness.thirdDataNodeName
+                );
+                channel.sendResponse(instance.new NodeResponse(harness.thirdDataNodeId, 0, List.of(), List.of()));
             });
 
         /**
@@ -250,19 +241,19 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         refreshClusterInfo();
 
         logger.info(
-            "---> Update the filter to exclude " + firstDataNodeName + " so that shards will be reassigned away to the other nodes"
+            "---> Update the filter to exclude " + harness.firstDataNodeName + " so that shards will be reassigned away to the other nodes"
         );
         // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", firstDataNodeName));
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName));
 
         safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             Index index = clusterState.routingTable().index(indexName).getIndex();
             return checkShardAssignment(
                 clusterState.getRoutingNodes(),
                 index,
-                firstDataNodeId,
-                secondDataNodeId,
-                thirdDataNodeId,
+                harness.firstDataNodeId,
+                harness.secondDataNodeId,
+                harness.thirdDataNodeId,
                 0,
                 randomNumberOfShards,
                 0
@@ -351,6 +342,28 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         return true;
     }
 
+    private Settings enabledWriteLoadDeciderSettings(int utilizationThresholdPercent) {
+        return Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
+            )
+            .build();
+    }
+
+    /**
+     * The utilization percent overhead needed to add the given amount of shard write load to a node with the given number of write pool
+     * threads.
+     */
+    private int shardLoadUtilizationOverhead(float totalShardWriteLoad, int numberOfWritePoolThreads) {
+        float totalWriteLoadPerThread = totalShardWriteLoad / numberOfWritePoolThreads;
+        return (int) (100 * totalWriteLoadPerThread);
+    }
+
     private DiscoveryNode getDiscoveryNode(String nodeName) {
         final TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
         assertNotNull(transportService);
@@ -400,5 +413,77 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, peakWriteLoad)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
+    }
+
+    /**
+     * Carries set-up state from {@link #setUpTestNodes()} to the testing logic.
+     */
+    record TestHarness(
+        String firstDataNodeName,
+        String secondDataNodeName,
+        String thirdDataNodeName,
+        String firstDataNodeId,
+        String secondDataNodeId,
+        String thirdDataNodeId,
+        DiscoveryNode firstDiscoveryNode,
+        DiscoveryNode secondDiscoveryNode,
+        DiscoveryNode thirdDiscoveryNode,
+        int randomUtilizationThresholdPercent,
+        int randomNumberOfWritePoolThreads,
+        float randomShardWriteLoad
+    ) {};
+
+    /**
+     * Sets up common test infrastructure to deduplicate code across tests.
+     */
+    private TestHarness setUpTestNodes() {
+        int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
+        int randomNumberOfWritePoolThreads = randomIntBetween(2, 20);
+        float randomShardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
+        Settings settings = enabledWriteLoadDeciderSettings(randomUtilizationThresholdPercent);
+
+        internalCluster().startMasterOnlyNode(settings);
+        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
+        final String firstDataNodeName = dataNodes.get(0);
+        final String secondDataNodeName = dataNodes.get(1);
+        final String thirdDataNodeName = dataNodes.get(2);
+        final String firstDataNodeId = getNodeId(firstDataNodeName);
+        final String secondDataNodeId = getNodeId(secondDataNodeName);
+        final String thirdDataNodeId = getNodeId(thirdDataNodeName);
+        ensureStableCluster(4);
+
+        logger.info(
+            "---> first node name "
+                + firstDataNodeName
+                + " and ID "
+                + firstDataNodeId
+                + "; second node name "
+                + secondDataNodeName
+                + " and ID "
+                + secondDataNodeId
+                + "; third node name "
+                + thirdDataNodeName
+                + " and ID "
+                + thirdDataNodeId
+        );
+
+        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
+        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
+        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
+
+        return new TestHarness(
+            firstDataNodeName,
+            secondDataNodeName,
+            thirdDataNodeName,
+            firstDataNodeId,
+            secondDataNodeId,
+            thirdDataNodeId,
+            firstDiscoveryNode,
+            secondDiscoveryNode,
+            thirdDiscoveryNode,
+            randomUtilizationThresholdPercent,
+            randomNumberOfWritePoolThreads,
+            randomShardWriteLoad
+        );
     }
 }

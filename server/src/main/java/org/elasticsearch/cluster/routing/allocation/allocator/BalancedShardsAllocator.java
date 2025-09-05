@@ -816,6 +816,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
+                    // TODO (ES-12633): test that nothing moves when the source is not-preferred and the target is not-preferred.
                     if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
                         // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation.
                         continue;

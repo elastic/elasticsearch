@@ -522,9 +522,6 @@ tests:
 - class: org.elasticsearch.health.HealthPeriodicLoggerTests
   method: testOutputModeNoLogging
   issue: https://github.com/elastic/elasticsearch/issues/134200
-- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/134222
 
 # Examples:
 #

@@ -137,7 +137,7 @@ dependencies {
     [group: "org.slf4j", module: "slf4j-api"],
   ]
 
-//    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5")
+    // port this to a component metadata rule for minicluster 2 and 3
     hdfs2("commons-io:commons-io:2.16.1")
     hdfs2("com.google.protobuf:protobuf-java:3.25.5")
     hdfs2("org.apache.htrace:htrace-core4:4.0.1-incubating")
@@ -160,30 +160,37 @@ dependencies {
     hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5:tests")
     hdfs2("org.apache.hadoop:hadoop-annotations:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
-    hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5") {
-      commonExcludes.each { exclude it }
-      exclude group: "org.apache.commons", module: "commons-math3"
-      exclude group: "xmlenc", module: "xmlenc"
-      exclude group: "net.java.dev.jets3t", module: "jets3t"
-      exclude group: "org.apache.directory.server", module: "apacheds-i18n"
-      exclude group: "xerces", module: "xercesImpl"
-  }
-
-  hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1") {
-    commonExcludes.each { exclude it }
-    exclude group: "dnsjava", module: "dnsjava"
-    exclude group: "com.google.inject.extensions", module: "guice-servlet"
-    exclude group: "com.google.inject", module: "guice"
-    exclude group: "com.microsoft.sqlserver", module: "mssql-jdbc"
-    exclude group: "com.sun.jersey.contribs", module: "jersey-guice"
-    exclude group: "com.zaxxer", module: "HikariCP-java7"
-    exclude group: "com.sun.jersey", module: "jersey-server"
-    exclude group: "org.bouncycastle", module: "bcpkix-jdk15on"
-    exclude group: "org.bouncycastle", module: "bcprov-jdk15on"
-    exclude group: "org.ehcache", module: "ehcache"
-    exclude group: "org.apache.geronimo.specs", module: "geronimo-jcache_1.0_spec"
-    exclude group: "org.xerial.snappy", module: "snappy-java"
-  }
+    hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5")
+  
+    hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-common:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-common:3.3.1:tests")
+    hdfs3("org.apache.hadoop:hadoop-hdfs:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-hdfs:3.3.1:tests")
+    hdfs3("org.apache.hadoop:hadoop-hdfs-client:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-yarn-api:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-auth:3.3.1")
+    hdfs3("org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.1.1")
+    hdfs3("org.apache.hadoop.thirdparty:hadoop-shaded-protobuf_3_7:1.1.1")
+    hdfs3("org.apache.htrace:htrace-core4:4.1.0-incubating")
+    hdfs3("commons-collections:commons-collections:3.2.2")
+    hdfs3("commons-io:commons-io:2.8.0")
+    hdfs3("org.apache.commons:commons-configuration2:2.1.1")
+    hdfs3("org.apache.commons:commons-lang3:3.7")
+    hdfs3("org.apache.commons:commons-text:1.4")
+    hdfs3("com.fasterxml.woodstox:woodstox-core:6.7.0")
+    hdfs3("org.codehaus.woodstox:stax2-api:4.2.2")
+    hdfs3("org.eclipse.jetty:jetty-servlet:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-server:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-util:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-webapp:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-http:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-security:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-io:9.4.40.v20210413")
+    hdfs3("javax.servlet:javax.servlet-api:3.1.0")
+    hdfs3("com.sun.jersey:jersey-servlet:1.19")
+//      "org.apache.hadoop:hadoop-hdfs:3.3.1")
+//      "org.apache.hadoop:hadoop-yarn-api:3.3.1\n")
 }
 
 tasks.named("shadowJar").configure {

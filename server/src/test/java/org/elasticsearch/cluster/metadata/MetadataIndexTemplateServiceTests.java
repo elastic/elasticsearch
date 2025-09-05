@@ -2527,6 +2527,31 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * test that using complex index patterns doesn't run into a too_complex_to_determinize_exception,
+     * see https://github.com/elastic/elasticsearch/issues/133652
+     */
+    public void testFindConflictingTemplates_complex_pattern() throws Exception {
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        List<String> complexPattern = new ArrayList<>();
+        for (int i = 1; i < 20; i++) {
+            complexPattern.add("cluster-somenamespace-*-app" + i + "*");
+        }
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(complexPattern).build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
+        assertEquals(0, MetadataIndexTemplateService.findConflictingV1Templates(
+                project,
+                "foo",
+                complexPattern
+        ).size());
+        assertEquals(0, MetadataIndexTemplateService.findConflictingV2Templates(
+                project,
+                "foo",
+                complexPattern
+        ).size());
+    }
+
+    /**
      * Tests to add two component templates but ignores both with is valid
      *
      * @throws Exception

@@ -381,9 +381,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
-  issue: https://github.com/elastic/elasticsearch/issues/131248
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/131376

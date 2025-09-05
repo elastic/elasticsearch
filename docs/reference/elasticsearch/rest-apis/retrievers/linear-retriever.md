@@ -28,7 +28,7 @@ Combining `query` and `retrievers` is not supported.
     Fields can include boost values using the `^` notation (e.g., `"field^2"`).
     If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
 
-`normalizer` {applies_to}`stack: ga 9.1`
+`normalizer`
 :   (Optional, String)
 
     The top-level normalizer to use when combining results.

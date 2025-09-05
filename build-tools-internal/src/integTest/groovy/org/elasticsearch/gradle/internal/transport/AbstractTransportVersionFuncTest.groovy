@@ -148,7 +148,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
     void setupLocalGitRepo() {
         execute("git init")
         execute('git config user.email "build-tool@elastic.co"')
-        execute('git config user.definitionName "Build tool"')
+        execute('git config user.name "Build tool"')
         execute("git add .")
         execute('git commit -m "Initial"')
     }

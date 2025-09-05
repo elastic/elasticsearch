@@ -64,9 +64,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         // Closed shards will result to index error because shards must be in readable state
         FieldCapabilitiesIT.closeShards(cluster("remote_cluster"), remoteErrorIndex);
 
-        response = client().prepareFieldCaps("*", "remote_cluster:*")
-            .setFields("*")
-            .get();
+        response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
         assertThat(response.getIndices()[0], equalTo(localIndex));
         assertThat(response.getFailedIndicesCount(), equalTo(1));
         FieldCapabilitiesFailure failure = response.getFailures()
@@ -78,13 +76,13 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertEquals(RemoteTransportException.class, ex.getClass());
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         assertEquals(IllegalIndexShardStateException.class, cause.getClass());
-        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", cause.getMessage());
+        assertEquals(
+            "CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]",
+            cause.getMessage()
+        );
 
         // if we only query the remote we should get back an exception only
-        ex = expectThrows(
-            IllegalIndexShardStateException.class,
-            client().prepareFieldCaps("remote_cluster:*").setFields("*")
-        );
+        ex = expectThrows(IllegalIndexShardStateException.class, client().prepareFieldCaps("remote_cluster:*").setFields("*"));
         assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", ex.getMessage());
 
         // add an index that doesn't fail to the remote
@@ -92,9 +90,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         remoteClient.prepareIndex("okay_remote_index").setId("2").setSource("foo", "bar").get();
         remoteClient.admin().indices().prepareRefresh("okay_remote_index").get();
 
-        response = client().prepareFieldCaps("*", "remote_cluster:*")
-            .setFields("*")
-            .get();
+        response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:okay_remote_index"));
         assertThat(response.getFailedIndicesCount(), equalTo(1));
         failure = response.getFailures()

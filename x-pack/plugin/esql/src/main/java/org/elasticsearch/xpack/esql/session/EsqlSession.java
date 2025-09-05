@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -381,20 +382,32 @@ public class EsqlSession {
             return;
         }
 
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        var preAnalysis = preAnalyzer.preAnalyze(parsed);
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
-        var listener = SubscribableListener. //
+        SubscribableListener. //
         <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
-        // first resolve the lookup indices, then the main indices
-        for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
-        }
-        listener.<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
-            .<LogicalPlan>andThen((l, result) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, result, l))
+            .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices.iterator(), r, executionInfo, l))
+            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);
+    }
+
+    private void preAnalyzeLookupIndices(
+        Iterator<IndexPattern> lookupIndices,
+        PreAnalysisResult preAnalysisResult,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (lookupIndices.hasNext()) {
+            preAnalyzeLookupIndex(lookupIndices.next(), preAnalysisResult, executionInfo, listener.delegateFailureAndWrap((l, r) -> {
+                preAnalyzeLookupIndices(lookupIndices, r, executionInfo, l);
+            }));
+        } else {
+            listener.onResponse(preAnalysisResult);
+        }
     }
 
     private void preAnalyzeLookupIndex(

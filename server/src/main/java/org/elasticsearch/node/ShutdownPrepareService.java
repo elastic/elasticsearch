@@ -79,6 +79,12 @@ public class ShutdownPrepareService {
     public void prepareForShutdown(TaskManager taskManager) {
         assert hasBeenShutdown == false;
         hasBeenShutdown = true;
+
+        // first make sure the node can safely be shutdown
+        if (terminationHandler != null) {
+            terminationHandler.blockTermination();
+        }
+
         final var maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
 

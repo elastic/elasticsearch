@@ -40,7 +40,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
+    public static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
         deprecationLogger.warn(
             DeprecationCategory.INDICES,
             "conditional-processor__type",
@@ -185,7 +185,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
     }
 
-    private static final class UnmodifiableIngestData implements Map<String, Object> {
+    public static final class UnmodifiableIngestData implements Map<String, Object> {
 
         private final Map<String, Object> data;
 

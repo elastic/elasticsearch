@@ -23,6 +23,7 @@ import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpDecoderConfig;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
@@ -342,23 +343,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             }
             final HttpRequestDecoder decoder;
+            final HttpDecoderConfig decoderConfig = new HttpDecoderConfig().setMaxInitialLineLength(handlingSettings.maxInitialLineLength())
+                .setMaxHeaderSize(handlingSettings.maxHeaderSize())
+                .setMaxChunkSize(handlingSettings.maxChunkSize())
+                .setStrictLineParsing(false);
             if (httpValidator != null) {
-                decoder = new HttpRequestDecoder(
-                    handlingSettings.maxInitialLineLength(),
-                    handlingSettings.maxHeaderSize(),
-                    handlingSettings.maxChunkSize()
-                ) {
+                decoder = new HttpRequestDecoder(decoderConfig) {
                     @Override
                     protected HttpMessage createMessage(String[] initialLine) throws Exception {
                         return HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(super.createMessage(initialLine));
                     }
                 };
             } else {
-                decoder = new HttpRequestDecoder(
-                    handlingSettings.maxInitialLineLength(),
-                    handlingSettings.maxHeaderSize(),
-                    handlingSettings.maxChunkSize()
-                );
+                decoder = new HttpRequestDecoder(decoderConfig);
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces

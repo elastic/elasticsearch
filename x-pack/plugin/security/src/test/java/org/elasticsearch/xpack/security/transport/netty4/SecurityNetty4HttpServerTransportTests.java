@@ -800,14 +800,18 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     /**
-     * Append a string as ASCII terminated by a CR/LF newline
+     * Append a string as ASCII terminated by a newline (sometimes CR/LF, sometimes LF)
      *
      * @param string The string to append
      * @param buf The buffer to append to
      */
     private static void appendAsciiLine(String string, ByteBuf buf) {
         ByteBufUtil.copy(AsciiString.of(string), buf);
-        appendCrLf(buf);
+        if (randomBoolean()) {
+            buf.writeByte(HttpConstants.LF);
+        } else {
+            appendCrLf(buf);
+        }
     }
 
     /**

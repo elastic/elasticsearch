@@ -505,7 +505,7 @@ public class Decay extends EsqlScalarFunction
     }
 
     private enum DecayFunction {
-        LINEAR("linear"){
+        LINEAR("linear") {
             @Override
             public double numericDecay(double value, double origin, double scale, double offset, double decay) {
                 return new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
@@ -528,7 +528,7 @@ public class Decay extends EsqlScalarFunction
             }
         },
 
-        EXPONENTIAL("exp"){
+        EXPONENTIAL("exp") {
             @Override
             public double numericDecay(double value, double origin, double scale, double offset, double decay) {
                 return new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
@@ -551,7 +551,7 @@ public class Decay extends EsqlScalarFunction
             }
         },
 
-        GAUSSIAN("gauss"){
+        GAUSSIAN("gauss") {
             @Override
             public double numericDecay(double value, double origin, double scale, double offset, double decay) {
                 return new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
@@ -573,7 +573,6 @@ public class Decay extends EsqlScalarFunction
                 return decayDateGauss(origin, scale, offset, decay, value);
             }
         };
-
 
         private final String functionName;
         private static final Map<String, DecayFunction> BY_NAME = Arrays.stream(values())

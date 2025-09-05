@@ -336,19 +336,21 @@ public class AppendProcessorTests extends ESTestCase {
     }
 
     public void testCopyFromCopiesNonPrimitiveMutableTypes() throws Exception {
+        Map<String, Object> document;
+        IngestDocument ingestDocument;
         final String sourceField = "sourceField";
         final String targetField = "targetField";
         Processor processor = createAppendProcessor(targetField, null, sourceField, false, false);
 
         // map types
-        Map<String, Object> document = new HashMap<>();
+        document = new HashMap<>();
         Map<String, Object> sourceMap = new HashMap<>();
         sourceMap.put("foo", "bar");
         document.put(sourceField, sourceMap);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IngestDocument output = processor.execute(ingestDocument);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
         sourceMap.put("foo", "not-bar");
-        Map<?, ?> outputMap = (Map<?, ?>) output.getFieldValue(targetField, List.class).getFirst();
+        Map<?, ?> outputMap = (Map<?, ?>) ingestDocument.getFieldValue(targetField, List.class).getFirst();
         assertThat(outputMap.get("foo"), equalTo("bar"));
 
         // set types
@@ -427,8 +429,8 @@ public class AppendProcessorTests extends ESTestCase {
 
         document.put(sourceField, root);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IngestDocument output = processor.execute(ingestDocument);
-        Map<?, ?> outputRoot = (Map<?, ?>) output.getFieldValue(targetField, List.class).getFirst();
+        processor.execute(ingestDocument);
+        Map<?, ?> outputRoot = (Map<?, ?>) ingestDocument.getFieldValue(targetField, List.class).getFirst();
 
         root.put("foo", "not-bar");
         sourceMap.put("foo", "not-bar");

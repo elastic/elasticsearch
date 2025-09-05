@@ -462,7 +462,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
         assertEquals(IllegalIndexShardStateException.class, failure.getClass());
-        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", failure.getMessage());
+        assertEquals(
+            "CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]",
+            failure.getMessage()
+        );
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
@@ -919,7 +922,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     static void closeShards(InternalTestCluster cluster, String... indices) throws IOException {
         final Set<String> indicesToClose = Set.of(indices);
-        for (String node :cluster.getNodeNames()) {
+        for (String node : cluster.getNodeNames()) {
             final IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
             for (IndexService indexService : indicesService) {
                 if (indicesToClose.contains(indexService.getMetadata().getIndex().getName())) {

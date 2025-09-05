@@ -38,10 +38,14 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     @Override
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(uri);
+
         ToXContentObject requestEntity;
         switch (model.getServiceSettings().provider()) {
             case ANTHROPIC -> requestEntity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
-            default -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+            default -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+                unifiedChatInput,
+                model.getTaskSettings().thinkingConfig()
+            );
         }
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));

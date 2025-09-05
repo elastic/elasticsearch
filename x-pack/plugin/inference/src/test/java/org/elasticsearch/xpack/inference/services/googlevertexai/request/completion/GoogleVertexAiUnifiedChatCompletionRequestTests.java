@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -41,7 +42,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
 
         var messages = List.of("Hello Gemini!");
 
-        var request = createRequest(projectId, location, modelId, messages, null, null);
+        var request = createRequest(projectId, location, modelId, messages, null, null, null);
         var httpRequest = request.createHttpRequest();
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
@@ -69,26 +70,21 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
     }
 
     public static GoogleVertexAiUnifiedChatCompletionRequest createRequest(
-        UnifiedChatInput input,
-        GoogleVertexAiChatCompletionModel model
-    ) {
-        return new GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest(input, model);
-    }
-
-    public static GoogleVertexAiUnifiedChatCompletionRequest createRequest(
         String projectId,
         String location,
         String modelId,
         List<String> messages,
         @Nullable String apiKey,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable ThinkingConfig thinkingConfig
     ) {
         var model = GoogleVertexAiChatCompletionModelTests.createCompletionModel(
             projectId,
             location,
             modelId,
             Objects.requireNonNullElse(apiKey, "default-api-key"),
-            Objects.requireNonNullElse(rateLimitSettings, new RateLimitSettings(100))
+            Objects.requireNonNullElse(rateLimitSettings, new RateLimitSettings(100)),
+            thinkingConfig
         );
         var unifiedChatInput = new UnifiedChatInput(messages, "user", true);
 

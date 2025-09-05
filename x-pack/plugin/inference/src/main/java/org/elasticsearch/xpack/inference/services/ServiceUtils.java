@@ -809,6 +809,25 @@ public final class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
+        return extractOptionalInteger(map, settingName, scope, validationException, true);
+    }
+
+    public static Integer extractOptionalInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        return extractOptionalInteger(map, settingName, scope, validationException, false);
+    }
+
+    private static Integer extractOptionalInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException,
+        boolean mustBePositive
+    ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
         Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
 
@@ -816,7 +835,7 @@ public final class ServiceUtils {
             return null;
         }
 
-        if (optionalField != null && optionalField <= 0) {
+        if (optionalField != null && mustBePositive && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
             return null;
         }

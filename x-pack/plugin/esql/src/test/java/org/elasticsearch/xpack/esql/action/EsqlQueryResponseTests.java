@@ -42,6 +42,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -62,7 +63,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.JsonBackedExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
@@ -1268,7 +1268,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
                         ExponentialHistogramBlockBuilder expHistoBuilder = (ExponentialHistogramBlockBuilder) builder;
-                        expHistoBuilder.append(JsonBackedExponentialHistogram.createFromMap(Types.forciblyCast(value)));
+                        Map<String, Object> serializedHisto = Types.forciblyCast(value);
+                        expHistoBuilder.append(ExponentialHistogramXContent.parseForTesting(serializedHisto));
                     }
                 }
             }

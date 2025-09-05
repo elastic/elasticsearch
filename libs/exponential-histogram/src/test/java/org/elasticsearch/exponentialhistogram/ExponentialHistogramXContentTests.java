@@ -33,6 +33,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramXContentTests extends ExponentialHistogramTestCase {
 
+    public void testNullHistogram() {
+        assertThat(toJson(null), equalTo("null"));
+        checkRoundTrip(null);
+    }
+
     public void testEmptyHistogram() {
         ExponentialHistogram emptyHistogram = ExponentialHistogram.empty();
         assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + ",\"sum\":0.0}"));

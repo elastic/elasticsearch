@@ -21,6 +21,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -54,7 +55,11 @@ public class ExponentialHistogramXContent {
      * @param histogram the ExponentialHistogram to serialize
      * @throws IOException if the XContentBuilder throws an IOException
      */
-    public static void serialize(XContentBuilder builder, ExponentialHistogram histogram) throws IOException {
+    public static void serialize(XContentBuilder builder, @Nullable ExponentialHistogram histogram) throws IOException {
+        if (histogram == null) {
+            builder.nullValue();
+            return;
+        }
         builder.startObject();
 
         builder.field(SCALE_FIELD, histogram.scale());
@@ -118,6 +123,12 @@ public class ExponentialHistogramXContent {
      * @throws IOException if the XContentParser throws an IOException
      */
     public static ExponentialHistogram parseForTesting(XContentParser xContent) throws IOException {
+        if (xContent.currentToken() == null) {
+            xContent.nextToken();
+        }
+        if (xContent.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
         return parseForTesting(xContent.map());
     }
 
@@ -130,7 +141,10 @@ public class ExponentialHistogramXContent {
      * @param xContent the serialized histogram as a map
      * @return the deserialized histogram
      */
-    public static ExponentialHistogram parseForTesting(Map<String, Object> xContent) {
+    public static ExponentialHistogram parseForTesting(@Nullable Map<String, Object> xContent) {
+        if (xContent == null) {
+            return null;
+        }
         int scale = ((Number) xContent.get(SCALE_FIELD)).intValue();
         ExponentialHistogramBuilder builder = ExponentialHistogram.builder(scale, ExponentialHistogramCircuitBreaker.noop());
 

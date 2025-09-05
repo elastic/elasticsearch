@@ -46,9 +46,9 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         AuthenticationService authcService,
         AuthorizationService authzService,
         XPackLicenseState licenseState,
+        SecurityContext securityContext,
         ThreadPool threadPool,
-        Settings settings,
-        SecurityContext securityContext
+        Settings settings
     ) {
         this(
             crossClusterAccessAuthcService,

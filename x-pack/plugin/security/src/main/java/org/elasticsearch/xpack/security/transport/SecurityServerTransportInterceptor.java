@@ -90,6 +90,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
     );
 
+    private final RemoteClusterTransportInterceptor remoteClusterTransportInterceptor;
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
     private final SSLService sslService;
@@ -149,6 +150,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
+            crossClusterAccessAuthcService,
+            authcService,
+            authzService,
+            licenseState,
+            securityContext,
+            threadPool,
+            settings,
+            remoteClusterCredentialsResolver
+        );
     }
 
     @Override

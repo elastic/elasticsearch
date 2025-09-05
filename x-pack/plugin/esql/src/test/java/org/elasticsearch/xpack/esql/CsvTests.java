@@ -530,18 +530,12 @@ public class CsvTests extends ESTestCase {
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        var indices = preAnalysis.indices;
-        if (indices.isEmpty()) {
-            /*
-             * If the data set doesn't matter we'll just grab one we know works.
-             * Employees is fine.
-             */
+        if (preAnalysis.index() == null) {
+            // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"));
-        } else if (preAnalysis.indices.size() > 1) {
-            throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
 
-        String indexName = indices.getFirst().indexPattern();
+        String indexName = preAnalysis.index().indexPattern();
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);

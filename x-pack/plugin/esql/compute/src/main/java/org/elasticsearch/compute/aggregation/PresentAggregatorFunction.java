@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PresentAggregatorFunction implements AggregatorFunction {
     public static AggregatorFunctionSupplier supplier() {
@@ -55,14 +54,15 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private final AtomicBoolean state;
     private final List<Integer> channels;
 
+    private boolean state;
+
     public static PresentAggregatorFunction create(List<Integer> inputChannels) {
-        return new PresentAggregatorFunction(inputChannels, new AtomicBoolean(false));
+        return new PresentAggregatorFunction(inputChannels, false);
     }
 
-    private PresentAggregatorFunction(List<Integer> channels, AtomicBoolean state) {
+    private PresentAggregatorFunction(List<Integer> channels, boolean state) {
         this.channels = channels;
         this.state = state;
     }
@@ -78,17 +78,10 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
+        if (mask.isConstant() && mask.getBoolean(0) == false) return;
+
         Block block = page.getBlock(blockIndex());
-        boolean present;
-        if (mask.isConstant()) {
-            if (mask.getBoolean(0) == false) {
-                return;
-            }
-            present = block.getTotalValueCount() > 0;
-        } else {
-            present = presentMasked(block, mask);
-        }
-        this.state.set(present);
+        this.state = mask.isConstant() ? block.getTotalValueCount() > 0 : presentMasked(block, mask);
     }
 
     private boolean presentMasked(Block block, BooleanVector mask) {
@@ -112,7 +105,7 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
         assert present.getPositionCount() == 1;
         if (present.getBoolean(0)) {
-            state.set(true);
+            this.state = true;
         }
     }
 
@@ -123,7 +116,7 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-        blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.get(), 1);
+        blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state, 1);
     }
 
     @Override

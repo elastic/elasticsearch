@@ -5,7 +5,7 @@
       "description":"Update user profile data"
     },
     "stability":"stable",
-    "visibility":"private",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

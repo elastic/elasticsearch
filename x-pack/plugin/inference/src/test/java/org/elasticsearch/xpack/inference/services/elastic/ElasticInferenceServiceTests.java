@@ -198,6 +198,28 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testParseRequestConfig_ThrowsWhenRateLimitFieldExistsInServiceSettingsMap() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Map<String, Object> serviceSettings = new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+                )
+            );
+
+            var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
+
+            var failureListener = getModelListenerForException(
+                ValidationException.class,
+                "Validation Failed: 1: [service_settings] rate limit settings are not permitted for "
+                    + "service [elastic] and task type [sparse_embedding];"
+            );
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+        }
+    }
+
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var taskSettings = Map.of("extra_key", (Object) "value");
@@ -295,6 +317,39 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(completionModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(completionModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Map<String, Object> serviceSettingsMap = new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+                )
+            );
+
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
+
+            var parsedModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
+            assertThat(parsedModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
+            assertThat(parsedModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(parsedModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+            assertThat(
+                serviceSettingsMap,
+                is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+            );
         }
     }
 
@@ -687,7 +742,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.CHAT_COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("my-model-id", new RateLimitSettings(100)),
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
@@ -1382,7 +1437,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
+                new ElasticInferenceServiceCompletionServiceSettings("model_id"),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)

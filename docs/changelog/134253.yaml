@@ -1,0 +1,5 @@
+pr: 134253
+summary: Refactor how `ignore_above` is set
+area: Mapping
+type: bug
+issues: []

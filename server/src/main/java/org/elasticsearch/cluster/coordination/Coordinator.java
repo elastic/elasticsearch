@@ -684,7 +684,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                             // NB we are on the master update thread here at the end of processing the failed cluster state update, so this
                             // all happens before any cluster state update that re-elects a master
-//                            assert ThreadPool.assertCurrentThreadPool(MasterService.MASTER_UPDATE_THREAD_NAME);
+                            // assert ThreadPool.assertCurrentThreadPool(MasterService.MASTER_UPDATE_THREAD_NAME);
 
                             final ClusterStateListener clusterStateListener = new ClusterStateListener() {
                                 @Override

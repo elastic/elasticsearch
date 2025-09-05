@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -51,6 +52,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -405,11 +407,7 @@ public class Decay extends EsqlScalarFunction
         @Fixed double decay,
         @Fixed BytesRef functionType
     ) {
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
-            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
-            default -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
-        };
+        return DecayFunction.fromBytesRef(functionType).numericDecay(value, origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "Double")
@@ -421,11 +419,7 @@ public class Decay extends EsqlScalarFunction
         @Fixed double decay,
         @Fixed BytesRef functionType
     ) {
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
-            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
-            default -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
-        };
+        return DecayFunction.fromBytesRef(functionType).numericDecay(value, origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "Long")
@@ -437,11 +431,8 @@ public class Decay extends EsqlScalarFunction
         @Fixed double decay,
         @Fixed BytesRef functionType
     ) {
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
-            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
-            default -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
-        };
+        return DecayFunction.fromBytesRef(functionType).numericDecay(value, origin, scale, offset, decay);
+
     }
 
     @Evaluator(extraName = "GeoPoint")
@@ -463,11 +454,7 @@ public class Decay extends EsqlScalarFunction
         String scaleStr = scale.utf8ToString();
         String offsetStr = offset.utf8ToString();
 
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> new ScoreScriptUtils.DecayGeoExp(originStr, scaleStr, offsetStr, decay).decayGeoExp(valueGeoPoint);
-            case "gauss" -> new ScoreScriptUtils.DecayGeoGauss(originStr, scaleStr, offsetStr, decay).decayGeoGauss(valueGeoPoint);
-            default -> new ScoreScriptUtils.DecayGeoLinear(originStr, scaleStr, offsetStr, decay).decayGeoLinear(valueGeoPoint);
-        };
+        return DecayFunction.fromBytesRef(functionType).geoPointDecay(valueGeoPoint, originStr, scaleStr, offsetStr, decay);
     }
 
     @Evaluator(extraName = "CartesianPoint")
@@ -489,21 +476,7 @@ public class Decay extends EsqlScalarFunction
 
         distance = Math.max(0.0, distance - offset);
 
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> {
-                double scaling = Math.log(decay) / scale;
-                yield Math.exp(scaling * distance);
-            }
-            case "gauss" -> {
-                double sigmaSquared = -Math.pow(scale, 2.0) / (2.0 * Math.log(decay));
-                yield Math.exp(-Math.pow(distance, 2.0) / (2.0 * sigmaSquared));
-            }
-            // linear
-            default -> {
-                double scaling = scale / (1.0 - decay);
-                yield Math.max(0.0, (scaling - distance) / scaling);
-            }
-        };
+        return DecayFunction.fromBytesRef(functionType).cartesianDecay(distance, scale, offset, decay);
     }
 
     @Evaluator(extraName = "Datetime", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
@@ -515,11 +488,7 @@ public class Decay extends EsqlScalarFunction
         @Fixed double decay,
         @Fixed BytesRef functionType
     ) {
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> decayDateExp(origin, scale, offset, decay, value);
-            case "gauss" -> decayDateGauss(origin, scale, offset, decay, value);
-            default -> decayDateLinear(origin, scale, offset, decay, value);
-        };
+        return DecayFunction.fromBytesRef(functionType).temporalDecay(value, origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
@@ -531,11 +500,100 @@ public class Decay extends EsqlScalarFunction
         @Fixed double decay,
         @Fixed BytesRef functionType
     ) {
-        return switch (functionType.utf8ToString()) {
-            case "exp" -> decayDateExp(origin, scale, offset, decay, value);
-            case "gauss" -> decayDateGauss(origin, scale, offset, decay, value);
-            default -> decayDateLinear(origin, scale, offset, decay, value);
+        return DecayFunction.fromBytesRef(functionType).temporalDecay(value, origin, scale, offset, decay);
+
+    }
+
+    private enum DecayFunction {
+        LINEAR("linear"){
+            @Override
+            public double numericDecay(double value, double origin, double scale, double offset, double decay) {
+                return new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
+            }
+
+            @Override
+            public double geoPointDecay(GeoPoint value, String origin, String scale, String offset, double decay) {
+                return new ScoreScriptUtils.DecayGeoLinear(origin, scale, offset, decay).decayGeoLinear(value);
+            }
+
+            @Override
+            public double cartesianDecay(double distance, double scale, double offset, double decay) {
+                double scaling = scale / (1.0 - decay);
+                return Math.max(0.0, (scaling - distance) / scaling);
+            }
+
+            @Override
+            public double temporalDecay(long value, long origin, long scale, long offset, double decay) {
+                return decayDateLinear(origin, scale, offset, decay, value);
+            }
+        },
+
+        EXPONENTIAL("exp"){
+            @Override
+            public double numericDecay(double value, double origin, double scale, double offset, double decay) {
+                return new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            }
+
+            @Override
+            public double geoPointDecay(GeoPoint value, String origin, String scale, String offset, double decay) {
+                return new ScoreScriptUtils.DecayGeoExp(origin, scale, offset, decay).decayGeoExp(value);
+            }
+
+            @Override
+            public double cartesianDecay(double distance, double scale, double offset, double decay) {
+                double scaling = Math.log(decay) / scale;
+                return Math.exp(scaling * distance);
+            }
+
+            @Override
+            public double temporalDecay(long value, long origin, long scale, long offset, double decay) {
+                return decayDateExp(origin, scale, offset, decay, value);
+            }
+        },
+
+        GAUSSIAN("gauss"){
+            @Override
+            public double numericDecay(double value, double origin, double scale, double offset, double decay) {
+                return new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
+            }
+
+            @Override
+            public double geoPointDecay(GeoPoint value, String origin, String scale, String offset, double decay) {
+                return new ScoreScriptUtils.DecayGeoGauss(origin, scale, offset, decay).decayGeoGauss(value);
+            }
+
+            @Override
+            public double cartesianDecay(double distance, double scale, double offset, double decay) {
+                double sigmaSquared = -Math.pow(scale, 2.0) / (2.0 * Math.log(decay));
+                return Math.exp(-Math.pow(distance, 2.0) / (2.0 * sigmaSquared));
+            }
+
+            @Override
+            public double temporalDecay(long value, long origin, long scale, long offset, double decay) {
+                return decayDateGauss(origin, scale, offset, decay, value);
+            }
         };
+
+
+        private final String functionName;
+        private static final Map<String, DecayFunction> BY_NAME = Arrays.stream(values())
+            .collect(Collectors.toMap(df -> df.functionName, df -> df));
+
+        DecayFunction(String functionName) {
+            this.functionName = functionName;
+        }
+
+        public abstract double numericDecay(double value, double origin, double scale, double offset, double decay);
+
+        public abstract double geoPointDecay(GeoPoint value, String origin, String scale, String offset, double decay);
+
+        public abstract double cartesianDecay(double distance, double scale, double offset, double decay);
+
+        public abstract double temporalDecay(long value, long origin, long scale, long offset, double decay);
+
+        public static DecayFunction fromBytesRef(BytesRef functionType) {
+            return BY_NAME.getOrDefault(functionType.utf8ToString(), LINEAR);
+        }
     }
 
     private static double decayDateLinear(long origin, long scale, long offset, double decay, long value) {

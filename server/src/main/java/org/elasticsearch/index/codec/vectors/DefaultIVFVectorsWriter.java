@@ -103,10 +103,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DiskBBQBulkWriter.OneBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(
-            ES91OSQVectorsScorer.BULK_SIZE,
-            postingsOutput
-        );
+        DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorDimension(),
@@ -143,11 +140,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ES91OSQVectorsScorer.BULK_SIZE);
             postingsOutput.writeByte(encoding);
-            // TODO we might want to consider putting the docIds in a separate file
-            // to aid with only having to fetch vectors from slower storage when they are required
-            // keeping them in the same file indicates we pull the entire file into cache
-            // idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
-            // write vectors
             bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
                 // for vector i we write `bulk` size docs or the remaining docs
                 idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(ES91OSQVectorsScorer.BULK_SIZE, size - i), encoding, postingsOutput);
@@ -298,10 +290,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ES91OSQVectorsScorer.BULK_SIZE);
                 postingsOutput.writeByte(encoding);
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
-                // TODO we might want to consider putting the docIds in a separate file
-                // to aid with only having to fetch vectors from slower storage when they are required
-                // keeping them in the same file indicates we pull the entire file into cache
-                // idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
                 // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
                     // for vector i we write `bulk` size docs or the remaining docs
@@ -313,7 +301,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     );
                 });
                 lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
-                // lengths.add(1);
             }
 
             if (logger.isDebugEnabled()) {

@@ -47,7 +47,8 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         String pipelineId = "pipeline_id";
         putPipeline(pipelineId);
 
-        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class);
+        // Get the data node to ensure the ingest pipeline can be performed on this node
+        IncrementalBulkService incrementalBulkService = internalCluster().getDataNodeInstance(IncrementalBulkService.class);
 
         ReleasableBytesReference originalBytes = new ReleasableBytesReference(new BytesArray("{\"field\": \"value\"}"), () -> {});
 
@@ -80,7 +81,8 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         String pipelineId = "pipeline_id";
         putPipeline(pipelineId);
 
-        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class);
+        // Get the data node to ensure the ingest pipeline can be performed on this node
+        IncrementalBulkService incrementalBulkService = internalCluster().getDataNodeInstance(IncrementalBulkService.class);
 
         ReleasableBytesReference originalBytes = new ReleasableBytesReference(
             new BytesArray("{\"field\": \"value1\"}{\"field\": \"value2\"}"),
@@ -130,7 +132,8 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         String pipelineId = "pipeline_id";
         putPipeline(pipelineId);
 
-        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class);
+        // Get the data node to ensure the ingest pipeline can be performed on this node
+        IncrementalBulkService incrementalBulkService = internalCluster().getDataNodeInstance(IncrementalBulkService.class);
 
         ReleasableBytesReference releasedBytes = new ReleasableBytesReference(new BytesArray("{\"field\": \"value1\"}"), () -> {});
         ReleasableBytesReference retainedBytes = new ReleasableBytesReference(
@@ -147,7 +150,7 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
 
         IndexRequest indexRequest2 = new IndexRequest();
         indexRequest2.index(index);
-        indexRequest2.sourceContext().source(retainedBytes.retainedSlice(0, splitPoint), XContentType.JSON);
+        indexRequest2.sourceContext().source(retainedBytes.slice(0, splitPoint), XContentType.JSON);
         indexRequest2.setPipeline(pipelineId);
 
         IndexRequest indexRequestNoIngest = new IndexRequest();
@@ -155,7 +158,6 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         indexRequestNoIngest.sourceContext()
             .source(retainedBytes.retainedSlice(splitPoint, retainedBytes.length() - splitPoint), XContentType.JSON);
 
-        retainedBytes.decRef();
         assertTrue(retainedBytes.hasReferences());
 
         CountDownLatch blockLatch = new CountDownLatch(1);

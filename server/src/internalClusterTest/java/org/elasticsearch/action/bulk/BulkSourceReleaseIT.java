@@ -27,12 +27,12 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class BulkSourceReleaseIT extends ESIntegTestCase {
 
     @Override
@@ -58,7 +58,7 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         indexRequest.setPipeline(pipelineId);
 
         CountDownLatch blockLatch = new CountDownLatch(1);
-        blockWritePool(internalCluster().getInstance(ThreadPool.class), blockLatch);
+        blockWritePool(internalCluster().getDataNodeInstance(ThreadPool.class), blockLatch);
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
 
@@ -103,14 +103,14 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         assertTrue(originalBytes.hasReferences());
 
         CountDownLatch blockLatch = new CountDownLatch(1);
-        blockWritePool(internalCluster().getInstance(ThreadPool.class), blockLatch);
+        blockWritePool(internalCluster().getDataNodeInstance(ThreadPool.class), blockLatch);
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         try {
             handler.lastItems(List.of(indexRequest, indexRequestNoIngest), future);
 
             // Pause briefly to allow bytes to theoretically be released after ingest processing
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(500));
 
             assertTrue(originalBytes.hasReferences());
         } finally {
@@ -159,7 +159,7 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         assertTrue(retainedBytes.hasReferences());
 
         CountDownLatch blockLatch = new CountDownLatch(1);
-        blockWritePool(internalCluster().getInstance(ThreadPool.class), blockLatch);
+        blockWritePool(internalCluster().getDataNodeInstance(ThreadPool.class), blockLatch);
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         try {
@@ -217,30 +217,5 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
             threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
-    }
-
-    private static void fillWriteQueue(ThreadPool threadPool) {
-        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE).getQueueSize().singles());
-        final var queueFilled = new AtomicBoolean(false);
-        final var queueFillingTask = new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-
-            @Override
-            protected void doRun() {
-                assertTrue("thread pool not blocked", queueFilled.get());
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-        };
-        for (int i = 0; i < queueSize; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(queueFillingTask);
-        }
-        queueFilled.set(true);
     }
 }

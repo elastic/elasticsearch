@@ -20,8 +20,11 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.DocValueFormat;
@@ -754,6 +757,19 @@ public class EsqlDataTypeConverter {
         } catch (IOException e) {
             throw new IllegalStateException("error rendering aggregate metric double", e);
         }
+    }
+
+    public static String exponentialHistogramToString(ExponentialHistogram histo) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            ExponentialHistogramXContent.serialize(builder, histo);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering exponential histogram", e);
+        }
+    }
+
+    public static String exponentialHistogramBlockToString(ExponentialHistogramBlock histoBlock, int index) {
+        return exponentialHistogramToString(histoBlock.getExponentialHistogram(index));
     }
 
     public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {

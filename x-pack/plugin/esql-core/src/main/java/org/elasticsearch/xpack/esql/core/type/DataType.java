@@ -307,6 +307,8 @@ public enum DataType {
 
     AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
 
+    EXPONENTIAL_HISTOGRAM(builder().esType("exponential_histogram").unknownSize().docValues()),
+
     /**
      * Fields with this type are dense vectors, represented as an array of double values.
      */
@@ -320,7 +322,8 @@ public enum DataType {
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
+        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        Map.entry(EXPONENTIAL_HISTOGRAM, EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG)
     );
 
     private final String typeName;

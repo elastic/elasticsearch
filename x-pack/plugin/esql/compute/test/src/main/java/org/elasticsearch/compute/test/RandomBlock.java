@@ -15,9 +15,11 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -154,6 +156,13 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             b.sum().appendDouble(sum);
                             b.count().appendInt(count);
                             valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
+                        }
+                        case EXPONENTIAL_HISTOGRAM -> {
+                            mvOrdering = Block.MvOrdering.UNORDERED; // histograms no not support ordering
+                            ExponentialHistogramBlockBuilder b = (ExponentialHistogramBlockBuilder) builder;
+                            ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
+                            b.append(histogram);
+                            valuesAtPosition.add(histogram);
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

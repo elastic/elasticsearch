@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -183,6 +184,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     || type == DOC_DATA_TYPE
                     || type == TSID_DATA_TYPE
                     || type == AGGREGATE_METRIC_DOUBLE
+                    || type == EXPONENTIAL_HISTOGRAM
                     || type == GEOHASH
                     || type == GEOTILE
                     || type == GEOHEX

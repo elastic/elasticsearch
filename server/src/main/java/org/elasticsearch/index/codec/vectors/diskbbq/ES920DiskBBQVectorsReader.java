@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
@@ -38,9 +39,9 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
+public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
-    public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
+    public ES920DiskBBQVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);
     }
 

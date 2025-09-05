@@ -1,4 +1,13 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+/*
  * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -17,7 +26,7 @@
  *
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
@@ -29,7 +38,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntUnaryOperator;
 
-public class SampleReader extends FloatVectorValues implements HasIndexSlice {
+class SampleReader extends FloatVectorValues implements HasIndexSlice {
     private final FloatVectorValues origin;
     private final int sampleSize;
     private final IntUnaryOperator sampleFunction;
@@ -81,7 +90,7 @@ public class SampleReader extends FloatVectorValues implements HasIndexSlice {
         throw new IllegalStateException("Not supported");
     }
 
-    public static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
+    static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
         // TODO can we do something algorithmically that aligns an ordinal with a unique integer between 0 and numVectors?
         if (k >= origin.size()) {
             new SampleReader(origin, origin.size(), i -> i);
@@ -101,7 +110,7 @@ public class SampleReader extends FloatVectorValues implements HasIndexSlice {
      * @param seed random seed
      * @return array of k samples
      */
-    public static int[] reservoirSample(int n, int k, long seed) {
+    static int[] reservoirSample(int n, int k, long seed) {
         Random rnd = new Random(seed);
         int[] reservoir = new int[k];
         for (int i = 0; i < k; i++) {

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
@@ -23,6 +23,8 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -42,13 +44,13 @@ import java.util.Arrays;
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(DefaultIVFVectorsWriter.class);
+public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ES920DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
 
-    public DefaultIVFVectorsWriter(
+    public ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,

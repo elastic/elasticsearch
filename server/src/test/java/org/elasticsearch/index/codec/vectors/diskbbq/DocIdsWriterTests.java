@@ -1,4 +1,13 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+/*
  * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -17,7 +26,7 @@
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -36,7 +45,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.codec.vectors.DocIdsWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
 
 public class DocIdsWriterTests extends LuceneTestCase {
 

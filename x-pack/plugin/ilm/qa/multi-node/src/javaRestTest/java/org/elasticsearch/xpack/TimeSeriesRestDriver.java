@@ -25,7 +25,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -375,10 +374,7 @@ public final class TimeSeriesRestDriver {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
         final Map<String, Object> originalResponseEntity = ESRestTestCase.entityAsMap(response);
         logger.trace("segments response for {}: {}", index, originalResponseEntity);
-        // We need to use a stash here because the index name is likely a data stream index with a dot.
-        Stash stash = new Stash();
-        stash.stashValue("index", index);
-        Map<String, Object> responseEntity = new ObjectPath(originalResponseEntity).evaluate("indices.${index}.shards", stash);
+        Map<String, Object> responseEntity = new ObjectPath(originalResponseEntity).evaluateExact("indices", index, "shards");
         return responseEntity.values()
             .stream()
             .mapToInt(

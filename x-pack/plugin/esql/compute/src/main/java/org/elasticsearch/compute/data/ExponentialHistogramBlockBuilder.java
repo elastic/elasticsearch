@@ -14,6 +14,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
+    private static final int INITIAL_SCRATCH_SIZE = 256;
+
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
 
     private final BytesRef tempScratch;
@@ -22,7 +24,7 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     ExponentialHistogramBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         this.encodedHistogramsBuilder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
-        this.tempScratch = new BytesRef(new byte[256], 0, 256);
+        this.tempScratch = new BytesRef(new byte[INITIAL_SCRATCH_SIZE], 0, INITIAL_SCRATCH_SIZE);
     }
 
     public ExponentialHistogramBlockBuilder append(@Nullable ExponentialHistogram value) {

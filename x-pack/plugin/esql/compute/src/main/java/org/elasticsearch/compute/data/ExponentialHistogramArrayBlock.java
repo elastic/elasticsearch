@@ -204,15 +204,14 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         }
 
         static BytesRef encode(ExponentialHistogram histogram, BytesRef growableBuffer) {
+            assert growableBuffer.offset == 0;
+
             int totalSize = 1;
 
             resizeIfRequired(growableBuffer, totalSize);
-            BytesRef result = new BytesRef();
-            result.bytes = growableBuffer.bytes;
-            result.offset = growableBuffer.offset;
-            result.length = totalSize;
+            BytesRef result = new BytesRef(growableBuffer.bytes, 0, totalSize);
 
-            ByteBuffer buffer = ByteBuffer.wrap(result.bytes, result.offset, result.length).order(ByteOrder.LITTLE_ENDIAN);
+            ByteBuffer buffer = ByteBuffer.wrap(result.bytes, 0, result.length).order(ByteOrder.LITTLE_ENDIAN);
             buffer.put(SCALE_OFFSET, (byte) histogram.scale());
 
             return result;
@@ -222,7 +221,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
             if (growableBuffer.length >= totalSize) {
                 return;
             }
-            growableBuffer.length = Math.max(32, growableBuffer.length);
+            assert growableBuffer.length > 0;
             while (growableBuffer.length < totalSize) {
                 growableBuffer.length *= 2;
             }

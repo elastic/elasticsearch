@@ -1,0 +1,5 @@
+pr: 134181
+summary: Upgrade Netty to 4.2.5.Final
+area: Network
+type: upgrade
+issues: []

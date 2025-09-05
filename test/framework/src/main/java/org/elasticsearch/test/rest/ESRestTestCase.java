@@ -2087,6 +2087,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
     }
 
+    protected static void awaitIndexDoesNotExist(String index) throws Exception {
+        awaitIndexDoesNotExist(index, TimeValue.timeValueSeconds(10));
+    }
+
     protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
         assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }

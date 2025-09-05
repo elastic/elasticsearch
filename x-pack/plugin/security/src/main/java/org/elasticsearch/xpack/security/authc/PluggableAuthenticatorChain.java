@@ -57,7 +57,8 @@ public class PluggableAuthenticatorChain implements Authenticator {
         }
         AuthenticationToken token = context.getMostRecentAuthenticationToken();
         if (token != null) {
-            var lis = new IteratingActionListener<>(listener,
+            var lis = new IteratingActionListener<>(
+                listener,
                 getAuthConsumer(context),
                 customAuthenticators,
                 context.getThreadContext(),
@@ -68,7 +69,8 @@ public class PluggableAuthenticatorChain implements Authenticator {
                     }
                     return result;
                 },
-                result -> result == null || result.getStatus() == AuthenticationResult.Status.CONTINUE);
+                result -> result == null || result.getStatus() == AuthenticationResult.Status.CONTINUE
+            );
             lis.run();
             return;
         }
@@ -93,8 +95,7 @@ public class PluggableAuthenticatorChain implements Authenticator {
                         iteratingListener.onResponse(AuthenticationResult.notHandled());
                     }
                 }, ex -> iteratingListener.onFailure(context.getRequest().exceptionProcessingRequest(ex, token))));
-            }
-            else {
+            } else {
                 iteratingListener.onResponse(null); // try the next custom authenticator
             }
         };

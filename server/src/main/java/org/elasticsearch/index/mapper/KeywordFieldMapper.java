@@ -90,6 +90,7 @@ import java.util.function.Supplier;
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
+import static org.elasticsearch.index.IndexSettings.getIgnoreAboveDefaultValue;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
 /**
@@ -514,6 +515,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
+        private static final IndexMode DEFAULT_INDEX_MODE = IndexMode.STANDARD;
+
         private final int ignoreAbove;
         private final int ignoreAboveDefaultValue;
         private final String nullValue;
@@ -558,24 +561,27 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.originalName = isSyntheticSource ? name + "._original" : null;
         }
 
+        public KeywordFieldType(String name) {
+            this(name, true, true, Collections.emptyMap());
+        }
+
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+
+            final int ignoreAboveDefault = getIgnoreAboveDefaultValue(DEFAULT_INDEX_MODE, IndexVersion.current());
+
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = Integer.MAX_VALUE;
-            this.ignoreAboveDefaultValue = Integer.MAX_VALUE;
+            this.ignoreAbove = ignoreAboveDefault;
+            this.ignoreAboveDefaultValue = ignoreAboveDefault;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.indexMode = IndexMode.STANDARD;
+            this.indexMode = DEFAULT_INDEX_MODE;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
             this.originalName = null;
-        }
-
-        public KeywordFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
         }
 
         public KeywordFieldType(String name, FieldType fieldType) {
@@ -587,15 +593,18 @@ public final class KeywordFieldMapper extends FieldMapper {
                 textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap()
             );
+
+            final int ignoreAboveDefault = getIgnoreAboveDefaultValue(DEFAULT_INDEX_MODE, IndexVersion.current());
+
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = Integer.MAX_VALUE;
-            this.ignoreAboveDefaultValue = Integer.MAX_VALUE;
+            this.ignoreAbove = ignoreAboveDefault;
+            this.ignoreAboveDefaultValue = ignoreAboveDefault;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.indexMode = IndexMode.STANDARD;
+            this.indexMode = DEFAULT_INDEX_MODE;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
             this.originalName = null;
@@ -603,15 +612,18 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+
+            final int ignoreAboveDefault = getIgnoreAboveDefaultValue(DEFAULT_INDEX_MODE, IndexVersion.current());
+
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = Integer.MAX_VALUE;
-            this.ignoreAboveDefaultValue = Integer.MAX_VALUE;
+            this.ignoreAbove = ignoreAboveDefault;
+            this.ignoreAboveDefaultValue = ignoreAboveDefault;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.indexMode = IndexMode.STANDARD;
+            this.indexMode = DEFAULT_INDEX_MODE;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
             this.originalName = null;

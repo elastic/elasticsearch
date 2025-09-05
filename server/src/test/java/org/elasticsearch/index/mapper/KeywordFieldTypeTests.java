@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -36,9 +35,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -57,6 +60,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT;
+import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_LOGSDB;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -245,7 +253,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "field",
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
-            Integer.MAX_VALUE,
             IndexVersion.current(),
             randomFrom(Mapper.SourceKeepMode.values())
         ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
@@ -289,6 +296,143 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             terms = ft.getTerms(reader, "prefix-" + "x".repeat(IndexWriter.MAX_TERM_LENGTH), randomBoolean(), null);
             reader.close();
         }
+    }
+
+    public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given() {
+        // given
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
+        builder.ignoreAbove(123);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+                "child",
+                mock(FieldType.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                builder,
+                true
+        );
+
+        // when/then
+        assertTrue(fieldType.isIgnoreAboveSet());
+    }
+
+    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_not_given() {
+        // given
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+                "child",
+                mock(FieldType.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                builder,
+                true
+        );
+
+        // when/then
+        assertFalse(fieldType.isIgnoreAboveSet());
+    }
+
+    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
+        // given
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
+        builder.ignoreAbove(IGNORE_ABOVE_DEFAULT);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+                "child",
+                mock(FieldType.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                builder,
+                true
+        );
+
+        // when/then
+        assertFalse(fieldType.isIgnoreAboveSet());
+    }
+
+    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
+        // given
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
+        builder.ignoreAbove(IGNORE_ABOVE_DEFAULT_LOGSDB);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+                "child",
+                mock(FieldType.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                builder,
+                true
+        );
+
+        // when/then
+        assertFalse(fieldType.isIgnoreAboveSet());
+    }
+
+    public void test_isIgnoreAboveSet_returns_false_for_non_primary_constructor() {
+        // given
+        KeywordFieldType fieldType1 = new KeywordFieldType("field");
+        KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class));
+        KeywordFieldType fieldType3 = new KeywordFieldType("field", true, true, Collections.emptyMap());
+        KeywordFieldType fieldType4 = new KeywordFieldType("field", mock(NamedAnalyzer.class));
+
+        // when/then
+        assertFalse(fieldType1.isIgnoreAboveSet());
+        assertFalse(fieldType2.isIgnoreAboveSet());
+        assertFalse(fieldType3.isIgnoreAboveSet());
+        assertFalse(fieldType4.isIgnoreAboveSet());
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {

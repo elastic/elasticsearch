@@ -59,8 +59,9 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -315,10 +316,7 @@ public class EsqlSession {
         var parsed = new EsqlParser().createQuery(query, params, planTelemetry, configuration);
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
-            LOGGER.debug(
-                "Parsed settings:\n[{}]",
-                parsed.settings().stream().map(x -> x.field().name() + "=" + x.value()).collect(joining(", "))
-            );
+            LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
         return parsed;
     }

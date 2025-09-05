@@ -5,9 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
@@ -29,5 +30,10 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
             }
         }
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return "EsqlStatement{" + "plan=" + plan + ", settings=" + settings + "}";
     }
 }

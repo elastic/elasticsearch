@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -54,5 +54,10 @@ public class QuerySetting {
 
     public Source source() {
         return source;
+    }
+
+    @Override
+    public String toString() {
+        return "SET " + name() + " = " + value();
     }
 }

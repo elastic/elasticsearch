@@ -5,7 +5,7 @@
       "description":"Disable a user profile"
     },
     "stability":"stable",
-    "visibility":"private",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

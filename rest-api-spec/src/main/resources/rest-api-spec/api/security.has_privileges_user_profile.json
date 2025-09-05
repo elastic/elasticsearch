@@ -5,7 +5,7 @@
       "description":"Check user profile privileges"
     },
     "stability":"stable",
-    "visibility":"private",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

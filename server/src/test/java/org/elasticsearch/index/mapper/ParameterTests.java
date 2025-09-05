@@ -29,9 +29,9 @@ public class ParameterTests extends ESTestCase {
     public void test_ignore_above_param_default_for_standard_indices() {
         // when
         FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam(
-                (FieldMapper fm) -> 123,
-                IndexMode.STANDARD,
-                IndexVersion.current()
+            (FieldMapper fm) -> 123,
+            IndexMode.STANDARD,
+            IndexVersion.current()
         );
 
         // then

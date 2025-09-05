@@ -8,6 +8,7 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -41,10 +42,10 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
     private static final int NUM_DOCS_PER_REQUEST = 1024;
 
     static String BULK_ITEM_TEMPLATE =
-            """
-                { "create": {} }
-                {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
-                """;
+        """
+            { "create": {} }
+            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
+            """;
 
     private static final String TEMPLATE = """
         {
@@ -196,13 +197,13 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
             double factor = randomDouble();
 
             requestBody.append(
-                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                            .replace("$host", hostName)
-                            .replace("$method", methodName)
-                            .replace("$ip", ip)
-                            .replace("$message", message)
-                            .replace("$length", Long.toString(length))
-                            .replace("$factor", Double.toString(factor))
+                BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
+                    .replace("$host", hostName)
+                    .replace("$method", methodName)
+                    .replace("$ip", ip)
+                    .replace("$message", message)
+                    .replace("$length", Long.toString(length))
+                    .replace("$factor", Double.toString(factor))
             );
             requestBody.append('\n');
 
@@ -282,9 +283,9 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(
-                    XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
-                    is,
-                    true
+                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
+                is,
+                true
             );
         }
     }

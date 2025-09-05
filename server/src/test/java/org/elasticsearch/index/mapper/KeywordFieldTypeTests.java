@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -301,11 +302,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given() {
         // given
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
         MappingParserContext mappingParserContext = mock(MappingParserContext.class);
         doReturn(settings).when(mappingParserContext).getSettings();
@@ -316,13 +317,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         builder.ignoreAbove(123);
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-                "child",
-                mock(FieldType.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                builder,
-                true
+            "child",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
         );
 
         // when/then
@@ -332,11 +333,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_not_given() {
         // given
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
         MappingParserContext mappingParserContext = mock(MappingParserContext.class);
         doReturn(settings).when(mappingParserContext).getSettings();
@@ -346,13 +347,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-                "child",
-                mock(FieldType.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                builder,
-                true
+            "child",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
         );
 
         // when/then
@@ -362,11 +363,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
         // given
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
         MappingParserContext mappingParserContext = mock(MappingParserContext.class);
         doReturn(settings).when(mappingParserContext).getSettings();
@@ -377,13 +378,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         builder.ignoreAbove(IGNORE_ABOVE_DEFAULT);
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-                "child",
-                mock(FieldType.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                builder,
-                true
+            "child",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
         );
 
         // when/then
@@ -393,11 +394,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
         // given
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
         MappingParserContext mappingParserContext = mock(MappingParserContext.class);
         doReturn(settings).when(mappingParserContext).getSettings();
@@ -408,13 +409,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         builder.ignoreAbove(IGNORE_ABOVE_DEFAULT_LOGSDB);
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-                "child",
-                mock(FieldType.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                builder,
-                true
+            "child",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
         );
 
         // when/then

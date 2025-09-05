@@ -17,22 +17,28 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 class KMeansIntermediate extends KMeansResult {
     private final IntToIntFunction assignmentOrds;
 
-    private KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrds, int[] soarAssignments) {
-        super(centroids, assignments, soarAssignments);
+    private KMeansIntermediate(
+        float[][] centroids,
+        int[] assignments,
+        int[] counts,
+        IntToIntFunction assignmentOrds,
+        int[] soarAssignments
+    ) {
+        super(centroids, assignments, soarAssignments, counts);
         assert assignmentOrds != null;
         this.assignmentOrds = assignmentOrds;
     }
 
-    KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrdinals) {
-        this(centroids, assignments, assignmentOrdinals, new int[0]);
+    KMeansIntermediate(float[][] centroids, int[] assignments, int[] counts, IntToIntFunction assignmentOrdinals) {
+        this(centroids, assignments, counts, assignmentOrdinals, new int[0]);
     }
 
     KMeansIntermediate() {
-        this(new float[0][0], new int[0], i -> i, new int[0]);
+        this(new float[0][0], new int[0], new int[0], i -> i, new int[0]);
     }
 
-    KMeansIntermediate(float[][] centroids, int[] assignments) {
-        this(centroids, assignments, i -> i, new int[0]);
+    KMeansIntermediate(float[][] centroids, int[] assignments, int[] counts) {
+        this(centroids, assignments, counts, i -> i, new int[0]);
     }
 
     public int ordToDoc(int ord) {

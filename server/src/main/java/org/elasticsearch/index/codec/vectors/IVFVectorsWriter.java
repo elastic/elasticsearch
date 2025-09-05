@@ -140,7 +140,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        int[] centroidVectorCount
     ) throws IOException;
 
     abstract CentroidOffsetAndLength buildAndWritePostingsLists(
@@ -151,7 +152,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        int[] centroidVectorCount
     ) throws IOException;
 
     abstract CentroidSupplier createCentroidSupplier(
@@ -181,7 +183,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 ivfClusters,
                 postingListOffset,
                 centroidAssignments.assignments(),
-                centroidAssignments.overspillAssignments()
+                centroidAssignments.overspillAssignments(),
+                centroidAssignments.centroidVectorCount()
             );
             final long postingListLength = ivfClusters.getFilePointer() - postingListOffset;
             // write centroids
@@ -311,6 +314,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final int numCentroids;
             final int[] assignments;
             final int[] overspillAssignments;
+            final int[] centroidVectorCount;
             final float[] calculatedGlobalCentroid = new float[fieldInfo.getVectorDimension()];
             String centroidTempName = null;
             IndexOutput centroidTemp = null;
@@ -332,6 +336,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 numCentroids = centroidAssignments.numCentroids();
                 assignments = centroidAssignments.assignments();
                 overspillAssignments = centroidAssignments.overspillAssignments();
+                centroidVectorCount = centroidAssignments.centroidVectorCount();
                 success = true;
             } finally {
                 if (success == false && centroidTempName != null) {
@@ -367,7 +372,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         postingListOffset,
                         mergeState,
                         assignments,
-                        overspillAssignments
+                        overspillAssignments,
+                        centroidVectorCount
                     );
                     postingListLength = ivfClusters.getFilePointer() - postingListOffset;
                     // write centroids

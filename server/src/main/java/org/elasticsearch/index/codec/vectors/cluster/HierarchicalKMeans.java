@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.util.ArrayUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,7 +73,7 @@ public class HierarchicalKMeans {
             for (int j = 0; j < dimension; j++) {
                 centroid[j] /= vectors.size();
             }
-            return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()]);
+            return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()], new int[] { vectors.size() });
         }
 
         // partition the space
@@ -100,27 +101,26 @@ public class HierarchicalKMeans {
         Arrays.fill(assignments, -1);
         KMeansLocal kmeans = new KMeansLocal(m, maxIterations);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
+        int[] centroidVectorCount = new int[centroids.length];
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, centroidVectorCount, vectors::ordToDoc);
         kmeans.cluster(vectors, kMeansIntermediate);
 
-        // TODO: consider adding cluster size counts to the kmeans algo
-        // handle assignment here so we can track distance and cluster size
-        int[] centroidVectorCount = new int[centroids.length];
-        int effectiveCluster = -1;
         int effectiveK = 0;
-        for (int assigment : assignments) {
-            centroidVectorCount[assigment]++;
-            // this cluster has received an assignment, its now effective, but only count it once
-            if (centroidVectorCount[assigment] == 1) {
+        int effectiveCluster = -1;
+        for (int i = 0; i < centroidVectorCount.length; i++) {
+            if (centroidVectorCount[i] > 0) {
                 effectiveK++;
-                effectiveCluster = assigment;
+                if (effectiveK > 1) {
+                    break;
+                }
+                effectiveCluster = i;
             }
         }
 
         if (effectiveK == 1) {
             final float[][] singleClusterCentroid = new float[1][];
             singleClusterCentroid[0] = centroids[effectiveCluster];
-            kMeansIntermediate.setCentroids(singleClusterCentroid);
+            kMeansIntermediate.setCentroidsAndCounts(singleClusterCentroid, new int[] { vectors.size() });
             Arrays.fill(kMeansIntermediate.assignments(), 0);
             return kMeansIntermediate;
         }
@@ -149,13 +149,22 @@ public class HierarchicalKMeans {
                     adjustedCentroid,
                     newSize - adjustedCentroid
                 );
+                final int[] newCounts = new int[newSize];
+                System.arraycopy(kMeansIntermediate.centroidCounts(), 0, newCounts, 0, adjustedCentroid);
+                System.arraycopy(
+                    kMeansIntermediate.centroidCounts(),
+                    adjustedCentroid + 1,
+                    newCounts,
+                    adjustedCentroid,
+                    newSize - adjustedCentroid
+                );
                 // we need to update the assignments to reflect the new centroid ordinals
                 for (int i = 0; i < kMeansIntermediate.assignments().length; i++) {
                     if (kMeansIntermediate.assignments()[i] > adjustedCentroid) {
                         kMeansIntermediate.assignments()[i]--;
                     }
                 }
-                kMeansIntermediate.setCentroids(newCentroids);
+                kMeansIntermediate.setCentroidsAndCounts(newCentroids, newCounts);
                 removedElements++;
             }
         }
@@ -184,18 +193,26 @@ public class HierarchicalKMeans {
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
         // update based on the outcomes from the split clusters recursion
-        float[][] newCentroids = new float[newCentroidsSize][];
-        System.arraycopy(current.centroids(), 0, newCentroids, 0, current.centroids().length);
+        final float[][] newCentroids = ArrayUtil.growExact(current.centroids(), newCentroidsSize);
+        final int[] newCounts = ArrayUtil.growExact(current.centroidCounts(), newCentroidsSize);
 
         // replace the original cluster
         int origCentroidOrd = 0;
         newCentroids[cluster] = subPartitions.centroids()[0];
+        newCounts[cluster] = subPartitions.centroidCounts()[0];
 
         // append the remainder
         System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
         assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
+        System.arraycopy(
+            subPartitions.centroidCounts(),
+            1,
+            newCounts,
+            current.centroidCounts().length,
+            subPartitions.centroidCounts().length - 1
+        );
 
-        current.setCentroids(newCentroids);
+        current.setCentroidsAndCounts(newCentroids, newCounts);
 
         for (int i = 0; i < subPartitions.assignments().length; i++) {
             // this is a new centroid that was added, and so we'll need to remap it
@@ -205,5 +222,22 @@ public class HierarchicalKMeans {
                 current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
             }
         }
+        assert assertCounts(newCounts, current.assignments());
     }
+
+    private static boolean assertCounts(int[] counts, int[] assignments) {
+        int[] newCounts = new int[counts.length];
+        for (int assignment : assignments) {
+            if (assignment != -1) {
+                newCounts[assignment]++;
+            }
+        }
+        for (int i = 0; i < counts.length; i++) {
+            if (counts[i] != newCounts[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }

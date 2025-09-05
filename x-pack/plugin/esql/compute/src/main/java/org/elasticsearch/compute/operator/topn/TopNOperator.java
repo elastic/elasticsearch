@@ -346,8 +346,7 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
-        this.inputQueue = new Queue(breaker, topCount);
+        this.inputQueue = Queue.build(breaker, topCount);
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -636,12 +635,20 @@ public class TopNOperator implements Operator, Accountable {
     private static class Queue extends PriorityQueue<Row> implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
         private final CircuitBreaker breaker;
-        private final int maxSize;
+        private final int topCount;
 
-        Queue(CircuitBreaker breaker, int maxSize) {
-            super(maxSize);
+        /**
+         * Track memory usage in the breaker then build the {@link Queue}.
+         */
+        static Queue build(CircuitBreaker breaker, int topCount) {
+            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
+            return new Queue(breaker, topCount);
+        }
+
+        private Queue(CircuitBreaker breaker, int topCount) {
+            super(topCount);
             this.breaker = breaker;
-            this.maxSize = maxSize;
+            this.topCount = topCount;
         }
 
         @Override
@@ -651,14 +658,14 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public String toString() {
-            return size() + "/" + maxSize;
+            return size() + "/" + topCount;
         }
 
         @Override
         public long ramBytesUsed() {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (maxSize + 1)
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
             );
             for (Row r : this) {
                 total += r == null ? 0 : r.ramBytesUsed();
@@ -668,7 +675,7 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
-            Releasables.close(Releasables.wrap(this), () -> breaker.addWithoutBreaking(-Queue.sizeOf(maxSize)));
+            Releasables.close(Releasables.wrap(this), () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount)));
 
         }
 

@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,9 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -372,35 +372,19 @@ public final class TimeSeriesRestDriver {
     @SuppressWarnings("unchecked")
     public static Integer getNumberOfPrimarySegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
-        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-        final Map<String, Object> originalResponseEntity = XContentHelper.convertToMap(
-            entityContentType.xContent(),
-            response.getEntity().getContent(),
-            false
-        );
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "segments response for {}: {}",
-                index,
-                originalResponseEntity.keySet()
-                    .stream()
-                    .map(key -> key + "=" + originalResponseEntity.get(key))
-                    .collect(Collectors.joining(", ", "{", "}"))
-            );
-        }
-        Map<String, Object> responseEntity = (Map<String, Object>) originalResponseEntity.get("indices");
-        responseEntity = (Map<String, Object>) responseEntity.get(index);
-        responseEntity = (Map<String, Object>) responseEntity.get("shards");
-        List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
-        // We want to mamke sure to get the primary shard because there is a chance the replica doesn't have data yet:
-        Optional<Map<String, Object>> shardOptional = shards.stream()
-            .filter(shard -> ((Map<String, Object>) shard.get("routing")).get("primary").equals(true))
-            .findAny();
-        if (shardOptional.isPresent()) {
-            return (Integer) shardOptional.get().get("num_search_segments");
-        } else {
-            throw new RuntimeException("No primary shard found for index " + index);
-        }
+        final Map<String, Object> originalResponseEntity = ESRestTestCase.entityAsMap(response);
+        logger.trace("segments response for {}: {}", index, originalResponseEntity);
+        Map<String, Object> responseEntity = new ObjectPath(originalResponseEntity).evaluateExact("indices", index, "shards");
+        return responseEntity.values()
+            .stream()
+            .mapToInt(
+                shardList -> ((List<Map<String, Object>>) shardList).stream()
+                    .filter(shard -> ((Map<String, Object>) shard.get("routing")).get("primary").equals(true))
+                    .findFirst()
+                    .map(shard -> (Integer) shard.get("num_search_segments"))
+                    .orElseThrow(() -> new IllegalStateException("no primary shard found in " + shardList))
+            )
+            .sum();
     }
 
     public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {
@@ -411,6 +395,28 @@ public final class TimeSeriesRestDriver {
         );
         changePolicyRequest.setEntity(changePolicyEntity);
         assertOK(client.performRequest(changePolicyRequest));
+    }
+
+    /**
+     * Moves the specified index from the current ILM step to the next step.
+     */
+    public static void moveIndexToStep(RestClient client, String indexName, Step.StepKey currentStep, Step.StepKey nextStep)
+        throws IOException {
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + indexName);
+        moveToStepRequest.setJsonEntity(Strings.format("""
+            {
+              "current_step": {
+                "phase": "%s",
+                "action": "%s",
+                "name": "%s"
+              },
+              "next_step": {
+                "phase": "%s",
+                "action": "%s",
+                "name": "%s"
+              }
+            }""", currentStep.phase(), currentStep.action(), currentStep.name(), nextStep.phase(), nextStep.action(), nextStep.name()));
+        ESRestTestCase.assertAcknowledged(client.performRequest(moveToStepRequest));
     }
 
     @SuppressWarnings("unchecked")

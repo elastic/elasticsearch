@@ -65,6 +65,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -95,7 +97,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -109,8 +110,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -534,12 +536,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveInsist(i, childrenOutput, context.indexResolution());
             }
 
-            if (plan instanceof Dedup dedup) {
-                return resolveDedup(dedup, childrenOutput);
-            }
-
-            if (plan instanceof RrfScoreEval rrf) {
-                return resolveRrfScoreEval(rrf, childrenOutput);
+            if (plan instanceof Fuse fuse) {
+                return resolveFuse(fuse, childrenOutput);
             }
 
             if (plan instanceof Rerank r) {
@@ -896,7 +894,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
             for (Attribute attr : outputUnion) {
-                newOutput.add(new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType()));
+                newOutput.add(
+                    new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType(), Nullability.FALSE, null, attr.synthetic())
+                );
             }
 
             return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
@@ -1014,52 +1014,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
-            List<NamedExpression> aggregates = dedup.finalAggs();
-            List<Attribute> groupings = dedup.groupings();
-            List<NamedExpression> newAggs = new ArrayList<>();
-            List<Attribute> newGroupings = new ArrayList<>();
-
-            for (NamedExpression agg : aggregates) {
-                var newAgg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
-                    Expression ne = ua;
-                    Attribute maybeResolved = maybeResolveAttribute(ua, childrenOutput);
-                    if (maybeResolved != null) {
-                        ne = maybeResolved;
-                    }
-                    return ne;
-                });
-                newAggs.add(newAgg);
+        private LogicalPlan resolveFuse(Fuse fuse, List<Attribute> childrenOutput) {
+            Source source = fuse.source();
+            Attribute score = fuse.score();
+            if (score instanceof UnresolvedAttribute) {
+                score = maybeResolveAttribute((UnresolvedAttribute) score, childrenOutput);
             }
 
-            for (Attribute attr : groupings) {
-                if (attr instanceof UnresolvedAttribute ua) {
-                    newGroupings.add(resolveAttribute(ua, childrenOutput));
-                } else {
-                    newGroupings.add(attr);
+            Attribute discriminator = fuse.discriminator();
+            if (discriminator instanceof UnresolvedAttribute) {
+                discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
+            }
+
+            List<NamedExpression> groupings = fuse.groupings()
+                .stream()
+                .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
+                .toList();
+
+            // some attributes were unresolved - we return Fuse here so that the Verifier can raise an error message
+            if (score instanceof UnresolvedAttribute || discriminator instanceof UnresolvedAttribute) {
+                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType());
+            }
+
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator);
+
+            // create aggregations
+            Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
+
+            List<NamedExpression> aggregates = new ArrayList<>();
+            aggregates.add(new Alias(source, score.name(), new Sum(source, score, aggFilter, SummationMode.COMPENSATED_LITERAL)));
+
+            for (Attribute attr : childrenOutput) {
+                if (attr.name().equals(score.name())) {
+                    continue;
                 }
+                aggregates.add(new Alias(source, attr.name(), new Values(source, attr, aggFilter)));
             }
 
-            return new Dedup(dedup.source(), dedup.child(), newAggs, newGroupings);
-        }
-
-        private LogicalPlan resolveRrfScoreEval(RrfScoreEval rrf, List<Attribute> childrenOutput) {
-            Attribute scoreAttr = rrf.scoreAttribute();
-            Attribute forkAttr = rrf.forkAttribute();
-
-            if (scoreAttr instanceof UnresolvedAttribute ua) {
-                scoreAttr = resolveAttribute(ua, childrenOutput);
-            }
-
-            if (forkAttr instanceof UnresolvedAttribute ua) {
-                forkAttr = resolveAttribute(ua, childrenOutput);
-            }
-
-            if (forkAttr != rrf.forkAttribute() || scoreAttr != rrf.scoreAttribute()) {
-                return new RrfScoreEval(rrf.source(), rrf.child(), scoreAttr, forkAttr);
-            }
-
-            return rrf;
+            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(groupings), aggregates), childrenOutput);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -2041,10 +2033,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
-
             for (Attribute attr : output) {
                 // Do not let the synthetic union type field attributes end up in the final output.
-                if (attr.synthetic() && attr instanceof FieldAttribute) {
+                if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
                 newOutput.add(attr);

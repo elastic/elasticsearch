@@ -148,7 +148,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
             );
         }
-        // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
+        // Unmapped fields require a correct capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse(

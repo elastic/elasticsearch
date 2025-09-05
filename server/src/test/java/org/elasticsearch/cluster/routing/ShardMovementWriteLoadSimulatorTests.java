@@ -21,6 +21,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -212,7 +213,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             final var nodeThreadPoolStats = arrayOfNodeThreadPoolStats[i];
             if (nodeThreadPoolStats != null) {
                 final var nodeId = "node_" + i;
-                nodeUsageStats.put(nodeId, new NodeUsageStatsForThreadPools(nodeId, Map.of("write", nodeThreadPoolStats)));
+                nodeUsageStats.put(nodeId, new NodeUsageStatsForThreadPools(nodeId, Map.of("write", nodeThreadPoolStats), Instant.now()));
             }
         }
 

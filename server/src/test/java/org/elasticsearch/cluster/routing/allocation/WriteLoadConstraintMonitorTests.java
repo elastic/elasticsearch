@@ -28,6 +28,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -260,7 +261,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                             tpStats.averageThreadPoolUtilization(),
                             testState.latencyThresholdMillis + randomLongBetween(1, 100_000)
                         )
-                    )
+                    ),
+                    Instant.now()
                 );
             }
             return stats;
@@ -369,7 +371,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                                 randomFloatBetween(0f, 1f, true),
                                 randomLongBetween(queueLatencyThresholdMillis + 1, queueLatencyThresholdMillis * 2)
                             )
-                        )
+                        ),
+                        Instant.now()
                     );
                 } else {
                     // not-hot-spotting node
@@ -382,7 +385,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                                 randomFloatBetween(0f, maxRatioForUnderUtilised, true),
                                 randomLongBetween(0, queueLatencyThresholdMillis)
                             )
-                        )
+                        ),
+                        Instant.now()
                     );
                 }
             })))

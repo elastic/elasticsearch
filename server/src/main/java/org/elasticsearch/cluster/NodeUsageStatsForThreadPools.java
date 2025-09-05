@@ -9,13 +9,14 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Record of a node's thread pool usage stats (operation load). Maps thread pool stats by thread pool name.
@@ -24,48 +25,29 @@ import java.util.Objects;
  * @param threadPoolUsageStatsMap A map of thread pool name ({@link org.elasticsearch.threadpool.ThreadPool.Names}) to the thread pool's
  *                                usage stats ({@link ThreadPoolUsageStats}).
  */
-public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap) implements Writeable {
+public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap, Instant timestamp)
+    implements
+        Writeable {
 
-    public NodeUsageStatsForThreadPools(StreamInput in) throws IOException {
-        this(in.readString(), in.readImmutableMap(ThreadPoolUsageStats::new));
+    public static NodeUsageStatsForThreadPools readFrom(StreamInput in) throws IOException {
+        final var nodeId = in.readString();
+        final var threadPoolUsageStatsMap = in.readImmutableMap(ThreadPoolUsageStats::new);
+        final Instant receivedTime;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMESTAMP_IN_NODE_USAGE_STATS_FOR_THREAD_POOLS)) {
+            receivedTime = in.readInstant();
+        } else {
+            receivedTime = Instant.now();
+        }
+        return new NodeUsageStatsForThreadPools(nodeId, threadPoolUsageStatsMap, receivedTime);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.nodeId);
         out.writeMap(this.threadPoolUsageStatsMap, StreamOutput::writeWriteable);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(nodeId, threadPoolUsageStatsMap);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        NodeUsageStatsForThreadPools other = (NodeUsageStatsForThreadPools) o;
-        for (var entry : other.threadPoolUsageStatsMap.entrySet()) {
-            if (nodeId.equals(other.nodeId) == false) {
-                return false;
-            }
-            var loadStats = threadPoolUsageStatsMap.get(entry.getKey());
-            if (loadStats == null || loadStats.equals(entry.getValue()) == false) {
-                return false;
-            }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMESTAMP_IN_NODE_USAGE_STATS_FOR_THREAD_POOLS)) {
+            out.writeInstant(this.timestamp);
         }
-        return true;
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder(getClass().getSimpleName() + "{nodeId=" + nodeId + ", threadPoolUsageStatsMap=[");
-        for (var entry : threadPoolUsageStatsMap.entrySet()) {
-            builder.append("{ThreadPool.Names=" + entry.getKey() + ", ThreadPoolUsageStats=" + entry.getValue() + "}");
-        }
-        builder.append("]}");
-        return builder.toString();
     }
 
     /**

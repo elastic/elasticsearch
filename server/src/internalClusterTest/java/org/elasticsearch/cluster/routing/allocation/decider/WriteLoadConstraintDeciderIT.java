@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -317,7 +318,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             )
         );
 
-        return new NodeUsageStatsForThreadPools(discoveryNode.getId(), threadPoolUsageMap);
+        return new NodeUsageStatsForThreadPools(discoveryNode.getId(), threadPoolUsageMap, Instant.now());
     }
 
     /**

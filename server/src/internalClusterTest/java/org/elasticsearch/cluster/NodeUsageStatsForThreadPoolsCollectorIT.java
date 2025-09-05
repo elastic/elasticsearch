@@ -14,12 +14,17 @@ import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStats
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,6 +43,11 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
     public void testMostRecentValueIsUsedWhenNodeRequestFails() {
@@ -74,7 +84,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
                                     averageThreadPoolUtilization,
                                     maxThreadPoolQueueLatencyMillis
                                 )
-                            )
+                            ),
+                            Instant.now()
                         )
                     )
                 );
@@ -82,12 +93,13 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         );
 
         // This info should contain our fake values
-        assertThreadPoolHasStats(
+        final var successfulStats = assertThreadPoolHasStats(
             dataNodeClusterService.localNode().getId(),
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
+            maxThreadPoolQueueLatencyMillis,
+            null
         );
 
         // Now simulate an error
@@ -104,23 +116,30 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
+            maxThreadPoolQueueLatencyMillis,
+            successfulStats.timestamp()
         );
     }
 
-    private void assertThreadPoolHasStats(
+    private NodeUsageStatsForThreadPools assertThreadPoolHasStats(
         String nodeId,
         String threadPoolName,
         int totalThreadPoolThreads,
         float averageThreadPoolUtilization,
-        long maxThreadPoolQueueLatencyMillis
+        long maxThreadPoolQueueLatencyMillis,
+        @Nullable Instant timestamp
     ) {
         final var clusterInfo = Objects.requireNonNull(refreshClusterInfo());
-        final var usageStatsMap = clusterInfo.getNodeUsageStatsForThreadPools().get(nodeId).threadPoolUsageStatsMap();
+        final var nodeUsageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools().get(nodeId);
+        if (timestamp != null) {
+            assertThat(nodeUsageStatsForThreadPools.timestamp(), equalTo(timestamp));
+        }
+        final var usageStatsMap = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap();
         assertThat(usageStatsMap, hasKey(threadPoolName));
         final var threadPoolStats = usageStatsMap.get(threadPoolName);
         assertThat(threadPoolStats.totalThreadPoolThreads(), equalTo(totalThreadPoolThreads));
         assertThat(threadPoolStats.averageThreadPoolUtilization(), equalTo(averageThreadPoolUtilization));
         assertThat(threadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(maxThreadPoolQueueLatencyMillis));
+        return nodeUsageStatsForThreadPools;
     }
 }

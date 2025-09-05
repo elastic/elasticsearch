@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -40,8 +39,6 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     NodeUsageStatsForThreadPoolsAction.NodeRequest,
     NodeUsageStatsForThreadPoolsAction.NodeResponse,
     Void> {
-
-    private static final Logger logger = LogManager.getLogger(TransportNodeUsageStatsForThreadPoolsAction.class);
 
     public static final String NAME = "internal:monitor/thread_pool/stats";
     public static final ActionType<NodeUsageStatsForThreadPoolsAction.Response> TYPE = new ActionType<>(NAME);
@@ -111,7 +108,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
-            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats))
+            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats), Instant.now())
         );
     }
 }

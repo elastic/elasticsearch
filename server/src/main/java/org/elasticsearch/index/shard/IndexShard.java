@@ -1543,7 +1543,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             verifyNotClosed();
             final long startTime = System.nanoTime();
-            assert engine != null : "engine is null";
+            assert engine != null : "engine supplier is null";
+            assert engine.get() != null : "engine is null";
             engine.get().flush(force, waitIfOngoing, ActionListener.runBefore(l, () -> flushMetric.inc(System.nanoTime() - startTime)));
         });
     }

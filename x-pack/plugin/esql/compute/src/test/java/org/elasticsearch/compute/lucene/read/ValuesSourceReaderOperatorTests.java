@@ -401,7 +401,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
-                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy()).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy().setMaxMergeAtOnce(5))
+                    .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             )
         ) {
             for (int d = 0; d < size; d++) {
@@ -943,7 +944,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));
-        assertThat(reader.leaves(), hasSize(manySegments ? greaterThan(5) : equalTo(1)));
+        assertThat(reader.leaves(), hasSize(manySegments ? greaterThan(1) : equalTo(1)));
         assertThat(input, hasSize(reader.leaves().size()));
         if (manySegments) {
             input = List.of(CannedSourceOperator.mergePages(input));

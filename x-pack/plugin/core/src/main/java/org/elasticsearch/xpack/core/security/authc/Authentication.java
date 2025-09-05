@@ -59,6 +59,7 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType.TOKEN;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCloudApiKeyRealmRef;
@@ -83,6 +84,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.USER;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.REMOTE_CLUSTER;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 
@@ -424,7 +426,7 @@ public final class Authentication implements ToXContentObject {
         assert false == isAuthenticatedInternally();
         assert false == isServiceAccount();
         assert false == isCrossClusterAccess();
-        final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
+        final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, TOKEN);
         return newTokenAuthentication;
     }
 
@@ -603,7 +605,7 @@ public final class Authentication implements ToXContentObject {
         // Run-as is supported for authentication with realm, api_key or token.
         if (AuthenticationType.REALM == getAuthenticationType()
             || AuthenticationType.API_KEY == getAuthenticationType()
-            || AuthenticationType.TOKEN == getAuthenticationType()) {
+            || TOKEN == getAuthenticationType()) {
             return true;
         }
 
@@ -717,7 +719,7 @@ public final class Authentication implements ToXContentObject {
         assert EnumSet.of(
             Authentication.AuthenticationType.REALM,
             Authentication.AuthenticationType.API_KEY,
-            Authentication.AuthenticationType.TOKEN,
+            TOKEN,
             Authentication.AuthenticationType.ANONYMOUS,
             Authentication.AuthenticationType.INTERNAL
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
@@ -822,6 +824,9 @@ public final class Authentication implements ToXContentObject {
             apiKeyField.put("internal", internal);
             apiKeyField.put("managed_by", CredentialManagedBy.CLOUD.getDisplayName());
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
+        }
+        if (metadata.containsKey("managed_by")) {
+            builder.field("managed_by", metadata.get("managed_by"));
         }
     }
 
@@ -982,7 +987,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     private void checkConsistencyForRealmAuthenticationType() {
-        if (Subject.Type.USER != authenticatingSubject.getType()) {
+        if (USER != authenticatingSubject.getType()) {
             throw new IllegalArgumentException("Realm authentication must have subject type of user");
         }
         if (isRunAs()) {
@@ -1025,7 +1030,7 @@ public final class Authentication implements ToXContentObject {
                 )
             );
         }
-        if (Subject.Type.USER != effectiveSubject.getType()) {
+        if (USER != effectiveSubject.getType()) {
             throw new IllegalArgumentException(Strings.format("Run-as subject type cannot be [%s]", effectiveSubject.getType()));
         }
         if (false == effectiveSubject.getMetadata().isEmpty()) {
@@ -1357,7 +1362,7 @@ public final class Authentication implements ToXContentObject {
         final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
             new Subject(serviceAccountUser, authenticatedBy, TransportVersion.current(), metadata),
-            AuthenticationType.TOKEN
+            TOKEN
         );
         return authentication;
     }
@@ -1384,7 +1389,7 @@ public final class Authentication implements ToXContentObject {
         final User user = authResult.getValue();
         return new Authentication(
             new Subject(user, realmRef, TransportVersion.current(), authResult.getMetadata()),
-            AuthenticationType.TOKEN
+            TOKEN
         );
     }
 

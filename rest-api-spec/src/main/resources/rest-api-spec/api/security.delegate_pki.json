@@ -1,8 +1,8 @@
 {
   "security.delegate_pki": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-delegate-pki-authentication.html",
-      "description": "Delegate PKI authentication."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delegate-pki",
+      "description": "Delegate PKI authentication"
     },
     "stability": "stable",
     "visibility": "public",

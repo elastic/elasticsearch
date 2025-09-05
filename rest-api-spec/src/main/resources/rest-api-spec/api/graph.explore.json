@@ -1,8 +1,8 @@
 {
   "graph.explore":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
-      "description": "Explore extracted and summarized information about the documents and terms in an index."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-graph",
+      "description": "Explore graph analytics"
     },
     "stability":"stable",
     "visibility":"public",

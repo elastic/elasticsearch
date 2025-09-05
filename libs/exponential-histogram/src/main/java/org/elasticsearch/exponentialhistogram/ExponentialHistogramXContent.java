@@ -31,6 +31,9 @@ import java.io.IOException;
 public class ExponentialHistogramXContent {
 
     public static final String SCALE_FIELD = "scale";
+    public static final String SUM_FIELD = "sum";
+    public static final String MIN_FIELD = "min";
+    public static final String MAX_FIELD = "max";
     public static final String ZERO_FIELD = "zero";
     public static final String ZERO_COUNT_FIELD = "count";
     public static final String ZERO_THRESHOLD_FIELD = "threshold";
@@ -49,6 +52,13 @@ public class ExponentialHistogramXContent {
         builder.startObject();
 
         builder.field(SCALE_FIELD, histogram.scale());
+        builder.field(SUM_FIELD, histogram.sum());
+        if (Double.isNaN(histogram.min()) == false) {
+            builder.field(MIN_FIELD, histogram.min());
+        }
+        if (Double.isNaN(histogram.max()) == false) {
+            builder.field(MAX_FIELD, histogram.max());
+        }
         double zeroThreshold = histogram.zeroBucket().zeroThreshold();
         long zeroCount = histogram.zeroBucket().count();
 

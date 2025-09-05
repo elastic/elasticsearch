@@ -99,6 +99,7 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(bf.newBooleanBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newBooleanArrayVector(new boolean[] {}, 0));
         assertZeroPositionsAndRelease(bf.newBooleanVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(bf.newAggregateMetricDoubleBlockBuilder(0).build());
     }
 
     public void testSmallSingleValueDenseGrowthInt() {
@@ -158,6 +159,17 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSmallSingleValueDenseGrowthBoolean() {
+        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
+            try (var blockBuilder = blockFactory.newBooleanBlockBuilder(initialSize)) {
+                IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));
+                BooleanBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
+            }
+        }
+    }
+
+    public void testSmallSingleValueDenseGrowthAggregateMetricDouble() {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
             try (var blockBuilder = blockFactory.newBooleanBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));
@@ -1772,10 +1784,13 @@ public class BasicBlockTests extends ESTestCase {
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 
-            assertThat(
-                deepCopy.asVector() != null && deepCopy.asVector().isConstant(),
-                equalTo(block.asVector() != null && block.asVector().isConstant())
-            );
+            if (block.asVector() != null && block.asVector().isConstant()) {
+                /*
+                 * If we were a constant, we will still be one. If we were not a constant,
+                 * deepCopy might make a constant in the rare case that we have a single element array.
+                 */
+                assertThat(deepCopy.asVector() != null && deepCopy.asVector().isConstant(), equalTo(true));
+            }
         }
         Block untracked = block.deepCopy(TestBlockFactory.getNonBreakingInstance());
         assertThat(untracked, equalTo(block));

@@ -1,8 +1,8 @@
 {
   "msearch":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
-      "description":"Allows to execute several search operations in one request."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-msearch",
+      "description":"Run multiple searches"
     },
     "stability":"stable",
     "visibility":"public",

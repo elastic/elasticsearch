@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMap
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
@@ -539,12 +541,83 @@ public class ServiceUtilsTests extends ESTestCase {
         assertTrue(map.isEmpty());
     }
 
-    public void testExtractOptionalPositiveInt() {
+    public void testExtractOptionalPositiveInteger_returnsInteger_withPositiveInteger() {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("abc", 1));
         assertEquals(Integer.valueOf(1), extractOptionalPositiveInteger(map, "abc", "scope", validation));
         assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalPositiveInteger_returnsNull_whenSettingNotFound() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 1));
+        assertThat(extractOptionalPositiveInteger(map, "not_abc", "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalPositiveInteger_returnsNull_addsValidationError_whenObjectIsNotInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String setting = "abc";
+        Map<String, Object> map = modifiableMap(Map.of(setting, "not_an_int"));
+        assertThat(extractOptionalPositiveInteger(map, setting, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(validation.validationErrors().getLast(), containsString("cannot be converted to a [Integer]"));
+    }
+
+    public void testExtractOptionalPositiveInteger_returnNull_addsValidationError_withNonPositiveInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String zeroKey = "zero";
+        String negativeKey = "negative";
+        Map<String, Object> map = modifiableMap(Map.of(zeroKey, 0, negativeKey, -1));
+
+        // Test zero
+        assertThat(extractOptionalPositiveInteger(map, zeroKey, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(validation.validationErrors().getLast(), containsString("[" + zeroKey + "] must be a positive integer"));
+
+        // Test a negative number
+        assertThat(extractOptionalPositiveInteger(map, negativeKey, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(3));
+        assertThat(validation.validationErrors().getLast(), containsString("[" + negativeKey + "] must be a positive integer"));
+    }
+
+    public void testExtractOptionalInteger_returnsInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String positiveKey = "positive";
+        int positiveValue = 123;
+        String zeroKey = "zero";
+        int zeroValue = 0;
+        String negativeKey = "negative";
+        int negativeValue = -123;
+        Map<String, Object> map = modifiableMap(Map.of(positiveKey, positiveValue, zeroKey, zeroValue, negativeKey, negativeValue));
+
+        assertThat(extractOptionalInteger(map, positiveKey, "scope", validation), is(positiveValue));
+        assertThat(extractOptionalInteger(map, zeroKey, "scope", validation), is(zeroValue));
+        assertThat(extractOptionalInteger(map, negativeKey, "scope", validation), is(negativeValue));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalInteger_returnsNull_whenSettingNotFound() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 1));
+        assertThat(extractOptionalInteger(map, "not_abc", "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalInteger_returnsNull_addsValidationError_whenObjectIsNotInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String setting = "abc";
+        Map<String, Object> map = modifiableMap(Map.of(setting, "not_an_int"));
+        assertThat(extractOptionalInteger(map, setting, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(validation.validationErrors().getLast(), containsString("cannot be converted to a [Integer]"));
     }
 
     public void testExtractOptionalPositiveLong_IntegerValue() {
@@ -654,6 +727,69 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors(), hasSize(2));
         assertNull(parsedInt);
         assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_ReturnsValueWhenValueIsEqualToMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(5, 5);
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_ReturnsValueWhenValueIsGreaterThanToMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(5, 6);
+    }
+
+    private void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(int minValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, "key", minValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorWhenValueIsLessThanMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "key",
+            5,
+            4,
+            "[scope] Invalid value [4.0]. [key] must be a greater than or equal to [5.0]"
+        );
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorWhenKeyIsMissing() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "not_key",
+            5,
+            -1,
+            "[scope] does not contain the required setting [not_key]"
+        );
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorOnNegativeValue() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "key",
+            5,
+            -1,
+            "[scope] Invalid value [-1]. [key] must be a positive integer"
+        );
+    }
+
+    private void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+        String key,
+        int minValue,
+        int actualValue,
+        String error
+    ) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, key, minValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), containsString(error));
     }
 
     public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsBetweenMinAndMax() {

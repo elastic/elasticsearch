@@ -803,31 +803,36 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
-    public static final int IGNORE_ABOVE_DEFAULT = Integer.MAX_VALUE;
-    public static final int IGNORE_ABOVE_DEFAULT_LOGSDB = 8191;
+    public static final int IGNORE_ABOVE_DEFAULT_STANDARD_INDICES = Integer.MAX_VALUE;
+    public static final int IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES = 8191;
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
-        IndexSettings::getIgnoreAboveDefaultValue,
+        settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
         0,
         Integer.MAX_VALUE,
         Property.IndexScope,
         Property.ServerlessPublic
     );
 
-    private static String getIgnoreAboveDefaultValue(final Settings settings) {
-        return String.valueOf(
-            getIgnoreAboveDefaultValue(IndexSettings.MODE.get(settings), IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings))
-        );
+    private static int getIgnoreAboveDefaultValue(final Settings settings) {
+        if (settings == null) {
+            return IGNORE_ABOVE_DEFAULT_STANDARD_INDICES;
+        }
+        return getIgnoreAboveDefaultValue(IndexSettings.MODE.get(settings), IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings));
     }
 
     public static int getIgnoreAboveDefaultValue(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
-        if (indexMode == IndexMode.LOGSDB
-            && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB))) {
-            return IGNORE_ABOVE_DEFAULT_LOGSDB;
+        if (diffIgnoreAboveDefaultForLogs(indexMode, indexCreatedVersion)) {
+            return IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES;
         } else {
-            return IGNORE_ABOVE_DEFAULT;
+            return IGNORE_ABOVE_DEFAULT_STANDARD_INDICES;
         }
+    }
+
+    private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+        return indexMode == IndexMode.LOGSDB
+            && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB));
     }
 
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(

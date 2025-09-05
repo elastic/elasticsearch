@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -193,7 +194,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             super(name);
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), indexMode, indexCreatedVersion);
+            this.ignoreAbove = Parameter.ignoreAboveParam(
+                m -> builder(m).ignoreAbove.get(),
+                IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion)
+            );
             this.dimensions.precludesParameters(ignoreAbove);
         }
 

@@ -52,6 +52,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -221,7 +222,10 @@ public class WildcardFieldMapper extends FieldMapper {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             this.indexMode = indexMode;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove, indexMode, indexVersionCreated);
+            this.ignoreAbove = Parameter.ignoreAboveParam(
+                m -> toType(m).ignoreAbove,
+                IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexVersionCreated)
+            );
         }
 
         @Override

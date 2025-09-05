@@ -79,7 +79,7 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
             }
         }""";
 
-    // when sorted, this message will appear at the top
+    // when sorted, this message will appear at the top and hence can be used to validate query results
     private String smallestMessage;
 
     public TextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {

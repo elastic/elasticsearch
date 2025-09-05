@@ -6,7 +6,7 @@ teardown:
         ignore: 404
 
 ---
-"Test set processor with template value":
+"Test set processor with a templated value":
   - do:
       ingest.put_pipeline:
         id: "1"

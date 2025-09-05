@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
@@ -104,6 +105,37 @@ public class GPUIndexIT extends ESIntegTestCase {
             searchResponse1.decRef();
             searchResponse2.decRef();
         }
+
+        // Force merge and search again
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName1).get());
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName2).get());
+        ensureGreen();
+
+        var searchResponse3 = prepareSearch(indexName1).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null)))
+            .get();
+
+        var searchResponse4 = prepareSearch(indexName2).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null)))
+            .get();
+
+        try {
+            SearchHit[] hits3 = searchResponse3.getHits().getHits();
+            SearchHit[] hits4 = searchResponse4.getHits().getHits();
+            Assert.assertEquals(hits3.length, hits4.length);
+            for (int i = 0; i < hits3.length; i++) {
+                Assert.assertEquals(hits3[i].getId(), hits4[i].getId());
+                Assert.assertEquals((String) hits3[i].field("my_keyword").getValue(), (String) hits4[i].field("my_keyword").getValue());
+                Assert.assertEquals(hits3[i].getScore(), hits4[i].getScore(), 0.0001f);
+            }
+        } finally {
+            searchResponse3.decRef();
+            searchResponse4.decRef();
+        }
     }
 
     public void testSearchWithoutGPU() {
@@ -131,23 +163,26 @@ public class GPUIndexIT extends ESIntegTestCase {
         if (sorted) {
             settings.put("index.sort.field", "my_keyword");
         }
-        assertAcked(prepareCreate(indexName).setSettings(settings.build()).setMapping(String.format(Locale.ROOT, """
-                {
-                  "properties": {
-                    "my_vector": {
-                      "type": "dense_vector",
-                      "dims": %d,
-                      "similarity": "l2_norm",
-                      "index_options": {
-                        "type": "hnsw"
-                      }
-                    },
-                    "my_keyword": {
-                      "type": "keyword"
-                    }
+
+        String type = randomFrom("hnsw", "int8_hnsw");
+        String mapping = String.format(Locale.ROOT, """
+            {
+              "properties": {
+                "my_vector": {
+                  "type": "dense_vector",
+                  "dims": %d,
+                  "similarity": "l2_norm",
+                  "index_options": {
+                    "type": "%s"
                   }
+                },
+                "my_keyword": {
+                  "type": "keyword"
                 }
-            """, dims)));
+              }
+            }
+            """, dims, type);
+        assertAcked(prepareCreate(indexName).setSettings(settings.build()).setMapping(mapping));
         ensureGreen();
     }
 

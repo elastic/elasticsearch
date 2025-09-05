@@ -227,6 +227,8 @@ public class ParsingTests extends ESTestCase {
         assertThat(query.plan(), is(instanceOf(Eval.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "bar", true);
+
+        expectThrows(ParsingException.class, () -> parse("SET foo = 1, bar = 2; row a = 1", new QueryParams()));
     }
 
     public void testSetWithTripleQuotes() {

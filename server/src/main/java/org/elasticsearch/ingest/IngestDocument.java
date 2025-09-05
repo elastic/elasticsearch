@@ -688,7 +688,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false, true, false);
+        setFieldValue(path, value, false, false, false);
     }
 
     /**
@@ -746,6 +746,8 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        assert append || (allowDuplicates == false && ignoreEmptyValues == false)
+            : "allowDuplicates and ignoreEmptyValues only apply if append is true";
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;

@@ -255,9 +255,7 @@ public class IrateLongAggregator {
                     int len = state.entries();
                     // When the last value is less than the previous one, we assume a reset
                     // and use the last value directly.
-                    final double ydiff = state.values[0] > state.values[1]
-                        ? state.values[0] - state.values[1]
-                        : state.values[0];
+                    final double ydiff = state.values[0] > state.values[1] ? state.values[0] - state.values[1] : state.values[0];
                     final long xdiff = state.timestamps[0] - state.timestamps[1];
                     rates.appendDouble(ydiff / xdiff * 1000);
                 }

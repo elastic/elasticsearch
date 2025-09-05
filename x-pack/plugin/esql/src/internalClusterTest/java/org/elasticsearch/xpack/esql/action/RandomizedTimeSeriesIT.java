@@ -271,8 +271,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             if (deltaAgg.equals(DeltaAgg.IRATE)) {
                 var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
-                var irate = (lastVal > secondLastVal ? lastVal - secondLastVal : lastVal)
-                    / (lastTs.toEpochMilli() - timeseries.get(timeseries.size() - 2).v2().v1().toEpochMilli()) * 1000;
+                var irate = (lastVal > secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - timeseries.get(
+                    timeseries.size() - 2
+                ).v2().v1().toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
             }
             assert deltaAgg == DeltaAgg.RATE;
@@ -384,7 +385,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-//        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var deltaAgg = Tuple.tuple("irate", DeltaAgg.IRATE); // TODO: Re-enable irate after fixing
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();

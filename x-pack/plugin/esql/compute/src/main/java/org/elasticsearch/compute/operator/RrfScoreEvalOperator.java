@@ -24,7 +24,9 @@ import java.util.Map;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights) implements OperatorFactory {
+    public record Factory(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new RrfScoreEvalOperator(forkPosition, scorePosition, rankConstant, weights);

@@ -29,6 +29,8 @@ public final class SearchCapabilities {
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS = "dense_vector_docvalue_fields";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
+    private static final String KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED = "kql_query_boolean_field_query";
+
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
     /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
@@ -64,6 +66,7 @@ public final class SearchCapabilities {
         capabilities.add(MOVING_FN_RIGHT_MATH);
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
+        capabilities.add(KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED);
         capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);

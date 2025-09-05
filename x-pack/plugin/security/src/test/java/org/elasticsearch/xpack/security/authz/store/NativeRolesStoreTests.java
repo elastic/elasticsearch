@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -499,7 +498,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
             final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.minimumCompatible(),
                 transportVersionBeforeAdvancedRemoteClusterSecurity
             );
             final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);

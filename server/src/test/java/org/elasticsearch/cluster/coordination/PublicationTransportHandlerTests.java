@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -236,7 +235,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 allNodes.add(node);
                 nodeTransports.put(
                     node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.minimumCompatible(), TransportVersion.current())
                 );
             }
 

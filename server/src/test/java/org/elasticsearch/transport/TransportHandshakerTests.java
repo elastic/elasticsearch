@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -111,7 +110,7 @@ public class TransportHandshakerTests extends ESTestCase {
         StreamInput input = bytesStreamOutput.bytes().streamInput();
         input.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
 
-        if (handshakeRequest.transportVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE)) {
+        if (handshakeRequest.transportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
 
             final PlainActionFuture<TransportResponse> responseFuture = new PlainActionFuture<>();
             final TestTransportChannel channel = new TestTransportChannel(responseFuture);
@@ -208,7 +207,7 @@ public class TransportHandshakerTests extends ESTestCase {
         var releaseVersion = randomIdentifier();
         final var handshakeResponse = new TransportHandshaker.HandshakeResponse(remoteVersion, releaseVersion);
 
-        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE)) {
+        if (remoteVersion.onOrAfter(TransportVersion.minimumCompatible())) {
             // we fall back to the best known version
             MockLog.assertThatLogger(
                 () -> handler.handleResponse(handshakeResponse),
@@ -261,7 +260,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     private void assertDeprecationMessageIsLogged(TransportVersion remoteVersion, String remoteReleaseVersion, Object channel) {
-        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && remoteVersion.before(V8_19_FIRST_VERSION)) {
+        if (remoteVersion.onOrAfter(TransportVersion.minimumCompatible()) && remoteVersion.before(V8_19_FIRST_VERSION)) {
             assertWarnings(getDeprecationMessage(TransportVersion.current(), remoteVersion, remoteReleaseVersion, channel));
         }
     }
@@ -269,11 +268,11 @@ public class TransportHandshakerTests extends ESTestCase {
     private static TransportVersion getRandomIncompatibleTransportVersion() {
         return randomBoolean()
             // either older than MINIMUM_COMPATIBLE
-            ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
+            ? new TransportVersion(between(1, TransportVersion.minimumCompatible().id() - 1))
             // or between MINIMUM_COMPATIBLE and current but not known
             : randomValueOtherThanMany(
                 TransportVersion::isKnown,
-                () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
+                () -> new TransportVersion(between(TransportVersion.minimumCompatible().id(), TransportVersion.current().id()))
             );
     }
 

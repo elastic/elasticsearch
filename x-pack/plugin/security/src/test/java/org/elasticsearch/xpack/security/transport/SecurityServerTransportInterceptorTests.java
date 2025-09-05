@@ -149,16 +149,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 

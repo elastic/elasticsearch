@@ -118,9 +118,9 @@ public final class PreAuthorizationUtils {
     }
 
     public static boolean shouldRemoveParentAuthorizationFromThreadContext(
-        Optional<String> remoteClusterAlias,
         String childAction,
-        SecurityContext securityContext
+        SecurityContext securityContext,
+        Optional<String> remoteClusterAlias
     ) {
         final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
         if (parentAuthorization == null) {

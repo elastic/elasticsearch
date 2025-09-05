@@ -71,9 +71,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // We should not remove the parent authorization when child action is white-listed
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.empty(),
                 randomWhitelistedChildAction(parentAction),
-                securityContextWithParentAuthorization
+                securityContextWithParentAuthorization,
+                Optional.empty()
             ),
             equalTo(false)
         );
@@ -81,9 +81,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // We should not remove when there is nothing to be removed
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null),
                 randomWhitelistedChildAction(parentAction),
-                new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY))
+                new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY)),
+                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null)
             ),
             equalTo(false)
         );
@@ -92,9 +92,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // we expect to remove parent authorization when targeting remote cluster
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.of("my_remote_cluster"),
                 randomWhitelistedChildAction(parentAction),
-                securityContextWithParentAuthorization
+                securityContextWithParentAuthorization,
+                Optional.of("my_remote_cluster")
             ),
             equalTo(true)
         );
@@ -104,9 +104,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // - or the child action is not white-listed for the parent
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null),
                 randomAlphaOfLengthBetween(3, 8),
-                securityContextWithParentAuthorization
+                securityContextWithParentAuthorization,
+                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null)
             ),
             equalTo(true)
         );

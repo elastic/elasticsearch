@@ -222,7 +222,7 @@ public final class SamlRealm extends Realm implements Releasable {
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
         final TimeValue maxSkew = config.getSetting(CLOCK_SKEW);
-        final Predicate<Attribute> privateAttributePredicate = SamlPrivateAttributePredicate.create(config);
+        final Predicate<Attribute> privateAttributePredicate = new SamlPrivateAttributePredicate(config);
         final SamlAuthenticator authenticator = new SamlAuthenticator(
             clock,
             idpConfiguration,

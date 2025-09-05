@@ -26,31 +26,39 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
  * When the setting is configured, the attributes whose {@code Attribute#getName} or {@code Attribute#getFriendlyName} match,
  * will be treated as private ({@link SamlPrivateAttribute}).
  */
-public class SamlPrivateAttributePredicate implements Predicate<Attribute> {
+class SamlPrivateAttributePredicate implements Predicate<Attribute> {
 
     private static final Logger logger = LogManager.getLogger(SamlPrivateAttributePredicate.class);
 
+    private static final Predicate<Attribute> MATCH_NONE = new Predicate<Attribute>() {
+        @Override
+        public boolean test(Attribute attribute) {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "<matching no SAML private attributes>";
+        }
+    };
+
     private final Predicate<Attribute> predicate;
 
-    private SamlPrivateAttributePredicate(RealmConfig config) {
+    SamlPrivateAttributePredicate(RealmConfig config) {
         this.predicate = buildPrivateAttributesPredicate(config);
-    }
-
-    public static SamlPrivateAttributePredicate create(RealmConfig config) {
-        return new SamlPrivateAttributePredicate(config);
     }
 
     private static Predicate<Attribute> buildPrivateAttributesPredicate(RealmConfig config) {
 
         if (false == config.hasSetting(PRIVATE_ATTRIBUTES)) {
             logger.trace("No SAML private attributes setting configured.");
-            return attribute -> false;
+            return MATCH_NONE;
         }
 
         final List<String> attributesList = config.getSetting(PRIVATE_ATTRIBUTES);
         if (attributesList == null || attributesList.isEmpty()) {
             logger.trace("No SAML private attributes configured for setting [{}].", PRIVATE_ATTRIBUTES);
-            return attribute -> false;
+            return MATCH_NONE;
         }
 
         final Set<String> attributesSet = attributesList.stream()
@@ -58,7 +66,7 @@ public class SamlPrivateAttributePredicate implements Predicate<Attribute> {
             .collect(Collectors.toUnmodifiableSet());
 
         if (attributesSet.isEmpty()) {
-            return attribute -> false;
+            return MATCH_NONE;
         }
 
         logger.trace("SAML private attributes configured: {}", attributesSet);
@@ -77,7 +85,7 @@ public class SamlPrivateAttributePredicate implements Predicate<Attribute> {
 
             @Override
             public String toString() {
-                return "SAML private attributes predicate for: " + attributesSet;
+                return "<matching " + attributesSet + " SAML private attributes>";
             }
         };
     }
@@ -85,6 +93,11 @@ public class SamlPrivateAttributePredicate implements Predicate<Attribute> {
     @Override
     public boolean test(Attribute attribute) {
         return predicate.test(attribute);
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + " {predicate=" + predicate + "}";
     }
 
 }

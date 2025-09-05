@@ -26,7 +26,7 @@ public class SamlSecureAttributePredicateTests extends ESTestCase {
 
         final List<String> privateAttributes = List.of("private", "http://elastic.co/confidential");
         final RealmConfig config = realmConfig(privateAttributes);
-        final SamlPrivateAttributePredicate predicate = SamlPrivateAttributePredicate.create(config);
+        final SamlPrivateAttributePredicate predicate = new SamlPrivateAttributePredicate(config);
 
         final String privateAttribute = randomFrom(privateAttributes);
         final String nonPrivateAttribute = randomFrom(new String[] { null, " ", randomAlphaOfLengthBetween(0, 3) });
@@ -51,7 +51,7 @@ public class SamlSecureAttributePredicateTests extends ESTestCase {
 
         List<String> privateAttributes = randomBoolean() ? List.of() : null;
         RealmConfig config = realmConfig(privateAttributes);
-        SamlPrivateAttributePredicate predicate = SamlPrivateAttributePredicate.create(config);
+        SamlPrivateAttributePredicate predicate = new SamlPrivateAttributePredicate(config);
 
         String name = randomFrom(randomAlphaOfLengthBetween(0, 5), null);
         String friendlyName = randomFrom(randomAlphaOfLengthBetween(0, 5), null);

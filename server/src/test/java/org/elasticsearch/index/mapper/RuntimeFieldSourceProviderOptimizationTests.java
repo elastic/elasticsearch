@@ -17,16 +17,15 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.LongScriptDocValues;
+import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +40,8 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
         var mapping = jsonBuilder().startObject().startObject("runtime").startObject("field");
         mapping.field("type", "long");
         mapping.endObject().endObject().endObject();
-        var indexService = createIndex("test-index", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        var indexService = createIndex("test-index", settings, mapping);
 
         int numDocs = 256;
         try (Directory directory = newDirectory(); IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
@@ -77,12 +77,15 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
                 var termQuery = fieldType.termQuery(32, context);
                 assertThat(searcher.count(termQuery), equalTo(1));
 
-                // Test that runtime based block loader works as expected with the optimization:
-                var blockLoader = fieldType.blockLoader(blContext(context.lookup()));
-                var columnReader = blockLoader.columnAtATimeReader(leafReaderContext);
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(leafReaderContext), 0, false);
-                for (int i = 0; i < block.size(); i++) {
-                    assertThat(block.get(i), equalTo((long) i));
+                // Test that script runtime field data works as expected with the optimization:
+                var fieldData = (LongScriptFieldData) context.getForField(fieldType, MappedFieldType.FielddataOperation.SCRIPT);
+                var leafFieldData = fieldData.load(leafReaderContext);
+                var sortedNumericDocValues = (LongScriptDocValues) leafFieldData.getLongValues();
+                for (int i = 0; i < 256; i++) {
+                    boolean result = sortedNumericDocValues.advanceExact(i);
+                    assertThat(result, equalTo(true));
+                    assertThat(sortedNumericDocValues.docValueCount(), equalTo(1));
+                    assertThat(sortedNumericDocValues.nextValue(), equalTo((long) i));
                 }
             }
         }
@@ -125,53 +128,18 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
                 var termQuery = fieldType.termQuery(32, context);
                 assertThat(searcher.count(termQuery), equalTo(1));
 
-                // Test that runtime based block loader works as expected with the optimization:
-                var blockLoader = fieldType.blockLoader(blContext(context.lookup()));
-                var columnReader = blockLoader.columnAtATimeReader(leafReaderContext);
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(leafReaderContext), 0, false);
-                for (int i = 0; i < block.size(); i++) {
-                    assertThat(block.get(i), equalTo((long) i));
+                // Test that script runtime field data works as expected with the optimization:
+                var fieldData = (LongScriptFieldData) context.getForField(fieldType, MappedFieldType.FielddataOperation.SCRIPT);
+                var leafFieldData = fieldData.load(leafReaderContext);
+                var sortedNumericDocValues = (LongScriptDocValues) leafFieldData.getLongValues();
+                for (int i = 0; i < 256; i++) {
+                    boolean result = sortedNumericDocValues.advanceExact(i);
+                    assertThat(result, equalTo(true));
+                    assertThat(sortedNumericDocValues.docValueCount(), equalTo(1));
+                    assertThat(sortedNumericDocValues.nextValue(), equalTo((long) i));
                 }
             }
         }
     }
 
-    static MappedFieldType.BlockLoaderContext blContext(SearchLookup lookup) {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return lookup;
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-            }
-        };
-    }
 }

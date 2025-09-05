@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PresentAggregatorFunction implements AggregatorFunction {
     public static AggregatorFunctionSupplier supplier() {
@@ -47,22 +48,21 @@ public class PresentAggregatorFunction implements AggregatorFunction {
     }
 
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-        new IntermediateStateDesc("present", ElementType.BOOLEAN),
-        new IntermediateStateDesc("seen", ElementType.BOOLEAN)
+        new IntermediateStateDesc("present", ElementType.BOOLEAN)
     );
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private final BooleanState state;
+    private final AtomicBoolean state;
     private final List<Integer> channels;
 
     public static PresentAggregatorFunction create(List<Integer> inputChannels) {
-        return new PresentAggregatorFunction(inputChannels, new BooleanState(false));
+        return new PresentAggregatorFunction(inputChannels, new AtomicBoolean(false));
     }
 
-    private PresentAggregatorFunction(List<Integer> channels, BooleanState state) {
+    private PresentAggregatorFunction(List<Integer> channels, AtomicBoolean state) {
         this.channels = channels;
         this.state = state;
     }
@@ -79,7 +79,6 @@ public class PresentAggregatorFunction implements AggregatorFunction {
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
         Block block = page.getBlock(blockIndex());
-        BooleanState state = this.state;
         boolean present;
         if (mask.isConstant()) {
             if (mask.getBoolean(0) == false) {
@@ -89,7 +88,7 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         } else {
             present = presentMasked(block, mask);
         }
-        state.booleanValue(present);
+        this.state.set(present);
     }
 
     private boolean presentMasked(Block block, BooleanVector mask) {
@@ -111,20 +110,20 @@ public class PresentAggregatorFunction implements AggregatorFunction {
             return;
         }
         BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert present.getPositionCount() == 1;
-        assert present.getPositionCount() == seen.getPositionCount();
-        state.booleanValue(state.booleanValue() || present.getBoolean(0));
+        if (present.getBoolean(0)) {
+            state.set(true);
+        }
     }
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-        state.toIntermediate(blocks, offset, driverContext);
+        evaluateFinal(blocks, offset, driverContext);
     }
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-        blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1);
+        blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.get(), 1);
     }
 
     @Override
@@ -137,7 +136,5 @@ public class PresentAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void close() {
-        state.close();
-    }
+    public void close() {}
 }

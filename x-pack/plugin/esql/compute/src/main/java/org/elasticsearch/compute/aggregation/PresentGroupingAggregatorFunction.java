@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -22,23 +23,22 @@ import java.util.List;
 public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-        new IntermediateStateDesc("present", ElementType.BOOLEAN),
-        new IntermediateStateDesc("seen", ElementType.BOOLEAN)
+        new IntermediateStateDesc("present", ElementType.BOOLEAN)
     );
 
-    private final BooleanArrayState state;
+    private final BitArray state;
     private final List<Integer> channels;
     private final DriverContext driverContext;
 
     public static PresentGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new PresentGroupingAggregatorFunction(inputChannels, new BooleanArrayState(driverContext.bigArrays(), false), driverContext);
+        return new PresentGroupingAggregatorFunction(inputChannels, new BitArray(1, driverContext.bigArrays()), driverContext);
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private PresentGroupingAggregatorFunction(List<Integer> channels, BooleanArrayState state, DriverContext driverContext) {
+    private PresentGroupingAggregatorFunction(List<Integer> channels, BitArray state, DriverContext driverContext) {
         this.channels = channels;
         this.state = state;
         this.driverContext = driverContext;
@@ -56,10 +56,6 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
-
-        if (valuesBlock.mayHaveNulls()) {
-            state.enableGroupIdTracking(seenGroupIds);
-        }
 
         return new AddInput() {
             @Override
@@ -88,8 +84,7 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
             if (values.isNull(position)) {
                 continue;
             }
-            int groupId = groups.getInt(groupPosition);
-            state.set(groupId, state.getOrDefault(groupId) || values.getValueCount(position) > 0);
+            state.set(groups.getInt(groupPosition), true);
         }
     }
 
@@ -102,8 +97,7 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = groups.getInt(g);
-                state.set(groupId, state.getOrDefault(groupId) || values.getValueCount(position) > 0);
+                state.set(groups.getInt(g), true);
             }
         }
     }
@@ -117,25 +111,19 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = groups.getInt(g);
-                state.set(groupId, state.getOrDefault(groupId) || values.getValueCount(position) > 0);
+                state.set(groups.getInt(g), true);
             }
         }
     }
 
     @Override
-    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-        state.enableGroupIdTracking(seenGroupIds);
-    }
+    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {}
 
     @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        state.enableGroupIdTracking(new SeenGroupIds.Empty());
         BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
-        assert present.getPositionCount() == seen.getPositionCount();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             if (groups.isNull(groupPosition)) {
                 continue;
@@ -143,8 +131,9 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = groups.getInt(g);
-                state.set(groupId, state.getOrDefault(groupId) || present.getBoolean(groupPosition + positionOffset));
+                if (present.getBoolean(groupPosition + positionOffset)) {
+                    state.set(groups.getInt(g), true);
+                }
             }
         }
     }
@@ -153,10 +142,7 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        state.enableGroupIdTracking(new SeenGroupIds.Empty());
         BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
-        assert present.getPositionCount() == seen.getPositionCount();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             if (groups.isNull(groupPosition)) {
                 continue;
@@ -164,8 +150,9 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = groups.getInt(g);
-                state.set(groupId, state.getOrDefault(groupId) || present.getBoolean(groupPosition + positionOffset));
+                if (present.getBoolean(groupPosition + positionOffset)) {
+                    state.set(groups.getInt(g), true);
+                }
             }
         }
     }
@@ -174,19 +161,27 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        state.enableGroupIdTracking(new SeenGroupIds.Empty());
         BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
-        assert present.getPositionCount() == seen.getPositionCount();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            int groupId = groups.getInt(groupPosition);
-            state.set(groupId, state.getOrDefault(groupId) || present.getBoolean(groupPosition + positionOffset));
+            if (present.getBoolean(groupPosition + positionOffset)) {
+                state.set(groups.getInt(groupPosition), true);
+            }
         }
     }
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        state.toIntermediate(blocks, offset, selected, driverContext);
+        try (var valuesBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                if (group < state.size()) {
+                    valuesBuilder.appendBoolean(state.get(group));
+                } else {
+                    valuesBuilder.appendBoolean(false);
+                }
+            }
+            blocks[offset] = valuesBuilder.build();
+        }
     }
 
     @Override
@@ -194,7 +189,7 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
         try (BooleanVector.Builder builder = evaluationContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
-                builder.appendBoolean(state.hasValue(si) && state.getOrDefault(si));
+                builder.appendBoolean(state.get(si));
             }
             blocks[offset] = builder.build().asBlock();
         }

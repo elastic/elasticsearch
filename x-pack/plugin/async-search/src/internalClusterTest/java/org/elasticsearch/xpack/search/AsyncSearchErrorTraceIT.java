@@ -19,6 +19,7 @@ import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -30,6 +31,10 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
+@TestLogging(
+    reason = "testing debug log output to identify race condition",
+    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
+)
 public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     private BooleanSupplier transportMessageHasStackTrace;
 

@@ -12,8 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -34,7 +32,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
@@ -47,15 +44,12 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -120,7 +114,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
-        this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
             crossClusterAccessAuthcService,
             authcService,
@@ -131,6 +124,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             settings,
             remoteClusterCredentialsResolver
         );
+        this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
     @Override
@@ -285,47 +279,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
 
-        Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
-
-        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
-        final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
-
-        for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
-            final String profileName = entry.getKey();
-            final SslProfile sslProfile = entry.getValue();
-            final SslConfiguration profileConfiguration = sslProfile.configuration();
-            assert profileConfiguration != null : "Ssl Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
-            final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
-            if (useRemoteClusterProfile) {
-                profileFilters.put(
-                    profileName,
-                    new CrossClusterAccessServerTransportFilter(
-                        crossClusterAccessAuthcService,
-                        authzService,
-                        threadPool.getThreadContext(),
-                        remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                        destructiveOperations,
-                        securityContext,
-                        licenseState
-                    )
-                );
-            } else {
-                profileFilters.put(
-                    profileName,
-                    new ServerTransportFilter(
-                        authcService,
-                        authzService,
-                        threadPool.getThreadContext(),
-                        transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                        destructiveOperations,
-                        securityContext
-                    )
-                );
-            }
-        }
-
-        return Collections.unmodifiableMap(profileFilters);
+        return remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
     }
 
     public static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {

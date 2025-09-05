@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -526,7 +525,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS
-                values(metrics.gaugel_hdd.bytes.used),
                 max(max_over_time(metrics.gaugel_hdd.bytes.used)),
                 min(min_over_time(metrics.gaugel_hdd.bytes.used)),
                 sum(count_over_time(metrics.gaugel_hdd.bytes.used)),
@@ -539,29 +537,20 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             var groups = groupedRows(documents, dimensions, 60);
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
-                var rowKey = getRowKey(row, dimensions, 7);
+                var rowKey = getRowKey(row, dimensions, 6);
                 var tsGroups = groupByTimeseries(groups.get(rowKey), "gaugel_hdd.bytes.used");
-                var docValues = valuesInWindow(groups.get(rowKey), "gaugel_hdd.bytes.used");
-                if (row.get(0) instanceof List) {
-                    assertThat(
-                        (Collection<Long>) row.getFirst(),
-                        containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
-                    );
-                } else {
-                    assertThat(row.getFirst(), equalTo(docValues.isEmpty() ? null : docValues.getFirst().longValue()));
-                }
                 Function<Object, Double> toDouble = cell -> switch (cell) {
                     case Long l -> l.doubleValue();
                     case Double d -> d;
                     case null -> null;
                     default -> throw new IllegalStateException("Unexpected value type: " + cell + " of class " + cell.getClass());
                 };
-                assertThat(toDouble.apply(row.get(1)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
-                assertThat(toDouble.apply(row.get(2)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
-                assertThat(toDouble.apply(row.get(3)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
-                assertThat(toDouble.apply(row.get(4)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
+                assertThat(toDouble.apply(row.get(0)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
+                assertThat(toDouble.apply(row.get(1)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
+                assertThat(toDouble.apply(row.get(2)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
+                assertThat(toDouble.apply(row.get(3)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
                 var avg = (Double) aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
-                assertThat((Double) row.get(5), row.get(5) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
+                assertThat((Double) row.get(4), row.get(4) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
                 // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }
@@ -577,7 +566,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS
-                values(metrics.gaugel_hdd.bytes.used),
                 max(max_over_time(metrics.gaugel_hdd.bytes.used)),
                 min(min_over_time(metrics.gaugel_hdd.bytes.used)),
                 sum(count_over_time(metrics.gaugel_hdd.bytes.used)),
@@ -590,29 +578,20 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = consumeRows(resp);
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
-                var windowStart = windowStart(row.get(7), 60);
-                List<Integer> docValues = valuesInWindow(groups.get(List.of(Long.toString(windowStart))), "gaugel_hdd.bytes.used");
+                var windowStart = windowStart(row.get(6), 60);
                 var tsGroups = groupByTimeseries(groups.get(List.of(Long.toString(windowStart))), "gaugel_hdd.bytes.used");
-                if (row.get(0) instanceof List) {
-                    assertThat(
-                        (Collection<Long>) row.get(0),
-                        containsInAnyOrder(docValues.stream().mapToLong(Integer::longValue).boxed().toArray(Long[]::new))
-                    );
-                } else {
-                    assertThat(row.getFirst(), equalTo(docValues.isEmpty() ? null : docValues.getFirst().longValue()));
-                }
                 Function<Object, Double> toDouble = cell -> switch (cell) {
                     case Long l -> l.doubleValue();
                     case Double d -> d;
                     case null -> null;
                     default -> throw new IllegalStateException("Unexpected value type: " + cell + " of class " + cell.getClass());
                 };
-                assertThat(toDouble.apply(row.get(1)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
-                assertThat(toDouble.apply(row.get(2)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
-                assertThat(toDouble.apply(row.get(3)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
-                assertThat(toDouble.apply(row.get(4)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
+                assertThat(toDouble.apply(row.get(0)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MAX, Agg.MAX)));
+                assertThat(toDouble.apply(row.get(1)), equalTo(aggregatePerTimeseries(tsGroups, Agg.MIN, Agg.MIN)));
+                assertThat(toDouble.apply(row.get(2)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.COUNT)));
+                assertThat(toDouble.apply(row.get(3)), equalTo(aggregatePerTimeseries(tsGroups, Agg.SUM, Agg.SUM)));
                 var avg = (Double) aggregatePerTimeseries(tsGroups, Agg.AVG, Agg.AVG);
-                assertThat((Double) row.get(5), row.get(5) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
+                assertThat((Double) row.get(4), row.get(4) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
                 // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
         }

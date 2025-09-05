@@ -28,22 +28,22 @@ intExp
 required_capability: decay_function
 
 ROW value = 5
-| EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "exp"}) 
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "exp"})) 
 | KEEP decay_result;
 
 decay_result:double
-0.7071067811865475
+0.7071067811865476
 ;
 
 intGauss
 required_capability: decay_function
 
 ROW value = 5
-| EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "gauss"}) 
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "gauss"})) 
 | KEEP decay_result;
 
 decay_result:double
-0.8408964152537146
+0.8408964152537145
 ;
 
 intLinearWithOffset
@@ -61,18 +61,18 @@ intExpWithOffset
 required_capability: decay_function
 
 ROW value = 120
-| EVAL decay_result = decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "exp"}) 
+| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "exp"})) 
 | KEEP decay_result;
 
 decay_result:double
-0.6968453019359488
+0.6968453019359489
 ;
 
 intGaussWithOffset
 required_capability: decay_function
 
 ROW value = 120
-| EVAL decay_result = decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "gauss"}) 
+| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "gauss"})) 
 | KEEP decay_result;
 
 decay_result:double
@@ -165,22 +165,22 @@ doubleExp
 required_capability: decay_function
 
 ROW value = 5.0
-| EVAL decay_result = decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "exp"}) 
+| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "exp"})) 
 | KEEP decay_result;
 
 decay_result:double
-0.7071067811865475
+0.7071067811865476
 ;
 
 doubleGauss
 required_capability: decay_function
 
 ROW value = 5.0
-| EVAL decay_result = decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "gauss"}) 
+| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "gauss"})) 
 | KEEP decay_result;
 
 decay_result:double
-0.8408964152537146
+0.8408964152537145
 ;
 
 longLinear

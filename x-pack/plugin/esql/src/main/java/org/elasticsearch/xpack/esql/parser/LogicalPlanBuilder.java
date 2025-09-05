@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -120,8 +120,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
-    protected EsqlQuery query(ParseTree ctx) {
-        EsqlQuery p = typedParsing(this, ctx, EsqlQuery.class);
+    protected EsqlStatement query(ParseTree ctx) {
+        EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
         return p;
     }
 
@@ -143,14 +143,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public EsqlQuery visitStatements(EsqlBaseParser.StatementsContext ctx) {
+    public EsqlStatement visitStatements(EsqlBaseParser.StatementsContext ctx) {
         List<QuerySetting> settings = new ArrayList<>();
         for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
             settings.add(visitSetCommand(setCommandContext));
         }
 
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
-        return new EsqlQuery(query, settings);
+        return new EsqlStatement(query, settings);
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {

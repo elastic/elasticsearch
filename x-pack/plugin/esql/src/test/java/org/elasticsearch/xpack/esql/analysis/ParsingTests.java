@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -213,7 +213,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSet() {
-        EsqlQuery query = parse("SET foo = \"bar\"; row a = 1", new QueryParams());
+        EsqlStatement query = parse("SET foo = \"bar\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"));
@@ -232,7 +232,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetWithTripleQuotes() {
-        EsqlQuery query = parse("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
+        EsqlStatement query = parse("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\"baz"));
@@ -249,7 +249,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testMultipleSet() {
-        EsqlQuery query = parse(
+        EsqlStatement query = parse(
             "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
             new QueryParams()
         );
@@ -265,7 +265,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetArrays() {
-        EsqlQuery query = parse("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
+        EsqlStatement query = parse("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(2));
 
@@ -274,7 +274,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetWithNamedParams() {
-        EsqlQuery query = parse(
+        EsqlStatement query = parse(
             "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
             new QueryParams(
                 List.of(
@@ -293,7 +293,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetWithPositionalParams() {
-        EsqlQuery query = parse(
+        EsqlStatement query = parse(
             "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
             new QueryParams(
                 List.of(
@@ -319,7 +319,7 @@ public class ParsingTests extends ESTestCase {
      * @param name     the setting name
      * @param value    the setting value as it appears in the query at that position
      */
-    private void checkSetting(EsqlQuery query, int position, String name, Object value) {
+    private void checkSetting(EsqlStatement query, int position, String name, Object value) {
         checkSetting(query, position, name, value, value);
     }
 
@@ -331,17 +331,17 @@ public class ParsingTests extends ESTestCase {
      * @param maskingValue the final value you'll obtain if you use query.setting(name).
      *                     It could be different from value in case of name collisions in the query
      */
-    private void checkSetting(EsqlQuery query, int position, String name, Object value, Object maskingValue) {
+    private void checkSetting(EsqlStatement query, int position, String name, Object value, Object maskingValue) {
         assertThat(settingName(query, position), is(name));
         assertThat(settingValue(query, position), is(value));
         assertThat(query.setting(name).fold(FoldContext.small()), is(maskingValue));
     }
 
-    private String settingName(EsqlQuery query, int position) {
+    private String settingName(EsqlStatement query, int position) {
         return query.settings().get(position).name();
     }
 
-    private Object settingValue(EsqlQuery query, int position) {
+    private Object settingValue(EsqlStatement query, int position) {
         return query.settings().get(position).value().fold(FoldContext.small());
     }
 
@@ -352,7 +352,7 @@ public class ParsingTests extends ESTestCase {
         return message.substring("line ".length());
     }
 
-    private EsqlQuery parse(String query, QueryParams params) {
+    private EsqlStatement parse(String query, QueryParams params) {
         return parser.createQuery(query, params, TEST_CFG);
     }
 

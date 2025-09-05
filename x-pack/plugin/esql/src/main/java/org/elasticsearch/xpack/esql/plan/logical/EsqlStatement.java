@@ -11,10 +11,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.util.List;
 
-public record EsqlQuery(LogicalPlan plan, List<QuerySetting> settings) {
+public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
     /**
      * Returns the expression corresponding to a setting value.
-     * If the setting name appears multiple times (in one or more QuerySettings objects), this will return last occurrence.
+     * If the setting name appears multiple times, this will return last occurrence.
      *
      * @param name the setting name
      */

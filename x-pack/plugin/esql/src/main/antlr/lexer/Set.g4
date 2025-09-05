@@ -7,7 +7,7 @@
 lexer grammar Rename;
 
 //
-// SET key="value", ke2="value2"...
+// SET key="value"
 //
 SET : 'set'             -> pushMode(SET_MODE);
 

@@ -20,7 +20,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -117,11 +117,11 @@ public class EsqlParser {
     }
 
     // testing utility
-    public EsqlQuery createQuery(String query, QueryParams params, Configuration configuration) {
+    public EsqlStatement createQuery(String query, QueryParams params, Configuration configuration) {
         return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), configuration);
     }
 
-    public EsqlQuery createQuery(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
+    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }

@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -85,6 +85,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -169,8 +170,8 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        EsqlQuery query = parse(request.query(), request.params());
-        LogicalPlan plan = query.plan();
+        EsqlStatement statement = parse(request.query(), request.params());
+        LogicalPlan plan = statement.plan();
         if (plan instanceof Explain explain) {
             explainMode = true;
             plan = explain.query();
@@ -309,9 +310,15 @@ public class EsqlSession {
         return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
     }
 
-    private EsqlQuery parse(String query, QueryParams params) {
+    private EsqlStatement parse(String query, QueryParams params) {
         var parsed = new EsqlParser().createQuery(query, params, planTelemetry, configuration);
-        LOGGER.debug("Parsed logical plan:\n{}", parsed);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
+            LOGGER.debug(
+                "Parsed settings:\n[{}]",
+                parsed.settings().stream().map(x -> x.field().name() + "=" + x.value()).collect(joining(", "))
+            );
+        }
         return parsed;
     }
 

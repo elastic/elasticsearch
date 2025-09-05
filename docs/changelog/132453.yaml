@@ -1,0 +1,5 @@
+pr: 132453
+summary: Add streaming response to ESQL
+area: ES|QL
+type: enhancement
+issues: []

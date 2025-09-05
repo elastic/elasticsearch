@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Formats {@link EsqlQueryResponse} for the textual representation.
@@ -27,7 +30,8 @@ public class TextFormatter {
      */
     private static final int MIN_COLUMN_WIDTH = 15;
 
-    private final EsqlQueryResponse response;
+    private final List<ColumnInfoImpl> columns;
+    private final Supplier<Iterator<Iterator<Object>>> valuesSupplier;
     private final int[] width;
     private final Function<Object, String> FORMATTER = Objects::toString;
     private final boolean includeHeader;
@@ -36,11 +40,16 @@ public class TextFormatter {
     /**
      * Create a new {@linkplain TextFormatter} for formatting responses
      */
-    public TextFormatter(EsqlQueryResponse response, boolean includeHeader, boolean dropNullColumns) {
-        this.response = response;
-        var columns = response.columns();
+    public TextFormatter(
+        List<ColumnInfoImpl> columns,
+        Supplier<Iterator<Iterator<Object>>> valuesSupplier,
+        boolean includeHeader,
+        boolean[] dropColumns
+    ) {
+        this.columns = columns;
+        this.valuesSupplier = valuesSupplier;
         this.includeHeader = includeHeader;
-        this.dropColumns = dropNullColumns ? response.nullColumns() : new boolean[columns.size()];
+        this.dropColumns = dropColumns;
         // Figure out the column widths:
         // 1. Start with the widths of the column names
         width = new int[columns.size()];
@@ -50,7 +59,7 @@ public class TextFormatter {
         }
 
         // 2. Expand columns to fit the largest value
-        var iterator = response.values();
+        var iterator = valuesSupplier.get();
         while (iterator.hasNext()) {
             var row = iterator.next();
             for (int i = 0; i < width.length; i++) {
@@ -67,7 +76,7 @@ public class TextFormatter {
     public Iterator<CheckedConsumer<Writer, IOException>> format() {
         return Iterators.concat(
             // The header lines
-            includeHeader && response.columns().isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
+            includeHeader && columns.isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
             // Now format the results.
             formatResults()
         );
@@ -82,7 +91,7 @@ public class TextFormatter {
                 writer.append('|');
             }
 
-            String name = response.columns().get(i).name();
+            String name = columns.get(i).name();
             // left padding
             int leftPadding = (width[i] - name.length()) / 2;
             writePadding(leftPadding, writer);
@@ -105,7 +114,7 @@ public class TextFormatter {
     }
 
     private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
-        return Iterators.map(response.values(), row -> writer -> {
+        return Iterators.map(valuesSupplier.get(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
                 if (dropColumns[i]) {

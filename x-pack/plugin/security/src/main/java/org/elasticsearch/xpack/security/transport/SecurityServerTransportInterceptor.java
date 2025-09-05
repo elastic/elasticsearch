@@ -61,6 +61,22 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     public SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor
+
+    ) {
+        this.remoteClusterTransportInterceptor = remoteClusterTransportInterceptor;
+        this.securityContext = securityContext;
+        this.threadPool = threadPool;
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
+        this.profileFilters = this.remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
         AuthenticationService authcService,
         AuthorizationService authzService,
         SSLService sslService,

@@ -4,8 +4,8 @@
       "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create-from",
       "description":"Create an index from a source index"
     },
-    "stability":"experimental",
-    "visibility":"private",
+    "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

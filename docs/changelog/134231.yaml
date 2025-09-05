@@ -1,0 +1,6 @@
+pr: 134231
+summary: Fix exceptions in index pattern conflict checks
+area: Indices APIs
+type: bug
+issues:
+ - 133652

@@ -131,7 +131,11 @@ public class ClassificationStats implements AnalysisStats {
             builder.field(Fields.TYPE.getPreferredName(), TYPE_VALUE);
             builder.field(Fields.JOB_ID.getPreferredName(), jobId);
         }
-        builder.timeField(Fields.TIMESTAMP.getPreferredName(), Fields.TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
+        builder.timestampFieldsFromUnixEpochMillis(
+            Fields.TIMESTAMP.getPreferredName(),
+            Fields.TIMESTAMP.getPreferredName() + "_string",
+            timestamp.toEpochMilli()
+        );
         builder.field(ITERATION.getPreferredName(), iteration);
         builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
         builder.field(TIMING_STATS.getPreferredName(), timingStats);

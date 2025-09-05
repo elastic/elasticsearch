@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -72,6 +71,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         private TimeValue timeout = DEFAULT_TIMEOUT;
 
         public Request(String id) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             setId(id);
         }
 
@@ -81,7 +81,9 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             timeout = in.readTimeValue();
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public final void setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
@@ -146,7 +148,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
     public static class TaskParams implements PersistentTaskParams, MlTaskParams {
 
         public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_7_3_0;
-        public static final TransportVersion TRANSPORT_VERSION_INTRODUCED = TransportVersions.V_7_3_0;
         public static final MlConfigVersion VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = MlConfigVersion.V_7_10_0;
 
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
@@ -204,7 +205,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TRANSPORT_VERSION_INTRODUCED;
+            return TransportVersion.zero();
         }
 
         @Override

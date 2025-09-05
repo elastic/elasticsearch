@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -22,8 +24,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
@@ -34,16 +34,14 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.TransportExplainAction;
@@ -156,9 +154,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         for (int i = 0; i < numIndices; i++) {
             indices.add("test" + i);
         }
-        for (String index : indices) {
-            assertAcked(prepareCreate(index).addAlias(new Alias(index + "-alias")));
-        }
+        assertAcked(
+            indices.stream()
+                .map(index -> prepareCreate(index).addAlias(new Alias(index + "-alias")))
+                .toArray(CreateIndexRequestBuilder[]::new)
+        );
         ensureGreen();
     }
 
@@ -206,7 +206,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        String[] indexShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
+        String[] indexShardActions = new String[] { TransportBulkAction.NAME + "[s][p]", TransportBulkAction.NAME + "[s][r]" };
         interceptTransportActions(indexShardActions);
 
         IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias()).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -217,7 +217,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testDelete() {
-        String[] deleteShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
+        String[] deleteShardActions = new String[] { TransportBulkAction.NAME + "[s][p]", TransportBulkAction.NAME + "[s][r]" };
         interceptTransportActions(deleteShardActions);
 
         DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias()).id("id");
@@ -231,8 +231,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         // update action goes to the primary, index op gets executed locally, then replicated
         String[] updateShardActions = new String[] {
             TransportUpdateAction.NAME + "[s]",
-            BulkAction.NAME + "[s][p]",
-            BulkAction.NAME + "[s][r]" };
+            TransportBulkAction.NAME + "[s][p]",
+            TransportBulkAction.NAME + "[s][r]" };
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -249,8 +249,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         // update action goes to the primary, index op gets executed locally, then replicated
         String[] updateShardActions = new String[] {
             TransportUpdateAction.NAME + "[s]",
-            BulkAction.NAME + "[s][p]",
-            BulkAction.NAME + "[s][r]" };
+            TransportBulkAction.NAME + "[s][p]",
+            TransportBulkAction.NAME + "[s][r]" };
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -267,8 +267,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         // update action goes to the primary, delete op gets executed locally, then replicated
         String[] updateShardActions = new String[] {
             TransportUpdateAction.NAME + "[s]",
-            BulkAction.NAME + "[s][p]",
-            BulkAction.NAME + "[s][r]" };
+            TransportBulkAction.NAME + "[s][p]",
+            TransportBulkAction.NAME + "[s][r]" };
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -284,7 +284,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testBulk() {
-        String[] bulkShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
+        String[] bulkShardActions = new String[] { TransportBulkAction.NAME + "[s][p]", TransportBulkAction.NAME + "[s][r]" };
         interceptTransportActions(bulkShardActions);
 
         List<String> indicesOrAliases = new ArrayList<>();
@@ -395,7 +395,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         String[] concreteIndexNames = TestIndexNameExpressionResolver.newInstance()
-            .concreteIndexNames(clusterAdmin().prepareState().get().getState(), flushRequest);
+            .concreteIndexNames(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(concreteIndexNames), indexShardActions);
     }
 
@@ -422,12 +422,12 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         String[] concreteIndexNames = TestIndexNameExpressionResolver.newInstance()
-            .concreteIndexNames(clusterAdmin().prepareState().get().getState(), refreshRequest);
+            .concreteIndexNames(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(concreteIndexNames), indexShardActions);
     }
 
     public void testClearCache() {
-        String clearCacheAction = ClearIndicesCacheAction.NAME + "[n]";
+        String clearCacheAction = TransportClearIndicesCacheAction.TYPE.name() + "[n]";
         interceptTransportActions(clearCacheAction);
 
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(randomIndicesOrAliases());
@@ -512,16 +512,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertSameIndices(deleteIndexRequest, TransportDeleteIndexAction.TYPE.name());
     }
 
-    public void testGetMappings() {
-        interceptTransportActions(GetMappingsAction.NAME);
-
-        GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().getMappings(getMappingsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(getMappingsRequest, GetMappingsAction.NAME);
-    }
-
     public void testPutMapping() {
         interceptTransportActions(TransportPutMappingAction.TYPE.name());
 
@@ -530,16 +520,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(putMappingRequest, TransportPutMappingAction.TYPE.name());
-    }
-
-    public void testGetSettings() {
-        interceptTransportActions(GetSettingsAction.NAME);
-
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().getSettings(getSettingsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(getSettingsRequest, GetSettingsAction.NAME);
     }
 
     public void testUpdateSettings() {
@@ -555,11 +535,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testSearchQueryThenFetch() throws Exception {
-        interceptTransportActions(
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME
-        );
+        interceptTransportActions(SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -570,25 +546,19 @@ public class IndicesRequestIT extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         assertNoFailuresAndResponse(
             internalCluster().coordOnlyNodeClient().search(searchRequest),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L))
         );
 
         clearInterceptedActions();
-        assertIndicesSubset(
-            Arrays.asList(searchRequest.indices()),
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME
-        );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), true, SearchTransportService.QUERY_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.FETCH_ID_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
         interceptTransportActions(
             SearchTransportService.DFS_ACTION_NAME,
             SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME
+            SearchTransportService.FETCH_ID_ACTION_NAME
         );
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
@@ -600,7 +570,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         assertNoFailuresAndResponse(
             internalCluster().coordOnlyNodeClient().search(searchRequest),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L))
         );
 
         clearInterceptedActions();
@@ -610,8 +580,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
@@ -634,10 +602,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     private static void assertIndicesSubset(List<String> indices, String... actions) {
         assertIndicesSubset(indices, false, actions);
-    }
-
-    private static void assertIndicesSubsetOptionalRequests(List<String> indices, String... actions) {
-        assertIndicesSubset(indices, true, actions);
     }
 
     private static void assertIndicesSubset(List<String> indices, boolean optional, String... actions) {

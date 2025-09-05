@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'inference-service-test'
-  description 'A mock inference service'
-  classname 'org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin'
+  name = 'inference-service-test'
+  description = 'A mock inference service'
+  classname = 'org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin'
   extendedPlugins = ['x-pack-inference']
 }
 
@@ -16,5 +16,5 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

@@ -7,37 +7,25 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockUtils;
 
-import java.util.Arrays;
 import java.util.function.Supplier;
 
-public interface LocalSupplier extends Supplier<Block[]> {
-
-    LocalSupplier EMPTY = new LocalSupplier() {
-        @Override
-        public Block[] get() {
-            return BlockUtils.NO_BLOCKS;
-        }
-
-        @Override
-        public String toString() {
-            return "EMPTY";
-        }
-    };
+/**
+ * Supplies fixed {@link Block}s for things calculated at plan time.
+ * <p>
+ *     This is {@link Writeable} so we can model {@code LOOKUP} and
+ *     hash joins which have to go over the wire. But many implementers
+ *     don't have to go over the wire and they should feel free to throw
+ *     {@link UnsupportedOperationException}.
+ * </p>
+ */
+public interface LocalSupplier extends Supplier<Block[]>, NamedWriteable {
 
     static LocalSupplier of(Block[] blocks) {
-        return new LocalSupplier() {
-            @Override
-            public Block[] get() {
-                return blocks;
-            }
-
-            @Override
-            public String toString() {
-                return Arrays.toString(blocks);
-            }
-        };
+        return new ImmediateLocalSupplier(blocks);
     }
+
 }

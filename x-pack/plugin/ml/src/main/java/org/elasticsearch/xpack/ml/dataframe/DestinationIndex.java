@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -46,7 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -110,18 +110,22 @@ public final class DestinationIndex {
         String[] destIndexAllowedSettings,
         ActionListener<CreateIndexResponse> listener
     ) {
-        ActionListener<CreateIndexRequest> createIndexRequestListener = ActionListener.wrap(createIndexRequest -> {
-            ClientHelper.executeWithHeadersAsync(
-                analyticsConfig.getHeaders(),
-                ClientHelper.ML_ORIGIN,
-                client,
-                CreateIndexAction.INSTANCE,
-                createIndexRequest,
-                listener
-            );
-        }, listener::onFailure);
-
-        prepareCreateIndexRequest(client, clock, analyticsConfig, destIndexAllowedSettings, createIndexRequestListener);
+        prepareCreateIndexRequest(
+            client,
+            clock,
+            analyticsConfig,
+            destIndexAllowedSettings,
+            listener.delegateFailureAndWrap(
+                (l, createIndexRequest) -> ClientHelper.executeWithHeadersAsync(
+                    analyticsConfig.getHeaders(),
+                    ClientHelper.ML_ORIGIN,
+                    client,
+                    TransportCreateIndexAction.TYPE,
+                    createIndexRequest,
+                    l
+                )
+            )
+        );
     }
 
     private static void prepareCreateIndexRequest(
@@ -131,29 +135,8 @@ public final class DestinationIndex {
         String[] destIndexAllowedSettings,
         ActionListener<CreateIndexRequest> listener
     ) {
-        AtomicReference<Settings> settingsHolder = new AtomicReference<>();
-        AtomicReference<MappingMetadata> mappingsHolder = new AtomicReference<>();
-
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse));
-        }, listener::onFailure);
-
-        ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(mappings -> {
-            mappingsHolder.set(mappings);
-            getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
-        }, listener::onFailure);
-
-        ActionListener<Settings> settingsListener = ActionListener.wrap(settings -> {
-            settingsHolder.set(settings);
-            MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource(), mappingsListener);
-        }, listener::onFailure);
-
-        ActionListener<GetSettingsResponse> getSettingsResponseListener = ActionListener.wrap(
-            settingsResponse -> settingsListener.onResponse(settings(settingsResponse, destIndexAllowedSettings)),
-            listener::onFailure
-        );
-
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(config.getSource().getIndex())
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(config.getSource().getIndex())
             .indicesOptions(IndicesOptions.lenientExpandOpen())
             .names(PRESERVED_SETTINGS);
         ClientHelper.executeWithHeadersAsync(
@@ -162,7 +145,26 @@ public final class DestinationIndex {
             client,
             GetSettingsAction.INSTANCE,
             getSettingsRequest,
-            getSettingsResponseListener
+            listener.delegateFailureAndWrap((delegate, settingsResponse) -> {
+                final Settings settings = settings(settingsResponse, destIndexAllowedSettings);
+                MappingsMerger.mergeMappings(
+                    client,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    config.getHeaders(),
+                    config.getSource(),
+                    delegate.delegateFailureAndWrap(
+                        (l, mappings) -> getFieldCapsForRequiredFields(
+                            client,
+                            config,
+                            l.delegateFailureAndWrap(
+                                (ll, fieldCapabilitiesResponse) -> ll.onResponse(
+                                    createIndexRequest(clock, config, settings, mappings, fieldCapabilitiesResponse)
+                                )
+                            )
+                        )
+                    )
+                );
+            })
         );
     }
 
@@ -353,7 +355,7 @@ public final class DestinationIndex {
         // Verify that the results field does not exist in the dest index
         checkResultsFieldIsNotPresentInProperties(config, destPropertiesAsMap);
 
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(fieldCapabilitiesResponse -> {
+        getFieldCapsForRequiredFields(client, config, listener.delegateFailureAndWrap((delegate, fieldCapabilitiesResponse) -> {
             Map<String, Object> addedMappings = new HashMap<>();
 
             // Determine mappings to be added to the destination index
@@ -372,11 +374,9 @@ public final class DestinationIndex {
                 client,
                 TransportPutMappingAction.TYPE,
                 putMappingRequest,
-                listener
+                delegate
             );
-        }, listener::onFailure);
-
-        getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
+        }));
     }
 
     private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {

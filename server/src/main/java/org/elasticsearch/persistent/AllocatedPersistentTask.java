@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
@@ -11,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -64,7 +66,33 @@ public class AllocatedPersistentTask extends CancellableTask {
         final PersistentTaskState state,
         final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
     ) {
-        persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, listener);
+        persistentTasksService.sendUpdateStateRequest(
+            persistentTaskId,
+            allocationId,
+            state,
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
+            listener
+        );
+    }
+
+    /**
+     * Updates the persistent state for the corresponding project scope persistent task.
+     * <p>
+     * This doesn't affect the status of this allocated task.
+     */
+    public void updateProjectPersistentTaskState(
+        final ProjectId projectId,
+        final PersistentTaskState state,
+        final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+    ) {
+        persistentTasksService.sendProjectUpdateStateRequest(
+            projectId,
+            persistentTaskId,
+            allocationId,
+            state,
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
+            listener
+        );
     }
 
     public String getPersistentTaskId() {
@@ -200,7 +228,8 @@ public class AllocatedPersistentTask extends CancellableTask {
                         getAllocationId(),
                         failure,
                         localAbortReason,
-                        new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+                        TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
+                        new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                                 logger.trace("notification for task [{}] with id [{}] was successful", getAction(), getPersistentTaskId());

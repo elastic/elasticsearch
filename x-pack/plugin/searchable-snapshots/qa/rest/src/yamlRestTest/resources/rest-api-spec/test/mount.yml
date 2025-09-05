@@ -160,8 +160,8 @@ teardown:
 
 ---
 "Test Mount API with unknown request body field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "unknown request body fields are rejected starting version 8.5.0"
   - do:
       catch:  bad_request

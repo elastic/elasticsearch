@@ -10,16 +10,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -114,16 +114,22 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(indexRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse indexResponse) {
-                handler.accept(true);
-            }
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportBulkAction.TYPE,
+            bulkRequestBuilder.request(),
+            new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse indexResponse) {
+                    handler.accept(true);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                errorHandler.accept(e);
+                @Override
+                public void onFailure(Exception e) {
+                    errorHandler.accept(e);
+                }
             }
-        });
+        );
     }
 }

@@ -7,23 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
+// end generated imports
+
 /**
  * Block build of BytesRefBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
     private BytesRefArray values;
-
-    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
-    }
 
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
         super(blockFactory);
@@ -78,56 +79,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         values.append(BytesRefBlock.NULL_VALUE);
     }
 
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        BytesRef scratch = new BytesRef();
-        final BytesRefVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendBytesRef(vector.getBytesRef(p, scratch));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
-    }
-
     @Override
     public BytesRefBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
@@ -142,7 +93,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(BytesRefBlock, int, BytesRef scratch)}.
+     * </p>
      */
+    @Override
     public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -159,21 +114,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     private void copyFromBlock(BytesRefBlock block, int beginInclusive, int endExclusive) {
         BytesRef scratch = new BytesRef();
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendBytesRef(block.getBytesRef(i++, scratch));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p, scratch);
         }
     }
 
@@ -184,10 +125,48 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         }
     }
 
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+     * @param scratch Scratch string used to prevent allocation. Share this
+                      between many calls to this function.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int position, BytesRef scratch) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendBytesRef(block.getBytesRef(i++, scratch));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendBytesRef(block.getBytesRef(i++, scratch));
+        }
+        endPositionEntry();
+        return this;
+    }
+
     @Override
     public BytesRefBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
     }
 
     private BytesRefBlock buildFromBytesArray() {

@@ -11,23 +11,23 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX_AS_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX_AS_DOUBLE;
 
-public class ToUnsignedLongTests extends AbstractFunctionTestCase {
+public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
     public ToUnsignedLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -36,13 +36,12 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        Function<String, String> evaluatorName = s -> "ToUnsignedLongFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             read,
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             n -> n,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -51,36 +50,37 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
 
         TestCaseSupplier.forUnaryBoolean(
             suppliers,
-            evaluatorName.apply("Boolean"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Boolean", "bool"),
+            DataType.UNSIGNED_LONG,
             b -> b ? BigInteger.ONE : BigInteger.ZERO,
             List.of()
         );
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Long"),
-            DataTypes.UNSIGNED_LONG,
-            instant -> BigInteger.valueOf(instant.toEpochMilli()),
+            evaluatorName("Long", "lng"),
+            TestCaseSupplier.dateCases(),
+            DataType.UNSIGNED_LONG,
+            instant -> BigInteger.valueOf(((Instant) instant).toEpochMilli()),
             List.of()
         );
         // random strings that don't look like an unsigned_long
-        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataTypes.UNSIGNED_LONG, bytesRef -> null, bytesRef -> {
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName("String", "in"), DataType.UNSIGNED_LONG, bytesRef -> null, bytesRef -> {
             // BigDecimal, used to parse unsigned_longs will throw NFEs with different messages depending on empty string, first
             // non-number character after a number-looking like prefix, or string starting with "e", maybe others -- safer to take
             // this shortcut here.
             Exception e = expectThrows(NumberFormatException.class, () -> new BigDecimal(bytesRef.utf8ToString()));
             return List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: " + e.getMessage()
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.NumberFormatException: " + e.getMessage()
             );
         });
         // from doubles within unsigned_long's range
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Double", "dbl"),
+            DataType.UNSIGNED_LONG,
             d -> BigDecimal.valueOf(d).toBigInteger(), // note: not: new BigDecimal(d).toBigInteger
             0d,
             UNSIGNED_LONG_MAX_AS_DOUBLE,
@@ -89,35 +89,35 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
         // from doubles outside unsigned_long's range, negative
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Double", "dbl"),
+            DataType.UNSIGNED_LONG,
             d -> null,
             Double.NEGATIVE_INFINITY,
             -1d,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
             )
         );
         // from doubles outside Long's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Double", "dbl"),
+            DataType.UNSIGNED_LONG,
             d -> null,
             UNSIGNED_LONG_MAX_AS_DOUBLE + 10e5,
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
             )
         );
 
         // from long within unsigned_long's range
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Long", "lng"),
+            DataType.UNSIGNED_LONG,
             BigInteger::valueOf,
             0L,
             Long.MAX_VALUE,
@@ -126,22 +126,22 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
         // from long outside unsigned_long's range
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Long", "lng"),
+            DataType.UNSIGNED_LONG,
             unused -> null,
             Long.MIN_VALUE,
             -1L,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
             )
         );
 
         // from int within unsigned_long's range
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Int", "i"),
+            DataType.UNSIGNED_LONG,
             BigInteger::valueOf,
             0,
             Integer.MAX_VALUE,
@@ -150,72 +150,72 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
         // from int outside unsigned_long's range
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
-            DataTypes.UNSIGNED_LONG,
+            evaluatorName("Int", "i"),
+            DataType.UNSIGNED_LONG,
             unused -> null,
             Integer.MIN_VALUE,
             -1,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
             )
         );
 
         // strings of random unsigned_longs
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
-            TestCaseSupplier.ulongCases(BigInteger.ZERO, UNSIGNED_LONG_MAX)
+            evaluatorName("String", "in"),
+            TestCaseSupplier.ulongCases(BigInteger.ZERO, UNSIGNED_LONG_MAX, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             bytesRef -> safeToUnsignedLong(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
         // strings of random doubles within unsigned_long's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(0, UNSIGNED_LONG_MAX_AS_DOUBLE)
+            evaluatorName("String", "in"),
+            TestCaseSupplier.doubleCases(0, UNSIGNED_LONG_MAX_AS_DOUBLE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             bytesRef -> safeToUnsignedLong(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
         // strings of random doubles outside unsigned_long's range, negative
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, -1d)
+            evaluatorName("String", "in"),
+            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, -1d, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] out of [unsigned_long] range"
             )
@@ -223,28 +223,33 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
         // strings of random doubles outside Integer's range, positive
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(UNSIGNED_LONG_MAX_AS_DOUBLE + 10e5, Double.POSITIVE_INFINITY)
+            evaluatorName("String", "in"),
+            TestCaseSupplier.doubleCases(UNSIGNED_LONG_MAX_AS_DOUBLE + 10e5, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] out of [unsigned_long] range"
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        String read = "Attribute[channel=0]";
+        return "ToUnsignedLongFrom" + inner + "Evaluator[" + next + "=" + read + "]";
     }
 
     @Override

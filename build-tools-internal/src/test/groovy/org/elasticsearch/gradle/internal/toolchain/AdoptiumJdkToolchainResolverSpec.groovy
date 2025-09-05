@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.toolchain
@@ -11,7 +12,6 @@ package org.elasticsearch.gradle.internal.toolchain
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainResolver
-import org.gradle.platform.OperatingSystem
 
 import static org.elasticsearch.gradle.internal.toolchain.AbstractCustomJavaToolchainResolver.toArchString
 import static org.elasticsearch.gradle.internal.toolchain.AbstractCustomJavaToolchainResolver.toOsString
@@ -38,12 +38,7 @@ class AdoptiumJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                     toOsString(it[2], it[1]),
                     toArchString(it[3]),
                     languageVersion);
-            resolver.CACHED_SEMVERS.put(request, Optional.of(new AdoptiumJdkToolchainResolver.AdoptiumVersionInfo(languageVersion.asInt(),
-                    1,
-                    1,
-                    "" + languageVersion.asInt() + ".1.1.1+37",
-                    0, "" + languageVersion.asInt() + ".1.1.1+37.1"
-            )))
+            resolver.CACHED_RELEASES.put(request, Optional.of('jdk-' + languageVersion.asInt() + '.1.1.1+37.1'))
 
         }
         return resolver
@@ -52,7 +47,7 @@ class AdoptiumJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
     @Override
     def supportedRequests() {
         return [
-                [19, ADOPTIUM, MAC_OS, X86_64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/mac/x64/jdk/hotspot/normal/eclipse?project=jdk"],
+
                 [19, ADOPTIUM, LINUX, X86_64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/linux/x64/jdk/hotspot/normal/eclipse?project=jdk"],
                 [19, ADOPTIUM, WINDOWS, X86_64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/windows/x64/jdk/hotspot/normal/eclipse?project=jdk"],
                 [19, ADOPTIUM, MAC_OS, AARCH64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/mac/aarch64/jdk/hotspot/normal/eclipse?project=jdk"],

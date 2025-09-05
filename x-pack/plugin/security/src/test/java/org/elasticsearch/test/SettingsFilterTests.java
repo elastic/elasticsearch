@@ -7,13 +7,13 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Guice;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.injection.guice.Guice;
+import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;

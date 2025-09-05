@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,10 +26,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class GetConnectorAction {
 
-    public static final String NAME = "indices:data/read/xpack/connector/get";
+    public static final String NAME = "cluster:admin/xpack/connector/get";
     public static final ActionType<GetConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetConnectorAction() {/* no instances */}
@@ -36,20 +38,23 @@ public class GetConnectorAction {
     public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
+        private final Boolean includeDeleted;
 
         private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
 
-        public Request(String connectorId) {
-            this.connectorId = connectorId;
-        }
+        private static final ParseField INCLUDE_DELETED_FIELD = new ParseField("include_deleted");
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
+        public Request(String connectorId, Boolean includeDeleted) {
+            this.connectorId = connectorId;
+            this.includeDeleted = includeDeleted;
         }
 
         public String getConnectorId() {
             return connectorId;
+        }
+
+        public Boolean getIncludeDeleted() {
+            return includeDeleted;
         }
 
         @Override
@@ -65,8 +70,7 @@ public class GetConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
+            TransportAction.localOnly();
         }
 
         @Override
@@ -74,12 +78,12 @@ public class GetConnectorAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId);
+            return Objects.equals(connectorId, request.connectorId) && Objects.equals(includeDeleted, request.includeDeleted);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId);
+            return Objects.hash(connectorId, includeDeleted);
         }
 
         @Override
@@ -87,6 +91,7 @@ public class GetConnectorAction {
             builder.startObject();
             {
                 builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
+                builder.field(INCLUDE_DELETED_FIELD.getPreferredName(), includeDeleted);
             }
             builder.endObject();
             return builder;
@@ -95,11 +100,12 @@ public class GetConnectorAction {
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "get_connector_request",
             false,
-            (p) -> new Request((String) p[0])
+            (p) -> new Request((String) p[0], (Boolean) p[1])
 
         );
         static {
             PARSER.declareString(constructorArg(), CONNECTOR_ID_FIELD);
+            PARSER.declareBoolean(optionalConstructorArg(), INCLUDE_DELETED_FIELD);
         }
 
         public static Request parse(XContentParser parser) {
@@ -116,7 +122,6 @@ public class GetConnectorAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.connector = new ConnectorSearchResult(in);
         }
 

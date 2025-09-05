@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -12,8 +13,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -22,8 +25,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,11 +54,33 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
-    @Deprecated()
-    // TODO remove once Serverless is updated
-    public static final String RESPONSE_RESTRICTED = "responseRestricted";
-    // TODO rename to `pathRestricted` once Serverless is updated
-    public static final String PATH_RESTRICTED = "responseRestricted";
+    private static final Logger logger = LogManager.getLogger(RestRequest.class);
+
+    /**
+     * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
+     * {@link #OPERATOR_REQUEST} if you need to toggle behavior for serverless, for example to enforce partial API restrictions
+     * (prevent request fields, omit response fields) for an API.
+     * Requests not made in serverless mode, will *not* have this parameter set.
+     * Given a request instance, you can use {@link #isServerlessRequest()} to determine if the parameter is set or not.
+     * This is also available from {@code ToXContent.Params}. For example:
+     * {@code params.paramAsBoolean(RestRequest.SERVERLESS_REQUEST, false)}
+     */
+    public static final String SERVERLESS_REQUEST = "serverlessRequest";
+    /**
+     * Internal marker request parameter to indicate that a request was made by an operator user.
+     * Requests made by regular users (users without operator privileges), will *not* have this parameter set.
+     * Given a request instance, you can use {@link #isOperatorRequest()} to determine if the parameter is set or not.
+     * This is also available from {@code ToXContent.Params}. For example:
+     * {@code params.paramAsBoolean(RestRequest.OPERATOR_REQUEST, false)}
+     */
+    public static final String OPERATOR_REQUEST = "operatorRequest";
+
+    /**
+     * Internal request parameters used as markers to indicate various operations modes such as serverless mode, or operator mode.
+     * These can never be set directly by end-users. Instead, they are set internally by Elasticsearch and must be supported by all
+     * request handlers.
+     */
+    public static final Set<String> INTERNAL_MARKER_REQUEST_PARAMETERS = Set.of(SERVERLESS_REQUEST, OPERATOR_REQUEST);
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -82,19 +110,19 @@ public class RestRequest implements ToXContent.Params, Traceable {
     protected RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel
     ) {
-        this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
+        this(parserConfig, params, rawPath, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
     @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel,
@@ -126,7 +154,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
             : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
-        this.rawPath = path;
+        this.rawPath = rawPath;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
     }
@@ -165,15 +193,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
-     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
-     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
-     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
-     */
-    void ensureSafeBuffers() {
-        httpRequest = httpRequest.releaseAndCopy();
-    }
-
-    /**
      * Creates a new REST request.
      *
      * @throws BadParameterException if the parameters can not be decoded
@@ -181,11 +200,10 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
-        String path = path(httpRequest.uri());
         return new RestRequest(
             parserConfig,
             params,
-            path,
+            httpRequest.rawPath(),
             httpRequest.getHeaders(),
             httpRequest,
             httpChannel,
@@ -204,15 +222,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             }
         }
         return params;
-    }
-
-    private static String path(final String uri) {
-        final int index = uri.indexOf('?');
-        if (index >= 0) {
-            return uri.substring(0, index);
-        } else {
-            return uri;
-        }
     }
 
     /**
@@ -282,28 +291,65 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() > 0;
+        return httpRequest.hasContent();
     }
 
     public int contentLength() {
-        return httpRequest.content().length();
+        return httpRequest.body().asFull().bytes().length();
     }
 
-    public BytesReference content() {
-        this.contentConsumed = true;
-        return httpRequest.content();
+    public boolean isFullContent() {
+        return httpRequest.body().isFull();
     }
 
     /**
-     * @return content of the request body or throw an exception if the body or content type is missing
+     * Returns a direct reference to the network buffer containing the request body. The HTTP layers will release their references to this
+     * buffer as soon as they have finished the synchronous steps of processing the request on the network thread, which will by default
+     * release the buffer back to the pool where it may be re-used for another request. If you need to keep the buffer alive past the end of
+     * these synchronous steps, acquire your own reference to this buffer and release it once it's no longer needed.
      */
-    public final BytesReference requiredContent() {
+    public ReleasableBytesReference content() {
+        this.contentConsumed = true;
+        var bytes = httpRequest.body().asFull().bytes();
+        if (bytes.hasReferences() == false) {
+            var e = new IllegalStateException("http releasable content accessed after release");
+            logger.error(e.getMessage(), e);
+            assert false : e;
+            throw e;
+        }
+        return bytes;
+    }
+
+    public boolean isStreamedContent() {
+        return httpRequest.body().isStream();
+    }
+
+    public HttpBody.Stream contentStream() {
+        this.contentConsumed = true;
+        return httpRequest.body().asStream();
+    }
+
+    public void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
-            throw new IllegalStateException("unknown content type");
+            throwValidationException("unknown content type");
         }
+    }
+
+    /**
+     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
+     * See {@link #content()}.
+     */
+    public ReleasableBytesReference requiredContent() {
+        ensureContent();
         return content();
+    }
+
+    private static void throwValidationException(String msg) {
+        ValidationException unknownContentType = new ValidationException();
+        unknownContentType.addValidationError(msg);
+        throw unknownContentType;
     }
 
     /**
@@ -437,6 +483,18 @@ public class RestRequest implements ToXContent.Params, Traceable {
         }
     }
 
+    public Integer paramAsInteger(String key, Integer defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.valueOf(sValue);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
     public long paramAsLong(String key, long defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
@@ -502,9 +560,24 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
+        return contentParser(parserConfig);
+    }
+
+    private XContentParser contentParser(XContentParserConfiguration parserConfig) throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
         return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
+    }
 
+    /**
+     * If there is any content then call {@code applyParser} with the parser modified by {@code includeSourceOnError}, otherwise do nothing.
+     */
+    public final void applyContentParser(boolean includeSourceOnError, CheckedConsumer<XContentParser, IOException> applyParser)
+        throws IOException {
+        if (hasContent()) {
+            try (XContentParser parser = contentParser(parserConfig.withIncludeSourceOnError(includeSourceOnError))) {
+                applyParser.accept(parser);
+            }
+        }
     }
 
     /**
@@ -512,7 +585,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
         if (hasContent()) {
-            try (XContentParser parser = contentParser()) {
+            try (XContentParser parser = contentParser(parserConfig)) {
                 applyParser.accept(parser);
             }
         }
@@ -532,7 +605,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
-        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
         return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
@@ -543,7 +616,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
-            Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+            Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
             try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
@@ -556,7 +629,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
+    public final Tuple<XContentType, ReleasableBytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
@@ -565,14 +638,14 @@ public class RestRequest implements ToXContent.Params, Traceable {
         String source = param("source");
         String typeParam = param("source_content_type");
         if (source == null || typeParam == null) {
-            throw new IllegalStateException("source and source_content_type parameters are required");
+            throwValidationException("source and source_content_type parameters are required");
         }
         BytesArray bytes = new BytesArray(source);
         final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));
         if (xContentType == null) {
-            throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
+            throwValidationException("Unknown value for source_content_type [" + typeParam + "]");
         }
-        return new Tuple<>(xContentType, bytes);
+        return new Tuple<>(xContentType, ReleasableBytesReference.wrap(bytes));
     }
 
     public ParsedMediaType getParsedAccept() {
@@ -620,19 +693,41 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
-    public void markPathRestricted(String restriction) {
-        if (params.containsKey(PATH_RESTRICTED)) {
-            throw new IllegalArgumentException("The parameter [" + PATH_RESTRICTED + "] is already defined.");
-        }
-        params.put(PATH_RESTRICTED, restriction);
-        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(PATH_RESTRICTED);
+    /**
+     * See {@link #SERVERLESS_REQUEST}
+     */
+    public void markAsServerlessRequest() {
+        setParamTrueOnceAndConsume(SERVERLESS_REQUEST);
     }
 
-    @Deprecated()
-    // TODO remove once Serverless is updated
-    public void markResponseRestricted(String restriction) {
-        markPathRestricted(restriction);
+    /**
+     * See {@link #SERVERLESS_REQUEST}
+     */
+    public boolean isServerlessRequest() {
+        return paramAsBoolean(SERVERLESS_REQUEST, false);
+    }
+
+    /**
+     * See {@link #OPERATOR_REQUEST}
+     */
+    public void markAsOperatorRequest() {
+        setParamTrueOnceAndConsume(OPERATOR_REQUEST);
+    }
+
+    /**
+     * See {@link #OPERATOR_REQUEST}
+     */
+    public boolean isOperatorRequest() {
+        return paramAsBoolean(OPERATOR_REQUEST, false);
+    }
+
+    private void setParamTrueOnceAndConsume(String param) {
+        if (params.containsKey(param)) {
+            throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
+        }
+        params.put(param, "true");
+        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
+        consumedParams.add(param);
     }
 
     @Override

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -15,7 +14,6 @@ import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
@@ -26,6 +24,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerContext;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
@@ -119,7 +118,7 @@ public class SqlSession implements Session {
             AnalyzerContext context = new AnalyzerContext(
                 configuration,
                 functionRegistry,
-                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id))
+                IndexCompatibility.compatible(r, configuration.version())
             );
             Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.analyze(parsed, verify);

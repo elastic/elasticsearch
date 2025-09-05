@@ -9,25 +9,19 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * The response object returned by the Explain Lifecycle API.
- *
+ * <p>
  * Since the API can be run over multiple indices the response provides a map of
  * index to the explanation of the lifecycle status for that index.
  */
@@ -35,38 +29,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     public static final ParseField INDICES_FIELD = new ParseField("indices");
 
-    private Map<String, IndexLifecycleExplainResponse> indexResponses;
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ExplainLifecycleResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "explain_lifecycle_response",
-        a -> new ExplainLifecycleResponse(
-            ((List<IndexLifecycleExplainResponse>) a[0]).stream()
-                .collect(Collectors.toMap(IndexLifecycleExplainResponse::getIndex, Function.identity()))
-        )
-    );
-    static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> IndexLifecycleExplainResponse.PARSER.apply(p, c),
-            INDICES_FIELD
-        );
-    }
-
-    public static ExplainLifecycleResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    public ExplainLifecycleResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        Map<String, IndexLifecycleExplainResponse> indexResponses = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            IndexLifecycleExplainResponse indexResponse = new IndexLifecycleExplainResponse(in);
-            indexResponses.put(indexResponse.getIndex(), indexResponse);
-        }
-        this.indexResponses = indexResponses;
-    }
+    private final Map<String, IndexLifecycleExplainResponse> indexResponses;
 
     public ExplainLifecycleResponse(Map<String, IndexLifecycleExplainResponse> indexResponses) {
         this.indexResponses = indexResponses;
@@ -94,6 +57,11 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(indexResponses.values());

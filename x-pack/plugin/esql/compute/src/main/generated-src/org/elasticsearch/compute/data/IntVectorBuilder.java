@@ -11,7 +11,7 @@ import java.util.Arrays;
 
 /**
  * Builder for {@link IntVector}s that grows as needed.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBuilder.java.st} instead.
  */
 final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
 

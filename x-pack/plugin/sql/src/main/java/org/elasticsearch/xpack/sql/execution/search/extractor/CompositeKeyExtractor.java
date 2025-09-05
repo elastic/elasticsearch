@@ -22,11 +22,11 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG_TRANSPORT;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG_TRANSPORT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
 public class CompositeKeyExtractor implements BucketExtractor {

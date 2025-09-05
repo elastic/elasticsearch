@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in in 8.6.0"
 
 ---
@@ -67,8 +67,8 @@ setup:
 ---
 "Test cluster_balance_stats":
 
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "cluster_balance_stats added in in 8.7.0"
 
   - do:
@@ -115,8 +115,8 @@ setup:
 ---
 "Test tier_preference":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "tier_preference added in in 8.8.0"
 
   - do:
@@ -140,8 +140,8 @@ setup:
 ---
 "Test cluster_info":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "cluster_info added in in 8.8.0"
 
   - do:
@@ -152,8 +152,8 @@ setup:
 ---
 "Test undesired_shard_allocation_count":
 
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
 
   - do:
@@ -190,8 +190,8 @@ setup:
 ---
 "Test unassigned_shards, total_allocations, undesired_allocations and undesired_allocations_fraction":
 
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
 
   - do:

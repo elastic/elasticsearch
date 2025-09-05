@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -16,11 +17,6 @@ import org.apache.logging.log4j.spi.LoggerContextFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -74,13 +70,7 @@ public class DeprecationLoggerTests extends ESTestCase {
 
             DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("name");
 
-            AccessControlContext noPermissionsAcc = new AccessControlContext(
-                new ProtectionDomain[] { new ProtectionDomain(null, new Permissions()) }
-            );
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                deprecationLogger.warn(DeprecationCategory.API, "key", "foo", "bar");
-                return null;
-            }, noPermissionsAcc);
+            deprecationLogger.warn(DeprecationCategory.API, "key", "foo", "bar");
             assertThat("supplier called", supplierCalled.get(), is(true));
         } finally {
             LogManager.setFactory(originalFactory);

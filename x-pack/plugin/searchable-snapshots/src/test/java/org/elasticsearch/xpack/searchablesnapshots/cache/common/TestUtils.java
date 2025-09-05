@@ -223,6 +223,17 @@ public final class TestUtils {
         }
 
         @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            throw unsupportedException();
+        }
+
+        @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
@@ -258,6 +269,11 @@ public final class TestUtils {
             listener.onFailure(unsupportedException());
         }
 
+        @Override
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+            listener.onFailure(unsupportedException());
+        }
+
         private UnsupportedOperationException unsupportedException() {
             assert false : "this operation is not supported and should have not be called";
             return new UnsupportedOperationException("This operation is not supported");
@@ -267,7 +283,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override
@@ -291,7 +307,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, BytesArray> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override

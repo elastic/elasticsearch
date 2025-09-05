@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -22,6 +21,7 @@ import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 import static java.util.Map.entry;
 
-public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin, ExtensiblePlugin {
 
     public IngestCommonPlugin() {}
 
@@ -71,6 +71,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
             entry(SortProcessor.TYPE, new SortProcessor.Factory()),
             entry(SplitProcessor.TYPE, new SplitProcessor.Factory()),
+            entry(TerminateProcessor.TYPE, new TerminateProcessor.Factory()),
             entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
             entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
             entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
@@ -79,8 +80,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
+    public List<ActionHandler> getActions() {
+        return List.of(new ActionHandler(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
     }
 
     @Override

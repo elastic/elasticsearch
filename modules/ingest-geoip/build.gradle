@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.OS
@@ -11,10 +12,11 @@ import org.elasticsearch.gradle.OS
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  description 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
-  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+  description = 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
+  classname ='org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 
   bundleSpec.from("${project.buildDir}/ingest-geoip") {
     into '/'
@@ -27,12 +29,12 @@ tasks.named('internalClusterTestTestingConventions').configure {
 }
 
 dependencies {
-  implementation('com.maxmind.geoip2:geoip2:4.2.0')
+  implementation('com.maxmind.geoip2:geoip2:4.2.1')
   // geoip2 dependencies:
   runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   runtimeOnly("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
   runtimeOnly("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
-  implementation('com.maxmind.db:maxmind-db:3.1.0')
+  implementation('com.maxmind.db:maxmind-db:3.1.1')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
   internalClusterTestImplementation project(':modules:reindex')
@@ -64,6 +66,15 @@ tasks.named("internalClusterTest") {
   onlyIf("OS != windows") { OS.current() != OS.WINDOWS }
 }
 
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
@@ -75,7 +86,11 @@ tasks.named("dependencyLicenses").configure {
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTestsByFilePattern("**/ingest_geoip/20_geoip_processor.yml", "from 8.0 yaml rest tests use geoip test fixture and default geoip are no longer packaged. In 7.x yaml tests used default databases which makes tests results very different, so skipping these tests")
-  // task.skipTest("lang_mustache/50_multi_search_template/Multi-search template with errors", "xxx")
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest_geoip/40_geoip_databases/Test adding, getting, and removing geoip databases",
+    "get databases behavior began returning more results in 8.16")
+})

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -49,7 +50,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config);
+        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(networkProcessor.getTag(), equalTo(processorTag));
         assertThat(networkProcessor.getSourceIpField(), equalTo(sourceIpField));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(destIpField));
@@ -74,7 +75,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config);
+        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(networkProcessor.getTag(), equalTo(processorTag));
         assertThat(networkProcessor.getSourceIpField(), equalTo(sourceIpField));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(destIpField));
@@ -87,7 +88,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         HashMap<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
         try {
-            factory.create(null, processorTag, null, config);
+            factory.create(null, processorTag, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[internal_networks] or [internal_networks_field] must be specified"));
@@ -101,7 +102,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         internalNetworks.add("10.0.0.0/8");
         config.put("internal_networks", internalNetworks);
 
-        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config);
+        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(networkProcessor.getTag(), equalTo(processorTag));
         assertThat(networkProcessor.getSourceIpField(), equalTo(DEFAULT_SOURCE_IP));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(DEFAULT_DEST_IP));

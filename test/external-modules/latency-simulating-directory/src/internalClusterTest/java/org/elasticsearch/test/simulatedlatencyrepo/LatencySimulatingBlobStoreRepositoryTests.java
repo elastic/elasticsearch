@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.simulatedlatencyrepo;
@@ -22,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -60,11 +62,13 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 REPO_TYPE,
-                metadata -> new LatencySimulatingBlobStoreRepository(
+                (projectId, metadata) -> new LatencySimulatingBlobStoreRepository(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -123,6 +127,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
 
         logger.info("--> mount snapshot");
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             "test-idx",
             repositoryName,
             si.snapshotId().getName(),
@@ -138,7 +143,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
 
         logger.info("--> run a search");
         assertResponse(client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
             assertThat(COUNTS.intValue(), greaterThan(0));
         });
     }

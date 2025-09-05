@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -39,7 +40,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         config.put("field_split", "&");
         config.put("value_split", "=");
         String processorTag = randomAlphaOfLength(10);
-        KeyValueProcessor processor = factory.create(null, processorTag, null, config);
+        KeyValueProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
@@ -59,7 +60,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         config.put("exclude_keys", List.of());
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
-        KeyValueProcessor processor = factory.create(null, processorTag, null, config);
+        KeyValueProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
@@ -75,7 +76,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
@@ -86,7 +87,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(exception.getMessage(), equalTo("[field_split] required property is missing"));
     }
@@ -98,7 +99,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(exception.getMessage(), equalTo("[value_split] required property is missing"));
     }

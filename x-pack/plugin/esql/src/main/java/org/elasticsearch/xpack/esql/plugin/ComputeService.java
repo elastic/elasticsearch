@@ -7,88 +7,121 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardsGroup;
-import org.elasticsearch.action.search.SearchShardsRequest;
-import org.elasticsearch.action.search.SearchShardsResponse;
-import org.elasticsearch.action.search.TransportSearchShardsAction;
-import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
+import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
-import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
- * Computes the result of a {@link PhysicalPlan}.
+ * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
+ * This method is responsible for splitting physical plan into coordinator and data node plans.
+ * <p>
+ * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
+ * and is prepared to collect and merge pages from data nodes into the final query result.
+ * <p>
+ * Data node plan is passed to {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
+ * that is responsible for
+ * <ul>
+ * <li>
+ *     Determining list of nodes that contain shards referenced by the query with
+ *     {@code org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender#searchShards}
+ * </li>
+ * <li>
+ *     Each node in the list processed in
+ *     {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
+ *     in order to
+ *     <ul>
+ *     <li>
+ *         Open ExchangeSink on the target data node and link it with local ExchangeSource for the query
+ *         using `internal:data/read/esql/open_exchange` transport request.
+ *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService#openExchange}
+ *     </li>
+ *     <li>
+ *         Start data node plan execution on the target data node
+ *         using `indices:data/read/esql/data` transport request
+ *         {@see org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#messageReceived}
+ *         {@see org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#runComputeOnDataNode}
+ *     </li>
+ *     <li>
+ *         While coordinator plan executor is running it will read data from ExchangeSource that will poll pages
+ *         from linked ExchangeSink on target data nodes or notify them that data set is already completed
+ *         (for example when running FROM * | LIMIT 10 type of query) or query is canceled
+ *         using `internal:data/read/esql/exchange` transport requests.
+ *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService.ExchangeTransportAction#messageReceived}
+ *     </li>
+ *     </ul>
+ * </li>
+ * </ul>
  */
 public class ComputeService {
-    public record Result(List<Page> pages, List<DriverProfile> profiles) {}
+    public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
+    public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
+    private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
@@ -96,46 +129,173 @@ public class ComputeService {
     private final BlockFactory blockFactory;
 
     private final TransportService transportService;
-    private final Executor esqlExecutor;
     private final DriverTaskRunner driverRunner;
-    private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
+    private final LookupFromIndexService lookupFromIndexService;
+    private final InferenceService inferenceService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
+    private final AtomicLong childSessionIdGenerator = new AtomicLong();
+    private final DataNodeComputeHandler dataNodeComputeHandler;
+    private final ClusterComputeHandler clusterComputeHandler;
+    private final ExchangeService exchangeService;
+    private final PhysicalSettings physicalSettings;
 
+    @SuppressWarnings("this-escape")
     public ComputeService(
-        SearchService searchService,
-        TransportService transportService,
-        ExchangeService exchangeService,
+        TransportActionServices transportActionServices,
         EnrichLookupService enrichLookupService,
-        ClusterService clusterService,
+        LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        this.searchService = searchService;
-        this.transportService = transportService;
+        this.searchService = transportActionServices.searchService();
+        this.transportService = transportActionServices.transportService();
+        this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        this.esqlExecutor = threadPool.executor(ESQL_THREAD_POOL_NAME);
-        transportService.registerRequestHandler(DATA_ACTION_NAME, this.esqlExecutor, DataNodeRequest::new, new DataNodeRequestHandler());
-        transportService.registerRequestHandler(
-            CLUSTER_ACTION_NAME,
-            this.esqlExecutor,
-            ClusterComputeRequest::new,
-            new ClusterRequestHandler()
-        );
-        this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
-        this.exchangeService = exchangeService;
+        var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
-        this.clusterService = clusterService;
+        this.lookupFromIndexService = lookupFromIndexService;
+        this.inferenceService = transportActionServices.inferenceService();
+        this.clusterService = transportActionServices.clusterService();
+        this.projectResolver = transportActionServices.projectResolver();
+        this.dataNodeComputeHandler = new DataNodeComputeHandler(
+            this,
+            clusterService,
+            projectResolver,
+            searchService,
+            transportService,
+            exchangeService,
+            esqlExecutor
+        );
+        this.clusterComputeHandler = new ClusterComputeHandler(
+            this,
+            exchangeService,
+            transportService,
+            esqlExecutor,
+            dataNodeComputeHandler
+        );
+        this.physicalSettings = new PhysicalSettings(clusterService);
     }
 
     public void execute(
         String sessionId,
         CancellableTask rootTask,
+        EsqlFlags flags,
         PhysicalPlan physicalPlan,
-        EsqlConfiguration configuration,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            ThreadPool.Names.SYSTEM_READ,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION
+        );
+        Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
+
+        List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
+
+        // we have no sub plans, so we can just execute the given plan
+        if (subplans == null || subplans.isEmpty()) {
+            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            return;
+        }
+
+        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
+
+        listener = listener.delegateResponse((l, e) -> {
+            collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+            l.onFailure(e);
+        });
+
+        var mainSessionId = newChildSession(sessionId);
+        QueryPragmas queryPragmas = configuration.pragmas();
+
+        ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(
+            queryPragmas.exchangeBufferSize(),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+        );
+
+        exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
+        try (var ignored = mainExchangeSource.addEmptySink()) {
+            var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+            var computeContext = new ComputeContext(
+                mainSessionId,
+                "main.final",
+                LOCAL_CLUSTER,
+                flags,
+                List.of(),
+                configuration,
+                foldContext,
+                mainExchangeSource::createExchangeSource,
+                null
+            );
+
+            Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+
+            try (
+                ComputeListener localListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    cancelQueryOnFailure,
+                    finalListener.map(profiles -> {
+                        execInfo.markEndQuery();
+                        return new Result(mainPlan.output(), collectedPages, profiles, execInfo);
+                    })
+                )
+            ) {
+                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
+
+                for (int i = 0; i < subplans.size(); i++) {
+                    var subplan = subplans.get(i);
+                    var childSessionId = newChildSession(sessionId);
+                    ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
+                    // funnel sub plan pages into the main plan exchange source
+                    mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                    var subPlanListener = localListener.acquireCompute();
+
+                    executePlan(
+                        childSessionId,
+                        rootTask,
+                        flags,
+                        subplan,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        "subplan-" + i,
+                        ActionListener.wrap(result -> {
+                            exchangeSink.addCompletionListener(
+                                ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                            );
+                            subPlanListener.onResponse(result.completionInfo());
+                        }, e -> {
+                            exchangeService.finishSinkHandler(childSessionId, e);
+                            subPlanListener.onFailure(e);
+                        }),
+                        () -> exchangeSink.createExchangeSink(() -> {})
+                    );
+                }
+            }
+        }
+    }
+
+    public void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -146,7 +306,12 @@ public class ComputeService {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
         });
-        PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
+
+        if (exchangeSinkSupplier == null) {
+            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+        }
+
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
         if (dataNodePlan != null && dataNodePlan instanceof ExchangeSinkExec == false) {
             assert false : "expected data node plan starts with an ExchangeSink; got " + dataNodePlan;
@@ -156,6 +321,7 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
         QueryPragmas queryPragmas = configuration.pragmas();
+        Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
             if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
@@ -164,20 +330,30 @@ public class ComputeService {
                 return;
             }
             var computeContext = new ComputeContext(
-                sessionId,
-                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                newChildSession(sessionId),
+                profileDescription(profileQualifier, "single"),
+                LOCAL_CLUSTER,
+                flags,
                 List.of(),
                 configuration,
+                foldContext,
                 null,
-                null
+                exchangeSinkSupplier
             );
-            runCompute(
-                rootTask,
-                computeContext,
-                coordinatorPlan,
-                listener.map(driverProfiles -> new Result(collectedPages, driverProfiles))
-            );
-            return;
+            updateShardCountForCoordinatorOnlyQuery(execInfo);
+            try (
+                var computeListener = new ComputeListener(
+                    transportService.getThreadPool(),
+                    cancelQueryOnFailure,
+                    listener.map(completionInfo -> {
+                        updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
+                    })
+                )
+            ) {
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                return;
+            }
         } else {
             if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
                 var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
@@ -188,604 +364,394 @@ public class ComputeService {
         }
         Map<String, OriginalIndices> clusterToOriginalIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
-        var localOriginalIndices = clusterToOriginalIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        var localConcreteIndices = clusterToConcreteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
-        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
-        final AtomicBoolean cancelled = new AtomicBoolean();
-        final List<DriverProfile> collectedProfiles = configuration.profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
-        final var exchangeSource = new ExchangeSourceHandler(
+        var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
+        var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
+        /*
+         * Grab the output attributes here, so we can pass them to
+         * the listener without holding on to a reference to the
+         * entire plan.
+         */
+        List<Attribute> outputAttributes = physicalPlan.output();
+        var exchangeSource = new ExchangeSourceHandler(
             queryPragmas.exchangeBufferSize(),
-            transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
+        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (
-            Releasable ignored = exchangeSource.addEmptySink();
-            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
+            var computeListener = new ComputeListener(
+                transportService.getThreadPool(),
+                cancelQueryOnFailure,
+                listener.delegateFailureAndWrap((l, completionInfo) -> {
+                    failIfAllShardsFailed(execInfo, collectedPages);
+                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
+                })
+            )
         ) {
-            // run compute on the coordinator
-            runCompute(
-                rootTask,
-                new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
-                coordinatorPlan,
-                cancelOnFailure(rootTask, cancelled, refs.acquire()).map(driverProfiles -> {
-                    responseHeadersCollector.collect();
-                    if (configuration.profile()) {
-                        collectedProfiles.addAll(driverProfiles);
+            try (Releasable ignored = exchangeSource.addEmptySink()) {
+                // run compute on the coordinator
+                final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
+                try (
+                    var localListener = new ComputeListener(
+                        transportService.getThreadPool(),
+                        cancelQueryOnFailure,
+                        computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
+                            if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
+                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+                                    var tookTime = execInfo.tookSoFar();
+                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
+                                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                                        final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
+                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
+                                        // or encountered resolution or execution failures.
+                                        var status = localClusterWasInterrupted.get()
+                                            || (failedShards != null && failedShards > 0)
+                                            || v.getFailures().isEmpty() == false
+                                                ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                                : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                        builder.setStatus(status);
+                                    }
+                                    return builder.build();
+                                });
+                            }
+                            l.onResponse(completionInfo);
+                        })
+                    )
+                ) {
+                    runCompute(
+                        rootTask,
+                        new ComputeContext(
+                            sessionId,
+                            profileDescription(profileQualifier, "final"),
+                            LOCAL_CLUSTER,
+                            flags,
+                            List.of(),
+                            configuration,
+                            foldContext,
+                            exchangeSource::createExchangeSource,
+                            exchangeSinkSupplier
+                        ),
+                        coordinatorPlan,
+                        localListener.acquireCompute()
+                    );
+                    // starts computes on data nodes on the main cluster
+                    if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
+                        final var dataNodesListener = localListener.acquireCompute();
+                        dataNodeComputeHandler.startComputeOnDataNodes(
+                            sessionId,
+                            LOCAL_CLUSTER,
+                            rootTask,
+                            flags,
+                            configuration,
+                            dataNodePlan,
+                            Set.of(localConcreteIndices.indices()),
+                            localOriginalIndices,
+                            exchangeSource,
+                            cancelQueryOnFailure,
+                            ActionListener.wrap(r -> {
+                                localClusterWasInterrupted.set(execInfo.isStopped());
+                                execInfo.swapCluster(
+                                    LOCAL_CLUSTER,
+                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
+                                        .setSuccessfulShards(r.getSuccessfulShards())
+                                        .setSkippedShards(r.getSkippedShards())
+                                        .setFailedShards(r.getFailedShards())
+                                        .addFailures(r.failures)
+                                        .build()
+                                );
+                                dataNodesListener.onResponse(r.getCompletionInfo());
+                            }, e -> {
+                                if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
+                                    execInfo.swapCluster(
+                                        LOCAL_CLUSTER,
+                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
+                                            EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                        ).addFailures(List.of(new ShardSearchFailure(e))).build()
+                                    );
+                                    dataNodesListener.onResponse(DriverCompletionInfo.EMPTY);
+                                } else {
+                                    dataNodesListener.onFailure(e);
+                                }
+                            })
+                        );
                     }
-                    return null;
-                })
-            );
-            // starts computes on data nodes on the main cluster
-            if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
-                startComputeOnDataNodes(
-                    sessionId,
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    rootTask,
-                    configuration,
-                    dataNodePlan,
-                    Set.of(localConcreteIndices.indices()),
-                    localOriginalIndices.indices(),
-                    exchangeSource,
-                    ActionListener.releaseAfter(refs.acquire(), exchangeSource.addEmptySink()),
-                    () -> cancelOnFailure(rootTask, cancelled, refs.acquire()).map(response -> {
-                        responseHeadersCollector.collect();
-                        if (configuration.profile()) {
-                            collectedProfiles.addAll(response.getProfiles());
-                        }
-                        return null;
-                    })
-                );
-            }
-            // starts computes on remote cluster
-            startComputeOnRemoteClusters(
-                sessionId,
-                rootTask,
-                configuration,
-                dataNodePlan,
-                exchangeSource,
-                getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices),
-                () -> cancelOnFailure(rootTask, cancelled, refs.acquire()).map(response -> {
-                    responseHeadersCollector.collect();
-                    if (configuration.profile()) {
-                        collectedProfiles.addAll(response.getProfiles());
+                }
+                // starts computes on remote clusters
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
+                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        continue;
                     }
-                    return null;
-                })
-            );
-        }
-    }
-
-    private List<RemoteCluster> getRemoteClusters(
-        Map<String, OriginalIndices> clusterToConcreteIndices,
-        Map<String, OriginalIndices> clusterToOriginalIndices
-    ) {
-        List<RemoteCluster> remoteClusters = new ArrayList<>(clusterToConcreteIndices.size());
-        RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-        for (Map.Entry<String, OriginalIndices> e : clusterToConcreteIndices.entrySet()) {
-            String clusterAlias = e.getKey();
-            OriginalIndices concreteIndices = clusterToConcreteIndices.get(clusterAlias);
-            OriginalIndices originalIndices = clusterToOriginalIndices.get(clusterAlias);
-            if (originalIndices == null) {
-                assert false : "can't find original indices for cluster " + clusterAlias;
-                throw new IllegalStateException("can't find original indices for cluster " + clusterAlias);
-            }
-            if (concreteIndices.indices().length > 0) {
-                Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
-                remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices.indices()));
-            }
-        }
-        return remoteClusters;
-    }
-
-    private void startComputeOnDataNodes(
-        String sessionId,
-        String clusterAlias,
-        CancellableTask parentTask,
-        EsqlConfiguration configuration,
-        PhysicalPlan dataNodePlan,
-        Set<String> concreteIndices,
-        String[] originalIndices,
-        ExchangeSourceHandler exchangeSource,
-        ActionListener<Void> parentListener,
-        Supplier<ActionListener<ComputeResponse>> dataNodeListenerSupplier
-    ) {
-        // The lambda is to say if a TEXT field has an identical exact subfield
-        // We cannot use SearchContext because we don't have it yet.
-        // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
-        // but it would be better to have a proper impl.
-        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
-            try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
-                // For each target node, first open a remote exchange on the remote node, then link the exchange source to
-                // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                for (DataNode node : dataNodes) {
-                    var dataNodeListener = ActionListener.releaseAfter(dataNodeListenerSupplier.get(), refs.acquire());
-                    var queryPragmas = configuration.pragmas();
-                    ExchangeService.openExchange(
-                        transportService,
-                        node.connection,
+                    clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
-                        queryPragmas.exchangeBufferSize(),
-                        esqlExecutor,
-                        dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
-                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
-                            exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            transportService.sendChildRequest(
-                                node.connection,
-                                DATA_ACTION_NAME,
-                                new DataNodeRequest(sessionId, configuration, clusterAlias, node.shardIds, node.aliasFilters, dataNodePlan),
-                                parentTask,
-                                TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
-                            );
+                        rootTask,
+                        configuration,
+                        dataNodePlan,
+                        exchangeSource,
+                        cluster,
+                        cancelQueryOnFailure,
+                        execInfo,
+                        computeListener.acquireCompute().delegateResponse((l, ex) -> {
+                            /*
+                             * At various points, when collecting failures before sending a response, we manually check
+                             * if an ex is a transport error and if it is, we unwrap it. Because we're wrapping an ex
+                             * in RemoteException, the checks fail and unwrapping does not happen. We offload the
+                             * unwrapping to here.
+                             *
+                             * Note: The other error we explicitly check for is TaskCancelledException which is never
+                             * wrapped.
+                             */
+                            if (ex instanceof TransportException te) {
+                                l.onFailure(new RemoteException(cluster.clusterAlias(), FailureCollector.unwrapTransportException(te)));
+                            } else {
+                                l.onFailure(new RemoteException(cluster.clusterAlias(), ex));
+                            }
                         })
                     );
                 }
             }
-        }, parentListener::onFailure));
+        }
     }
 
-    private void startComputeOnRemoteClusters(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlConfiguration configuration,
-        PhysicalPlan plan,
-        ExchangeSourceHandler exchangeSource,
-        List<RemoteCluster> clusters,
-        Supplier<ActionListener<ComputeResponse>> listener
-    ) {
-        try (RefCountingRunnable refs = new RefCountingRunnable(exchangeSource.addEmptySink()::close)) {
-            for (RemoteCluster cluster : clusters) {
-                var targetNodeListener = ActionListener.releaseAfter(listener.get(), refs.acquire());
-                var queryPragmas = configuration.pragmas();
-                ExchangeService.openExchange(
-                    transportService,
-                    cluster.connection,
-                    sessionId,
-                    queryPragmas.exchangeBufferSize(),
-                    esqlExecutor,
-                    targetNodeListener.delegateFailureAndWrap((l, unused) -> {
-                        var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, cluster.connection);
-                        exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                        var clusterRequest = new ClusterComputeRequest(
-                            cluster.clusterAlias,
-                            sessionId,
-                            configuration,
-                            plan,
-                            cluster.concreteIndices,
-                            cluster.originalIndices
-                        );
-                        transportService.sendChildRequest(
-                            cluster.connection,
-                            CLUSTER_ACTION_NAME,
-                            clusterRequest,
-                            rootTask,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(l, ComputeResponse::new, esqlExecutor)
-                        );
-                    })
+    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
+    private static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
+        if (execInfo.isCrossClusterSearch()) {
+            for (String clusterAlias : execInfo.clusterAliases()) {
+                execInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .build()
                 );
             }
         }
     }
 
-    private ActionListener<Void> cancelOnFailure(CancellableTask task, AtomicBoolean cancelled, ActionListener<Void> listener) {
-        return listener.delegateResponse((l, e) -> {
-            l.onFailure(e);
-            if (cancelled.compareAndSet(false, true)) {
-                LOGGER.debug("cancelling ESQL task {} on failure", task);
-                transportService.getTaskManager().cancelTaskAndDescendants(task, "cancelled", false, ActionListener.noop());
-            }
-        });
-    }
-
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
-        listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts));
-        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts.size());
-        for (int i = 0; i < context.searchContexts.size(); i++) {
-            SearchContext searchContext = context.searchContexts.get(i);
-            contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext.getSearchExecutionContext(),
-                    searchContext.request().getAliasFilter()
-                )
-            );
-        }
-        final List<Driver> drivers;
-        try {
-            LocalExecutionPlanner planner = new LocalExecutionPlanner(
-                context.sessionId,
-                context.clusterAlias,
-                task,
-                bigArrays,
-                blockFactory,
-                clusterService.getSettings(),
-                context.configuration,
-                context.exchangeSource(),
-                context.exchangeSink(),
-                enrichLookupService,
-                new EsPhysicalOperationProviders(contexts)
-            );
-
-            LOGGER.debug("Received physical plan:\n{}", plan);
-            plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
-
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
-            }
-            drivers = localExecutionPlan.createDrivers(context.sessionId);
-            if (drivers.isEmpty()) {
-                throw new IllegalStateException("no drivers created");
-            }
-            LOGGER.debug("using {} drivers", drivers.size());
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
-            if (context.configuration.profile()) {
-                return drivers.stream().map(d -> new DriverProfile(d.status().completedOperators())).toList();
-            }
-            return null;
-        });
-        listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));
-        driverRunner.executeDrivers(
-            task,
-            drivers,
-            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-            listenerCollectingStatus
-        );
-    }
-
-    private void acquireSearchContexts(
-        String clusterAlias,
-        List<ShardId> shardIds,
-        EsqlConfiguration configuration,
-        Map<Index, AliasFilter> aliasFilters,
-        ActionListener<List<SearchContext>> listener
-    ) {
-        final List<IndexShard> targetShards = new ArrayList<>();
-        try {
-            for (ShardId shardId : shardIds) {
-                var indexShard = searchService.getIndicesService().indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-                targetShards.add(indexShard);
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        final var doAcquire = ActionRunnable.supply(listener, () -> {
-            final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
-            boolean success = false;
-            try {
-                for (IndexShard shard : targetShards) {
-                    var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
-                    var shardRequest = new ShardSearchRequest(
-                        shard.shardId(),
-                        configuration.absoluteStartedTimeInMillis(),
-                        aliasFilter,
-                        clusterAlias
-                    );
-                    // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
-                    // we need to limit the number of active search contexts here or in SearchService
-                    SearchContext context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
-                    searchContexts.add(context);
-                }
-                for (SearchContext searchContext : searchContexts) {
-                    searchContext.preProcess();
-                }
-                success = true;
-                return searchContexts;
-            } finally {
-                if (success == false) {
-                    IOUtils.close(searchContexts);
-                }
-            }
-        });
-        final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
-        try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
-            if (waitedForRefreshes.get()) {
-                esqlExecutor.execute(doAcquire);
-            } else {
-                doAcquire.run();
-            }
-        })) {
-            for (IndexShard targetShard : targetShards) {
-                final Releasable ref = refs.acquire();
-                targetShard.ensureShardSearchActive(await -> {
-                    try (ref) {
-                        if (await) {
-                            waitedForRefreshes.set(true);
-                        }
+    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
+        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+        if (execInfo.isCrossClusterSearch()) {
+            assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
+            for (String clusterAlias : execInfo.clusterAliases()) {
+                execInfo.swapCluster(clusterAlias, (k, v) -> {
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());
+                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                     }
+                    return builder.build();
                 });
             }
         }
     }
 
-    record DataNode(Transport.Connection connection, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
-
-    }
-
-    record RemoteCluster(String clusterAlias, Transport.Connection connection, String[] concreteIndices, String[] originalIndices) {
-
-    }
-
     /**
-     * Performs can_match and find the target nodes for the given target indices and filter.
-     * <p>
-     * Ideally, the search_shards API should be called before the field-caps API; however, this can lead
-     * to a situation where the column structure (i.e., matched data types) differs depending on the query.
+     * If all of target shards excluding the skipped shards failed from the local or remote clusters, then we should fail the entire query
+     * regardless of the partial_results configuration or skip_unavailable setting. This behavior doesn't fully align with the search API,
+     * which doesn't consider the failures from the remote clusters when skip_unavailable is true.
      */
-    void lookupDataNodes(
-        Task parentTask,
-        String clusterAlias,
-        QueryBuilder filter,
-        Set<String> concreteIndices,
-        String[] originalIndices,
-        ActionListener<List<DataNode>> listener
-    ) {
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<SearchShardsResponse> preservingContextListener = ContextPreservingActionListener.wrapPreservingContext(
-            listener.map(resp -> {
-                Map<String, DiscoveryNode> nodes = new HashMap<>();
-                for (DiscoveryNode node : resp.getNodes()) {
-                    nodes.put(node.getId(), node);
-                }
-                Map<String, List<ShardId>> nodeToShards = new HashMap<>();
-                Map<String, Map<Index, AliasFilter>> nodeToAliasFilters = new HashMap<>();
-                for (SearchShardsGroup group : resp.getGroups()) {
-                    var shardId = group.shardId();
-                    if (group.skipped()) {
-                        continue;
-                    }
-                    if (group.allocatedNodes().isEmpty()) {
-                        throw new ShardNotFoundException(group.shardId(), "no shard copies found {}", group.shardId());
-                    }
-                    if (concreteIndices.contains(shardId.getIndexName()) == false) {
-                        continue;
-                    }
-                    String targetNode = group.allocatedNodes().get(0);
-                    nodeToShards.computeIfAbsent(targetNode, k -> new ArrayList<>()).add(shardId);
-                    AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
-                    if (aliasFilter != null) {
-                        nodeToAliasFilters.computeIfAbsent(targetNode, k -> new HashMap<>()).put(shardId.getIndex(), aliasFilter);
-                    }
-                }
-                List<DataNode> dataNodes = new ArrayList<>(nodeToShards.size());
-                for (Map.Entry<String, List<ShardId>> e : nodeToShards.entrySet()) {
-                    DiscoveryNode node = nodes.get(e.getKey());
-                    Map<Index, AliasFilter> aliasFilters = nodeToAliasFilters.getOrDefault(e.getKey(), Map.of());
-                    dataNodes.add(new DataNode(transportService.getConnection(node), e.getValue(), aliasFilters));
-                }
-                return dataNodes;
-            }),
-            threadContext
-        );
-        try (ThreadContext.StoredContext ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
-            threadContext.markAsSystemContext();
-            SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-                originalIndices,
-                SearchRequest.DEFAULT_INDICES_OPTIONS,
-                filter,
-                null,
-                null,
-                false,
-                clusterAlias
-            );
-            transportService.sendChildRequest(
-                transportService.getLocalNode(),
-                TransportSearchShardsAction.TYPE.name(),
-                searchShardsRequest,
-                parentTask,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(preservingContextListener, SearchShardsResponse::new, esqlExecutor)
-            );
+    static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
+        // do not fail if any final result has results
+        if (finalResults.stream().anyMatch(p -> p.getPositionCount() > 0)) {
+            return;
         }
+        int totalFailedShards = 0;
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            final Integer successfulShards = cluster.getSuccessfulShards();
+            if (successfulShards != null && successfulShards > 0) {
+                return;
+            }
+            if (cluster.getFailedShards() != null) {
+                totalFailedShards += cluster.getFailedShards();
+            }
+        }
+        if (totalFailedShards == 0) {
+            return;
+        }
+        final var failureCollector = new FailureCollector();
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            var failedShards = cluster.getFailedShards();
+            if (failedShards != null && failedShards > 0) {
+                assert cluster.getFailures().isEmpty() == false : "expected failures for cluster [" + cluster.getClusterAlias() + "]";
+                for (ShardSearchFailure failure : cluster.getFailures()) {
+                    if (failure.getCause() instanceof Exception e) {
+                        failureCollector.unwrapAndCollect(e);
+                    } else {
+                        assert false : "unexpected failure: " + new AssertionError(failure.getCause());
+                        failureCollector.unwrapAndCollect(failure);
+                    }
+                }
+            }
+        }
+        ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
-    // TODO: Use an internal action here
-    public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
+        listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
+        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
+        for (int i = 0; i < context.searchContexts().size(); i++) {
+            SearchContext searchContext = context.searchContexts().get(i);
+            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
 
-    private class DataNodeRequestExecutor {
-        private final DataNodeRequest request;
-        private final CancellableTask parentTask;
-        private final ExchangeSinkHandler exchangeSink;
-        private final ActionListener<ComputeResponse> listener;
-        private final List<DriverProfile> driverProfiles;
-        private final int maxConcurrentShards;
-        private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
-
-        DataNodeRequestExecutor(
-            DataNodeRequest request,
-            CancellableTask parentTask,
-            ExchangeSinkHandler exchangeSink,
-            int maxConcurrentShards,
-            ActionListener<ComputeResponse> listener
-        ) {
-            this.request = request;
-            this.parentTask = parentTask;
-            this.exchangeSink = exchangeSink;
-            this.listener = listener;
-            this.driverProfiles = request.configuration().profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
-            this.maxConcurrentShards = maxConcurrentShards;
-            this.blockingSink = exchangeSink.createExchangeSink();
-        }
-
-        void start() {
-            parentTask.addListener(
-                () -> exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(parentTask.getReasonCancelled()))
+                @Override
+                public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
+                    return new ReinitializingSourceProvider(super::createSourceProvider);
+                }
+            };
+            contexts.add(
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    searchContext,
+                    searchExecutionContext,
+                    searchContext.request().getAliasFilter()
+                )
             );
-            runBatch(0);
         }
+        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
+            context.foldCtx(),
+            contexts,
+            searchService.getIndicesService().getAnalysis(),
+            physicalSettings
+        );
+        try {
+            LocalExecutionPlanner planner = new LocalExecutionPlanner(
+                context.sessionId(),
+                context.clusterAlias(),
+                task,
+                bigArrays,
+                blockFactory,
+                clusterService.getSettings(),
+                context.configuration(),
+                context.exchangeSourceSupplier(),
+                context.exchangeSinkSupplier(),
+                enrichLookupService,
+                lookupFromIndexService,
+                inferenceService,
+                physicalOperationProviders,
+                contexts
+            );
 
-        private void runBatch(int startBatchIndex) {
-            final EsqlConfiguration configuration = request.configuration();
-            final String clusterAlias = request.clusterAlias();
-            final var sessionId = request.sessionId();
-            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
-            List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME, ESQL_WORKER_THREAD_POOL_NAME);
-                var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
-                runCompute(
-                    parentTask,
-                    computeContext,
-                    request.plan(),
-                    ActionListener.wrap(profiles -> onBatchCompleted(endBatchIndex, profiles), this::onFailure)
-                );
-            }, this::onFailure));
-        }
+            LOGGER.debug("Received physical plan:\n{}", plan);
 
-        private void onBatchCompleted(int lastBatchIndex, List<DriverProfile> batchProfiles) {
-            if (request.configuration().profile()) {
-                driverProfiles.addAll(batchProfiles);
+            var localPlan = PlannerUtils.localPlan(
+                context.flags(),
+                context.searchExecutionContexts(),
+                context.configuration(),
+                context.foldCtx(),
+                plan
+            );
+            // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
+            // it's doing this in the planning of EsQueryExec (the source of the data)
+            // see also EsPhysicalOperationProviders.sourcePhysicalOperation
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
-            if (lastBatchIndex < request.shardIds().size() && exchangeSink.isFinished() == false) {
-                runBatch(lastBatchIndex);
-            } else {
-                blockingSink.finish();
-                // don't return until all pages are fetched
-                exchangeSink.addCompletionListener(
-                    ContextPreservingActionListener.wrapPreservingContext(
-                        ActionListener.runBefore(
-                            listener.map(nullValue -> new ComputeResponse(driverProfiles)),
-                            () -> exchangeService.finishSinkHandler(request.sessionId(), null)
-                        ),
-                        transportService.getThreadPool().getThreadContext()
-                    )
-                );
+            var drivers = localExecutionPlan.createDrivers(context.sessionId());
+            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
+            // will hold a reference to the contexts where relevant.
+            contexts.forEach(RefCounted::decRef);
+            if (drivers.isEmpty()) {
+                throw new IllegalStateException("no drivers created");
             }
-        }
-
-        private void onFailure(Exception e) {
-            exchangeService.finishSinkHandler(request.sessionId(), e);
+            LOGGER.debug("using {} drivers", drivers.size());
+            ActionListener<Void> driverListener = listener.map(ignored -> {
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug(
+                        "finished {}",
+                        DriverCompletionInfo.includingProfiles(
+                            drivers,
+                            context.description(),
+                            clusterService.getClusterName().value(),
+                            transportService.getLocalNode().getName(),
+                            localPlan.toString()
+                        )
+                    );
+                }
+                if (context.configuration().profile()) {
+                    return DriverCompletionInfo.includingProfiles(
+                        drivers,
+                        context.description(),
+                        clusterService.getClusterName().value(),
+                        transportService.getLocalNode().getName(),
+                        localPlan.toString()
+                    );
+                } else {
+                    return DriverCompletionInfo.excludingProfiles(drivers);
+                }
+            });
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
+            );
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private class DataNodeRequestHandler implements TransportRequestHandler<DataNodeRequest> {
-        @Override
-        public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-            DataNodeRequestExecutor executor = new DataNodeRequestExecutor(
-                request,
-                (CancellableTask) task,
-                exchangeService.getSinkHandler(request.sessionId()),
-                request.configuration().pragmas().maxConcurrentShardsPerNode(),
-                new ChannelActionListener<>(channel)
-            );
-            executor.start();
-        }
-    }
-
-    public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
-
-    private class ClusterRequestHandler implements TransportRequestHandler<ClusterComputeRequest> {
-        @Override
-        public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-            ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
-            if (request.plan() instanceof ExchangeSinkExec == false) {
-                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
-                return;
+    static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {
+        PhysicalPlan reducePlan = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        if (enable) {
+            PhysicalPlan p = PlannerUtils.reductionPlan(plan);
+            if (p != null) {
+                reducePlan = p.replaceChildren(List.of(reducePlan));
             }
-            runComputeOnRemoteCluster(
-                request.clusterAlias(),
-                request.sessionId(),
-                (CancellableTask) task,
-                request.configuration(),
-                (ExchangeSinkExec) request.plan(),
-                Set.of(request.indices()),
-                request.originalIndices(),
-                listener
+        }
+        return new ExchangeSinkExec(plan.source(), plan.output(), plan.isIntermediateAgg(), reducePlan);
+    }
+
+    String newChildSession(String session) {
+        return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    String profileDescription(String qualifier, String label) {
+        return qualifier == null ? label : qualifier + "." + label;
+    }
+
+    Runnable cancelQueryOnFailure(CancellableTask task) {
+        return new RunOnce(() -> {
+            LOGGER.debug("cancelling ESQL task {} on failure", task);
+            transportService.getTaskManager().cancelTaskAndDescendants(task, "cancelled on failure", false, ActionListener.noop());
+        });
+    }
+
+    CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
+        final TaskManager taskManager = transportService.getTaskManager();
+        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            return (CancellableTask) taskManager.register(
+                "transport",
+                "esql_compute_group",
+                new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
             );
         }
     }
 
-    /**
-     * Performs a compute on a remote cluster. The output pages are placed in an exchange sink specified by
-     * {@code globalSessionId}. The coordinator on the main cluster will poll pages from there.
-     * <p>
-     * Currently, the coordinator on the remote cluster simply collects pages from data nodes in the remote cluster
-     * and places them in the exchange sink. We can achieve this by using a single exchange buffer to minimize overhead.
-     * However, here we use two exchange buffers so that we can run an actual plan on this coordinator to perform partial
-     * reduce operations, such as limit, topN, and partial-to-partial aggregation in the future.
-     */
-    void runComputeOnRemoteCluster(
-        String clusterAlias,
-        String globalSessionId,
-        CancellableTask parentTask,
-        EsqlConfiguration configuration,
-        ExchangeSinkExec plan,
-        Set<String> concreteIndices,
-        String[] originalIndices,
-        ActionListener<ComputeResponse> listener
-    ) {
-        final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
-        parentTask.addListener(
-            () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
-        );
-        ThreadPool threadPool = transportService.getThreadPool();
-        final var responseHeadersCollector = new ResponseHeadersCollector(threadPool.getThreadContext());
-        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
-        final AtomicBoolean cancelled = new AtomicBoolean();
-        final List<DriverProfile> collectedProfiles = configuration.profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
-        final String localSessionId = clusterAlias + ":" + globalSessionId;
-        var exchangeSource = new ExchangeSourceHandler(
-            configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
-        );
-        try (
-            Releasable ignored = exchangeSource.addEmptySink();
-            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
-        ) {
-            exchangeSink.addCompletionListener(refs.acquire());
-            PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
-                plan.source(),
-                plan.output(),
-                plan.isIntermediateAgg(),
-                new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg())
-            );
-            runCompute(
-                parentTask,
-                new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
-                coordinatorPlan,
-                cancelOnFailure(parentTask, cancelled, refs.acquire()).map(driverProfiles -> {
-                    responseHeadersCollector.collect();
-                    if (configuration.profile()) {
-                        collectedProfiles.addAll(driverProfiles);
-                    }
-                    return null;
-                })
-            );
-            startComputeOnDataNodes(
-                localSessionId,
-                clusterAlias,
-                parentTask,
-                configuration,
-                plan,
-                concreteIndices,
-                originalIndices,
-                exchangeSource,
-                ActionListener.releaseAfter(refs.acquire(), exchangeSource.addEmptySink()),
-                () -> cancelOnFailure(parentTask, cancelled, refs.acquire()).map(r -> {
-                    responseHeadersCollector.collect();
-                    if (configuration.profile()) {
-                        collectedProfiles.addAll(r.getProfiles());
-                    }
-                    return null;
-                })
-            );
-        }
+    public EsqlFlags createFlags() {
+        return new EsqlFlags(clusterService.getClusterSettings());
     }
 
-    record ComputeContext(
-        String sessionId,
-        String clusterAlias,
-        List<SearchContext> searchContexts,
-        EsqlConfiguration configuration,
-        ExchangeSourceHandler exchangeSource,
-        ExchangeSinkHandler exchangeSink
-    ) {}
+    private static class ComputeGroupTaskRequest extends AbstractTransportRequest {
+        private final Supplier<String> parentDescription;
+
+        ComputeGroupTaskRequest(TaskId parentTask, Supplier<String> description) {
+            this.parentDescription = description;
+            setParentTask(parentTask);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            assert parentTaskId.isSet();
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return "group [" + parentDescription.get() + "]";
+        }
+    }
 }

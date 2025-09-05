@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,7 +23,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,8 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
-import static org.hamcrest.Matchers.notANumber;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -76,7 +74,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("script", "test");
                 b.field("on_script_error", "continue");
-            }, m -> assertThat((m).onScriptError, is(OnScriptError.CONTINUE)));
+            }, m -> assertThat((m).builderParams.onScriptError(), is(OnScriptError.CONTINUE)));
         }
     }
 
@@ -253,12 +251,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         // dimension = false is allowed
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
 
-        // dimension = true is not allowed
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_dimension", true);
-        })));
-        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+        // dimension = true is allowed
+        assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
     }
 
     public void testMetricType() throws IOException {
@@ -380,21 +374,40 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
     }
 
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return n -> ((Number) n); // Just assert it's a number
-    }
-
-    @Override
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
-    }
-
     protected abstract Number randomNumber();
 
-    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+    protected final class NumberSyntheticSourceSupportForKeepTests extends NumberSyntheticSourceSupport {
+        private final boolean preserveSource;
+
+        protected NumberSyntheticSourceSupportForKeepTests(
+            Function<Number, Number> round,
+            boolean ignoreMalformed,
+            Mapper.SourceKeepMode sourceKeepMode
+        ) {
+            super(round, ignoreMalformed);
+            this.preserveSource = sourceKeepMode == Mapper.SourceKeepMode.ALL;
+        }
+
+        @Override
+        public boolean preservesExactSource() {
+            return preserveSource;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            var example = super.example(maxVals);
+            return new SyntheticSourceExample(
+                example.expectedForSyntheticSource(),
+                example.expectedForSyntheticSource(),
+                example.mapping()
+            );
+        }
+    }
+
+    protected class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
+        private final boolean docValues = randomBoolean();
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
@@ -405,33 +418,43 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         @Override
+        public boolean preservesExactSource() {
+            // We opt in into fallback synthetic source if there is no doc values
+            // which preserves exact source.
+            return docValues == false;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
+                if (preservesExactSource()) {
+                    var rawInput = v.v1();
+                    return new SyntheticSourceExample(rawInput, rawInput, this::mapping);
+                }
                 if (v.v2() instanceof Number n) {
                     Number result = round.apply(n);
-                    return new SyntheticSourceExample(v.v1(), result, result, this::mapping);
+                    return new SyntheticSourceExample(v.v1(), result, this::mapping);
                 }
                 // ignore_malformed value
-                return new SyntheticSourceExample(v.v1(), v.v2(), List.of(), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
             List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            List<Object> outList = values.stream()
-                .filter(v -> v.v2() instanceof Number)
-                .map(t -> round.apply((Number) t.v2()))
-                .sorted()
-                .collect(Collectors.toCollection(ArrayList::new));
-            values.stream().filter(v -> false == v.v2() instanceof Number).map(v -> v.v2()).forEach(outList::add);
-            Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-            List<Object> outBlockList = values.stream()
-                .filter(v -> v.v2() instanceof Number)
-                .map(t -> round.apply((Number) t.v2()))
-                .sorted()
-                .collect(Collectors.toCollection(ArrayList::new));
-            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            if (preservesExactSource()) {
+                return new SyntheticSourceExample(in, in, this::mapping);
+            } else {
+                List<Object> outList = values.stream()
+                    .filter(v -> v.v2() instanceof Number)
+                    .map(t -> round.apply((Number) t.v2()))
+                    .sorted()
+                    .collect(Collectors.toCollection(ArrayList::new));
+                values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2).forEach(outList::add);
+                var out = outList.size() == 1 ? outList.get(0) : outList;
+
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
         }
 
         private Tuple<Object, Object> generateValue() {
@@ -463,19 +486,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
+            if (docValues == false) {
+                b.field("doc_values", "false");
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> {
-                        minimalMapping(b);
-                        b.field("doc_values", false);
-                    }
-                )
-            );
+            return List.of();
         }
     }
 }

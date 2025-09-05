@@ -90,7 +90,7 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
     private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState state) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_7_0,
+            TransportVersions.V_8_0_0,
             TransportVersion.current()
         );
         final SamlAuthenticationState read = copyWriteable(

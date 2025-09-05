@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,9 +36,7 @@ public class RestDeleteRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, "/_security/role/{name}").replaces(DELETE, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(DELETE, "/_security/role/{name}"));
     }
 
     @Override
@@ -51,7 +48,6 @@ public class RestDeleteRoleAction extends NativeRoleBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         final String refresh = request.param("refresh");
-
         return channel -> new DeleteRoleRequestBuilder(client).name(name)
             .setRefreshPolicy(refresh)
             .execute(new RestBuilderListener<>(channel) {

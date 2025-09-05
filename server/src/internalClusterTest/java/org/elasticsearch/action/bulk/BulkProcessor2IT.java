@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -52,7 +53,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 
@@ -88,7 +89,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setBulkActions(bulkActions)
             // set interval and size to high values
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 
@@ -133,7 +134,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .setBulkSize(ByteSizeValue.of(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
             .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
@@ -168,7 +169,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setBulkActions(bulkActions)
             // set interval and size to high values
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 

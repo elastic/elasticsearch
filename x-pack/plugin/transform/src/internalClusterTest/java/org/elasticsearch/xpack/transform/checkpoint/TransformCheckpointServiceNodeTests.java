@@ -180,7 +180,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
+                threadPool,
                 mock(TaskManager.class)
             ),
             transformsConfigManager,

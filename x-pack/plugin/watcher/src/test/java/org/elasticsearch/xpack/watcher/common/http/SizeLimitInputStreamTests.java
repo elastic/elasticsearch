@@ -30,7 +30,7 @@ public class SizeLimitInputStreamTests extends ESTestCase {
     }
 
     public void testMarking() {
-        ByteSizeValue byteSizeValue = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+        ByteSizeValue byteSizeValue = ByteSizeValue.of(1, ByteSizeUnit.BYTES);
         SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue, new ByteArrayInputStream("empty".getBytes(UTF_8)));
         assertThat(is.markSupported(), is(false));
         expectThrows(UnsupportedOperationException.class, () -> is.mark(10));
@@ -40,7 +40,7 @@ public class SizeLimitInputStreamTests extends ESTestCase {
 
     private void test(int inputStreamLength, int maxAllowedSize) throws IOException {
         String data = randomAlphaOfLength(inputStreamLength);
-        ByteSizeValue byteSizeValue = new ByteSizeValue(maxAllowedSize, ByteSizeUnit.BYTES);
+        ByteSizeValue byteSizeValue = ByteSizeValue.of(maxAllowedSize, ByteSizeUnit.BYTES);
         SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue, new ByteArrayInputStream(data.getBytes(UTF_8)));
 
         if (randomBoolean()) {

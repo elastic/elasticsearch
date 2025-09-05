@@ -1,8 +1,8 @@
 {
   "update":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
-      "description":"Updates a document with a script or partial document."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update",
+      "description":"Update a document"
     },
     "stability":"stable",
     "visibility":"public",
@@ -83,6 +83,10 @@
       "require_alias": {
         "type": "boolean",
         "description": "When true, requires destination is an alias. Default is false"
+      },
+      "include_source_on_error": {
+        "type": "boolean",
+        "description": "True or false if to include the document source in the error message in case of parsing errors. Defaults to true."
       }
     },
     "body":{

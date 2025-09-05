@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -37,6 +39,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         return this;
     }
 
+    public FieldCapabilitiesRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request().indicesOptions(indicesOptions);
+        return this;
+    }
+
     public FieldCapabilitiesRequestBuilder setIndexFilter(QueryBuilder indexFilter) {
         request().indexFilter(indexFilter);
         return this;
@@ -44,6 +51,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
 
     public FieldCapabilitiesRequestBuilder setRuntimeFields(Map<String, Object> runtimeFieldSection) {
         request().runtimeFields(runtimeFieldSection);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setIncludeIndices(boolean includeIndices) {
+        request().includeIndices(includeIndices);
         return this;
     }
 }

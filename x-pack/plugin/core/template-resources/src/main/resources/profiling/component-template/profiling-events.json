@@ -1,29 +1,40 @@
 {
   "template": {
     "settings": {
+      "mode": "logsdb",
       "index": {
         "number_of_shards": 4,
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "max_result_window": 150000,
         "refresh_interval": "10s",
         "sort": {
           "field": [
             "profiling.project.id",
-            "@timestamp",
+            "k8s.namespace.name",
             "orchestrator.resource.name",
+            "service.name",
+            "host.name",
             "container.name",
+            "process.executable.name",
             "process.thread.name",
-            "host.id"
+            "@timestamp"
+          ],
+          "order": [
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "desc"
           ]
         }
       },
       "codec": "best_compression"
     },
     "mappings": {
-      "_source": {
-        "enabled": false
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.events.version},
@@ -39,8 +50,8 @@
           "type": "keyword"
         },
         "@timestamp": {
-          "type": "date",
-          "format": "epoch_second"
+          "type": "date_nanos",
+          "format": "strict_date_optional_time_nanos||epoch_second"
         },
         "host.id": {
           "type": "keyword"
@@ -58,8 +69,15 @@
         "process.thread.name": {
           "type": "keyword"
         },
+        "process.executable.name": {
+          "type": "keyword"
+        },
         "Stacktrace.count": {
           "type": "short",
+          "index": false
+        },
+        "Stacktrace.sampling_frequency": {
+          "type": "long",
           "index": false
         },
         "agent.version": {
@@ -78,6 +96,12 @@
           "type": "keyword"
         },
         "service.name": {
+          "type": "keyword"
+        },
+        "container.id": {
+          "type": "keyword"
+        },
+        "k8s.namespace.name": {
           "type": "keyword"
         }
       }

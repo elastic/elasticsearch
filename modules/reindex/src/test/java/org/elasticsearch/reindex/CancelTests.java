@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -15,9 +16,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -35,7 +33,6 @@ import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -47,7 +44,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -231,14 +227,13 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancel() throws Exception {
-        BytesReference pipeline = new BytesArray("""
+        putJsonPipeline("set-processed", """
             {
               "description" : "sets processed to true",
               "processors" : [ {
                   "test" : {}
               } ]
             }""");
-        assertAcked(clusterAdmin().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(
             UpdateByQueryAction.INSTANCE,
@@ -250,7 +245,7 @@ public class CancelTests extends ReindexTestCase {
             equalTo("update-by-query [" + INDEX + "]")
         );
 
-        assertAcked(clusterAdmin().deletePipeline(new DeletePipelineRequest("set-processed")).get());
+        deletePipeline("set-processed");
     }
 
     public void testDeleteByQueryCancel() throws Exception {
@@ -279,14 +274,13 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
-        BytesReference pipeline = new BytesArray("""
+        putJsonPipeline("set-processed", """
             {
               "description" : "sets processed to true",
               "processors" : [ {
                   "test" : {}
               } ]
             }""");
-        assertAcked(clusterAdmin().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(
             UpdateByQueryAction.INSTANCE,
@@ -298,7 +292,7 @@ public class CancelTests extends ReindexTestCase {
             equalTo("update-by-query [" + INDEX + "]")
         );
 
-        assertAcked(clusterAdmin().deletePipeline(new DeletePipelineRequest("set-processed")).get());
+        deletePipeline("set-processed");
     }
 
     public void testDeleteByQueryCancelWithWorkers() throws Exception {

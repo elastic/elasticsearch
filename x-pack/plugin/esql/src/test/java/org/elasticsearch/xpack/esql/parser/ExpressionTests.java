@@ -7,32 +7,35 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.time.Duration;
 import java.time.Period;
@@ -42,14 +45,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -134,7 +138,7 @@ public class ExpressionTests extends ESTestCase {
         );
 
         var number = "1" + IntStream.range(0, 309).mapToObj(ignored -> "0").collect(Collectors.joining());
-        assertParsingException(() -> parse("row foo == " + number), "line 1:13: Number [" + number + "] is too large");
+        assertParsingException(() -> parse("row foo == " + number), "line 1:12: Number [" + number + "] is too large");
     }
 
     public void testBooleanLiteralsCondition() {
@@ -208,15 +212,17 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = whereExpression("from and where");
-        assertThat(expr, instanceOf(And.class));
-        And and = (And) expr;
+        for (var commandName : List.of("dissect", "drop", "enrich", "eval", "keep", "limit", "sort")) {
+            Expression expr = whereExpression("from and " + commandName);
+            assertThat(expr, instanceOf(And.class));
+            And and = (And) expr;
 
-        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
+            assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
 
-        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("where"));
+            assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.right()).name(), equalTo(commandName));
+        }
     }
 
     public void testIdentifiersCaseSensitive() {
@@ -380,14 +386,18 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 second"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + "second"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " seconds"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " sec"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " s"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 minute"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + "minute"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " minutes"));
+        assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " min"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " hours"));
+        assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " h"));
 
         assertEquals(l(Duration.ofHours(-value), TIME_DURATION), whereExpression("-" + value + " hours"));
     }
@@ -395,28 +405,39 @@ public class ExpressionTests extends ESTestCase {
     public void testDatePeriodLiterals() {
         int value = randomInt(Integer.MAX_VALUE);
         int weeksValue = randomInt(Integer.MAX_VALUE / 7);
+        int quartersValue = randomInt(Integer.MAX_VALUE / 3);
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + "day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " days"));
+        assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " d"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0week"));
         assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + "week"));
         assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " weeks"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " w"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + "month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + " months"));
+        assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + " mo"));
+
+        assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 quarter"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " quarter"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " quarters"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " q"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + "year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " years"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " yr"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " y"));
 
         assertEquals(l(Period.ofYears(-value), DATE_PERIOD), whereExpression("-" + value + " years"));
     }
 
     public void testUnknownNumericQualifier() {
-        assertParsingException(() -> whereExpression("1 decade"), "Unexpected time interval qualifier: 'decade'");
+        assertParsingException(() -> whereExpression("1 decade"), "Unexpected temporal unit: 'decade'");
     }
 
     public void testQualifiedDecimalLiteral() {
@@ -427,20 +448,20 @@ public class ExpressionTests extends ESTestCase {
         for (String unit : List.of("milliseconds", "seconds", "minutes", "hours")) {
             assertParsingException(
                 () -> parse("row x = 9223372036854775808 " + unit), // unsigned_long (Long.MAX_VALUE + 1)
-                "line 1:10: Number [9223372036854775808] outside of [" + unit + "] range"
+                "line 1:9: Number [9223372036854775808] outside of [" + unit + "] range"
             );
             assertParsingException(
                 () -> parse("row x = 18446744073709551616 " + unit), // double (UNSIGNED_LONG_MAX + 1)
-                "line 1:10: Number [18446744073709551616] outside of [" + unit + "] range"
+                "line 1:9: Number [18446744073709551616] outside of [" + unit + "] range"
             );
         }
         assertParsingException(
             () -> parse("row x = 153722867280912931 minutes"), // Long.MAX_VALUE / 60 + 1
-            "line 1:10: Number [153722867280912931] outside of [minutes] range"
+            "line 1:9: Number [153722867280912931] outside of [minutes] range"
         );
         assertParsingException(
             () -> parse("row x = 2562047788015216 hours"), // Long.MAX_VALUE / 3600 + 1
-            "line 1:10: Number [2562047788015216] outside of [hours] range"
+            "line 1:9: Number [2562047788015216] outside of [hours] range"
         );
     }
 
@@ -448,12 +469,12 @@ public class ExpressionTests extends ESTestCase {
         for (String unit : List.of("days", "weeks", "months", "years")) {
             assertParsingException(
                 () -> parse("row x = 2147483648 " + unit), // long (Integer.MAX_VALUE + 1)
-                "line 1:10: Number [2147483648] outside of [" + unit + "] range"
+                "line 1:9: Number [2147483648] outside of [" + unit + "] range"
             );
         }
         assertParsingException(
             () -> parse("row x = 306783379 weeks"), // Integer.MAX_VALUE / 7 + 1
-            "line 1:10: Number [306783379] outside of [weeks] range"
+            "line 1:9: Number [306783379] outside of [weeks] range"
         );
     }
 
@@ -529,7 +550,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testForbidWildcardProjectAway() {
-        assertParsingException(() -> dropExpression("foo, *"), "line 1:21: Removing all fields is not allowed [*]");
+        assertParsingException(() -> dropExpression("foo, *"), "line 1:20: Removing all fields is not allowed [*]");
     }
 
     public void testForbidMultipleIncludeStar() {
@@ -567,7 +588,7 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> renamings;
         for (int i = 0; i < newName.length; i++) {
-            Rename r = renameExpression(oldName[i] + " AS " + newName[i]);
+            Rename r = renameExpression(randomBoolean() ? (oldName[i] + " AS " + newName[i]) : (newName[i] + " = " + oldName[i]));
             renamings = r.renamings();
             assertThat(renamings.size(), equalTo(1));
             assertThat(renamings.get(0), instanceOf(Alias.class));
@@ -593,7 +614,8 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testForbidWildcardProjectRename() {
-        assertParsingException(() -> renameExpression("b* AS a*"), "line 1:18: Using wildcards (*) in RENAME is not allowed [b* AS a*]");
+        assertParsingException(() -> renameExpression("b* AS a*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [b* AS a*]");
+        assertParsingException(() -> renameExpression("a* = b*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [a* = b*]");
     }
 
     public void testSimplifyInWithSingleElementList() {
@@ -602,16 +624,14 @@ public class ExpressionTests extends ESTestCase {
         Equals eq = (Equals) e;
         assertThat(eq.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.left()).name(), equalTo("a"));
-        assertThat(eq.right(), instanceOf(Literal.class));
-        assertThat(eq.right().fold(), equalTo(1));
+        assertThat(as(eq.right(), Literal.class).value(), equalTo(1));
 
         e = whereExpression("1 IN (a)");
         assertThat(e, instanceOf(Equals.class));
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left(), instanceOf(Literal.class));
-        assertThat(eq.left().fold(), equalTo(1));
+        assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
 
         e = whereExpression("1 NOT IN (a)");
         assertThat(e, instanceOf(Not.class));
@@ -620,9 +640,7 @@ public class ExpressionTests extends ESTestCase {
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left(), instanceOf(Literal.class));
-        assertThat(eq.left().fold(), equalTo(1));
-
+        assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
     }
 
     private Expression whereExpression(String e) {
@@ -642,10 +660,13 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return parser.createStatement(s);
+        return parser.createStatement(s, EsqlTestUtils.TEST_CFG);
     }
 
     private Literal l(Object value, DataType type) {
+        if (value instanceof String && (type == TEXT || type == KEYWORD)) {
+            value = BytesRefs.toBytesRef(value);
+        }
         return new Literal(null, value, type);
     }
 

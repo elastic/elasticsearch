@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.lookup;
 
@@ -18,8 +19,6 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -41,23 +40,18 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
      */
     class FieldFactoryWrapper {
         final DocValuesScriptFieldFactory factory;
-        private final PrivilegedAction<Void> advancer;
 
         FieldFactoryWrapper(DocValuesScriptFieldFactory factory) {
             this.factory = factory;
-            this.advancer = () -> {
-                try {
-                    factory.setNextDocId(docId);
-                } catch (IOException ioe) {
-                    throw ExceptionsHelper.convertToElastic(ioe);
-                }
-                return null;
-            };
         }
 
         // advances the factory to the current docid for the enclosing LeafDocLookup
         void advanceToDoc() {
-            AccessController.doPrivileged(this.advancer);
+            try {
+                factory.setNextDocId(docId);
+            } catch (IOException ioe) {
+                throw ExceptionsHelper.convertToElastic(ioe);
+            }
         }
     }
 
@@ -100,30 +94,26 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
         }
 
-        // Load the field data on behalf of the script. Otherwise, it would require
-        // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        return AccessController.doPrivileged((PrivilegedAction<FieldFactoryWrapper>) () -> {
-            IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+        IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
 
-            FieldFactoryWrapper docFactory = null;
+        FieldFactoryWrapper docFactory = null;
 
-            if (docFactoryCache.isEmpty() == false) {
-                docFactory = docFactoryCache.get(fieldName);
-            }
+        if (docFactoryCache.isEmpty() == false) {
+            docFactory = docFactoryCache.get(fieldName);
+        }
 
-            // if this field has already been accessed via the doc-access API and the field-access API
-            // uses doc values then we share to avoid double-loading
-            FieldFactoryWrapper fieldFactory;
-            if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
-                fieldFactory = docFactory;
-            } else {
-                fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
-            }
+        // if this field has already been accessed via the doc-access API and the field-access API
+        // uses doc values then we share to avoid double-loading
+        FieldFactoryWrapper fieldFactory;
+        if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+            fieldFactory = docFactory;
+        } else {
+            fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+        }
 
-            fieldFactoryCache.put(fieldName, fieldFactory);
+        fieldFactoryCache.put(fieldName, fieldFactory);
 
-            return fieldFactory;
-        });
+        return fieldFactory;
     }
 
     public Field<?> getScriptField(String fieldName) {
@@ -145,35 +135,31 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
         }
 
-        // Load the field data on behalf of the script. Otherwise, it would require
-        // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        return AccessController.doPrivileged((PrivilegedAction<FieldFactoryWrapper>) () -> {
-            FieldFactoryWrapper docFactory = null;
-            FieldFactoryWrapper fieldFactory = null;
+        FieldFactoryWrapper docFactory = null;
+        FieldFactoryWrapper fieldFactory = null;
 
-            if (fieldFactoryCache.isEmpty() == false) {
-                fieldFactory = fieldFactoryCache.get(fieldName);
+        if (fieldFactoryCache.isEmpty() == false) {
+            fieldFactory = fieldFactoryCache.get(fieldName);
+        }
+
+        if (fieldFactory != null) {
+            IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+
+            // if this field has already been accessed via the field-access API and the field-access API
+            // uses doc values then we share to avoid double-loading
+            if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                docFactory = fieldFactory;
             }
+        }
 
-            if (fieldFactory != null) {
-                IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+        if (docFactory == null) {
+            IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
+            docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+        }
 
-                // if this field has already been accessed via the field-access API and the field-access API
-                // uses doc values then we share to avoid double-loading
-                if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
-                    docFactory = fieldFactory;
-                }
-            }
+        docFactoryCache.put(fieldName, docFactory);
 
-            if (docFactory == null) {
-                IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
-                docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
-            }
-
-            docFactoryCache.put(fieldName, docFactory);
-
-            return docFactory;
-        });
+        return docFactory;
     }
 
     @Override

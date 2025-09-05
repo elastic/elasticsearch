@@ -17,7 +17,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
         assertThat(inferRequest.getInputs(), hasSize(1));
         assertEquals(builder.getModelText(), inferRequest.getInputs().get(0));
         assertEquals(builder.getModelId(), inferRequest.getModelId());
-        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, inferRequest.getInferenceTimeout());
+        assertNull(inferRequest.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, inferRequest.getPrefixType());
         assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, inferRequest.getRequestModelType());
     }
@@ -51,7 +52,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
             embedding[i] = array[i];
         }
         return new InferModelAction.Response(
-            List.of(new TextEmbeddingResults("foo", embedding, randomBoolean())),
+            List.of(new MlTextEmbeddingResults("foo", embedding, randomBoolean())),
             builder.getModelId(),
             true
         );

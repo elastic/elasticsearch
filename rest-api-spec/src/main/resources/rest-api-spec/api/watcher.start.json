@@ -1,8 +1,8 @@
 {
   "watcher.start":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-start.html",
-      "description":"Starts Watcher if it is not already running."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-start",
+      "description":"Start the watch service"
     },
     "stability":"stable",
     "visibility":"public",
@@ -19,6 +19,11 @@
         }
       ]
     },
-    "params":{}
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    }
   }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -11,17 +12,20 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,11 +56,23 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningThrottle() {
-        var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
+        var allDecisions = generateDecisions(Decision.THROTTLE, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.THROTTLE;
-            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case EXCLUDE_YES_DECISIONS -> collectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
+            case ON -> collectToMultiDecision(allDecisions);
+        };
+
+        verifyDecidersCall(debugMode, allDecisions, allDecisions.size(), expectedDecision);
+    }
+
+    public void testCheckAllDecidersBeforeReturningNotPreferred() {
+        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> Decision.YES);
+        var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
+        var expectedDecision = switch (debugMode) {
+            case OFF -> Decision.NOT_PREFERRED;
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.NOT_PREFERRED);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -65,7 +81,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
 
     public void testExitsAfterFirstNoDecision() {
         var expectedDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
-        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED, Decision.THROTTLE));
         var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
@@ -75,6 +91,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
+                Decision.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
                 Decision.NO,
@@ -90,6 +107,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
+                Decision.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
                 Decision.NO,
@@ -113,7 +131,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions) {
-        return collectToMultiDecision(decisions, ignored -> true);
+        return collectToMultiDecision(decisions, Predicates.always());
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
@@ -130,8 +148,12 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     ) {
         IndexMetadata index = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         ShardId shardId = new ShardId(index.getIndex(), 0);
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false).build())
+            .routingTable(projectRoutingTable)
             .build();
 
         ShardRouting startedShard = TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED);

@@ -7,14 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
 
@@ -24,7 +28,6 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     $Type$VectorBlock($Type$Vector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -33,6 +36,25 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
         return vector;
     }
 
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+
+$elseif(boolean)$
+    @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+$endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
@@ -44,7 +66,7 @@ $endif$
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -56,6 +78,27 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public $Type$Block deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public $Type$Block expand() {
+        incRef();
+        return this;
     }
 
     @Override

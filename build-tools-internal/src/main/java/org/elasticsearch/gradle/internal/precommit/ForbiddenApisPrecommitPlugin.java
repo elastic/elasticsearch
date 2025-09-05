@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -29,7 +30,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(JavaBasePlugin.class);
-
+        var buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         // Create a convenience task for all checks (this does not conflict with extension, as it has higher priority in DSL):
         var forbiddenTask = project.getTasks()
             .register(FORBIDDEN_APIS_TASK_NAME, task -> { task.setDescription("Runs forbidden-apis checks."); });
@@ -43,7 +44,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/jdk-deprecated.txt");
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
-            t.copy("forbidden/hppc-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
         });
@@ -57,7 +57,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.setClassesDirs(sourceSet.getOutput().getClassesDirs());
                 t.dependsOn(resourcesTask);
                 t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()));
-                t.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion().getMajorVersion());
+                t.setTargetCompatibility(buildParams.getMinimumRuntimeVersion().getMajorVersion());
                 t.getBundledSignatures().set(BUNDLED_SIGNATURE_DEFAULTS);
                 t.setSignaturesFiles(
                     project.files(

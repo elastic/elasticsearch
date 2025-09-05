@@ -77,15 +77,9 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         LOGGER.debug("Removing forecasts that expire before [{}]", cutoffEpochMs);
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, requestsPerSec, listener, isTimedOutSupplier),
-            e -> {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "An error occurred while searching forecasts to delete",
-                        RestStatus.TOO_MANY_REQUESTS,
-                        e
-                    )
-                );
-            }
+            e -> listener.onFailure(
+                new ElasticsearchStatusException("An error occurred while searching forecasts to delete", RestStatus.TOO_MANY_REQUESTS, e)
+            )
         );
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -131,7 +125,14 @@ public class ExpiredForecastsRemover implements MlDataRemover {
             return;
         }
 
-        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete).setRequestsPerSecond(requestsPerSec)
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(RESULTS_INDEX_PATTERN);
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for expired forecasts. No expired forecasts to remove.");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete, indicesToQuery).setRequestsPerSecond(requestsPerSec)
             .setAbortOnVersionConflict(false);
         request.setParentTask(parentTaskId);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
@@ -174,7 +175,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         List<JobForecastId> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
-        if (hits.getTotalHits().value > MAX_FORECASTS) {
+        if (hits.getTotalHits().value() > MAX_FORECASTS) {
             LOGGER.info("More than [{}] forecasts were found. This run will only delete [{}] of them", MAX_FORECASTS, MAX_FORECASTS);
         }
 
@@ -205,12 +206,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         return forecastsToDelete;
     }
 
-    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
+    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids, ArrayList<String> indicesToQuery) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setTimeout(DEFAULT_MAX_DURATION);
 
-        request.indices(RESULTS_INDEX_PATTERN);
+        request.indices(indicesToQuery.toArray(new String[0]));
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(
             QueryBuilders.termsQuery(

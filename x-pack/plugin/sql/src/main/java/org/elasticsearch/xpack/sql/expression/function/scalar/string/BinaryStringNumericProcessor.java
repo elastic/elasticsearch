@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.sql.util.Check;
 import java.io.IOException;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.checkResultLength;
+
 /**
  * Processor class covering string manipulating functions that have the first parameter as string,
  * second parameter as numeric and a string result.
@@ -42,12 +44,8 @@ public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<
             if (i <= 0) {
                 return null;
             }
-
-            StringBuilder sb = new StringBuilder(s.length() * i);
-            for (int j = 0; j < i; j++) {
-                sb.append(s);
-            }
-            return sb.toString();
+            checkResultLength(s.length() * c.longValue()); // mul is safe: c's checked by doProcess() to be within Integer's range
+            return s.repeat(i);
         });
 
         BinaryStringNumericOperation(BiFunction<String, Number, String> op) {

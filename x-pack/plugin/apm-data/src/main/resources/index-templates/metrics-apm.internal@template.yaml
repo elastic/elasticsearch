@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 index_patterns: ["metrics-apm.internal-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:
@@ -14,16 +14,18 @@ composed_of:
 - apm-90d@lifecycle
 - metrics-apm@mappings
 - metrics-apm@settings
+- metrics-apm.internal-fallback@ilm
 - metrics@custom
 - metrics-apm.internal@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.internal@custom
+- metrics-apm.internal-fallback@ilm
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: metrics-apm.internal@default-pipeline
       final_pipeline: metrics-apm@pipeline
   mappings:
     properties:

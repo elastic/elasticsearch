@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -433,6 +435,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                         SnapshotDeletionsInProgress.of(
                             List.of(
                                 new SnapshotDeletionsInProgress.Entry(
+                                    ProjectId.DEFAULT,
                                     "test-repo",
                                     List.of(new SnapshotId("deleting", "uuid")),
                                     startTimes[2],
@@ -445,7 +448,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                     .putCustom(
                         RepositoryCleanupInProgress.TYPE,
                         new RepositoryCleanupInProgress(
-                            List.of(new RepositoryCleanupInProgress.Entry("test-repo", randomNonNegativeLong()))
+                            List.of(new RepositoryCleanupInProgress.Entry(ProjectId.DEFAULT, "test-repo", randomNonNegativeLong()))
                         )
                     )
                     .build(),

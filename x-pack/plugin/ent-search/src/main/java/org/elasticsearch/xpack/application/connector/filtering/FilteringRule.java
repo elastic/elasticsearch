@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a single rule used for filtering in a data processing or querying context.
@@ -75,13 +76,13 @@ public class FilteringRule implements Writeable, ToXContentObject {
     }
 
     public FilteringRule(StreamInput in) throws IOException {
-        this.createdAt = in.readInstant();
+        this.createdAt = in.readOptionalInstant();
         this.field = in.readString();
         this.id = in.readString();
         this.order = in.readInt();
         this.policy = in.readEnum(FilteringPolicy.class);
         this.rule = in.readEnum(FilteringRuleCondition.class);
-        this.updatedAt = in.readInstant();
+        this.updatedAt = in.readOptionalInstant();
         this.value = in.readString();
     }
 
@@ -110,7 +111,7 @@ public class FilteringRule implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ConnectorUtils.parseInstant(p, CREATED_AT_FIELD.getPreferredName()),
             CREATED_AT_FIELD,
             ObjectParser.ValueType.STRING
@@ -131,7 +132,7 @@ public class FilteringRule implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ConnectorUtils.parseInstant(p, UPDATED_AT_FIELD.getPreferredName()),
             UPDATED_AT_FIELD,
             ObjectParser.ValueType.STRING
@@ -160,13 +161,13 @@ public class FilteringRule implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInstant(createdAt);
+        out.writeOptionalInstant(createdAt);
         out.writeString(field);
         out.writeString(id);
         out.writeInt(order);
         out.writeEnum(policy);
         out.writeEnum(rule);
-        out.writeInstant(updatedAt);
+        out.writeOptionalInstant(updatedAt);
         out.writeString(value);
     }
 
@@ -185,9 +186,29 @@ public class FilteringRule implements Writeable, ToXContentObject {
             && Objects.equals(value, that.value);
     }
 
+    /**
+     * Compares this {@code FilteringRule} to another rule for equality, ignoring differences
+     * in created_at, updated_at timestamps and order.
+    */
+    public boolean equalsExceptForTimestampsAndOrder(FilteringRule that) {
+        return Objects.equals(field, that.field)
+            && Objects.equals(id, that.id)
+            && policy == that.policy
+            && rule == that.rule
+            && Objects.equals(value, that.value);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(createdAt, field, id, order, policy, rule, updatedAt, value);
+    }
+
+    public Integer getOrder() {
+        return order;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 
     public static class Builder {
@@ -200,9 +221,10 @@ public class FilteringRule implements Writeable, ToXContentObject {
         private FilteringRuleCondition rule;
         private Instant updatedAt;
         private String value;
+        private final Instant currentTimestamp = Instant.now();
 
         public Builder setCreatedAt(Instant createdAt) {
-            this.createdAt = createdAt;
+            this.createdAt = Objects.requireNonNullElse(createdAt, currentTimestamp);
             return this;
         }
 
@@ -232,7 +254,7 @@ public class FilteringRule implements Writeable, ToXContentObject {
         }
 
         public Builder setUpdatedAt(Instant updatedAt) {
-            this.updatedAt = updatedAt;
+            this.updatedAt = Objects.requireNonNullElse(updatedAt, currentTimestamp);
             return this;
         }
 

@@ -18,4 +18,8 @@ public class ServiceComponentsTests extends ESTestCase {
     public static ServiceComponents createWithEmptySettings(ThreadPool threadPool) {
         return new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY, TruncatorTests.createTruncator());
     }
+
+    public static ServiceComponents createWithSettings(ThreadPool threadPool, Settings settings) {
+        return new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator());
+    }
 }

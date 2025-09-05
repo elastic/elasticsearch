@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -42,6 +42,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -123,8 +125,12 @@ public class CcrLicenseChecker {
         final Consumer<Exception> onFailure,
         final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer
     ) {
-        final var remoteClient = client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME));
-        checkRemoteClusterLicenseAndFetchClusterState(
+        final var remoteClient = client.getRemoteClusterClient(
+            clusterAlias,
+            client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
+        doCheckRemoteClusterLicenseAndFetchClusterState(
             client,
             clusterAlias,
             remoteClient,
@@ -132,9 +138,12 @@ public class CcrLicenseChecker {
             onFailure,
             remoteClusterStateResponse -> {
                 ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().getProject().index(leaderIndex);
                 if (leaderIndexMetadata == null) {
-                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata()
+                        .getProject()
+                        .getIndicesLookup()
+                        .get(leaderIndex);
                     final Exception failure;
                     if (indexAbstraction == null) {
                         failure = new IndexNotFoundException(leaderIndex);
@@ -155,10 +164,16 @@ public class CcrLicenseChecker {
                     onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
                     return;
                 }
-                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getProject().getIndicesLookup().get(leaderIndex);
                 final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
                     ? indexAbstraction.getParentDataStream()
                     : null;
+                // Ensure that this leader index is not a failure store index, because they are not yet supported in CCR
+                if (remoteDataStream != null && remoteDataStream.isFailureStoreIndex(leaderIndex)) {
+                    String message = String.format(Locale.ROOT, "cannot follow [%s], because it is a failure store index", leaderIndex);
+                    onFailure.accept(new IllegalArgumentException(message));
+                    return;
+                }
                 hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, new String[] { leaderIndex }, e -> {
                     if (e == null) {
                         fetchLeaderHistoryUUIDs(
@@ -192,14 +207,18 @@ public class CcrLicenseChecker {
     public static void checkRemoteClusterLicenseAndFetchClusterState(
         final Client client,
         final String clusterAlias,
-        final ClusterStateRequest request,
+        final RemoteClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer
     ) {
         try {
             var remoteClient = systemClient(
                 client.threadPool().getThreadContext(),
-                client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
+                client.getRemoteClusterClient(
+                    clusterAlias,
+                    client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                )
             );
             checkRemoteClusterLicenseAndFetchClusterState(
                 client,
@@ -216,6 +235,29 @@ public class CcrLicenseChecker {
             // connection is unknown
             onFailure.accept(e);
         }
+    }
+
+    // overridable for testing
+    protected void doCheckRemoteClusterLicenseAndFetchClusterState(
+        final Client client,
+        final String clusterAlias,
+        final RemoteClusterClient remoteClient,
+        final RemoteClusterStateRequest request,
+        final Consumer<Exception> onFailure,
+        final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
+        final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
+        final Function<Exception, ElasticsearchStatusException> unknownLicense
+    ) {
+        checkRemoteClusterLicenseAndFetchClusterState(
+            client,
+            clusterAlias,
+            remoteClient,
+            request,
+            onFailure,
+            leaderClusterStateConsumer,
+            nonCompliantLicense,
+            unknownLicense
+        );
     }
 
     /**
@@ -237,7 +279,7 @@ public class CcrLicenseChecker {
         final Client client,
         final String clusterAlias,
         final RemoteClusterClient remoteClient,
-        final ClusterStateRequest request,
+        final RemoteClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
         final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
@@ -415,6 +457,7 @@ public class CcrLicenseChecker {
             return new RemoteClusterClient() {
                 @Override
                 public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                    Transport.Connection connection,
                     RemoteClusterActionType<Response> action,
                     Request request,
                     ActionListener<Response> listener
@@ -425,8 +468,13 @@ public class CcrLicenseChecker {
                         null,
                         request,
                         listener,
-                        (r, l) -> client.execute(action, r, l)
+                        (r, l) -> client.execute(connection, action, r, l)
                     );
+                }
+
+                @Override
+                public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+                    client.getConnection(request, listener);
                 }
             };
         }
@@ -457,15 +505,20 @@ public class CcrLicenseChecker {
         return new RemoteClusterClient() {
             @Override
             public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                Transport.Connection connection,
                 RemoteClusterActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    threadContext.markAsSystemContext();
-                    delegate.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                try (var ignore = threadContext.newEmptySystemContext()) {
+                    delegate.execute(connection, action, request, new ContextPreservingActionListener<>(supplier, listener));
                 }
+            }
+
+            @Override
+            public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+                delegate.getConnection(request, listener);
             }
         };
     }

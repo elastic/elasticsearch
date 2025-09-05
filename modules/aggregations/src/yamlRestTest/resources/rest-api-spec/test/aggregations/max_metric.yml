@@ -200,8 +200,8 @@ setup:
 
 ---
 "Merging results with unmapped fields":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: Fixed in 8.5.0
 
   - do:
@@ -218,8 +218,8 @@ setup:
 
 ---
 "Counter field":
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
 
   - do:

@@ -69,6 +69,7 @@ public class FilteringValidation implements Writeable, ToXContentObject {
             builder.stringListField(IDS_FIELD.getPreferredName(), ids);
             builder.stringListField(MESSAGES_FIELD.getPreferredName(), messages);
         }
+        builder.endObject();
         return builder;
     }
 

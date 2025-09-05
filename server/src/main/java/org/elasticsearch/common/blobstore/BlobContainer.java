@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -25,6 +25,8 @@ import java.util.Map;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
+ *
+ * A BlobStore creates BlobContainers.
  */
 public interface BlobContainer {
 
@@ -96,8 +98,8 @@ public interface BlobContainer {
      * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
-     * @param blobSize            The size of the blob to be written, in bytes.  It is implementation dependent whether
-     *                            this value is used in writing the blob to the repository.
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
@@ -142,6 +144,71 @@ public interface BlobContainer {
     ) throws IOException;
 
     /**
+     * Indicates if the implementation supports writing large blobs using concurrent multipart uploads.
+     * @return {@code true} if the implementation supports writing large blobs using concurrent multipart uploads, {@code false} otherwise
+     */
+    default boolean supportsConcurrentMultipartUploads() {
+        return false;
+    }
+
+    /**
+     * Provides an {@link InputStream} to read a part of the blob content.
+     */
+    interface BlobMultiPartInputStreamProvider {
+        /**
+         * Provides an {@link InputStream} to read a part of the blob content.
+         *
+         * @param offset        the offset in the blob content to start reading bytes from
+         * @param length        the number of bytes to read
+         * @return              an {@link InputStream} to read a part of the blob content.
+         * @throws IOException  if something goes wrong opening the input stream
+         */
+        InputStream apply(long offset, long length) throws IOException;
+    }
+
+    /**
+     * Reads the blob's content by calling an input stream provider multiple times, in order to split the blob's content into multiple
+     * parts that can be written to the container concurrently before being assembled into the final blob, using an atomic write operation
+     * if the implementation supports it. The number and the size of the parts depends of the implementation.
+     *
+     * Note: the method {link {@link #supportsConcurrentMultipartUploads()}} must be checked before calling this method.
+     *
+     * @param purpose             The purpose of the operation
+     * @param blobName            The name of the blob to write the contents of the input stream to.
+     * @param provider            The input stream provider that is used to read the blob content
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
+     */
+    default void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
+     * using an atomic write operation if the implementation supports it.
+     *
+     * @param purpose             The purpose of the operation
+     * @param blobName            The name of the blob to write the contents of the input stream to.
+     * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
+     */
+    void writeBlobAtomic(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException;
+
+    /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      *
@@ -152,7 +219,37 @@ public interface BlobContainer {
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
+    default void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+        throws IOException {
+        assert assertPurposeConsistency(purpose, blobName);
+        writeBlobAtomic(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+    }
+
+    /**
+     * Copy a blob into this container from a source blob container and name.
+     * If copy is unavailable then throws UnsupportedOperationException.
+     * It may be unavailable either because the blob container has no copy implementation
+     * or because the target blob container is not on the same store as the source.
+     * If the destination blob already exists, this operation will overwrite it.
+     *
+     * @param purpose             The purpose of the operation
+     * @param sourceBlobContainer The blob container to copy the blob into
+     * @param sourceBlobName      The name of the blob to copy from
+     * @param blobName            The name of the blob to copy to
+     * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
+     *                            for very large blobs)
+     * @throws NoSuchFileException If the source blob does not exist
+     * @throws IOException        If the operation generates an IO error
+     */
+    default void copyBlob(
+        OperationPurpose purpose,
+        BlobContainer sourceBlobContainer,
+        String sourceBlobName,
+        String blobName,
+        long blobSize
+    ) throws IOException {
+        throw new UnsupportedOperationException("this blob container does not support copy");
+    }
 
     /**
      * Deletes this container and all its contents from the repository.
@@ -206,7 +303,13 @@ public interface BlobContainer {
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
-     * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
+     * <p>
+     * This operation, together with {@link #compareAndSetRegister}, must have linearizable semantics: a collection of such operations must
+     * act as if they operate serially, with each operation taking place at some instant in between its invocation and its completion.
+     * <p>
+     * If the listener completes exceptionally then the write operation should be considered as continuing to run and may therefore appear
+     * to occur at some later point in time.
      *
      * @param purpose  The purpose of the operation
      * @param key      key of the value to update
@@ -225,9 +328,15 @@ public interface BlobContainer {
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
-     * Keys not yet used start at initial value 0.
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
+     * <p>
+     * This operation, together with {@link #compareAndExchangeRegister}, must have linearizable semantics: a collection of such operations
+     * must act as if they operate serially, with each operation taking place at some instant in between its invocation and its completion.
+     * <p>
+     * If the listener completes exceptionally then the write operation should be considered as continuing to run and may therefore appear
+     * to occur at some later point in time.
      *
-     * @param purpose
+     * @param purpose  The purpose of the operation
      * @param key      key of the value to update
      * @param expected the expected value
      * @param updated  the new value
@@ -252,16 +361,22 @@ public interface BlobContainer {
 
     /**
      * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
-     * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
+     * <p>
+     * This operation has read-after-write consistency with respect to writes performed using {@link #compareAndExchangeRegister} and
+     * {@link #compareAndSetRegister}, but does not guarantee full linearizability. In particular, a {@code getRegister} performed during
+     * one of these write operations may return either the old or the new value, and a caller may therefore observe the old value
+     * <i>after</i> observing the new value, as long as both such read operations take place before the success of the write operation.
+     * <p>
+     * Write operations which complete exceptionally may behave as if they continue to run, thus yielding old or new values for an extended
+     * period of time. If multiple writes fail then {@code getRegister} may return any of the written values.
      *
      * @param purpose The purpose of the operation
      * @param key      key of the value to get
      * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
-     *                 could not be read due to concurrent activity.
+     *                 could not be read due to concurrent activity (which should not happen).
      */
-    default void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-        compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
-    }
+    void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener);
 
     /**
      * Verify that the {@link OperationPurpose} is (somewhat) suitable for the name of the blob to which it applies:

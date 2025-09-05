@@ -90,7 +90,7 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
         }
         builder.field(COUNT, count);
         if (firstOccurrence != null) {
-            builder.timeField(FIRST_OCCURRENCE, FIRST_OCCURRENCE_HUMAN_READABLE, firstOccurrence.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(FIRST_OCCURRENCE, FIRST_OCCURRENCE_HUMAN_READABLE, firstOccurrence.toEpochMilli());
         }
         return builder.endObject();
     }

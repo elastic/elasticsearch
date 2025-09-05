@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -14,37 +15,50 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.expectValueToken;
 
 /**
  * Generates the shard id for {@code (id, routing)} pairs.
  */
 public abstract class IndexRouting {
+
+    static final NodeFeature LOGSB_ROUTE_ON_SORT_FIELDS = new NodeFeature("routing.logsb_route_on_sort_fields");
+
     /**
      * Build the routing from {@link IndexMetadata}.
      */
@@ -61,14 +75,24 @@ public abstract class IndexRouting {
     protected final String indexName;
     private final int routingNumShards;
     private final int routingFactor;
+    private final IndexReshardingMetadata indexReshardingMetadata;
 
     private IndexRouting(IndexMetadata metadata) {
         this.indexName = metadata.getIndex().getName();
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
+        this.indexReshardingMetadata = metadata.getReshardingMetadata();
     }
 
-    public abstract void process(IndexRequest indexRequest);
+    /**
+     * Finalize the request before routing, with data needed for routing decisions.
+     */
+    public void preProcess(IndexRequest indexRequest) {}
+
+    /**
+     * Finalize the request after routing, incorporating data produced by the routing logic.
+     */
+    public void postProcess(IndexRequest indexRequest) {}
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -129,27 +153,68 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
+    /**
+     * If this index is in the process of resharding, and the shard to which this request is being routed,
+     * is a target shard that is not yet in HANDOFF state, then route it to the source shard.
+     * @param shardId  shardId to which the current document is routed based on hashing
+     * @return Updated shardId
+     */
+    protected final int rerouteWritesIfResharding(int shardId) {
+        return rerouteFromSplitTargetShard(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
+    }
+
+    protected final int rerouteSearchIfResharding(int shardId) {
+        return rerouteFromSplitTargetShard(shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
+    }
+
+    private int rerouteFromSplitTargetShard(int shardId, IndexReshardingState.Split.TargetShardState minimumRequiredState) {
+        assert indexReshardingMetadata == null || indexReshardingMetadata.isSplit() : "Index resharding state is not a split";
+        if (indexReshardingMetadata != null && indexReshardingMetadata.getSplit().isTargetShard(shardId)) {
+            if (indexReshardingMetadata.getSplit().targetStateAtLeast(shardId, minimumRequiredState) == false) {
+                return indexReshardingMetadata.getSplit().sourceShard(shardId);
+            }
+        }
+        return shardId;
+    }
+
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
+        private final IndexVersion creationVersion;
+        private final IndexMode indexMode;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
+            this.creationVersion = metadata.getCreationVersion();
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
+            this.indexMode = metadata.getIndexMode();
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
-        public void process(IndexRequest indexRequest) {
-            if ("".equals(indexRequest.id())) {
+        public void preProcess(IndexRequest indexRequest) {
+            // Generate id if not already provided.
+            // This is needed for routing, so it has to happen in pre-processing.
+            final String id = indexRequest.id();
+            if (id == null) {
+                if (shouldUseTimeBasedId(indexMode, creationVersion)) {
+                    indexRequest.autoGenerateTimeBasedId();
+                } else {
+                    indexRequest.autoGenerateId();
+                }
+            } else if (id.isEmpty()) {
                 throw new IllegalArgumentException("if _id is specified it must not be empty");
             }
+        }
 
-            // generate id if not already provided
-            if (indexRequest.id() == null) {
-                indexRequest.autoGenerateId();
-            }
+        private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
+            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+        }
+
+        private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
+            return creationVersion.between(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                || creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID);
         }
 
         @Override
@@ -158,19 +223,22 @@ public abstract class IndexRouting {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
             checkRoutingRequired(id, routing);
-            return shardId(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
-            return shardId(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
-            return shardId(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override
@@ -201,7 +269,7 @@ public abstract class IndexRouting {
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
-            consumer.accept(hashToShardId(effectiveRoutingToHash(routing)));
+            consumer.accept(rerouteSearchIfResharding(hashToShardId(effectiveRoutingToHash(routing))));
         }
     }
 
@@ -229,7 +297,7 @@ public abstract class IndexRouting {
         public void collectSearchShards(String routing, IntConsumer consumer) {
             int hash = effectiveRoutingToHash(routing);
             for (int i = 0; i < routingPartitionSize; i++) {
-                consumer.accept(hashToShardId(hash + i));
+                consumer.accept(rerouteSearchIfResharding(hashToShardId(hash + i)));
             }
         }
     }
@@ -237,15 +305,23 @@ public abstract class IndexRouting {
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
+        private final IndexMode indexMode;
+        private final boolean trackTimeSeriesRoutingHash;
+        private final boolean addIdWithRoutingHash;
+        private int hash = Integer.MAX_VALUE;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
+            indexMode = metadata.getIndexMode();
+            trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
+                && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+            addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(routingPaths), null, true);
         }
 
         public boolean matchesField(String fieldName) {
@@ -253,13 +329,24 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public void process(IndexRequest indexRequest) {}
+        public void postProcess(IndexRequest indexRequest) {
+            // Update the request with the routing hash, if needed.
+            // This needs to happen in post-processing, after the routing hash is calculated.
+            if (trackTimeSeriesRoutingHash) {
+                indexRequest.routing(TimeSeriesRoutingHashFieldMapper.encode(hash));
+            } else if (addIdWithRoutingHash) {
+                assert hash != Integer.MAX_VALUE;
+                indexRequest.autoGenerateTimeBasedId(OptionalInt.of(hash));
+            }
+        }
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            return hashToShardId(hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty));
+            hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+            int shardId = hashToShardId(hash);
+            return (rerouteWritesIfResharding(shardId));
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -270,7 +357,13 @@ public abstract class IndexRouting {
             Builder b = builder();
             for (Map.Entry<String, Object> e : flat.entrySet()) {
                 if (isRoutingPath.test(e.getKey())) {
-                    b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+                    if (e.getValue() instanceof List<?> listValue) {
+                        for (Object v : listValue) {
+                            b.addHash(e.getKey(), new BytesRef(v.toString()));
+                        }
+                    } else {
+                        b.addHash(e.getKey(), new BytesRef(e.getValue().toString()));
+                    }
                 }
             }
             return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
@@ -305,7 +398,7 @@ public abstract class IndexRouting {
 
             public void addMatching(String fieldName, BytesRef string) {
                 if (isRoutingPath.test(fieldName)) {
-                    hashes.add(new NameAndHash(new BytesRef(fieldName), hash(string)));
+                    addHash(fieldName, string);
                 }
             }
 
@@ -313,7 +406,7 @@ public abstract class IndexRouting {
                 byte[] idBytes = new byte[4 + suffix.length];
                 ByteUtils.writeIntLE(buildHash(onEmpty), idBytes, 0);
                 System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
-                return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+                return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
             }
 
             private void extractObject(@Nullable String path, XContentParser source) throws IOException {
@@ -326,6 +419,13 @@ public abstract class IndexRouting {
                 }
             }
 
+            private void extractArray(@Nullable String path, XContentParser source) throws IOException {
+                while (source.currentToken() != Token.END_ARRAY) {
+                    expectValueToken(source.currentToken(), source);
+                    extractItem(path, source);
+                }
+            }
+
             private void extractItem(String path, XContentParser source) throws IOException {
                 switch (source.currentToken()) {
                     case START_OBJECT:
@@ -334,41 +434,41 @@ public abstract class IndexRouting {
                         source.nextToken();
                         break;
                     case VALUE_STRING:
-                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                    case VALUE_NUMBER:
+                    case VALUE_BOOLEAN:
+                        XContentString.UTF8Bytes utf8Bytes = source.optimizedText().bytes();
+                        addHash(path, new BytesRef(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length()));
+                        source.nextToken();
+                        break;
+                    case START_ARRAY:
+                        source.nextToken();
+                        extractArray(path, source);
                         source.nextToken();
                         break;
                     case VALUE_NULL:
                         source.nextToken();
                         break;
-                    case VALUE_NUMBER: // allow parsing numbers assuming routing fields are always keyword fields
-                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
-                        source.nextToken();
-                        break;
                     default:
                         throw new ParsingException(
                             source.getTokenLocation(),
-                            "Routing values must be strings but found [{}]",
+                            "Cannot extract routing path due to unexpected token [{}]",
                             source.currentToken()
                         );
                 }
             }
 
+            private void addHash(String path, BytesRef value) {
+                hashes.add(new NameAndHash(new BytesRef(path), hash(value), hashes.size()));
+            }
+
             private int buildHash(IntSupplier onEmpty) {
-                Collections.sort(hashes);
-                Iterator<NameAndHash> itr = hashes.iterator();
-                if (itr.hasNext() == false) {
+                if (hashes.isEmpty()) {
                     return onEmpty.getAsInt();
                 }
-                NameAndHash prev = itr.next();
-                int hash = hash(prev.name) ^ prev.hash;
-                while (itr.hasNext()) {
-                    NameAndHash next = itr.next();
-                    if (prev.name.equals(next.name)) {
-                        throw new IllegalArgumentException("Duplicate routing dimension for [" + next.name + "]");
-                    }
-                    int thisHash = hash(next.name) ^ next.hash;
-                    hash = 31 * hash + thisHash;
-                    prev = next;
+                Collections.sort(hashes);
+                int hash = 0;
+                for (NameAndHash nah : hashes) {
+                    hash = 31 * hash + (hash(nah.name) ^ nah.hash);
                 }
                 return hash;
             }
@@ -386,13 +486,15 @@ public abstract class IndexRouting {
         @Override
         public int deleteShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
-            return idToHash(id);
+            int shardId = idToHash(id);
+            return (rerouteWritesIfResharding(shardId));
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
-            return idToHash(id);
+            int shardId = idToHash(id);
+            return (rerouteWritesIfResharding(shardId));
         }
 
         private void checkNoRouting(@Nullable String routing) {
@@ -406,12 +508,15 @@ public abstract class IndexRouting {
             try {
                 idBytes = Base64.getUrlDecoder().decode(id);
             } catch (IllegalArgumentException e) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
             if (idBytes.length < 4) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
-            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
+            // For TSDB, the hash is stored as the id prefix.
+            // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 9, id.length - 5] of the id,
+            // see IndexRequest#autoGenerateTimeBasedId.
+            return hashToShardId(ByteUtils.readIntLE(idBytes, addIdWithRoutingHash ? idBytes.length - 9 : 0));
         }
 
         @Override
@@ -425,14 +530,17 @@ public abstract class IndexRouting {
         }
 
         private String error(String operation) {
-            return operation + " is not supported because the destination index [" + indexName + "] is in time series mode";
+            return operation + " is not supported because the destination index [" + indexName + "] is in " + indexMode.getName() + " mode";
         }
     }
 
-    private record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
+    private record NameAndHash(BytesRef name, int hash, int order) implements Comparable<NameAndHash> {
         @Override
         public int compareTo(NameAndHash o) {
-            return name.compareTo(o.name);
+            int i = name.compareTo(o.name);
+            if (i != 0) return i;
+            // ensures array values are in the order as they appear in the source
+            return Integer.compare(order, o.order);
         }
     }
 }

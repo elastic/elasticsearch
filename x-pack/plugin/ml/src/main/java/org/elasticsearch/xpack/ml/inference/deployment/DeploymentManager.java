@@ -424,7 +424,7 @@ public class DeploymentManager {
             timeout,
             processContext,
             threadPool,
-            ActionListener.wrap(b -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+            listener.delegateFailureAndWrap((l, b) -> l.onResponse(AcknowledgedResponse.TRUE))
         );
 
         executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
@@ -533,18 +533,18 @@ public class DeploymentManager {
             startTime = Instant.now();
             logger.debug("[{}] process started", task.getDeploymentId());
             try {
-                loadModel(modelLocation, ActionListener.wrap(success -> {
+                loadModel(modelLocation, loadedListener.delegateFailureAndWrap((delegate, success) -> {
                     if (isStopped) {
                         logger.debug("[{}] model loaded but process is stopped", task.getDeploymentId());
                         killProcessIfPresent();
-                        loadedListener.onFailure(new IllegalStateException("model loaded but process is stopped"));
+                        delegate.onFailure(new IllegalStateException("model loaded but process is stopped"));
                         return;
                     }
 
                     logger.debug("[{}] model loaded, starting priority process worker thread", task.getDeploymentId());
                     startPriorityProcessWorker();
-                    loadedListener.onResponse(success);
-                }, loadedListener::onFailure));
+                    delegate.onResponse(success);
+                }));
             } catch (Exception e) {
                 loadedListener.onFailure(e);
             }
@@ -631,12 +631,15 @@ public class DeploymentManager {
             logger.debug(() -> format("[%s] Forcefully stopping process", task.getDeploymentId()));
             prepareInternalStateForShutdown();
 
-            if (priorityProcessWorker.isShutdown()) {
-                // most likely there was a crash or exception that caused the
-                // thread to stop. Notify any waiting requests in the work queue
-                handleAlreadyShuttingDownWorker();
-            } else {
-                priorityProcessWorker.shutdown();
+            priorityProcessWorker.shutdownNow();
+            try {
+                // wait for any currently executing work to finish
+                if (priorityProcessWorker.awaitTermination(10L, TimeUnit.SECONDS)) {
+                    priorityProcessWorker.notifyQueueRunnables();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info(Strings.format("[%s] Interrupted waiting for process worker after shutdownNow", PROCESS_NAME));
             }
 
             killProcessIfPresent();
@@ -647,12 +650,6 @@ public class DeploymentManager {
             isStopped = true;
             resultProcessor.stop();
             stateStreamer.cancel();
-        }
-
-        private void handleAlreadyShuttingDownWorker() {
-            logger.debug(() -> format("[%s] Process worker was already marked for shutdown", task.getDeploymentId()));
-
-            priorityProcessWorker.notifyQueueRunnables();
         }
 
         private void killProcessIfPresent() {
@@ -675,15 +672,7 @@ public class DeploymentManager {
         private synchronized void stopProcessAfterCompletingPendingWork() {
             logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
             prepareInternalStateForShutdown();
-
-            if (priorityProcessWorker.isShutdown()) {
-                // most likely there was a crash or exception that caused the
-                // thread to stop. Notify any waiting requests in the work queue
-                handleAlreadyShuttingDownWorker();
-            } else {
-                signalAndWaitForWorkerTermination();
-            }
-
+            signalAndWaitForWorkerTermination();
             stopProcessGracefully();
             closeNlpTaskProcessor();
         }
@@ -707,6 +696,8 @@ public class DeploymentManager {
                     throw new TimeoutException(
                         Strings.format("Timed out waiting for process worker to complete for process %s", PROCESS_NAME)
                     );
+                } else {
+                    priorityProcessWorker.notifyQueueRunnables();
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

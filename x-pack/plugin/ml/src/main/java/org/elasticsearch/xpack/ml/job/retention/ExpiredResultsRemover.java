@@ -52,6 +52,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +98,16 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         ActionListener<Boolean> listener
     ) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
-        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
+
+        var indicesToQuery = WritableIndexExpander.getInstance()
+            .getWritableIndices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for job [{}]. No expired results removed.", job.getId());
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs, indicesToQuery);
         request.setParentTask(getParentTaskId());
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
@@ -136,7 +146,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+    private DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs, ArrayList<String> indicesToQuery) {
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(
             Result.RESULT_TYPE.getPreferredName(),
             ModelSizeStats.RESULT_TYPE_VALUE,
@@ -148,7 +158,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
             .mustNot(excludeFilter);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setSlices(
+
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setSlices(
             AbstractBulkByScrollRequest.AUTO_SLICES
         )
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
@@ -165,18 +176,18 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            listener
-        );
-        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
+        latestBucketTime(client, getParentTaskId(), jobId, listener.delegateFailureAndWrap((l, latestTime) -> {
+            ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                l
+            );
             if (latestTime == null) {
                 threadedActionListener.onResponse(null);
             } else {
                 long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
                 threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
             }
-        }, listener::onFailure));
+        }));
     }
 
     static void latestBucketTime(OriginSettingClient client, TaskId parentTaskId, String jobId, ActionListener<Long> listener) {
@@ -195,11 +206,11 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(parentTaskId);
 
-        client.search(searchRequest, ActionListener.wrap(response -> {
+        client.search(searchRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             SearchHit[] hits = response.getHits().getHits();
             if (hits.length == 0) {
                 // no buckets found
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
 
                 try (
@@ -210,12 +221,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                     )
                 ) {
                     Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
-                    listener.onResponse(bucket.getTimestamp().getTime());
+                    delegate.onResponse(bucket.getTimestamp().getTime());
                 } catch (IOException e) {
-                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                    delegate.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

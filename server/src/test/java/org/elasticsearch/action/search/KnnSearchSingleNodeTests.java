@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -62,7 +63,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         client().prepareUpdate("index", "0").setDoc("vector", (Object) null).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50, null).boost(5.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50, 10f, null, null).boost(5.0f);
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
@@ -106,11 +107,11 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).boost(5.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).boost(5.0f).queryName("knn");
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
-                .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
+                .setQuery(QueryBuilders.matchQuery("text", "goodnight").queryName("query"))
                 .addFetchField("*")
                 .setSize(10),
             response -> {
@@ -121,6 +122,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
                 // Because of the boost, vector results should appear first
                 assertNotNull(response.getHits().getAt(0).field("vector"));
+                assertEquals(response.getHits().getAt(0).getMatchedQueries()[0], "knn");
+                assertEquals(response.getHits().getAt(9).getMatchedQueries()[0], "query");
             }
         );
     }
@@ -153,7 +156,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).addFilterQuery(
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).addFilterQuery(
             QueryBuilders.termsQuery("field", "second")
         );
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10), response -> {
@@ -196,7 +199,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).addFilterQuery(
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).addFilterQuery(
             QueryBuilders.termsLookupQuery("field", new TermsLookup("index", "lookup-doc", "other-field"))
         );
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).setSize(10), response -> {
@@ -243,8 +246,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector(20f, 21f);
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).boost(5.0f);
-        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, null).boost(10.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).boost(5.0f);
+        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, 10f, null, null).boost(10.0f);
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch, knnSearch2))
@@ -305,8 +308,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         float[] queryVector = randomVector();
         // Having the same query vector and same docs should mean our KNN scores are linearly combined if the same doc is matched
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null);
-        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null);
+        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, 10f, null, null);
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
@@ -364,7 +367,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         createIndex("index", indexSettings, builder);
-        indicesAdmin().prepareAliases().addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit"))
+            .get();
 
         int expectedHits = 0;
         for (int doc = 0; doc < 10; doc++) {
@@ -378,7 +383,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50, 10f, null, null);
         final int expectedHitCount = expectedHits;
         assertResponse(client().prepareSearch("test-alias").setKnnSearch(List.of(knnSearch)).setSize(10), response -> {
             assertHitCount(response, expectedHitCount);
@@ -414,7 +419,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = randomVector();
         assertResponse(
-            client().prepareSearch("index1", "index2").setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, null)).setSize(2),
+            client().prepareSearch("index1", "index2")
+                .setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, 5, 10f, null, null))
+                .setSize(2),
             response -> {
                 // The total hits is num_cands * num_shards, since the query gathers num_cands hits from each shard
                 assertHitCount(response, 5 * 2);
@@ -447,7 +454,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector(4096);
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, null).boost(5.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, 10f, null, null).boost(5.0f);
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10), response -> {
             assertHitCount(response, 3);
             assertEquals(3, response.getHits().getHits().length);

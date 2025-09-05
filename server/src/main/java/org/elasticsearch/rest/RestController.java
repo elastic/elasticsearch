@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -33,12 +34,16 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
+import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -56,6 +61,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -86,6 +92,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
+    public static final String STATUS_CODE_KEY = "es_rest_status_code";
+    public static final String HANDLER_NAME_KEY = "es_rest_handler_name";
+    public static final String REQUEST_METHOD_KEY = "es_rest_request_method";
+    public static final boolean ERROR_TRACE_DEFAULT = false;
 
     static {
         try (InputStream stream = RestController.class.getResourceAsStream("/config/favicon.ico")) {
@@ -107,18 +117,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final UsageService usageService;
     private final Tracer tracer;
+    private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
+
+    public static final String METRIC_REQUESTS_TOTAL = "es.rest.requests.total";
 
     public RestController(
         RestInterceptor restInterceptor,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         this.usageService = usageService;
-        this.tracer = tracer;
+        this.tracer = telemetryProvider.getTracer();
+        this.requestsCounter = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(METRIC_REQUESTS_TOTAL, "The total number of rest requests/responses processed", "unit");
         if (restInterceptor == null) {
             restInterceptor = (request, channel, targetHandler, listener) -> listener.onResponse(Boolean.TRUE);
         }
@@ -141,25 +156,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
-     */
-    protected void registerAsDeprecatedHandler(
-        RestRequest.Method method,
-        String path,
-        RestApiVersion version,
-        RestHandler handler,
-        String deprecationMessage
-    ) {
-        registerAsDeprecatedHandler(method, path, version, handler, deprecationMessage, null);
-    }
-
-    /**
-     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
-     *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
-     * @param version API version to handle (e.g. RestApiVersion.V_8)
-     * @param handler The handler to actually execute
-     * @param deprecationMessage The message to log and send as a header in the response
      * @param deprecationLevel The deprecation log level to use for the deprecation warning, either WARN or CRITICAL
      */
     protected void registerAsDeprecatedHandler(
@@ -168,40 +164,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestApiVersion version,
         RestHandler handler,
         String deprecationMessage,
-        @Nullable Level deprecationLevel
+        Level deprecationLevel
     ) {
         assert (handler instanceof DeprecationRestHandler) == false;
-        if (version == RestApiVersion.current()) {
-            // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
+        if (RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()).test(version)) {
             registerHandler(
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, false)
-            );
-        } else if (version == RestApiVersion.minimumSupported()) {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
-            registerHandler(
-                method,
-                path,
-                version,
-                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, true)
-            );
-        } else {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
-            logger.debug(
-                "Deprecated route ["
-                    + method
-                    + " "
-                    + path
-                    + "] for handler ["
-                    + handler.getClass()
-                    + "] "
-                    + "with version ["
-                    + version
-                    + "], which is less than the minimum supported version ["
-                    + RestApiVersion.minimumSupported()
-                    + "]"
+                new DeprecationRestHandler(
+                    handler,
+                    method,
+                    path,
+                    deprecationLevel,
+                    deprecationMessage,
+                    deprecationLogger,
+                    version != RestApiVersion.current()
+                )
             );
         }
     }
@@ -239,21 +218,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestHandler handler,
         RestRequest.Method replacedMethod,
         String replacedPath,
-        RestApiVersion replacedVersion
+        RestApiVersion replacedVersion,
+        String replacedMessage,
+        Level deprecationLevel
     ) {
-        // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String replacedMessage = "["
-            + replacedMethod.name()
-            + " "
-            + replacedPath
-            + "] is deprecated! Use ["
-            + method.name()
-            + " "
-            + path
-            + "] instead.";
-
         registerHandler(method, path, version, handler);
-        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage, deprecationLevel);
     }
 
     /**
@@ -273,7 +243,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
-            : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
+            : "REST API compatibility is only supported for version "
+                + RestApiVersion.minimumSupported().major
+                + " [method="
+                + method
+                + ", path="
+                + path
+                + ", handler="
+                + handler.getClass().getCanonicalName()
+                + "]";
 
         if (RESERVED_PATHS.contains(path)) {
             throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
@@ -288,7 +266,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     public void registerHandler(final Route route, final RestHandler handler) {
-        if (route.isReplacement()) {
+        if (route.hasReplacement()) {
             Route replaced = route.getReplacedRoute();
             registerAsReplacedHandler(
                 route.getMethod(),
@@ -297,7 +275,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 handler,
                 replaced.getMethod(),
                 replaced.getPath(),
-                replaced.getRestApiVersion()
+                replaced.getRestApiVersion(),
+                replaced.getDeprecationMessage(),
+                replaced.getDeprecationLevel()
             );
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(
@@ -355,6 +335,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendFailure(channel, (Exception) e.getCause());
             } else {
                 channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
+                recordRequestMetric(BAD_REQUEST, requestsCounter);
             }
         } catch (final IOException e) {
             if (cause != null) {
@@ -362,7 +343,36 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             logger.warn("failed to send bad request response", e);
             channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            recordRequestMetric(INTERNAL_SERVER_ERROR, requestsCounter);
         }
+    }
+
+    public boolean checkSupported(
+        RestRequest.Method method,
+        String path,
+        Set<String> parameters,
+        Set<String> capabilities,
+        RestApiVersion restApiVersion
+    ) {
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
+        while (allHandlers.hasNext()) {
+            RestHandler handler;
+            MethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method, restApiVersion);
+            }
+
+            if (handler != null) {
+                var supportedParams = handler.supportedQueryParameters();
+                assert supportedParams == handler.supportedQueryParameters()
+                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
+                return (supportedParams == null || supportedParams.containsAll(parameters))
+                    && handler.supportedCapabilities().containsAll(capabilities);
+            }
+        }
+        return false;
     }
 
     @Override
@@ -379,6 +389,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return Collections.unmodifiableSortedMap(allStats);
     }
 
+    private void maybeAggregateAndDispatchRequest(
+        RestRequest restRequest,
+        RestChannel restChannel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
+        if (handler.supportsContentStream()) {
+            dispatchRequest(restRequest, restChannel, handler, methodHandlers, threadContext);
+        } else {
+            RestContentAggregator.aggregate(restRequest, (aggregatedRequest) -> {
+                try {
+                    dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
+                } catch (Exception e) {
+                    throw new ElasticsearchException(e);
+                }
+            });
+        }
+    }
+
     private void dispatchRequest(
         RestRequest request,
         RestChannel channel,
@@ -386,15 +416,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         MethodHandlers methodHandlers,
         ThreadContext threadContext
     ) throws Exception {
-        final int contentLength = request.contentLength();
-        if (contentLength > 0) {
+        if (request.hasContent()) {
             if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
             final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsContentStream()
+            if (handler.supportsBulkContent()
                 && XContentType.JSON != xContentType.canonical()
                 && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(
@@ -415,6 +444,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+        final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -423,10 +453,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
-            // TODO: Count requests double in the circuit breaker if they need copying?
-            if (handler.allowsUnsafeBuffers() == false) {
-                request.ensureSafeBuffers();
-            }
 
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
@@ -442,6 +468,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
+
+            if (apiProtections.isEnabled()) {
+                // API protections are only enabled in serverless; therefore we can use this as an indicator to mark the
+                // request as a serverless mode request here, so downstream handlers can use the marker
+                request.markAsServerlessRequest();
+                logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
             final var finalChannel = responseChannel;
             this.interceptor.intercept(request, responseChannel, handler.getConcreteRestHandler(), new ActionListener<>() {
                 @Override
@@ -476,8 +510,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @SuppressWarnings("unused")
     protected void validateRequest(RestRequest request, RestHandler handler, NodeClient client) throws ElasticsearchStatusException {}
 
-    private static void sendFailure(RestChannel responseChannel, Exception e) throws IOException {
-        responseChannel.sendResponse(new RestResponse(responseChannel, e));
+    private void sendFailure(RestChannel responseChannel, Exception e) throws IOException {
+        var restResponse = new RestResponse(responseChannel, e);
+        responseChannel.sendResponse(restResponse);
+        recordRequestMetric(restResponse.status(), requestsCounter);
     }
 
     /**
@@ -543,10 +579,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
+            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
         });
-        attributes.put("http.method", method);
-        attributes.put("http.url", req.uri());
+        attributes.put("http.method", Objects.requireNonNullElse(method, "<unknown>"));
+        attributes.put("http.url", Objects.requireNonNullElse(req.uri(), "<unknown>"));
         switch (req.getHttpRequest().protocolVersion()) {
             case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
             case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
@@ -576,6 +612,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (IllegalArgumentException e) {
             startTrace(threadContext, channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
+            recordRequestMetric(BAD_REQUEST, requestsCounter);
             return;
         }
 
@@ -603,7 +640,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
-                    dispatchRequest(request, channel, handler, handlers, threadContext);
+                    var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
+                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
@@ -621,7 +659,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static void validateErrorTrace(RestRequest request, RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+        if (request.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled() == false) {
             throw new IllegalArgumentException("error traces in responses are disabled.");
         }
     }
@@ -644,7 +682,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we use rawPath since we don't want to decode it while processing the path resolution
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
-        return handlers.retrieveAll(rawPath, paramsSupplier);
+        return handlers.retrieveAll(rawPath, paramsSupplier).iterator();
     }
 
     /**
@@ -663,7 +701,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
-    private static void handleUnsupportedHttpMethod(
+    private void handleUnsupportedHttpMethod(
         String uri,
         @Nullable RestRequest.Method method,
         final RestChannel channel,
@@ -686,9 +724,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 restResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
             }
             channel.sendResponse(restResponse);
+            recordRequestMetric(METHOD_NOT_ALLOWED, requestsCounter);
         } catch (final IOException e) {
             logger.warn("failed to send bad request response", e);
             channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            recordRequestMetric(INTERNAL_SERVER_ERROR, requestsCounter);
         }
     }
 
@@ -699,7 +739,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
      * - Options</a>).
      */
-    private static void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
+    private void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
         RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
@@ -707,13 +747,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             restResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
         }
         channel.sendResponse(restResponse);
+        recordRequestMetric(OK, requestsCounter);
     }
 
     /**
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    public static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    private void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
@@ -721,11 +762,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             builder.endObject();
             channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+            recordRequestMetric(BAD_REQUEST, requestsCounter);
         }
     }
 
-    public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
-        throws IOException {
+    private void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
         sendFailure(channel, new ApiNotAvailableException(msg));
     }
@@ -745,25 +786,37 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return validMethods;
     }
 
-    private static final class ResourceHandlingHttpChannel implements RestChannel {
-        private final RestChannel delegate;
-        private final CircuitBreakerService circuitBreakerService;
-        private final int contentLength;
-        private final MethodHandlers methodHandlers;
-        private final long startTime;
-        private final AtomicBoolean closed = new AtomicBoolean();
+    private static void recordRequestMetric(RestStatus statusCode, String handlerName, String requestMethod, LongCounter requestsCounter) {
+        try {
+            Map<String, Object> attributes = Map.of(
+                STATUS_CODE_KEY,
+                statusCode.getStatus(),
+                HANDLER_NAME_KEY,
+                handlerName,
+                REQUEST_METHOD_KEY,
+                requestMethod
+            );
+            requestsCounter.incrementBy(1, attributes);
+        } catch (Exception ex) {
+            logger.error("Cannot track request status code", ex);
+        }
+    }
 
-        ResourceHandlingHttpChannel(
-            RestChannel delegate,
-            CircuitBreakerService circuitBreakerService,
-            int contentLength,
-            MethodHandlers methodHandlers
-        ) {
+    private static void recordRequestMetric(RestStatus statusCode, LongCounter requestsCounter) {
+        try {
+            Map<String, Object> attributes = Map.of(STATUS_CODE_KEY, statusCode.getStatus());
+            requestsCounter.incrementBy(1, attributes);
+        } catch (Exception ex) {
+            logger.error("Cannot track request status code", ex);
+        }
+    }
+
+    private static class DelegatingRestChannel implements RestChannel {
+
+        private final RestChannel delegate;
+
+        private DelegatingRestChannel(RestChannel delegate) {
             this.delegate = delegate;
-            this.circuitBreakerService = circuitBreakerService;
-            this.contentLength = contentLength;
-            this.methodHandlers = methodHandlers;
-            this.startTime = rawRelativeTimeInMillis();
         }
 
         @Override
@@ -819,19 +872,75 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
+            delegate.sendResponse(response);
+        }
+    }
+
+    private static final class MeteringRestChannelDecorator extends DelegatingRestChannel {
+
+        private final LongCounter requestsCounter;
+        private final RestHandler restHandler;
+
+        private MeteringRestChannelDecorator(RestChannel delegate, LongCounter requestCounter, RestHandler restHandler) {
+            super(delegate);
+            this.requestsCounter = requestCounter;
+            this.restHandler = restHandler;
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            super.sendResponse(response);
+            recordRequestMetric(response.status(), restHandler.getName(), request().method().name(), requestsCounter);
+        }
+    }
+
+    // exposed for tests; marked as UpdateForV10 because this assertion should have flushed out all double-close bugs by the time v10 is
+    // released so we should be able to drop the tests that check we behave reasonably in production on this impossible path
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    static boolean PERMIT_DOUBLE_RESPONSE = false;
+
+    private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
+        private final CircuitBreakerService circuitBreakerService;
+        private final int contentLength;
+        private final HttpRouteStatsTracker statsTracker;
+        private final long startTime;
+        private final AtomicBoolean responseSent = new AtomicBoolean();
+
+        ResourceHandlingHttpChannel(
+            RestChannel delegate,
+            CircuitBreakerService circuitBreakerService,
+            int contentLength,
+            MethodHandlers methodHandlers
+        ) {
+            super(delegate);
+            this.circuitBreakerService = circuitBreakerService;
+            this.contentLength = contentLength;
+            this.statsTracker = methodHandlers.statsTracker();
+            this.startTime = rawRelativeTimeInMillis();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
             boolean success = false;
             try {
-                close();
-                methodHandlers.addRequestStats(contentLength);
-                methodHandlers.addResponseTime(rawRelativeTimeInMillis() - startTime);
+                // protect against double-response bugs
+                if (responseSent.compareAndSet(false, true) == false) {
+                    final var message = "have already sent a response to this request, cannot send another";
+                    assert PERMIT_DOUBLE_RESPONSE : message;
+                    throw new IllegalStateException(message);
+                }
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+
+                statsTracker.addRequestStats(contentLength);
+                statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
-                    methodHandlers.addResponseStats(response.content().length());
+                    statsTracker.addResponseStats(response.content().length());
                 } else {
-                    final var responseLengthRecorder = new ResponseLengthRecorder(methodHandlers);
+                    final var responseLengthRecorder = new ResponseLengthRecorder(statsTracker);
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), responseLengthRecorder),
+                        new EncodedLengthTrackingChunkedRestResponseBodyPart(response.chunkedContent(), responseLengthRecorder),
                         Releasables.wrap(responseLengthRecorder, response)
                     );
                     for (final var header : headers.entrySet()) {
@@ -840,7 +949,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         }
                     }
                 }
-                delegate.sendResponse(response);
+                super.sendResponse(response);
                 success = true;
             } finally {
                 if (success == false) {
@@ -852,21 +961,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private static long rawRelativeTimeInMillis() {
             return TimeValue.nsecToMSec(System.nanoTime());
         }
-
-        private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
-            }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
-        }
     }
 
-    private static class ResponseLengthRecorder extends AtomicReference<MethodHandlers> implements Releasable {
+    private static class ResponseLengthRecorder extends AtomicReference<HttpRouteStatsTracker> implements Releasable {
         private long responseLength;
 
-        private ResponseLengthRecorder(MethodHandlers methodHandlers) {
-            super(methodHandlers);
+        private ResponseLengthRecorder(HttpRouteStatsTracker routeStatsTracker) {
+            super(routeStatsTracker);
         }
 
         @Override
@@ -874,11 +975,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // closed just before sending the last chunk, and also when the whole RestResponse is closed since the client might abort the
             // connection before we send the last chunk, in which case we won't have recorded the response in the
             // stats yet; thus we need run-once semantics here:
-            final var methodHandlers = getAndSet(null);
-            if (methodHandlers != null) {
+            final var routeStatsTracker = getAndSet(null);
+            if (routeStatsTracker != null) {
                 // if we started sending chunks then we're closed on the transport worker, no need for sync
                 assert responseLength == 0L || Transports.assertTransportThread();
-                methodHandlers.addResponseStats(responseLength);
+                routeStatsTracker.addResponseStats(responseLength);
             }
         }
 
@@ -890,13 +991,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+    private static class EncodedLengthTrackingChunkedRestResponseBodyPart implements ChunkedRestResponseBodyPart {
 
-        private final ChunkedRestResponseBody delegate;
+        private final ChunkedRestResponseBodyPart delegate;
         private final ResponseLengthRecorder responseLengthRecorder;
 
-        private EncodedLengthTrackingChunkedRestResponseBody(
-            ChunkedRestResponseBody delegate,
+        private EncodedLengthTrackingChunkedRestResponseBodyPart(
+            ChunkedRestResponseBodyPart delegate,
             ResponseLengthRecorder responseLengthRecorder
         ) {
             this.delegate = delegate;
@@ -904,15 +1005,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public boolean isDone() {
-            return delegate.isDone();
+        public boolean isPartComplete() {
+            return delegate.isPartComplete();
+        }
+
+        @Override
+        public boolean isLastPart() {
+            return delegate.isLastPart();
+        }
+
+        @Override
+        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            delegate.getNextPart(
+                listener.map(continuation -> new EncodedLengthTrackingChunkedRestResponseBodyPart(continuation, responseLengthRecorder))
+            );
         }
 
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
             responseLengthRecorder.addChunkLength(bytesReference.length());
-            if (isDone()) {
+            if (isPartComplete() && isLastPart()) {
                 responseLengthRecorder.close();
             }
             return bytesReference;

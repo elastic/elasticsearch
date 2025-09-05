@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -30,11 +30,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class GetSearchApplicationAction {
 
     public static final String NAME = "cluster:admin/xpack/application/search_application/get";
-    public static final ActionType<GetSearchApplicationAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private GetSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
         private final String name;
 
         public static final ParseField NAME_FIELD = new ParseField("name");
@@ -109,7 +109,6 @@ public class GetSearchApplicationAction {
         private final SearchApplication searchApp;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.searchApp = new SearchApplication(in);
         }
 
@@ -126,20 +125,6 @@ public class GetSearchApplicationAction {
             SearchApplicationTemplate template
         ) {
             this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis, template);
-        }
-
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "get_search_application_response",
-            p -> new Response((SearchApplication) p[0])
-        );
-        public static final ParseField SEARCH_APPLICATION_FIELD = new ParseField("searchApp");
-
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> SearchApplication.fromXContent(c, p), SEARCH_APPLICATION_FIELD);
-        }
-
-        public static Response parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {

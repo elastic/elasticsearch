@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -33,6 +33,8 @@ import java.util.Objects;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
+ *
+ * Information about a particular shard instance.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 
@@ -238,7 +240,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff the this shard is currently relocating to
+     * Returns <code>true</code> iff this shard is currently relocating to
      * another node. Otherwise <code>false</code>
      *
      * @see ShardRoutingState#RELOCATING
@@ -326,7 +328,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A shard iterator with just this shard in it.
      */
     public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId, List.of(this));
+        return new ShardIterator(shardId, List.of(this));
     }
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
@@ -340,7 +342,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             recoverySource = null;
         }
-        unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
+        unassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
         if (in.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         } else {
@@ -408,7 +410,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
         assert this.unassignedInfo != null : "can only update unassigned info if it is already set";
-        assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
+        assert this.unassignedInfo.delayed() || (unassignedInfo.delayed() == false) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -932,8 +934,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Determine if role searchable. Consumers should prefer {@link OperationRouting#canSearchShard(ShardRouting, ClusterState)} to
-     * determine if a shard can be searched and {@link IndexRoutingTable#readyForSearch(ClusterState)} to determine if an index
+     * Determine if role searchable. Consumers should prefer {@link IndexRoutingTable#readyForSearch()} to determine if an index
      * is ready to be searched.
      */
     public boolean isSearchable() {

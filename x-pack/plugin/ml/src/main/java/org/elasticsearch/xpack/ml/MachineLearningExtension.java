@@ -25,7 +25,7 @@ public interface MachineLearningExtension {
 
     boolean isNlpEnabled();
 
-    default boolean isLearningToRankEnabled() {
+    default boolean disableInferenceProcessCache() {
         return false;
     }
 

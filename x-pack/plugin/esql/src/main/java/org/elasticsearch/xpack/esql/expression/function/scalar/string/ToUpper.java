@@ -7,77 +7,57 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.function.Function;
+import java.io.IOException;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-
-public class ToUpper extends EsqlConfigurationFunction {
-
-    private final Expression field;
+public class ToUpper extends ChangeCase {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToUpper", ToUpper::new);
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
-        description = "Returns a new string representing the input string converted to upper case."
+        returnType = { "keyword" },
+        description = "Returns a new string representing the input string converted to upper case.",
+        examples = @Example(file = "string", tag = "to_upper")
     )
-    public ToUpper(
-        Source source,
-        @Param(name = "str", type = { "keyword", "text" }, description = "The input string") Expression field,
-        Configuration configuration
-    ) {
-        super(source, List.of(field), configuration);
-        this.field = field;
+    public ToUpper(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
+        String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
+        or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.
+        """) Expression field, Configuration configuration) {
+        super(source, field, configuration, Case.UPPER);
+    }
+
+    private ToUpper(StreamInput in) throws IOException {
+        this(
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+                ? Source.readFrom((PlanStreamInput) in)
+                : Source.EMPTY,
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
+        );
     }
 
     @Override
-    public DataType dataType() {
-        return field.dataType();
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+            source().writeTo(out);
         }
-
-        return isString(field, sourceText(), DEFAULT);
+        out.writeNamedWriteable(field());
     }
 
     @Override
-    public boolean foldable() {
-        return field.foldable();
-    }
-
-    @Evaluator
-    static BytesRef process(BytesRef val, @Fixed Locale locale) {
-        return BytesRefs.toBytesRef(val.utf8ToString().toUpperCase(locale));
-    }
-
-    @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var fieldEvaluator = toEvaluator.apply(field);
-        return new ToUpperEvaluator.Factory(source(), fieldEvaluator, ((EsqlConfiguration) configuration()).locale());
-    }
-
-    public Expression field() {
-        return field;
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public ToUpper replaceChild(Expression child) {
@@ -85,13 +65,7 @@ public class ToUpper extends EsqlConfigurationFunction {
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        assert newChildren.size() == 1;
-        return replaceChild(newChildren.get(0));
-    }
-
-    @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToUpper::new, field, configuration());
+        return NodeInfo.create(this, ToUpper::new, field(), configuration());
     }
 }

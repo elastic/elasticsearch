@@ -39,6 +39,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinato
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +57,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import javax.net.ssl.SSLContext;
@@ -103,7 +102,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<List<String>> HOST_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "host",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), new Setting.Validator<>() {
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
 
             @Override
             public void validate(final List<String> value) {
@@ -760,8 +759,8 @@ public class HttpExporter extends Exporter {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
-            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
-            sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+            final SslProfile profile = sslService.profile(concreteSetting.getKey());
+            sslStrategy = profile.ioSessionStrategy4();
         }
         return sslStrategy;
     }

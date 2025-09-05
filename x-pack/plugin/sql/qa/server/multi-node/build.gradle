@@ -7,5 +7,4 @@ description = 'Run a subset of SQL tests against multiple nodes'
  */
 
 dependencies {
-  clusterPlugins project(':x-pack:qa:freeze-plugin')
 }

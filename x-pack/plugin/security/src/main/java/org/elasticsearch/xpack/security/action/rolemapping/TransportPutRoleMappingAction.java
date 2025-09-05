@@ -8,53 +8,53 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ReservedStateAwareHandledTransportAction;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 
-import java.util.Optional;
-import java.util.Set;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.validateNoReadOnlySuffix;
 
-public class TransportPutRoleMappingAction extends ReservedStateAwareHandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
+public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
+    private final ProjectStateRoleMapper projectStateRoleMapper;
 
     @Inject
     public TransportPutRoleMappingAction(
         ActionFilters actionFilters,
         TransportService transportService,
-        ClusterService clusterService,
-        NativeRoleMappingStore roleMappingStore
+        NativeRoleMappingStore roleMappingStore,
+        ProjectStateRoleMapper projectStateRoleMapper
     ) {
-        super(PutRoleMappingAction.NAME, clusterService, transportService, actionFilters, PutRoleMappingRequest::new);
+        super(PutRoleMappingAction.NAME, transportService, actionFilters, PutRoleMappingRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.roleMappingStore = roleMappingStore;
+        this.projectStateRoleMapper = projectStateRoleMapper;
     }
 
     @Override
-    protected void doExecuteProtected(
-        Task task,
-        final PutRoleMappingRequest request,
-        final ActionListener<PutRoleMappingResponse> listener
-    ) {
+    protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
+        validateNoReadOnlySuffix(request.getName());
+        if (projectStateRoleMapper.hasMapping(request.getName())) {
+            // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
+            // warning header to signal to the caller that this could be a problem.
+            HeaderWarning.addWarning(
+                "A read-only role mapping with the same name ["
+                    + request.getName()
+                    + "] has been previously defined in a configuration file. "
+                    + "Both role mappings will be used to determine role assignments."
+            );
+        }
         roleMappingStore.putRoleMapping(
             request,
             ActionListener.wrap(created -> listener.onResponse(new PutRoleMappingResponse(created)), listener::onFailure)
         );
-    }
-
-    @Override
-    public Optional<String> reservedStateHandlerName() {
-        return Optional.of(ReservedRoleMappingAction.NAME);
-    }
-
-    @Override
-    public Set<String> modifiedKeys(PutRoleMappingRequest request) {
-        return Set.of(request.getName());
     }
 }

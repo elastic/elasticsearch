@@ -28,13 +28,36 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
 
     @Before
     public void setupModelAndData() throws IOException {
-        putRegressionModel(MODEL_ID, """
+        putLearningToRankModel(MODEL_ID, """
             {
               "description": "super complex model for tests",
-              "input": { "field_names": ["cost", "product"] },
               "inference_config": {
                 "learning_to_rank": {
                   "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "cost",
+                        "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return doc['cost'].value;"}}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_tv",
+                        "query": {"constant_score": {"filter": {"term": { "product": "TV" }}, "boost": 1.0}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_vcr",
+                        "query": {"constant_score": {"filter": {"term": { "product": "VCR" }}, "boost": 1.0}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_laptop",
+                        "query": {"constant_score": {"filter": {"term": { "product": "Laptop" }}, "boost": 1.0}}
+                      }
+                    },
                     {
                         "query_extractor": {
                             "feature_name": "two",
@@ -51,16 +74,6 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
                 }
               },
               "definition": {
-                "preprocessors" : [{
-                  "one_hot_encoding": {
-                    "field": "product",
-                    "hot_map": {
-                      "TV": "type_tv",
-                      "VCR": "type_vcr",
-                      "Laptop": "type_laptop"
-                    }
-                  }
-                }],
                 "trained_model": {
                   "ensemble": {
                     "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],
@@ -328,6 +341,94 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testModelCacheIsFlushedOnModelChange() throws IOException {
+        String searchBody = """
+            {
+                "rescore": {
+                    "window_size": 10,
+                    "learning_to_rank": {
+                        "model_id": "basic-ltr-model"
+                    }
+                }
+            }""";
+
+        Response searchResponse = searchDfs(searchBody);
+        Map<String, Object> response = responseAsMap(searchResponse);
+        assertThat(
+            response.toString(),
+            (List<Double>) XContentMapValues.extractValue("hits.hits._score", response),
+            contains(20.0, 20.0, 9.0, 9.0, 6.0)
+        );
+
+        deleteLearningToRankModel(MODEL_ID);
+        putLearningToRankModel(MODEL_ID, """
+            {
+              "inference_config": {
+                "learning_to_rank": {
+                  "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "cost",
+                        "query": {
+                          "script_score": {
+                            "query": { "match_all": {} },
+                            "script": { "source": "return doc[\\"cost\\"].value" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "definition": {
+                "trained_model": {
+                  "ensemble": {
+                    "feature_names": ["cost"],
+                    "target_type": "regression",
+                    "trained_models": [
+                      {
+                        "tree": {
+                          "feature_names": ["cost"],
+                          "tree_structure": [
+                            {
+                              "node_index": 0,
+                              "split_feature": 0,
+                              "split_gain": 12,
+                              "threshold": 1000,
+                              "decision_type": "lt",
+                              "default_left": true,
+                              "left_child": 1,
+                              "right_child": 2
+                            },
+                            {
+                              "node_index": 1,
+                              "leaf_value": 1.0
+                            },
+                            {
+                              "node_index": 2,
+                              "leaf_value": 10
+                            }
+                          ],
+                          "target_type": "regression"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            """);
+
+        searchResponse = searchDfs(searchBody);
+        response = responseAsMap(searchResponse);
+        assertThat(
+            response.toString(),
+            (List<Double>) XContentMapValues.extractValue("hits.hits._score", response),
+            contains(10.0, 1.0, 1.0, 1.0, 1.0)
+        );
+    }
+
     private void indexData(String data) throws IOException {
         Request request = new Request("POST", INDEX_NAME + "/_doc");
         request.setJsonEntity(data);
@@ -354,7 +455,12 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    private void putRegressionModel(String modelId, String body) throws IOException {
+    private void deleteLearningToRankModel(String modelId) throws IOException {
+        Request model = new Request("DELETE", "_ml/trained_models/" + modelId);
+        assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    private void putLearningToRankModel(String modelId, String body) throws IOException {
         Request model = new Request("PUT", "_ml/trained_models/" + modelId);
         model.setJsonEntity(body);
         assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));

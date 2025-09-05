@@ -16,7 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,6 +40,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         "mount_searchable_snapshot",
         false,
         (a, request) -> new MountSearchableSnapshotRequest(
+            RestUtils.getMasterNodeTimeout(request),
             Objects.requireNonNullElse((String) a[1], (String) a[0]),
             Objects.requireNonNull(request.param("repository")),
             Objects.requireNonNull(request.param("snapshot")),
@@ -92,6 +95,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
      * Constructs a new mount searchable snapshot request, restoring an index with the settings needed to make it a searchable snapshot.
      */
     public MountSearchableSnapshotRequest(
+        TimeValue masterNodeTimeout,
         String mountedIndexName,
         String repositoryName,
         String snapshotName,
@@ -101,6 +105,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         boolean waitForCompletion,
         Storage storage
     ) {
+        super(masterNodeTimeout);
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
         this.repositoryName = Objects.requireNonNull(repositoryName);
         this.snapshotName = Objects.requireNonNull(snapshotName);
@@ -222,7 +227,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             && Objects.equals(snapshotIndexName, that.snapshotIndexName)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
-            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
+            && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout());
     }
 
     @Override
@@ -234,7 +239,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             snapshotIndexName,
             indexSettings,
             waitForCompletion,
-            masterNodeTimeout,
+            masterNodeTimeout(),
             storage
         );
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

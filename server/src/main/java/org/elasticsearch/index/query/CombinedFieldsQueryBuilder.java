@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -22,7 +23,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -230,21 +230,9 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
         return this;
     }
 
-    public ZeroTermsQueryOption zeroTermsQuery() {
-        return zeroTermsQuery;
-    }
-
     public CombinedFieldsQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateSynonymsPhraseQuery = enable;
         return this;
-    }
-
-    /**
-     * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to {@code true}.
-     */
-    public boolean autoGenerateSynonymsPhraseQuery() {
-        return autoGenerateSynonymsPhraseQuery;
     }
 
     private static void validateFieldBoost(float boost) {
@@ -411,8 +399,8 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
-                assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term;
+                assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
+                BytesRef bytes = termAndBoost.term();
                 query.addTerm(bytes);
             }
             for (FieldAndBoost fieldAndBoost : fields) {
@@ -460,6 +448,6 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersion.zero();
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.client;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -38,7 +40,7 @@ public class NoOpNodeClient extends NodeClient {
     private final AtomicLong executionCount = new AtomicLong(0);
 
     public NoOpNodeClient(ThreadPool threadPool) {
-        super(Settings.EMPTY, threadPool);
+        super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
     }
 
     @Override
@@ -53,7 +55,7 @@ public class NoOpNodeClient extends NodeClient {
 
     @Override
     public void initialize(
-        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        Map<ActionType<?>, TransportAction<?, ?>> actions,
         TaskManager taskManager,
         Supplier<String> localNodeId,
         Transport.Connection localConnection,
@@ -79,7 +81,11 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
         return null;
     }
 }

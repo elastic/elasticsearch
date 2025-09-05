@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
@@ -27,13 +28,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on
+ * {@link #authorize(String, Set, ProjectMetadata, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole implements Role {
@@ -73,6 +74,11 @@ public final class LimitedRole implements Role {
     @Override
     public RemoteIndicesPermission remoteIndices() {
         throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
+    }
+
+    @Override
+    public RemoteClusterPermissions remoteCluster() {
+        throw new UnsupportedOperationException("cannot retrieve remote cluster permission on limited role");
     }
 
     @Override
@@ -133,27 +139,28 @@ public final class LimitedRole implements Role {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
-        IndicesAccessControl indicesAccessControl = baseRole.authorize(
-            action,
-            requestedIndicesOrAliases,
-            aliasAndIndexLookup,
-            fieldPermissionsCache
-        );
+        IndicesAccessControl indicesAccessControl = baseRole.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);
         IndicesAccessControl limitedByIndicesAccessControl = limitedByRole.authorize(
             action,
             requestedIndicesOrAliases,
-            aliasAndIndexLookup,
+            metadata,
             fieldPermissionsCache
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
     @Override
-    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
-        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias);
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(
+        final String remoteClusterAlias,
+        TransportVersion remoteClusterVersion
+    ) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(
+            remoteClusterAlias,
+            remoteClusterVersion
+        );
         // Intersecting with empty descriptors list should result in an empty intersection.
         if (baseIntersection.roleDescriptorsList().isEmpty()) {
             logger.trace(
@@ -166,7 +173,8 @@ public final class LimitedRole implements Role {
             return RoleDescriptorsIntersection.EMPTY;
         }
         final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRoleDescriptorsIntersectionForRemoteCluster(
-            remoteClusterAlias
+            remoteClusterAlias,
+            remoteClusterVersion
         );
         if (limitedByIntersection.roleDescriptorsList().isEmpty()) {
             logger.trace(

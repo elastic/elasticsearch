@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
@@ -40,13 +41,15 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             ---
             setup:
               - skip:
-                  version: "8.7.00 - 8.9.99"
-                  reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+                  known_issues:
+                    - cluster_feature: "feature_a"
+                      fixed_by: "feature_a_fix"
+                  reason: "Bug introduced with feature a, fixed with feature a fix"
 
             ---
             date:
               - skip:
-                  version: " - 8.1.99"
+                  cluster_features: "tsdb_indexing"
                   reason: tsdb indexing changed in 8.2.0
               - do:
                   indices.get_mapping:
@@ -117,7 +120,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "Get type mapping - pre 6.0":
 
               - skip:
-                  version:     "6.0.0 - "
+                  cluster_features: "feature_in_6.0"
                   reason:      "for newer versions the index name is always returned"
 
               - do:
@@ -468,6 +471,71 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().hasYamlRunnerFeature("skip_os"), equalTo(true));
     }
 
+    public void testMuteUsingAwaitsFix() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Mute":
+
+              - skip:
+                  awaits_fix: bugurl
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Mute"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+    }
+
+    public void testParseSkipAndRequireClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Broken on some os":
+
+              - skip:
+                  known_issues:
+                    - cluster_feature: buggy_feature
+                      fixed_by: buggy_feature_fix
+                  cluster_features:     [unsupported-feature1, unsupported-feature2]
+                  reason:      "unsupported-features are not supported"
+              - requires:
+                  cluster_features:     required-feature1
+                  reason:      "required-feature1 is required"
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(
+            restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason,
+            equalTo("unsupported-features are not supported")
+        );
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().requireReason, equalTo("required-feature1 is required"));
+    }
+
     public void testParseFileWithSingleTestSection() throws Exception {
         final Path filePath = createTempFile("tyf", ".yml");
         Files.writeString(filePath, """
@@ -541,7 +609,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] \
+            attempted to add a [do] with a [warnings] section without a corresponding ["requires": "test_runner_features": "warnings"] \
             so runners that do not support the [warnings] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -555,7 +623,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [warnings_regex] section without a corresponding ["skip": "features": "warnings_regex"] \
+            attempted to add a [do] with a [warnings_regex] section without a corresponding \
+            ["requires": "test_runner_features": "warnings_regex"] \
             so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -569,7 +638,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [allowed_warnings] section without a corresponding ["skip": "features": \
+            attempted to add a [do] with a [allowed_warnings] section without a corresponding ["requires": "test_runner_features": \
             "allowed_warnings"] so runners that do not support the [allowed_warnings] section can skip the test at \
             line [%d]\
             """, lineNumber)));
@@ -584,7 +653,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["skip": "features": \
+            attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["requires": "test_runner_features": \
             "allowed_warnings_regex"] so runners that do not support the [allowed_warnings_regex] section can skip the test \
             at line [%d]\
             """, lineNumber)));
@@ -600,7 +669,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [headers] section without a corresponding ["skip": "features": "headers"] \
+            attempted to add a [do] with a [headers] section without a corresponding ["requires": "test_runner_features": "headers"] \
             so runners that do not support the [headers] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -615,7 +684,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] \
+            attempted to add a [do] with a [node_selector] section without a corresponding \
+            ["requires": "test_runner_features": "node_selector"] \
             so runners that do not support the [node_selector] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -631,7 +701,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] \
+            attempted to add a [contains] assertion without a corresponding ["requires": "test_runner_features": "contains"] \
             so runners that do not support the [contains] assertion can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -683,13 +753,15 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertEquals(Strings.format("""
             api/name:
-            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] so runners that \
-            do not support the [contains] assertion can skip the test at line [%d],
-            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] so runners \
-            that do not support the [warnings] section can skip the test at line [%d],
-            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] so \
-            runners that do not support the [node_selector] section can skip the test \
-            at line [%d]\
+            attempted to add a [contains] assertion without a corresponding \
+            ["requires": "test_runner_features": "contains"] \
+            so runners that do not support the [contains] assertion can skip the test at line [%d],
+            attempted to add a [do] with a [warnings] section without a corresponding \
+            ["requires": "test_runner_features": "warnings"] \
+            so runners that do not support the [warnings] section can skip the test at line [%d],
+            attempted to add a [do] with a [node_selector] section without a corresponding \
+            ["requires": "test_runner_features": "node_selector"] \
+            so runners that do not support the [node_selector] section can skip the test at line [%d]\
             """, firstLineNumber, secondLineNumber, thirdLineNumber), e.getMessage());
     }
 

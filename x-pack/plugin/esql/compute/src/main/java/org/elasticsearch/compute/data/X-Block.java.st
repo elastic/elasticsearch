@@ -7,21 +7,29 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores $type$ values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock$if(BytesRef)$$else$, $Type$BigArrayBlock$endif$ {
+$if(BytesRef)$
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock {
+$else$
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock {
+$endif$
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -49,25 +57,66 @@ $endif$
     @Override
     $Type$Vector asVector();
 
+$if(BytesRef)$
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
+
+$endif$
     @Override
     $Type$Block filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
     @Override
-    default String getWriteableName() {
-        return "$Type$Block";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
-
-    private static $Type$Block readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
-
-    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
+    default $Type$Block deepCopy(BlockFactory blockFactory) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
         }
+    }
+
+    @Override
+    $Type$Block keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    $Type$Block expand();
+
+    static $Type$Block readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> $Type$Block.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> $Type$ArrayBlock.readArrayBlock(in.blockFactory(), in);
+$if(BytesRef)$
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
+$else$
+            case SERIALIZE_BLOCK_BIG_ARRAY -> $Type$BigArrayBlock.readArrayBlock(in.blockFactory(), in);
+$endif$
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static $Type$Block readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -89,26 +138,47 @@ $endif$
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         $Type$Vector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
 $if(BytesRef)$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
 $else$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
 $endif$
-                    }
+        } else {
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            $Type$Block.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues($Type$Block block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+$if(BytesRef)$
+                var scratch = new BytesRef();
+$endif$
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+$if(BytesRef)$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex, scratch));
+$else$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex));
+$endif$
                 }
             }
         }
@@ -189,6 +259,8 @@ $elseif(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
 $elseif(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
+$elseif(float)$
+                    result = 31 * result + Float.floatToIntBits(block.getFloat(pos));
 $elseif(long)$
                     long element = block.getLong(firstValueIdx + valueIndex);
                     result = 31 * result + (int) (element ^ (element >>> 32));
@@ -218,6 +290,18 @@ $endif$
          */
         Builder copyFrom($Type$Block block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+$if(BytesRef)$
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+$endif$
+         */
+        Builder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$);
+
         @Override
         Builder appendNull();
 
@@ -232,19 +316,6 @@ $endif$
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition($Type$Block block);
 
         @Override
         $Type$Block build();

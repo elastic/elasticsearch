@@ -40,13 +40,21 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("wildcard")
         .module("analysis-common")
         .module("health-shards-availability")
+        .module("data-streams")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
+        .feature(FeatureFlag.DOC_VALUES_SKIPPER)
+        .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
+        .feature(FeatureFlag.IVF_FORMAT)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RERANK_SNIPPETS)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -11,7 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -39,7 +40,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
                 .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)),
             response -> {
                 CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
                 assertThat(geoCentroid, notNullValue());
                 assertThat(geoCentroid.getName(), equalTo(aggName()));
                 assertThat(geoCentroid.centroid(), equalTo(null));
@@ -97,12 +98,12 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))),
             response -> {
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo((long) numDocs));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 CentroidAggregation geoCentroid = global.getAggregations().get(aggName());
                 InternalAggregation agg = (InternalAggregation) global;

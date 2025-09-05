@@ -12,7 +12,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public class StackPlugin extends Plugin implements ActionPlugin {
@@ -24,7 +23,7 @@ public class StackPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(StackTemplateRegistry.STACK_TEMPLATES_ENABLED);
+        return List.of(StackTemplateRegistry.STACK_TEMPLATES_ENABLED);
     }
 
     @Override
@@ -34,8 +33,7 @@ public class StackPlugin extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.featureService()
+            services.xContentRegistry()
         );
         legacyStackTemplateRegistry.initialize();
         StackTemplateRegistry stackTemplateRegistry = new StackTemplateRegistry(
@@ -43,8 +41,7 @@ public class StackPlugin extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.featureService()
+            services.xContentRegistry()
         );
         stackTemplateRegistry.initialize();
         return List.of(legacyStackTemplateRegistry, stackTemplateRegistry);

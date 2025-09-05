@@ -17,10 +17,9 @@ import java.util.Objects;
 
 public class GetBasicStatusResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean eligibleToStartBasic;
+    private final boolean eligibleToStartBasic;
 
     GetBasicStatusResponse(StreamInput in) throws IOException {
-        super(in);
         eligibleToStartBasic = in.readBoolean();
     }
 

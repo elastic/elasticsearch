@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -27,6 +28,8 @@ public class FakeTcpChannel implements TcpChannel {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicReference<BytesReference> messageCaptor;
     private final AtomicReference<ActionListener<Void>> listenerCaptor;
+
+    private volatile Exception closeException = null;
 
     public FakeTcpChannel() {
         this(false, "profile", new AtomicReference<>());
@@ -93,8 +96,17 @@ public class FakeTcpChannel implements TcpChannel {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            closeContext.onResponse(null);
+            if (closeException != null) {
+                closeContext.onFailure(closeException);
+            } else {
+                closeContext.onResponse(null);
+            }
         }
+    }
+
+    @Override
+    public void setCloseException(Exception e) {
+        closeException = e;
     }
 
     @Override

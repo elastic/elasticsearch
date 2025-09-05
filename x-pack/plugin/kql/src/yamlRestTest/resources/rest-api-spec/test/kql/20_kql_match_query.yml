@@ -1,0 +1,266 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query ]
+      test_runner_features: capabilities
+      reason: KQL query is not available
+
+  - requires:
+      "test_runner_features": "contains"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              date_field:
+                type: date
+              text_field:
+                type: text
+              keyword_field:
+                type: keyword
+              integer_field:
+                type: integer
+              double_field:
+                type: double
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          { "index" : { "_id": "doc-1" } }
+          { "text_field": "foo bar", "integer_field": 1, "double_field": 3.5, "date_field": "2010-03-06T14:15:00", "keyword_field": "foo bar" }
+          { "index" : { "_id": "doc-42" } }
+          { "text_field": "foo baz", "integer_field": 2, "double_field": 18.9, "date_field": "2018-03-28T20:30:00", "keyword_field": "foo baz" }
+
+
+---
+"KQL match term queries (text field)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:bar" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: foo bar" } }
+          }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: (foo bar)" } }
+          }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: \"foo bar\"" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: bar*" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+
+---
+"KQL match term queries (integer field)":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "integer_field: foo" } }
+          }
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: For input string: \"foo\"" }
+  - contains: { error.root_cause.0.stack_trace: "Caused by: java.lang.NumberFormatException: For input string: \"foo\"" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "integer_field: 2" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "integer_field: \"2\"" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+
+---
+"KQL match term queries (double field)":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "double_field: foo" } }
+          }
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: For input string: \"foo\"" }
+  - contains: { error.root_cause.0.stack_trace: "Caused by: java.lang.NumberFormatException: For input string: \"foo\"" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "double_field: 18.9" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "double_field: \"18.9\"" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+---
+"KQL match term queries (keyword field)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field:foo bar" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field: \"foo bar\"" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field: foo ba*" } }
+          }
+  - match: { hits.total: 2 }
+
+
+---
+"KQL match term queries (date field)":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "date_field: foo" } }
+          }
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "parse_exception" }
+  - contains: { error.root_cause.0.reason: "failed to parse date field [foo]" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "date_field: 2010-03-06" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "date_field: now" } }
+          }
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "date_field: now/1d" } }
+          }
+  - match: { hits.total: 0 }
+
+---
+"KQL match term queries (search by id)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "_id:doc-1" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -110,7 +111,6 @@ public final class TransformInternalIndex {
             .setDescription("Contains Transform configuration data")
             .setMappings(mappings())
             .setSettings(settings(transformInternalIndexAdditionalSettings))
-            .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();
     }
@@ -379,17 +379,20 @@ public final class TransformInternalIndex {
     }
 
     protected static boolean hasLatestVersionedIndex(ClusterState state) {
-        return state.getMetadata().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        return state.getMetadata().getProject().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
         IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
 
-        return indexRouting != null && indexRouting.allPrimaryShardsActive() && indexRouting.readyForSearch(state);
+        return indexRouting != null && indexRouting.allPrimaryShardsActive() && indexRouting.readyForSearch();
     }
 
     private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
-        ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+        ClusterHealthRequest request = new ClusterHealthRequest(
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
+            TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME
+        )
             // cluster health does not wait for active shards per default
             .waitForActiveShards(ActiveShardCount.ONE);
         ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);

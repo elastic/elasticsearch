@@ -133,7 +133,8 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                         Priority.NORMAL,
                                         0L,
                                         0L
-                                    )
+                                    ),
+                                    null
                                 )
                                     .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                     .addRoutingEntry("_node_id2", new RoutingInfo(1, 1, RoutingState.FAILED, "test"))

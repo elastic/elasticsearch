@@ -87,11 +87,20 @@ of value that was reported during the metric event
 
 ## Development
 
-### Mock http server
+### Local mock APM server
 
 The quickest way to verify that your metrics are working is to run `./gradlew run --with-apm-server`.
-This will run ES node (or nodes in serverless) and also start a mock http server that will act
-as an apm server. This fake http server will log all the http messages it receives from apm-agent
+This will run an ES node (or nodes in serverless) and also start a mock APM server that logs all messages it receives from apm-agent.
+
+To verify specific metrics or transactions, you can filter the output using one or several of the options below. Each of these takes a comma-separated list of wildcard expressions.
+- `-apm-metrics`
+- `-apm-transactions`
+- `-apm-transactions-excludes`
+
+For example:
+```
+./gradlew run -Dtests.es.logger.level=WARN --with-apm-server --apm-metric="es.rest.requests.total", --apm-transactions="cluster:monitor/*" --apm-transactions-excludes="cluster:monitor/xpack/*"```
+```
 
 ### With APM server in cloud
 You can also run local ES node with an apm server in cloud.
@@ -113,6 +122,12 @@ rootProject {
         }
     }
 }
+```
+
+If you would like to add tracing add following settings to the above configuration:
+```groovy
+setting 'telemetry.tracing.enabled', 'true'
+setting 'telemetry.agent.transaction_sample_rate', '1.0' //ensure every transaction is sampled
 ```
 
 The example use:

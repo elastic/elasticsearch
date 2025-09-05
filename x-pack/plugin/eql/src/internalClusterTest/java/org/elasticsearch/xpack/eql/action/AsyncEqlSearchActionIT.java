@@ -29,6 +29,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -63,6 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
@@ -80,6 +83,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() throws Exception {
+        internalCluster().startNode();
         assertAcked(
             indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
@@ -107,6 +111,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testBasicAsyncExecution() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -159,6 +164,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testGoingAsync() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -171,7 +177,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean customKeepAlive = randomBoolean();
         TimeValue keepAliveValue;
         if (customKeepAlive) {
-            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         } else {
             keepAliveValue = EqlSearchRequest.DEFAULT_KEEP_ALIVE;
@@ -217,6 +223,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testAsyncCancellation() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -229,7 +236,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean customKeepAlive = randomBoolean();
         final TimeValue keepAliveValue;
         if (customKeepAlive) {
-            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         }
 
@@ -260,6 +267,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testFinishingBeforeTimeout() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();

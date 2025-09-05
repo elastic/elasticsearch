@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -37,8 +39,8 @@ import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -56,6 +58,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -65,7 +69,9 @@ import java.util.function.ObjLongConsumer;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
@@ -77,7 +83,8 @@ public class TransportNodesActionTests extends ESTestCase {
     private TransportService transportService;
 
     public void testRequestIsSentToEachNode() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
+            getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         action.execute(null, request, new PlainActionFuture<>());
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
@@ -88,7 +95,8 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testNodesSelectors() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
+            getTestTransportNodesAction();
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
@@ -108,7 +116,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testCustomResolving() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action =
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
             getDataNodesOnlyTransportNodesAction(transportService);
         TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
         action.execute(null, request, new PlainActionFuture<>());
@@ -256,6 +264,194 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
+    public void testActionContextReleasedOnCancellation() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Object> action =
+            new TransportNodesAction<>(
+                "indices:admin/test",
+                clusterService,
+                transportService,
+                new ActionFilters(Collections.emptySet()),
+                TestNodeRequest::new,
+                THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+            ) {
+                @Override
+                protected TestNodesResponse newResponse(
+                    TestNodesRequest request,
+                    List<TestNodeResponse> testNodeResponses,
+                    List<FailedNodeException> failures
+                ) {
+                    return fail(null, "should not be called");
+                }
+
+                @Override
+                protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
+                    return new TestNodeRequest();
+                }
+
+                @Override
+                protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+                    return new TestNodeResponse(in);
+                }
+
+                @Override
+                protected TestNodeResponse nodeOperation(TestNodeRequest request, Task task) {
+                    return new TestNodeResponse();
+                }
+
+                @Override
+                protected Object createActionContext(Task task, TestNodesRequest request) {
+                    return reachabilityChecker.register(new Object());
+                }
+            };
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), listener);
+
+        reachabilityChecker.checkReachable();
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        reachabilityChecker.ensureUnreachable();
+
+        for (CapturingTransport.CapturedRequest capturedRequest : transport.getCapturedRequestsAndClear()) {
+            transport.handleLocalError(capturedRequest.requestId(), new ElasticsearchException("simulated"));
+        }
+
+        expectThrows(TaskCancelledException.class, () -> listener.actionGet(10, TimeUnit.SECONDS));
+        assertTrue(cancellableTask.isCancelled()); // keep task alive
+    }
+
+    public void testCompletionShouldNotBeInterferedByCancellationAfterProcessingBegins() throws Exception {
+        final var barrier = new CyclicBarrier(2);
+        final var action = new TestTransportNodesAction(
+            clusterService,
+            transportService,
+            new ActionFilters(Set.of()),
+            TestNodeRequest::new,
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+        ) {
+            @Override
+            protected void newResponseAsync(
+                Task task,
+                TestNodesRequest request,
+                Void unused,
+                List<TestNodeResponse> testNodeResponses,
+                List<FailedNodeException> failures,
+                ActionListener<TestNodesResponse> listener
+            ) {
+                boolean waited = false;
+                // Process node responses in a loop and ensure no ConcurrentModificationException will be thrown due to
+                // concurrent cancellation coming after the loop has started, see also #128852
+                for (var response : testNodeResponses) {
+                    if (waited == false) {
+                        waited = true;
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                }
+                super.newResponseAsync(task, request, unused, testNodeResponses, failures, listener);
+            }
+        };
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final var cancelledFuture = new PlainActionFuture<Void>();
+        cancellableTask.addListener(() -> cancelledFuture.onResponse(null));
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        for (var capturedRequest : transport.getCapturedRequestsAndClear()) {
+            completeOneRequest(capturedRequest);
+        }
+
+        // Wait for the overall response to start processing the node responses in a loop and then cancel the task.
+        // The cancellation should not interfere with the node response processing.
+        safeAwait(barrier);
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        safeGet(cancelledFuture);
+
+        // Let the process continue, and it should be successful
+        safeAwait(barrier);
+        assertResponseReleased(safeGet(future));
+    }
+
+    public void testConcurrentlyCompletionAndCancellation() throws InterruptedException {
+        final var action = getTestTransportNodesAction();
+
+        final CountDownLatch onCancelledLatch = new CountDownLatch(1);
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
+            @Override
+            protected void onCancelled() {
+                onCancelledLatch.countDown();
+            }
+        };
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        final List<TestNodeResponse> nodeResponses = new ArrayList<>();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        for (int i = 0; i < capturedRequests.length - 1; i++) {
+            final var capturedRequest = capturedRequests[i];
+            nodeResponses.add(completeOneRequest(capturedRequest));
+        }
+
+        final var raceBarrier = new CyclicBarrier(3);
+        final Thread completeThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            nodeResponses.add(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
+        });
+        final Thread cancelThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            TaskCancelHelper.cancel(cancellableTask, "simulated");
+        });
+        completeThread.start();
+        cancelThread.start();
+        safeAwait(raceBarrier);
+
+        // We expect either a successful response or a cancellation exception. All node responses should be released in both cases.
+        try {
+            final var testNodesResponse = future.actionGet(SAFE_AWAIT_TIMEOUT);
+            assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
+            assertResponseReleased(testNodesResponse);
+        } catch (Exception e) {
+            final var taskCancelledException = (TaskCancelledException) ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
+            assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
+            assertTrue(cancellableTask.isCancelled());
+            safeAwait(onCancelledLatch); // wait for the latch, the listener for releasing node responses is called before it
+            assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+        }
+
+        completeThread.join(10_000);
+        cancelThread.join(10_000);
+        assertFalse(completeThread.isAlive());
+        assertFalse(cancelThread.isAlive());
+    }
+
+    private void assertResponseReleased(TestNodesResponse response) {
+        final var allResponsesReleasedListener = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            response.addCloseListener(listeners.acquire());
+            for (final var nodeResponse : response.getNodes()) {
+                nodeResponse.addCloseListener(listeners.acquire());
+            }
+        }
+        safeAwait(allResponsesReleasedListener);
+        assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
+        assertFalse(response.hasReferences());
+    }
+
+    private TestNodeResponse completeOneRequest(CapturingTransport.CapturedRequest capturedRequest) {
+        final var response = new TestNodeResponse(capturedRequest.node());
+        try {
+            transport.getTransportResponseHandler(capturedRequest.requestId()).handleResponse(response);
+        } finally {
+            response.decRef();
+        }
+        return response;
+    }
+
     @BeforeClass
     public static void startThreadPool() {
         THREAD_POOL = new TestThreadPool(TransportNodesActionTests.class.getSimpleName());
@@ -323,11 +519,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
         return new DataNodesOnlyTransportNodesAction(
-            THREAD_POOL,
             clusterService,
             transportService,
             new ActionFilters(Collections.emptySet()),
-            TestNodesRequest::new,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
@@ -342,7 +536,8 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodesRequest,
         TestNodesResponse,
         TestNodeRequest,
-        TestNodeResponse> {
+        TestNodeResponse,
+        Void> {
 
         TestTransportNodesAction(
             ClusterService clusterService,
@@ -383,11 +578,9 @@ public class TransportNodesActionTests extends ESTestCase {
     private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
         DataNodesOnlyTransportNodesAction(
-            ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
-            Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
             Executor nodeExecutor
         ) {
@@ -395,16 +588,12 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new));
+        protected DiscoveryNode[] resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            return clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         }
     }
 
-    private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
-        TestNodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
+    private static class TestNodesRequest extends BaseNodesRequest {
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }
@@ -454,7 +643,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class TestNodeRequest extends TransportRequest {
+    private static class TestNodeRequest extends AbstractTransportRequest {
         private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         TestNodeRequest() {}

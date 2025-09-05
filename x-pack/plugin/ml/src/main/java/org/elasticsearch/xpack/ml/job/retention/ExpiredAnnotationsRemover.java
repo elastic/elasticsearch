@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -83,7 +84,14 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         long cutoffEpochMs,
         ActionListener<Boolean> listener
     ) {
-        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(AnnotationIndex.READ_ALIAS_NAME);
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable annotation indices found for [{}] job. No expired annotations to remove.", job.getId());
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs, indicesToQuery);
         request.setParentTask(getParentTaskId());
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
@@ -112,12 +120,17 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+    private static DeleteByQueryRequest createDBQRequest(
+        Job job,
+        float requestsPerSec,
+        long cutoffEpochMs,
+        ArrayList<String> indicesToQuery
+    ) {
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
             .filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), InternalUsers.XPACK_USER.principal()));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setSlices(
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setSlices(
             AbstractBulkByScrollRequest.AUTO_SLICES
         )
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
@@ -131,18 +144,18 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            listener
-        );
-        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
+        latestBucketTime(client, getParentTaskId(), jobId, listener.delegateFailureAndWrap((l, latestTime) -> {
+            ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                l
+            );
             if (latestTime == null) {
                 threadedActionListener.onResponse(null);
             } else {
                 long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
                 threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void auditAnnotationsWereDeleted(String jobId, long cutoffEpochMs) {

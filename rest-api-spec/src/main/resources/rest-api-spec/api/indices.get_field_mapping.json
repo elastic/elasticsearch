@@ -1,8 +1,8 @@
 {
   "indices.get_field_mapping":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-field-mapping.html",
-      "description":"Returns mapping for one or more fields."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-mapping",
+      "description":"Get mapping definitions"
     },
     "stability":"stable",
     "visibility":"public",
@@ -65,10 +65,6 @@
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
-      },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
       }
     }
   }

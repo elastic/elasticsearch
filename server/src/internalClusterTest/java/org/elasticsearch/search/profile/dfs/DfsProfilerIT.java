@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.dfs;
@@ -18,6 +19,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -39,7 +41,6 @@ public class DfsProfilerIT extends ESIntegTestCase {
 
     private static final int KNN_DIM = 3;
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104235")
     public void testProfileDfs() throws Exception {
         String textField = "text_field";
         String numericField = "number";
@@ -71,6 +72,8 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 new float[] { randomFloat(), randomFloat(), randomFloat() },
                 randomIntBetween(5, 10),
                 50,
+                10f,
+                randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
             if (randomBoolean()) {

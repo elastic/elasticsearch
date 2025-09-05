@@ -1,0 +1,494 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+
+  - do:
+      connector.put:
+        connector_id: connector-a
+        body:
+          index_name: search-1-test
+          name: my-connector-1
+          language: pl
+          is_native: false
+          service_type: super-connector
+  - do:
+      connector.put:
+        connector_id: connector-c
+        body:
+          index_name: search-3-test
+          name: my-connector-3
+          language: nl
+          is_native: false
+          service_type: super-connector
+  - do:
+      connector.put:
+        connector_id: connector-b
+        body:
+          index_name: content-search-2-test
+          name: my-connector-2
+          language: en
+          is_native: true
+          service_type: extra-connector
+
+---
+"List Connectors":
+  - do:
+      connector.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-b" }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.language: "en" }
+
+  - match: { results.1.id: "connector-a" }
+  - match: { results.1.index_name: "search-1-test" }
+  - match: { results.1.language: "pl" }
+
+  - match: { results.2.id: "connector-c" }
+  - match: { results.2.index_name: "search-3-test" }
+  - match: { results.2.language: "nl" }
+
+
+---
+"List Connectors - with from":
+  - do:
+      connector.list:
+        from: 1
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-a" }
+  - match: { results.0.index_name: "search-1-test" }
+  - match: { results.0.language: "pl" }
+
+  - match: { results.1.id: "connector-c" }
+  - match: { results.1.index_name: "search-3-test" }
+  - match: { results.1.language: "nl" }
+
+---
+"List Connector - with size":
+  - do:
+      connector.list:
+        size: 2
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-b" }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.language: "en" }
+
+  - match: { results.1.id: "connector-a" }
+  - match: { results.1.index_name: "search-1-test" }
+  - match: { results.1.language: "pl" }
+
+---
+"List Connector - empty":
+  - do:
+      connector.delete:
+        connector_id: connector-a
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+
+  - do:
+      connector.delete:
+        connector_id: connector-c
+
+  - do:
+      connector.list: { }
+
+  - match: { count: 0 }
+
+---
+"List Connector - filter by index names":
+  - do:
+      connector.list:
+        index_name: search-1-test
+
+  - match: { count: 1 }
+  - match: { results.0.index_name: "search-1-test" }
+
+  - do:
+      connector.list:
+        index_name: search-1-test,content-search-2-test
+
+  - match: { count: 2 }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.1.index_name: "search-1-test" }
+
+
+---
+"List Connector - filter by index names, illegal name":
+  - do:
+      catch: "bad_request"
+      connector.list:
+        index_name: ~.!$$#index-name$$$
+
+
+---
+"List Connector - filter by connector names":
+  - do:
+      connector.list:
+        connector_name: my-connector-1
+
+  - match: { count: 1 }
+  - match: { results.0.name: "my-connector-1" }
+
+  - do:
+      connector.list:
+        connector_name: my-connector-1,my-connector-2
+
+  - match: { count: 2 }
+  - match: { results.0.name: "my-connector-2" }
+  - match: { results.1.name: "my-connector-1" }
+
+
+---
+"List Connector - filter by index name and name":
+  - do:
+      connector.list:
+        connector_name: my-connector-1,my-connector-2
+        index_name: content-search-2-test
+
+  - match: { count: 1 }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.name: "my-connector-2" }
+
+
+---
+"List Connector - filter by service type":
+  - do:
+      connector.list:
+        service_type: super-connector
+
+  - match: { count: 2 }
+  - match: { results.0.id: "connector-a" }
+  - match: { results.1.id: "connector-c" }
+
+  - do:
+      connector.list:
+        service_type: extra-connector
+
+  - match: { count: 1 }
+  - match: { results.0.id: "connector-b" }
+
+---
+"List Connector - filter by multiple service types":
+  - do:
+      connector.list:
+        service_type: super-connector,extra-connector
+
+  - match: { count: 3 }
+
+---
+"List Connector - filter by search query":
+  - do:
+      connector.list:
+        query: my-connector-1
+
+  - match: { count: 1 }
+  - match: { results.0.id: "connector-a" }
+
+  - do:
+      connector.list:
+        query: my-connector
+
+  - match: { count: 3 }
+
+
+  - do:
+      connector.list:
+        query: search-3-test
+
+  - match: { count: 1 }
+
+  - do:
+      connector.list:
+        query: search-
+
+  - match: { count: 3 }
+
+
+
+---
+"Read-only access is sufficient to list connectors":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-b" }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.language: "en" }
+
+  - match: { results.1.id: "connector-a" }
+  - match: { results.1.index_name: "search-1-test" }
+  - match: { results.1.language: "pl" }
+
+  - match: { results.2.id: "connector-c" }
+  - match: { results.2.index_name: "search-3-test" }
+  - match: { results.2.language: "nl" }
+
+
+---
+"List connectors requires read-only index privileges":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-b" }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.language: "en" }
+
+  - match: { results.1.id: "connector-a" }
+  - match: { results.1.index_name: "search-1-test" }
+  - match: { results.1.language: "pl" }
+
+  - match: { results.2.id: "connector-c" }
+  - match: { results.2.index_name: "search-3-test" }
+  - match: { results.2.language: "nl" }
+
+
+---
+"List connectors fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXBhc3N3b3Jk" }  # entsearch-unprivileged user
+      connector.list: { }
+
+
+---
+"List Connectors - Soft deleted connectors / no deleted":
+
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 3 }
+
+
+---
+"List Connectors - Single soft deleted connector":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 2 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 3 }
+
+
+---
+"List Connectors - Single hard deleted connector":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+        hard: true
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 2 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 2 }
+
+
+---
+"List Connectors - All hard deleted connectors":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+        hard: true
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+        hard: true
+
+  - do:
+      connector.delete:
+        connector_id: connector-c
+        hard: true
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 0 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 0 }
+
+---
+"List Connectors - 2 hard deleted connectors, 1 soft deleted":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+        hard: false
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+        hard: true
+
+  - do:
+      connector.delete:
+        connector_id: connector-c
+        hard: true
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 0 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 1 }
+
+---
+"List Connectors - Soft deleted connectors":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+  - do:
+      connector.delete:
+        connector_id: connector-b
+  - do:
+      connector.delete:
+        connector_id: connector-c
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-b" }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.language: "en" }
+  - match: { results.0.deleted: true }
+
+  - match: { results.1.id: "connector-a" }
+  - match: { results.1.index_name: "search-1-test" }
+  - match: { results.1.language: "pl" }
+  - match: { results.1.deleted: true }
+
+  - match: { results.2.id: "connector-c" }
+  - match: { results.2.index_name: "search-3-test" }
+  - match: { results.2.language: "nl" }
+  - match: { results.2.deleted: true }
+
+
+---
+"List Connectors - Soft deleted with from":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+  - do:
+      connector.delete:
+        connector_id: connector-b
+  - do:
+      connector.delete:
+        connector_id: connector-c
+
+  - do:
+      connector.list:
+        from: 1
+        include_deleted: true
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-a" }
+  - match: { results.0.index_name: "search-1-test" }
+  - match: { results.0.language: "pl" }
+  - match: { results.0.deleted: true }
+
+  - match: { results.1.id: "connector-c" }
+  - match: { results.1.index_name: "search-3-test" }
+  - match: { results.1.language: "nl" }
+  - match: { results.0.deleted: true }
+
+---
+"List Connector - Soft deleted with size":
+
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+  - do:
+      connector.delete:
+        connector_id: connector-b
+  - do:
+      connector.delete:
+        connector_id: connector-c
+
+  - do:
+      connector.list:
+        size: 2
+        include_deleted: true
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-b" }
+  - match: { results.0.index_name: "content-search-2-test" }
+  - match: { results.0.language: "en" }
+  - match: { results.0.deleted: true }
+
+  - match: { results.1.id: "connector-a" }
+  - match: { results.1.index_name: "search-1-test" }
+  - match: { results.1.language: "pl" }
+  - match: { results.1.deleted: true }
+
+

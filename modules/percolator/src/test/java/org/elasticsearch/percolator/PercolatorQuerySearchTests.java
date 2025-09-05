@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.percolator;
 
@@ -408,7 +409,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
         QueryBuilder query = new PercolateQueryBuilder("my_query", List.of(house1_doc, house2_doc), XContentType.JSON);
         assertResponse(client().prepareSearch("houses").setQuery(query), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
 
             SearchHit[] hits = response.getHits().getHits();
             assertThat(hits[0].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));

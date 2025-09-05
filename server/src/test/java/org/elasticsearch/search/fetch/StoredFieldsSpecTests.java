@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -17,7 +18,10 @@ import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
+
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -25,8 +29,9 @@ public class StoredFieldsSpecTests extends ESTestCase {
 
     public void testDefaults() {
         SearchSourceBuilder search = new SearchSourceBuilder();
+        var context = searchContext(search);
         // defaults - return source and metadata fields
-        FetchContext fc = new FetchContext(searchContext(search));
+        FetchContext fc = new FetchContext(context, context.newSourceLoader(null));
 
         FetchSubPhaseProcessor sourceProcessor = new FetchSourcePhase().getProcessor(fc);
         assertNotNull(sourceProcessor);
@@ -48,7 +53,8 @@ public class StoredFieldsSpecTests extends ESTestCase {
     public void testStoredFieldsDisabled() {
         SearchSourceBuilder search = new SearchSourceBuilder();
         search.storedField("_none_");
-        FetchContext fc = new FetchContext(searchContext(search));
+        var context = searchContext(search);
+        FetchContext fc = new FetchContext(context, context.newSourceLoader(null));
 
         assertNull(new StoredFieldsPhase().getProcessor(fc));
         assertNull(new FetchSourcePhase().getProcessor(fc));
@@ -57,13 +63,25 @@ public class StoredFieldsSpecTests extends ESTestCase {
     public void testScriptFieldsEnableMetadata() {
         SearchSourceBuilder search = new SearchSourceBuilder();
         search.scriptField("field", new Script("script"));
-        FetchContext fc = new FetchContext(searchContext(search));
+        var context = searchContext(search);
+        FetchContext fc = new FetchContext(context, null);
 
         FetchSubPhaseProcessor subPhaseProcessor = new ScriptFieldsPhase().getProcessor(fc);
         assertNotNull(subPhaseProcessor);
         StoredFieldsSpec spec = subPhaseProcessor.storedFieldsSpec();
         assertFalse(spec.requiresSource());
         assertTrue(spec.requiresMetadata());
+    }
+
+    public void testNoCloneOnMerge() {
+        StoredFieldsSpec spec = StoredFieldsSpec.NO_REQUIREMENTS;
+        spec = spec.merge(StoredFieldsSpec.NEEDS_SOURCE);
+        assertThat(spec.requiredStoredFields(), sameInstance(StoredFieldsSpec.NO_REQUIREMENTS.requiredStoredFields()));
+
+        StoredFieldsSpec needsCat = new StoredFieldsSpec(false, false, Set.of("cat"));
+        StoredFieldsSpec withCat = spec.merge(needsCat);
+        spec = withCat.merge(StoredFieldsSpec.NO_REQUIREMENTS);
+        assertThat(spec.requiredStoredFields(), sameInstance(withCat.requiredStoredFields()));
     }
 
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {

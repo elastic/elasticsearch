@@ -17,13 +17,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
@@ -40,23 +37,23 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM);
+        final List<String> watcherTemplates = List.of(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM);
         assertBusy(() -> {
             try {
-                getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("watcher.start", Map.of(), List.of(), Map.of());
 
                 for (String template : watcherTemplates) {
                     ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi(
                         "indices.exists_template",
-                        singletonMap("name", template),
-                        emptyList(),
-                        emptyMap()
+                        Map.of("name", template),
+                        List.of(),
+                        Map.of()
                     );
                     assertThat(templateExistsResponse.getStatusCode(), is(200));
                 }
 
-                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
-                String state = (String) response.evaluate("stats.0.watcher_state");
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
+                String state = response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("started"));
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -68,9 +65,9 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public void stopWatcher() throws Exception {
         assertBusy(() -> {
             try {
-                getAdminExecutionContext().callApi("watcher.stop", emptyMap(), emptyList(), emptyMap());
-                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
-                String state = (String) response.evaluate("stats.0.watcher_state");
+                getAdminExecutionContext().callApi("watcher.stop", Map.of(), List.of(), Map.of());
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
+                String state = response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("stopped"));
             } catch (IOException e) {
                 throw new AssertionError(e);

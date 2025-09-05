@@ -7,15 +7,29 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class LocalSourceExec extends LeafExec {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "LocalSourceExec",
+        LocalSourceExec::new
+    );
 
     private final List<Attribute> output;
     private final LocalSupplier supplier;
@@ -24,6 +38,51 @@ public class LocalSourceExec extends LeafExec {
         super(source);
         this.output = output;
         this.supplier = supplier;
+    }
+
+    public LocalSourceExec(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in));
+        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            this.supplier = in.readNamedWriteable(LocalSupplier.class);
+        } else {
+            this.supplier = readLegacyLocalSupplierFrom((PlanStreamInput) in);
+        }
+    }
+
+    /**
+     * Legacy {@link LocalSupplier} deserialization for code that didn't use {@link org.elasticsearch.common.io.stream.NamedWriteable}s
+     * and the {@link LocalSupplier} had only one implementation (the {@link ImmediateLocalSupplier}).
+     *
+     * @param in
+     * @return
+     * @throws IOException
+     */
+    public static LocalSupplier readLegacyLocalSupplierFrom(PlanStreamInput in) throws IOException {
+        Block[] blocks = in.readCachedBlockArray();
+        return blocks.length == 0 ? EmptyLocalSupplier.EMPTY : LocalSupplier.of(blocks);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteableCollection(output);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            out.writeNamedWriteable(supplier);
+        } else {
+            if (supplier == EmptyLocalSupplier.EMPTY) {
+                out.writeVInt(0);
+            } else {
+                // here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
+                // for earlier versions
+                ((ImmediateLocalSupplier) supplier).writeTo(out);
+            }
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

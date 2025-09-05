@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +66,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
         SortedMap<String, long[]> processorStats = new TreeMap<>();
-        nodeStats.getIngestStats().processorStats().values().forEach(stats -> {
+        nodeStats.getIngestStats().processorStats().values().stream().flatMap(map -> map.values().stream()).forEach(stats -> {
             stats.forEach(stat -> {
                 processorStats.compute(stat.type(), (key, value) -> {
                     if (value == null) {
@@ -85,7 +87,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         });
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(List.of(nodeStats));
-        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().processorStats().size()));
+        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().pipelineStats().size()));
         StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {
@@ -113,7 +115,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );
-        long[] expectedStats = new long[12];
+        long[] expectedStats = new long[14];
         for (NodeStats nodeStat : nodeStats) {
             IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
             if (indexingPressureStats != null) {
@@ -130,8 +132,10 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 expectedStats[8] += indexingPressureStats.getCoordinatingRejections();
                 expectedStats[9] += indexingPressureStats.getPrimaryRejections();
                 expectedStats[10] += indexingPressureStats.getReplicaRejections();
+                expectedStats[11] += indexingPressureStats.getPrimaryDocumentRejections();
+                expectedStats[12] += indexingPressureStats.getLargeOpsRejections();
 
-                expectedStats[11] += indexingPressureStats.getMemoryLimit();
+                expectedStats[13] += indexingPressureStats.getMemoryLimit();
             }
         }
 
@@ -181,9 +185,15 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"replica_rejections\":"
                     + expectedStats[10]
+                    + ","
+                    + "\"primary_document_rejections\":"
+                    + expectedStats[11]
+                    + ","
+                    + "\"large_operation_rejections\":"
+                    + expectedStats[12]
                     + "},"
                     + "\"limit_in_bytes\":"
-                    + expectedStats[11]
+                    + expectedStats[13]
                     + "}"
                     + "}}"
             )
@@ -322,7 +332,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
         return new NodeInfo(
             Build.current().version(),
-            TransportVersion.current(),
+            new CompatibilityVersions(TransportVersion.current(), Map.of()),
             IndexVersion.current(),
             Map.of(),
             Build.current(),

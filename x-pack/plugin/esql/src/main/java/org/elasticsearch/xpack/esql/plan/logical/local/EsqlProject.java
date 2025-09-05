@@ -7,19 +7,54 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 
+import java.io.IOException;
 import java.util.List;
 
+/**
+ * A projection when first parsed, i.e. obtained from {@code KEEP, DROP, RENAME}. After the analysis step, we use {@link Project}.
+ */
+// TODO: Consolidate with Project. We don't need the pre-/post-analysis distinction for other logical plans.
+// https://github.com/elastic/elasticsearch/issues/109195
 public class EsqlProject extends Project {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "EsqlProject",
+        EsqlProject::new
+    );
 
     public EsqlProject(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child, projections);
+    }
+
+    public EsqlProject(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteableCollection(projections());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

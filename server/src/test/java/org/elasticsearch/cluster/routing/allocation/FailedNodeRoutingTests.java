@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -70,8 +71,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -123,13 +124,13 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
             DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
             state = ClusterState.builder(state).nodes(newNodes).build();
-            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after adding node
+            // always reroute after adding node
+            state = cluster.reroute(state, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT));
         }
 
         // Log the node versions (for debugging if necessary)
         for (DiscoveryNode discoveryNode : state.nodes().getDataNodes().values()) {
-            Version nodeVer = discoveryNode.getVersion();
-            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), nodeVer);
+            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), discoveryNode.getBuildVersion());
         }
 
         // randomly create some indices
@@ -139,7 +140,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             CreateIndexRequest request = new CreateIndexRequest(name, indexSettings(randomIntBetween(1, 4), randomIntBetween(2, 4)).build())
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().hasIndex(name));
+            assertTrue(state.metadata().getProject().hasIndex(name));
         }
 
         logger.info("--> starting shards");
@@ -213,6 +214,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             allNodes.add(createNode());
         }
         ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+
+        // Check that the internal state of the routing table is correct. If this fails then everything else is likely to be broken too
+        assertTrue(state.globalRoutingTable().validate(state.metadata()));
         return state;
     }
 

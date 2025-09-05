@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -23,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +43,16 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
     private Boolean cliDebug = false;
+
     private Boolean apmServerEnabled = false;
+
+    private String apmServerMetrics = null;
+
+    private String apmServerTransactions = null;
+
+    private String apmServerTransactionsExcludes = null;
+
+    private List<String> plugins;
 
     private Boolean preserveData = false;
 
@@ -68,6 +79,12 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.cliDebug = enabled;
     }
 
+    @Option(
+        option = "entitlements",
+        description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
+    )
+    public void setEntitlementsEnabled(boolean enabled) {}
+
     @Input
     public Boolean getDebug() {
         return debug;
@@ -79,13 +96,72 @@ public abstract class RunTask extends DefaultTestClustersTask {
     }
 
     @Input
+    public Boolean getEntitlementsEnabled() {
+        return true;
+    }
+
+    @Input
     public Boolean getApmServerEnabled() {
         return apmServerEnabled;
+    }
+
+    @Input
+    @Optional
+    public String getApmServerMetrics() {
+        return apmServerMetrics;
+    }
+
+    @Input
+    @Optional
+    public String getApmServerTransactions() {
+        return apmServerTransactions;
+    }
+
+    @Input
+    @Optional
+    public String getApmServerTransactionsExcludes() {
+        return apmServerTransactionsExcludes;
     }
 
     @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
     public void setApmServerEnabled(Boolean apmServerEnabled) {
         this.apmServerEnabled = apmServerEnabled;
+    }
+
+    @Option(option = "apm-metrics", description = "Metric wildcard filter for APM server")
+    public void setApmServerMetrics(String apmServerMetrics) {
+        this.apmServerMetrics = apmServerMetrics;
+    }
+
+    @Option(option = "apm-transactions", description = "Transaction wildcard filter for APM server")
+    public void setApmServerTransactions(String apmServerTransactions) {
+        this.apmServerTransactions = apmServerTransactions;
+    }
+
+    @Option(option = "apm-transactions-excludes", description = "Transaction wildcard filter for APM server")
+    public void setApmServerTransactionsExcludes(String apmServerTransactionsExcludes) {
+        this.apmServerTransactionsExcludes = apmServerTransactionsExcludes;
+    }
+
+    @Option(option = "with-plugins", description = "Run distribution with plugins installed")
+    public void setPlugins(String plugins) {
+        this.plugins = Arrays.asList(plugins.split(","));
+        for (var cluster : getClusters()) {
+            for (String plugin : this.plugins) {
+                cluster.plugin(":plugins:" + plugin);
+            }
+            dependsOn(cluster.getPluginAndModuleConfigurations());
+        }
+    }
+
+    public void setPlugins(List<String> plugins) {
+        this.plugins = plugins;
+    }
+
+    @Input
+    @Optional
+    public List<String> getPlugins() {
+        return plugins;
     }
 
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
@@ -167,6 +243,15 @@ public abstract class RunTask extends DefaultTestClustersTask {
             getDataPath = n -> dataDir.resolve(n.getName());
         }
 
+        if (apmServerEnabled) {
+            try {
+                mockServer = new MockApmServer(apmServerMetrics, apmServerTransactions, apmServerTransactionsExcludes);
+                mockServer.start();
+            } catch (IOException e) {
+                throw new GradleException("Unable to start APM server: " + e.getMessage(), e);
+            }
+        }
+
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
@@ -195,28 +280,20 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
-
-                if (apmServerEnabled) {
-                    mockServer = new MockApmServer(9999);
-                    try {
-                        mockServer.start();
-                        node.setting("telemetry.metrics.enabled", "true");
-                        node.setting("telemetry.tracing.enabled", "true");
-                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
-                        node.setting("telemetry.agent.metrics_interval", "10s");
-                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
-                    } catch (IOException e) {
-                        logger.warn("Unable to start APM server", e);
-                    }
+                if (mockServer != null) {
+                    node.setting("telemetry.metrics.enabled", "true");
+                    node.setting("telemetry.tracing.enabled", "true");
+                    node.setting("telemetry.agent.transaction_sample_rate", "1.0");
+                    node.setting("telemetry.agent.metrics_interval", "10s");
+                    node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them
                 else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) { // metrics
                     node.setting("telemetry.metrics.enabled", "false");
-                } else if (node.getSettingKeys().contains("telemetry.tracing.enabled") == false
-                    && node.getSettingKeys().contains("tracing.apm.enabled") == false) { // tracing
-                        node.setting("telemetry.tracing.enable", "false");
-                    }
+                } else if (node.getSettingKeys().contains("telemetry.tracing.enabled") == false) { // tracing
+                    node.setting("telemetry.tracing.enabled", "false");
+                }
 
             }
         }

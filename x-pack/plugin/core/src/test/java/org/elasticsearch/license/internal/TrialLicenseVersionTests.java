@@ -11,8 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.license.internal.TrialLicenseVersion.CURRENT;
-import static org.elasticsearch.license.internal.TrialLicenseVersion.TRIAL_VERSION_CUTOVER;
-import static org.elasticsearch.license.internal.TrialLicenseVersion.TRIAL_VERSION_CUTOVER_MAJOR;
+import static org.elasticsearch.license.internal.TrialLicenseVersion.CURRENT_TRIAL_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TrialLicenseVersionTests extends ESTestCase {
@@ -20,13 +19,9 @@ public class TrialLicenseVersionTests extends ESTestCase {
     public void testCanParseAllVersions() {
         for (var version : Version.getDeclaredVersions(Version.class)) {
             // Only consider versions before the cut-over; the comparison becomes meaningless after the cut-over point
-            if (version.onOrBefore(Version.fromId(TRIAL_VERSION_CUTOVER))) {
+            if (version.onOrBefore(Version.fromId(CURRENT_TRIAL_VERSION))) {
                 TrialLicenseVersion parsedVersion = TrialLicenseVersion.fromXContent(version.toString());
-                if (version.major < TRIAL_VERSION_CUTOVER_MAJOR) {
-                    assertTrue(parsedVersion.ableToStartNewTrial());
-                } else {
-                    assertFalse(parsedVersion.ableToStartNewTrial());
-                }
+                assertTrue(parsedVersion.ableToStartNewTrial());
             }
         }
     }
@@ -38,9 +33,10 @@ public class TrialLicenseVersionTests extends ESTestCase {
 
     public void testNewTrialAllowed() {
         assertTrue(new TrialLicenseVersion(randomIntBetween(7_00_00_00, 7_99_99_99)).ableToStartNewTrial());
+        assertTrue(new TrialLicenseVersion(randomIntBetween(8_00_00_00, 8_99_99_99)).ableToStartNewTrial());
         assertFalse(new TrialLicenseVersion(CURRENT.asInt()).ableToStartNewTrial());
-        assertFalse(new TrialLicenseVersion(randomIntBetween(8_00_00_00, TRIAL_VERSION_CUTOVER)).ableToStartNewTrial());
-        final int trialVersion = randomIntBetween(TRIAL_VERSION_CUTOVER, CURRENT.asInt());
+        assertFalse(new TrialLicenseVersion(randomIntBetween(9_00_00_00, CURRENT_TRIAL_VERSION)).ableToStartNewTrial());
+        final int trialVersion = randomIntBetween(CURRENT_TRIAL_VERSION, CURRENT.asInt());
         if (trialVersion < CURRENT.asInt()) {
             assertTrue(new TrialLicenseVersion(trialVersion).ableToStartNewTrial());
         } else {

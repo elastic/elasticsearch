@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
@@ -12,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene912.Lucene912PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene99.Lucene99PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -19,7 +22,7 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99PostingsFormat;
+import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,6 +33,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -271,8 +275,9 @@ final class IndexDiskUsageAnalyzer {
                 }
                 case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
-                        while (dv.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                        for (int i = 0; i < dv.docValueCount(); i++) {
                             cancellationChecker.logEvent();
+                            dv.nextOrd();
                         }
                     });
                     if (sortedSet.getValueCount() > 0) {
@@ -284,6 +289,17 @@ final class IndexDiskUsageAnalyzer {
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
                 }
+            }
+            switch (field.docValuesSkipIndexType()) {
+                case NONE -> {
+                }
+                case RANGE -> {
+                    var skipper = docValuesReader.getSkipper(field);
+                    while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                        skipper.advance(skipper.maxDocID(skipper.numLevels() - 1) + 1);
+                    }
+                }
+                default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
             }
             stats.addDocValues(field.name, directory.getBytesRead());
         }
@@ -303,6 +319,12 @@ final class IndexDiskUsageAnalyzer {
     private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
+            if (termState instanceof final Lucene101PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final Lucene912PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
             if (termState instanceof final ES812PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
@@ -539,13 +561,14 @@ final class IndexDiskUsageAnalyzer {
             if (field.getVectorDimension() > 0) {
                 switch (field.getVectorEncoding()) {
                     case BYTE -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name), vectors -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name).iterator(), vectors -> {
                             cancellationChecker.logEvent();
-                            vectors.vectorValue();
+                            vectors.index();
                         });
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
                         ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
+                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                         final KnnCollector collector = new TopKnnCollector(
                             Math.max(1, Math.min(100, vectorValues.size() - 1)),
                             Integer.MAX_VALUE
@@ -553,22 +576,23 @@ final class IndexDiskUsageAnalyzer {
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
+                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }
                     case FLOAT32 -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name), vectors -> {
+                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name).iterator(), vectors -> {
                             cancellationChecker.logEvent();
-                            vectors.vectorValue();
+                            vectors.index();
                         });
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
                         FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
+                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                         final KnnCollector collector = new TopKnnCollector(
                             Math.max(1, Math.min(100, vectorValues.size() - 1)),
                             Integer.MAX_VALUE
@@ -576,11 +600,11 @@ final class IndexDiskUsageAnalyzer {
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
+                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }

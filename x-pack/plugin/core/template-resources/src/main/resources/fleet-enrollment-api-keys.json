@@ -33,6 +33,12 @@
         },
         "updated_at": {
           "type": "date"
+        },
+        "namespaces": {
+          "type": "keyword"
+        },
+        "hidden": {
+          "type": "boolean"
         }
       }
     }

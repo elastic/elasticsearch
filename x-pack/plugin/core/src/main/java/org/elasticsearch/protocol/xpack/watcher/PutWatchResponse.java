@@ -7,9 +7,7 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -18,48 +16,17 @@ import java.util.Objects;
 
 public class PutWatchResponse extends ActionResponse implements ToXContentObject {
 
-    private String id;
-    private long version;
-    private long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-    private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-    private boolean created;
-
-    public PutWatchResponse() {}
-
-    public PutWatchResponse(StreamInput in) throws IOException {
-        super(in);
-        id = in.readString();
-        version = in.readVLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        created = in.readBoolean();
-    }
+    private final String id;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
+    private final boolean created;
 
     public PutWatchResponse(String id, long version, long seqNo, long primaryTerm, boolean created) {
         this.id = id;
         this.version = version;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
-        this.created = created;
-    }
-
-    private void setId(String id) {
-        this.id = id;
-    }
-
-    private void setVersion(long version) {
-        this.version = version;
-    }
-
-    private void setSeqNo(long seqNo) {
-        this.seqNo = seqNo;
-    }
-
-    private void setPrimaryTerm(long primaryTerm) {
-        this.primaryTerm = primaryTerm;
-    }
-
-    private void setCreated(boolean created) {
         this.created = created;
     }
 

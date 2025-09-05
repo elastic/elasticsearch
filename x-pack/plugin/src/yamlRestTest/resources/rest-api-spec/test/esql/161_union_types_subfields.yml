@@ -1,0 +1,203 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ union_types, union_types_remove_fields ]
+      reason: "Union types introduced in 8.15.0"
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              obj:
+                properties:
+                  keyword:
+                    type: keyword
+                  integer:
+                    type: integer
+              keyword:
+                type: boolean
+              integer:
+                type: version
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              obj:
+                properties:
+                  keyword:
+                    type: boolean
+                  integer:
+                    type: version
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        index: test1
+        body:
+          - '{ "index": {"_id": 11} }'
+          - '{ "obj.keyword": "true", "obj.integer": 100, "keyword": "true", "integer": "50" }'
+          - '{ "index": {"_id": 12} }'
+          - '{ "obj.keyword": "US", "obj.integer": 20, "keyword": false, "integer": "1.2.3" }'
+
+  - do:
+      bulk:
+        refresh: true
+        index: test2
+        body:
+          - '{ "index": {"_id": 21} }'
+          - '{ "obj.keyword": "true", "obj.integer": "50", "keyword": "true", "integer": 100 }'
+          - '{ "index": {"_id": 22} }'
+          - '{ "obj.keyword": false, "obj.integer": "1.2.3", "keyword": "US", "integer": 20 }'
+
+---
+"load single index":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test1 METADATA _id | KEEP _id, obj.integer, obj.keyword | SORT _id ASC'
+
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "obj.integer" }
+  - match: { columns.1.type: "integer" }
+  - match: { columns.2.name: "obj.keyword" }
+  - match: { columns.2.type: "keyword" }
+  - length: { values: 2 }
+  - match: { values.0.0: "11" }
+  - match: { values.0.1: 100 }
+  - match: { values.0.2: "true" }
+  - match: { values.1.0: "12" }
+  - match: { values.1.1: 20 }
+  - match: { values.1.2: "US" }
+
+---
+"load two indices with to_string":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test* METADATA _id | EVAL s = TO_STRING(obj.keyword) | KEEP _id, s | SORT _id ASC'
+
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "s" }
+  - match: { columns.1.type: "keyword" }
+  - length: { values: 4 }
+  - match: { values.0.0: "11" }
+  - match: { values.0.1: "true" }
+  - match: { values.1.0: "12" }
+  - match: { values.1.1: "US" }
+  - match: { values.2.0: "21" }
+  - match: { values.2.1: "true" }
+  - match: { values.3.0: "22" }
+  - match: { values.3.1: "false" }
+
+
+---
+"load two indices with to_version":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test* METADATA _id | EVAL v = TO_VERSION(TO_STRING(obj.integer)) | KEEP _id, v | SORT _id ASC'
+
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "v" }
+  - match: { columns.1.type: "version" }
+  - length: { values: 4 }
+  - match: { values.0.0: "11" }
+  - match: { values.0.1: "100" }
+  - match: { values.1.0: "12" }
+  - match: { values.1.1: "20" }
+  - match: { values.2.0: "21" }
+  - match: { values.2.1: "50" }
+  - match: { values.3.0: "22" }
+  - match: { values.3.1: "1.2.3" }
+
+---
+"load two indices with to_version and to_string":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test* METADATA _id | EVAL v = TO_VERSION(TO_STRING(obj.integer)), s = TO_STRING(obj.keyword) | KEEP _id, v, s | SORT _id ASC'
+
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "v" }
+  - match: { columns.1.type: "version" }
+  - match: { columns.2.name: "s" }
+  - match: { columns.2.type: "keyword" }
+  - length: { values: 4 }
+  - match: { values.0.0: "11" }
+  - match: { values.0.1: "100" }
+  - match: { values.0.2: "true" }
+  - match: { values.1.0: "12" }
+  - match: { values.1.1: "20" }
+  - match: { values.1.2: "US" }
+  - match: { values.2.0: "21" }
+  - match: { values.2.1: "50" }
+  - match: { values.2.2: "true" }
+  - match: { values.3.0: "22" }
+  - match: { values.3.1: "1.2.3" }
+  - match: { values.3.2: "false" }
+
+---
+"load two indices with to_version and to_string nested and un-nested":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test* METADATA _id | EVAL nv = TO_VERSION(TO_STRING(obj.integer)), uv = TO_VERSION(TO_STRING(integer)), ns = TO_STRING(obj.keyword), us = TO_STRING(keyword) | KEEP _id, nv, uv, ns, us | SORT _id ASC'
+
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "nv" }
+  - match: { columns.1.type: "version" }
+  - match: { columns.2.name: "uv" }
+  - match: { columns.2.type: "version" }
+  - match: { columns.3.name: "ns" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "us" }
+  - match: { columns.4.type: "keyword" }
+  - length: { values: 4 }
+  - match: { values.0.0: "11" }
+  - match: { values.0.1: "100" }
+  - match: { values.0.2: "50" }
+  - match: { values.0.3: "true" }
+  - match: { values.0.4: "true" }
+  - match: { values.1.0: "12" }
+  - match: { values.1.1: "20" }
+  - match: { values.1.2: "1.2.3" }
+  - match: { values.1.3: "US" }
+  - match: { values.1.4: "false" }
+  - match: { values.2.0: "21" }
+  - match: { values.2.1: "50" }
+  - match: { values.2.2: "100" }
+  - match: { values.2.3: "true" }
+  - match: { values.2.4: "true" }
+  - match: { values.3.0: "22" }
+  - match: { values.3.1: "1.2.3" }
+  - match: { values.3.2: "20" }
+  - match: { values.3.3: "false" }
+  - match: { values.3.4: "US" }

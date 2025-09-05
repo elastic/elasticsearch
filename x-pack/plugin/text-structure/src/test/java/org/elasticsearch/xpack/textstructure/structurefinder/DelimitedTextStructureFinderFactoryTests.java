@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class DelimitedTextStructureFinderFactoryTests extends TextStructureTestCase {
 
     private final TextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
@@ -38,6 +41,21 @@ public class DelimitedTextStructureFinderFactoryTests extends TextStructureTestC
     public void testCanCreateCsvFromSampleGivenText() {
 
         assertFalse(csvFactory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
+    }
+
+    public void testCanCreateCsvFromMessagesCsv() {
+        List<String> messages = Arrays.asList(CSV_SAMPLE.split("\n"));
+        assertTrue(csvFactory.canCreateFromMessages(explanation, messages, 0.0));
+    }
+
+    public void testCanCreateCsvFromMessagesCsv_multipleCsvRowsPerMessage() {
+        List<String> messages = List.of(CSV_SAMPLE, CSV_SAMPLE, CSV_SAMPLE);
+        assertFalse(csvFactory.canCreateFromMessages(explanation, messages, 0.0));
+    }
+
+    public void testCanCreateCsvFromMessagesCsv_emptyMessages() {
+        List<String> messages = List.of("", "", "");
+        assertFalse(csvFactory.canCreateFromMessages(explanation, messages, 0.0));
     }
 
     // TSV - no need to check NDJSON, XML or CSV because they come earlier in the order we check formats

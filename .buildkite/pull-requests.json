@@ -8,6 +8,7 @@
         "admin",
         "write"
       ],
+      "allowed_list": ["elastic-renovate-prod[bot]"],
       "set_commit_status": false,
       "build_on_commit": true,
       "build_on_comment": true,
@@ -17,18 +18,17 @@
     },
     {
       "enabled": true,
-      "pipeline_slug": "elasticsearch-pull-request-check-serverless-submodule",
+      "pipeline_slug": "elasticsearch-pull-request-performance-benchmark",
       "allow_org_users": true,
       "allowed_repo_permissions": [
         "admin",
         "write"
       ],
       "set_commit_status": false,
-      "build_on_commit": true,
-      "build_on_comment": false,
-      "labels": [
-        "test-update-serverless"
-      ]
+      "build_on_commit": false,
+      "build_on_comment": true,
+      "target_branch": "main",
+      "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) benchmark this with (?<benchmark>\\S+)( please)?$"
     }
   ]
 }

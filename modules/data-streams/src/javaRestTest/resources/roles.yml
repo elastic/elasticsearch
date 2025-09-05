@@ -7,7 +7,7 @@ manage_data_stream_lifecycle:
         - read
         - write
         - manage_data_stream_lifecycle
-not_privileged:
+under_privilged:
   cluster:
     - monitor
   indices:
@@ -16,3 +16,10 @@ not_privileged:
         - read
         - write
         - view_index_metadata
+only_get:
+  indices:
+    - names: [ 'my-ds*' ]
+      privileges:
+        - read
+        - view_index_metadata
+no_privilege:

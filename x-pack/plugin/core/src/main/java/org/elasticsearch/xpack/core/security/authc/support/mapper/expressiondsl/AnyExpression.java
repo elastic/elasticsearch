@@ -25,7 +25,8 @@ public final class AnyExpression implements RoleMapperExpression {
 
     private final List<RoleMapperExpression> elements;
 
-    AnyExpression(List<RoleMapperExpression> elements) {
+    // public to be used in tests
+    public AnyExpression(List<RoleMapperExpression> elements) {
         assert elements != null;
         this.elements = elements;
     }

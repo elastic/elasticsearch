@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -52,6 +55,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestCase {
@@ -63,6 +69,18 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected abstract MappedFieldType loopFieldType();
 
     protected abstract String typeName();
+
+    /**
+     * Add the provided document to the provided writer, and randomly flush.
+     * This is useful for situations where there are not enough documents indexed to trigger random flush and commit performed
+     * by {@link RandomIndexWriter}. Flushing is important to obtain multiple slices and inter-segment concurrency.
+     */
+    protected static <T extends IndexableField> void addDocument(RandomIndexWriter iw, Iterable<T> indexableFields) throws IOException {
+        iw.addDocument(indexableFields);
+        if (randomBoolean()) {
+            iw.flush();
+        }
+    }
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
@@ -252,6 +270,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchExecutionContext searchExecutionContext = mockContext();
         return new FieldDataContext(
             "test",
+            null,
             searchExecutionContext::lookup,
             mockContext()::sourcePath,
             MappedFieldType.FielddataOperation.SCRIPT
@@ -271,7 +290,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        return mockContext(allowExpensiveQueries, mappedFieldType, SourceProvider.fromStoredFields());
+        return mockContext(
+            allowExpensiveQueries,
+            mappedFieldType,
+            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+        );
     }
 
     protected static SearchExecutionContext mockContext(
@@ -286,7 +309,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSupplier, context::sourcePath, fdo))
                 .build(null, null),
             sourceProvider
         );
@@ -294,7 +317,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
+            return ft.fielddataBuilder(new FieldDataContext("test", null, context::lookup, context::sourcePath, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
@@ -400,13 +423,52 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType)
+    public final void testIsParsedFromSource() throws IOException {
+        XContentBuilder mapping = runtimeMapping(b -> {
+            b.startObject("field")
+                .field("type", typeName())
+                .startObject("script")
+                .field("source", "dummy_source")
+                .field("lang", "test")
+                .endObject()
+                .endObject()
+                .startObject("field_source")
+                .field("type", typeName())
+                .startObject("script")
+                .field("source", "deterministic_source")
+                .field("lang", "test")
+                .endObject()
+                .endObject();
+        });
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext c = createSearchExecutionContext(mapperService);
+        {
+            // The field_source uses parseFromSource(...) in compileScript(...) method in this class.
+            // This triggers calling SearchLookup#optimizedSourceProvider(...) which should return more optimized source.
+            var fieldType = (AbstractScriptFieldType) c.getFieldType("field_source");
+            SearchLookup searchLookup = mock(SearchLookup.class);
+            when(searchLookup.optimizedSourceProvider(any())).thenReturn(searchLookup);
+            var result = fieldType.leafFactory(searchLookup);
+            assertNotNull(result);
+            verify(searchLookup, times(1)).optimizedSourceProvider(any());
+        }
+        {
+            // The field uses normal scripts and that should never cause SearchLookup#optimizedSourceProvider(...) to be invoked:
+            var fieldType = (AbstractScriptFieldType) c.getFieldType("field");
+            SearchLookup searchLookup = mock(SearchLookup.class);
+            when(searchLookup.optimizedSourceProvider(any())).thenReturn(searchLookup);
+            var result = fieldType.leafFactory(searchLookup);
+            assertNotNull(result);
+            verify(searchLookup, never()).optimizedSourceProvider(any());
+        }
+    }
+
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
         throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
-                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx));
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }
@@ -420,7 +482,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
-            BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), ctx.reader().numDocs());
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
             for (int i = 0; i < ctx.reader().numDocs(); i++) {
                 blockReader.read(i, null, builder);
             }
@@ -436,6 +498,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
                 throw new UnsupportedOperationException();
             }
 
@@ -481,7 +548,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected final String readSource(IndexReader reader, int docId) throws IOException {
-        return reader.document(docId).getBinaryValue("_source").utf8ToString();
+        return reader.storedFields().document(docId).getBinaryValue("_source").utf8ToString();
     }
 
     protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {

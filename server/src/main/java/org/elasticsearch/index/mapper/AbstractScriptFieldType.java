@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -26,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.time.ZoneId;
@@ -47,18 +49,21 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
+    private final boolean isParsedFromSource;
 
     protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
-        Map<String, String> meta
+        Map<String, String> meta,
+        boolean isParsedFromSource
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
+        this.isParsedFromSource = isParsedFromSource;
     }
 
     @Override
@@ -189,7 +194,13 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(searchLookup);
+        if (isParsedFromSource) {
+            String include = name();
+            var copy = searchLookup.optimizedSourceProvider(new SourceFilter(new String[] { include }, new String[0]));
+            return factory.apply(copy);
+        } else {
+            return factory.apply(searchLookup);
+        }
     }
 
     /**
@@ -208,7 +219,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
             "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
+                + "must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                 + "and without the [script] parameter. ["
                 + name()
@@ -244,7 +255,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         ).setSerializerCheck((id, ic, v) -> ic);
 
         private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.onScriptError,
+            m -> m.builderParams.onScriptError(),
             script
         );
 

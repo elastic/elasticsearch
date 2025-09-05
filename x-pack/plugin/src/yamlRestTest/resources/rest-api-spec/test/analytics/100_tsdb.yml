@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -62,8 +62,8 @@ setup:
 
 ---
 aggregate multi_terms:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -88,8 +88,8 @@ aggregate multi_terms:
 
 ---
 "multi_terms aggregation with time_series aggregation":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "multi_terms for time series aggregation fixed in 8.13.0"
 
   - do:

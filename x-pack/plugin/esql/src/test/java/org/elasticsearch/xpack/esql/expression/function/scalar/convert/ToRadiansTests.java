@@ -10,19 +10,18 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToRadiansTests extends AbstractFunctionTestCase {
+public class ToRadiansTests extends AbstractScalarFunctionTestCase {
     public ToRadiansTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -30,13 +29,12 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
-        Function<String, String> evaluatorName = eval -> "ToRadiansEvaluator[field=" + eval + "[field=Attribute[channel=0]]]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("ToDoubleFromIntEvaluator"),
-            DataTypes.DOUBLE,
+            evaluatorName("ToDoubleFromIntEvaluator", "i"),
+            DataType.DOUBLE,
             Math::toRadians,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -44,8 +42,8 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("ToDoubleFromLongEvaluator"),
-            DataTypes.DOUBLE,
+            evaluatorName("ToDoubleFromLongEvaluator", "l"),
+            DataType.DOUBLE,
             Math::toRadians,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -53,8 +51,8 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("ToDoubleFromUnsignedLongEvaluator"),
-            DataTypes.DOUBLE,
+            evaluatorName("ToDoubleFromUnsignedLongEvaluator", "l"),
+            DataType.DOUBLE,
             ul -> Math.toRadians(ul.doubleValue()),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -62,15 +60,19 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToRadiansEvaluator[field=Attribute[channel=0]]",
-            DataTypes.DOUBLE,
+            "ToRadiansEvaluator[deg=Attribute[channel=0]]",
+            DataType.DOUBLE,
             Math::toRadians,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
             List.of()
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        return "ToRadiansEvaluator[deg=" + inner + "[" + next + "=Attribute[channel=0]]]";
     }
 
     @Override

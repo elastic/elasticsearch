@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -18,11 +22,10 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,9 +45,10 @@ import static org.mockito.Mockito.spy;
  */
 public class ReservedRepositoryActionTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedRepositoryAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ProjectId projectId, ReservedRepositoryAction action, TransformState prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            return action.transform(projectId, action.fromXContent(parser), prevState);
         }
     }
 
@@ -67,20 +71,24 @@ public class ReservedRepositoryActionTests extends ESTestCase {
 
         assertEquals(
             "[repo] repository type [inter_planetary] does not exist",
-            expectThrows(RepositoryException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            expectThrows(RepositoryException.class, () -> processJSON(randomProjectIdOrDefault(), action, prevState, badPolicyJSON))
+                .getMessage()
         );
     }
 
     public void testAddRepo() throws Exception {
         var repositoriesService = mockRepositoriesService();
+        final var projectId = randomProjectIdOrDefault();
 
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -101,14 +109,17 @@ public class ReservedRepositoryActionTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, settingsJSON);
+        updatedState = processJSON(projectId, action, prevState, settingsJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("repo", "repo1"));
     }
 
     public void testRemoveRepo() {
         var repositoriesService = mockRepositoriesService();
+        final var projectId = randomProjectIdOrDefault();
 
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build();
         TransformState prevState = new TransformState(state, Set.of("repo1"));
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
@@ -118,15 +129,14 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         // missing is sufficient to tell that we attempted to delete that repo
         assertEquals(
             "[repo1] missing",
-            expectThrows(RepositoryMissingException.class, () -> processJSON(action, prevState, emptyJSON)).getMessage()
+            expectThrows(RepositoryMissingException.class, () -> processJSON(projectId, action, prevState, emptyJSON)).getMessage()
         );
     }
 
-    @SuppressWarnings("unchecked")
     private RepositoriesService mockRepositoriesService() {
         var fsFactory = new Repository.Factory() {
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 var repo = mock(Repository.class);
                 doAnswer(invocation -> metadata).when(repo).getMetadata();
                 return repo;
@@ -134,26 +144,26 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         };
 
         ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         RepositoriesService repositoriesService = spy(
             new RepositoriesService(
                 Settings.EMPTY,
                 mock(ClusterService.class),
-                transportService,
                 Map.of(),
                 Map.of("fs", fsFactory),
                 threadPool,
-                null
+                mock(NodeClient.class),
+                null,
+                SnapshotMetrics.NOOP
             )
         );
 
         doAnswer(invocation -> {
-            var request = (PutRepositoryRequest) invocation.getArguments()[0];
+            var request = (PutRepositoryRequest) invocation.getArguments()[1];
             if (request.type().equals("inter_planetary")) {
                 throw new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist");
             }
             return null;
-        }).when(repositoriesService).validateRepositoryCanBeCreated(any());
+        }).when(repositoriesService).validateRepositoryCanBeCreated(any(ProjectId.class), any());
 
         return repositoriesService;
     }

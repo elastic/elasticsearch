@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.example.customsettings;
 
@@ -69,7 +70,7 @@ public class ExampleCustomSettingsConfig {
 
     public ExampleCustomSettingsConfig(final Environment environment) {
         // Elasticsearch config directory
-        final Path configDir = environment.configFile();
+        final Path configDir = environment.configDir();
 
         // Resolve the plugin's custom settings file
         final Path customSettingsYamlFile = configDir.resolve("custom-settings/custom.yml");

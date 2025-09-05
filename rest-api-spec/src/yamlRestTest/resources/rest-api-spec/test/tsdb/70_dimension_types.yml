@@ -1,8 +1,8 @@
 ---
 keyword dimension:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
 
@@ -74,9 +74,9 @@ keyword dimension:
 
 ---
 flattened dimension:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
 
@@ -162,9 +162,9 @@ flattened dimension:
 
 ---
 flattened empty dimension:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
 
@@ -243,9 +243,9 @@ flattened empty dimension:
 
 ---
 flattened field missing routing path field:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -338,9 +338,9 @@ flattened field missing routing path field:
 
 ---
 flattened field misspelled routing path field:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -430,9 +430,9 @@ flattened field misspelled routing path field:
 
 ---
 long dimension:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -505,9 +505,9 @@ long dimension:
 
 ---
 ip dimension:
-  - skip:
-      features: close_to
-      version: " - 8.12.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -580,8 +580,8 @@ ip dimension:
 
 ---
 runtime time series dimension:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
 
   - do:

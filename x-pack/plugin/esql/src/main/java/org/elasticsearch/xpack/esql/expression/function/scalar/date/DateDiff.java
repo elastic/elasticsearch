@@ -8,20 +8,27 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -33,23 +40,24 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
 /**
  * Subtract the second argument from the third argument and return their difference
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
+public class DateDiff extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
 
-    public static final ZoneId UTC = ZoneId.of("Z");
+    public static final ZoneId UTC = org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
 
     private final Expression unit;
     private final Expression startTimestamp;
@@ -61,7 +69,7 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
      */
     public enum Part implements DateTimeField {
 
-        YEAR((start, end) -> end.getYear() - start.getYear(), "years", "yyyy", "yy"),
+        YEAR((start, end) -> safeToInt(ChronoUnit.YEARS.between(start, end)), "years", "yyyy", "yy"),
         QUARTER((start, end) -> safeToInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
         MONTH((start, end) -> safeToInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
         DAYOFYEAR((start, end) -> safeToInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),
@@ -123,17 +131,51 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument"
+        description = """
+            Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
+            If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""",
+        detailedDescription = """
+            **Datetime difference units**
+
+            | unit | abbreviations |
+            | --- | --- |
+            | year | years, yy, yyyy |
+            | quarter | quarters, qq, q |
+            | month | months, mm, m |
+            | dayofyear | dy, y |
+            | day | days, dd, d |
+            | week | weeks, wk, ww |
+            | weekday | weekdays, dw |
+            | hour | hours, hh |
+            | minute | minutes, mi, n |
+            | second | seconds, ss, s |
+            | millisecond | milliseconds, ms |
+            | microsecond | microseconds, mcs |
+            | nanosecond | nanoseconds, ns |
+
+            Note that while there is an overlap between the function’s supported units and
+            {{esql}}’s supported time span literals, these sets are distinct and not
+            interchangeable. Similarly, the supported abbreviations are conveniently shared
+            with implementations of this function in other established products and not
+            necessarily common with the date-time nomenclature used by {{es}}.""",
+        examples = { @Example(file = "date", tag = "docsDateDiff"), @Example(description = """
+            When subtracting in calendar units - like year, month a.s.o. - only the fully elapsed units are counted.
+            To avoid this and obtain also remainders, simply switch to the next smaller unit and do the date math accordingly.
+            """, file = "date", tag = "evalDateDiffYearForDocs") }
     )
     public DateDiff(
         Source source,
-        @Param(name = "unit", type = { "keyword", "text" }, description = "A valid date unit") Expression unit,
+        @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,
         @Param(
             name = "startTimestamp",
-            type = { "date" },
+            type = { "date", "date_nanos" },
             description = "A string representing a start timestamp"
         ) Expression startTimestamp,
-        @Param(name = "endTimestamp", type = { "date" }, description = "A string representing an end timestamp") Expression endTimestamp
+        @Param(
+            name = "endTimestamp",
+            type = { "date", "date_nanos" },
+            description = "A string representing an end timestamp"
+        ) Expression endTimestamp
     ) {
         super(source, List.of(unit, startTimestamp, endTimestamp));
         this.unit = unit;
@@ -141,33 +183,149 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
         this.endTimestamp = endTimestamp;
     }
 
-    @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int process(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+    private DateDiff(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(unit);
+        out.writeNamedWriteable(startTimestamp);
+        out.writeNamedWriteable(endTimestamp);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    Expression unit() {
+        return unit;
+    }
+
+    Expression startTimestamp() {
+        return startTimestamp;
+    }
+
+    Expression endTimestamp() {
+        return endTimestamp;
+    }
+
+    @Evaluator(extraName = "ConstantMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processMillis(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), UTC);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), UTC);
         return datePartFieldUnit.diff(zdtStart, zdtEnd);
     }
 
-    @Evaluator(warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int process(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
-        return process(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    @Evaluator(extraName = "Millis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processMillis(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        return processMillis(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    }
+
+    @Evaluator(extraName = "ConstantNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processNanos(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestamp), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestamp), UTC);
+        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+    }
+
+    @Evaluator(extraName = "Nanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processNanos(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        return processNanos(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    }
+
+    @Evaluator(extraName = "ConstantNanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processNanosMillis(@Fixed Part datePartFieldUnit, long startTimestampNanos, long endTimestampMillis)
+        throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestampNanos), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestampMillis), UTC);
+        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+    }
+
+    @Evaluator(extraName = "NanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processNanosMillis(BytesRef unit, long startTimestampNanos, long endTimestampMillis) throws IllegalArgumentException {
+        return processNanosMillis(Part.resolve(unit.utf8ToString()), startTimestampNanos, endTimestampMillis);
+    }
+
+    @Evaluator(extraName = "ConstantMillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processMillisNanos(@Fixed Part datePartFieldUnit, long startTimestampMillis, long endTimestampNanos)
+        throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestampMillis), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestampNanos), UTC);
+        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+    }
+
+    @Evaluator(extraName = "MillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processMillisNanos(BytesRef unit, long startTimestampMillis, long endTimestampNanos) throws IllegalArgumentException {
+        return processMillisNanos(Part.resolve(unit.utf8ToString()), startTimestampMillis, endTimestampNanos);
+    }
+
+    @FunctionalInterface
+    public interface DateDiffFactory {
+        ExpressionEvaluator.Factory build(
+            Source source,
+            ExpressionEvaluator.Factory unitsEvaluator,
+            ExpressionEvaluator.Factory startTimestampEvaluator,
+            ExpressionEvaluator.Factory endTimestampEvaluator
+        );
+    }
+
+    @FunctionalInterface
+    public interface DateDiffConstantFactory {
+        ExpressionEvaluator.Factory build(
+            Source source,
+            Part unitsEvaluator,
+            ExpressionEvaluator.Factory startTimestampEvaluator,
+            ExpressionEvaluator.Factory endTimestampEvaluator
+        );
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATETIME) {
+            return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new);
+        } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATE_NANOS) {
+            return toEvaluator(toEvaluator, DateDiffConstantNanosEvaluator.Factory::new, DateDiffNanosEvaluator.Factory::new);
+        } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATETIME) {
+            return toEvaluator(toEvaluator, DateDiffConstantNanosMillisEvaluator.Factory::new, DateDiffNanosMillisEvaluator.Factory::new);
+        } else if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATE_NANOS) {
+            return toEvaluator(toEvaluator, DateDiffConstantMillisNanosEvaluator.Factory::new, DateDiffMillisNanosEvaluator.Factory::new);
+        }
+        throw new UnsupportedOperationException(
+            "Invalid types ["
+                + startTimestamp.dataType()
+                + ", "
+                + endTimestamp.dataType()
+                + "] "
+                + "If you see this error, there is a bug in DateDiff.resolveType()"
+        );
+    }
+
+    private ExpressionEvaluator.Factory toEvaluator(
+        ToEvaluator toEvaluator,
+        DateDiffConstantFactory constantFactory,
+        DateDiffFactory dateDiffFactory
+    ) {
         ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.apply(startTimestamp);
         ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.apply(endTimestamp);
 
         if (unit.foldable()) {
             try {
-                Part datePartField = Part.resolve(((BytesRef) unit.fold()).utf8ToString());
-                return new DateDiffConstantEvaluator.Factory(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
+                Part datePartField = Part.resolve(BytesRefs.toString(unit.fold(toEvaluator.foldCtx())));
+                return constantFactory.build(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         ExpressionEvaluator.Factory unitEvaluator = toEvaluator.apply(unit);
-        return new DateDiffEvaluator.Factory(source(), unitEvaluator, startTimestampEvaluator, endTimestampEvaluator);
+        return dateDiffFactory.build(source(), unitEvaluator, startTimestampEvaluator, endTimestampEvaluator);
     }
 
     @Override
@@ -176,8 +334,10 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isString(unit, sourceText(), FIRST).and(isDate(startTimestamp, sourceText(), SECOND))
-            .and(isDate(endTimestamp, sourceText(), THIRD));
+        String operationName = sourceText();
+        TypeResolution resolution = isString(unit, sourceText(), FIRST).and(
+            TypeResolutions.isType(startTimestamp, DataType::isDate, operationName, SECOND, "datetime or date_nanos")
+        ).and(TypeResolutions.isType(endTimestamp, DataType::isDate, operationName, THIRD, "datetime or date_nanos"));
 
         if (resolution.unresolved()) {
             return resolution;
@@ -193,7 +353,7 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataTypes.INTEGER;
+        return DataType.INTEGER;
     }
 
     @Override

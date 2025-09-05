@@ -28,7 +28,7 @@ import java.util.function.Consumer;
 
 public abstract class Exporter implements AutoCloseable {
 
-    public static Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
+    public static final Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
 
     private static final Setting.AffixSetting<Boolean> ENABLED_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
@@ -108,7 +108,7 @@ public abstract class Exporter implements AutoCloseable {
     static final Setting.AffixSetting<DateFormatter> INDEX_NAME_TIME_FORMAT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "index.name.time_format",
-        key -> new Setting<DateFormatter>(
+        key -> new Setting<>(
             key,
             Exporter.INDEX_FORMAT,
             DateFormatter::forPattern,

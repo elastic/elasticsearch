@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Collections;
 import java.util.Map;
@@ -56,6 +58,7 @@ public enum LuceneFilesExtensions {
     NVM("nvm", "Norms Metadata", true, false),
     PAY("pay", "Payloads", false, false),
     POS("pos", "Positions", false, false),
+    PSM("psm", "Postings Metadata", true, false),
     SI("si", "Segment Info", true, false),
     // Term dictionaries are typically performance-sensitive and hot in the page
     // cache, so we use mmap, which provides better performance.
@@ -79,13 +82,22 @@ public enum LuceneFilesExtensions {
     VEM("vem", "Vector Metadata", true, false),
     VEMF("vemf", "Flat Vector Metadata", true, false),
     VEMQ("vemq", "Scalar Quantized Vector Metadata", true, false),
-    VEQ("veq", "Scalar Quantized Vector Data", false, true);
+    VEQ("veq", "Scalar Quantized Vector Data", false, true),
+    VEMB("vemb", "Binarized Vector Metadata", true, false),
+    VEB("veb", "Binarized Vector Data", false, true),
+    // ivf vectors format
+    MIVF("mivf", "IVF Metadata", true, false),
+    CENIVF("cenivf", "IVF Centroid Data", false, true),
+    CLIVF("clivf", "IVF Cluster Data", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}
      * that checks that all encountered file extensions are known to this class.
      * In the future, we would like to add a proper plugin extension point for this.
      */
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     private static boolean allowUnknownLuceneFileExtensions() {
         return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -76,6 +77,20 @@ public class SecurityContextTests extends ESTestCase {
 
         assertEquals(authentication, securityContext.getAuthentication());
         assertEquals(user, securityContext.getUser());
+    }
+
+    public void testGetUserForAPIKeyBasedCrossCluster() throws IOException {
+        final User user = new User("test");
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+            AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("ldap", "foo", "node1")).build(false)
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(randomAlphaOfLengthBetween(10, 20), crossClusterAccessSubjectInfo)
+            .build(false);
+        User apiKeyUser = authentication.getEffectiveSubject().getUser();
+        authentication.writeToContext(threadContext);
+        assertEquals(user, securityContext.getUser());
+        assertNotEquals(apiKeyUser, securityContext.getUser());
     }
 
     public void testGetAuthenticationDoesNotSwallowIOException() {

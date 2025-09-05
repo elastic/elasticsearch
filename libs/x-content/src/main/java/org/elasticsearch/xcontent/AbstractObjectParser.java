@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 
@@ -229,11 +231,13 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareLong(BiConsumer<Value, Long> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.longValue(), field, ValueType.LONG);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareLongOrNull(BiConsumer<Value, Long> consumer, long nullValue, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(
@@ -244,6 +248,7 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);
@@ -252,6 +257,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     /**
      * Declare an integer field that parses explicit {@code null}s in the json to a default value.
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
         declareField(
             consumer,
@@ -319,10 +325,12 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareFieldArray(consumer, (p, c) -> p.floatValue(), field, ValueType.FLOAT_ARRAY);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareLongArray(BiConsumer<Value, List<Long>> consumer, ParseField field) {
         declareFieldArray(consumer, (p, c) -> p.longValue(), field, ValueType.LONG_ARRAY);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareIntArray(BiConsumer<Value, List<Integer>> consumer, ParseField field) {
         declareFieldArray(consumer, (p, c) -> p.intValue(), field, ValueType.INT_ARRAY);
     }

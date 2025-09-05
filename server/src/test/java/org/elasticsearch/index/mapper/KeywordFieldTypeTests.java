@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -109,7 +110,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        BytesRef[] terms = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+        List<BytesRef> terms = List.of(new BytesRef("foo"), new BytesRef("bar"));
         assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
@@ -136,7 +137,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            // updated in #130531 so that a field that is neither indexed nor has doc values will generate a TermQuery
+            // to avoid ISE from FieldExistsQuery
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
@@ -242,7 +245,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "field",
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
-            IndexVersion.current()
+            Integer.MAX_VALUE,
+            IndexVersion.current(),
+            randomFrom(Mapper.SourceKeepMode.values())
         ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));

@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -34,11 +35,13 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
@@ -52,7 +55,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
-import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM;
 
 public class TransformTask extends AllocatedPersistentTask implements TransformScheduler.Listener, TransformContext.Listener {
 
@@ -67,10 +70,11 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final TransformIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
     private final TransformContext context;
+    private final TransformNode transformNode;
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
-    public TransformTask(
+    TransformTask(
         long id,
         String type,
         String action,
@@ -80,7 +84,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         TransformScheduler transformScheduler,
         TransformAuditor auditor,
         ThreadPool threadPool,
-        Map<String, String> headers
+        Map<String, String> headers,
+        TransformNode transformNode
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
@@ -117,6 +122,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }
+        this.transformNode = transformNode;
     }
 
     public String getTransformId() {
@@ -239,9 +245,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
-                    RestStatus.CONFLICT
+                new CannotStartFailedTransformException(
+                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason())
                 )
             );
             return;
@@ -297,18 +302,13 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             // we could not read the previous state information from said index.
             persistStateToClusterState(state, ActionListener.wrap(task -> {
                 auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
-                transformScheduler.registerTransform(transform, this);
                 listener.onResponse(new StartTransformAction.Response(true));
             }, exc -> {
-                auditor.warning(
-                    transform.getId(),
-                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-                );
                 logger.error(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
-                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                        "Error while updating state for transform [" + transform.getId() + "] to [" + TransformTaskState.STARTED + "].",
                         exc
                     )
                 );
@@ -359,7 +359,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         synchronized (context) {
             if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
+                    TransformMessages.getMessage(CANNOT_STOP_SINGLE_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
                     RestStatus.CONFLICT
                 );
             }
@@ -408,6 +408,16 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     public void applyNewAuthState(AuthorizationState authState) {
         synchronized (context) {
             context.setAuthState(authState);
+        }
+    }
+
+    public void checkAndResetDestinationIndexBlock(TransformConfig config) {
+        if (context.isWaitingForIndexToUnblock()) {
+            var currentIndex = getIndexer() == null ? null : getIndexer().getConfig().getDestination().getIndex();
+            var updatedIndex = config.getDestination().getIndex();
+            if (updatedIndex.equals(currentIndex) == false) {
+                context.setIsWaitingForIndexToUnblock(false);
+            }
         }
     }
 
@@ -524,11 +534,26 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
-            auditor.error(transform.getId(), reason);
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.
             transformScheduler.deregisterTransform(getTransformId());
+
+            if (transformNode.isShuttingDown().orElse(false)) {
+                logger.atDebug()
+                    .withThrowable(exception)
+                    .log(
+                        "Aborting transform [{}]. Transform has failed while node [{}] is shutting down. Reason: [{}]",
+                        transform.getId(),
+                        transformNode.nodeId(),
+                        reason
+                    );
+                markAsLocallyAborted("Node is shutting down.");
+                listener.onResponse(null);
+                return;
+            }
+
+            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
+            auditor.error(transform.getId(), reason);
             // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
             // we should set this flag to false.
             context.setShouldStopAtCheckpoint(false);
@@ -563,6 +588,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
+    }
+
+    public boolean isRetryingStartup() {
+        return getContext().getStartUpFailureCount() > 0;
     }
 
     TransformTask setNumFailureRetries(int numFailureRetries) {
@@ -607,7 +636,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {
-        return findTransformTasks(task -> true, clusterState);
+        return findTransformTasks(Predicates.always(), clusterState);
     }
 
     public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
@@ -616,7 +645,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
         Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
-            || Strings.isAllOrWildcard(transformIdPattern) ? t -> true : t -> {
+            || Strings.isAllOrWildcard(transformIdPattern) ? Predicates.always() : t -> {
                 TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
             };
@@ -629,7 +658,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        final var project = clusterState.metadata().getDefaultProject();
+        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.get(project);
         if (pTasksMeta == null) {
             return Collections.emptyList();
         }

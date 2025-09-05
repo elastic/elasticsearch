@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
@@ -39,7 +40,7 @@ import java.util.function.Function;
  */
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    final IndexNumericFieldData indexFieldData;
     private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
     private final NumericType targetNumericType;
 
@@ -83,7 +84,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
-    private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
+    NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericDocValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);

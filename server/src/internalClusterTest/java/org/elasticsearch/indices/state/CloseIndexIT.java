@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.state;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -38,12 +40,12 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -73,7 +75,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(super.indexSettings())
             .put(
                 IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB)
+                ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB)
             )
             .build();
     }
@@ -162,15 +164,15 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build())
         );
 
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertThat(clusterState.metadata().getProject().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
         assertBusy(() -> closeIndices(indicesAdmin().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
         assertIndexIsClosed(indexName);
     }
 
-    public void testConcurrentClose() throws InterruptedException {
+    public void testConcurrentClose() throws InterruptedException, ExecutionException {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
@@ -182,7 +184,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
 
-        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
+        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
             .setWaitForYellowStatus()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
@@ -196,25 +198,14 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get(indexName).getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
 
-        final CountDownLatch startClosing = new CountDownLatch(1);
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startClosing);
-                try {
-                    indicesAdmin().prepareClose(indexName).get();
-                } catch (final Exception e) {
-                    assertException(e, indexName);
-                }
-            });
-            threads[i].start();
-        }
-
-        startClosing.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        final int tasks = randomIntBetween(2, 5);
+        startInParallel(tasks, i -> {
+            try {
+                indicesAdmin().prepareClose(indexName).get();
+            } catch (final Exception e) {
+                assertException(e, indexName);
+            }
+        });
         assertIndexIsClosed(indexName);
     }
 
@@ -254,39 +245,23 @@ public class CloseIndexIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().indices().size(),
+            equalTo(indices.length)
+        );
 
-        final List<Thread> threads = new ArrayList<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        for (final String indexToDelete : indices) {
-            threads.add(new Thread(() -> {
-                safeAwait(latch);
-                try {
-                    assertAcked(indicesAdmin().prepareDelete(indexToDelete));
-                } catch (final Exception e) {
-                    assertException(e, indexToDelete);
+        startInParallel(indices.length * 2, i -> {
+            final String index = indices[i % indices.length];
+            try {
+                if (i < indices.length) {
+                    assertAcked(indicesAdmin().prepareDelete(index));
+                } else {
+                    indicesAdmin().prepareClose(index).get();
                 }
-            }));
-        }
-        for (final String indexToClose : indices) {
-            threads.add(new Thread(() -> {
-                safeAwait(latch);
-                try {
-                    indicesAdmin().prepareClose(indexToClose).get();
-                } catch (final Exception e) {
-                    assertException(e, indexToClose);
-                }
-            }));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (final Exception e) {
+                assertException(e, index);
+            }
+        });
     }
 
     public void testConcurrentClosesAndOpens() throws Exception {
@@ -297,42 +272,26 @@ public class CloseIndexIT extends ESIntegTestCase {
         indexer.setFailureAssertion(e -> {});
         waitForDocs(1, indexer);
 
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int closes = randomIntBetween(1, 3);
+        final int opens = randomIntBetween(1, 3);
+        final CyclicBarrier barrier = new CyclicBarrier(opens + closes);
 
-        final List<Thread> threads = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(latch);
+        startInParallel(opens + closes, i -> {
+            try {
+                if (i < closes) {
                     indicesAdmin().prepareClose(indexName).get();
-                } catch (final Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
-        }
-        for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(latch);
+                } else {
                     assertAcked(indicesAdmin().prepareOpen(indexName).get());
-                } catch (final Exception e) {
-                    throw new AssertionError(e);
                 }
-            }));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+            } catch (final Exception e) {
+                throw new AssertionError(e);
+            }
+        });
 
         indexer.stopAndAwaitStopped();
 
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        if (clusterState.metadata().indices().get(indexName).getState() == IndexMetadata.State.CLOSE) {
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        if (clusterState.metadata().getProject().indices().get(indexName).getState() == IndexMetadata.State.CLOSE) {
             assertIndexIsClosed(indexName);
             assertAcked(indicesAdmin().prepareOpen(indexName));
         }
@@ -356,7 +315,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         final CloseIndexResponse closeIndexResponse = indicesAdmin().prepareClose(indexName).get();
-        assertThat(clusterAdmin().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
         assertTrue(closeIndexResponse.isAcknowledged());
         assertTrue(closeIndexResponse.isShardsAcknowledged());
         assertThat(closeIndexResponse.getIndices().get(0), notNullValue());
@@ -483,7 +442,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .getName();
         internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
         ensureGreen(indexName);
-        long primaryTerm = clusterService().state().metadata().index(indexName).primaryTerm(0);
+        long primaryTerm = clusterService().state().metadata().getProject().index(indexName).primaryTerm(0);
         for (String nodeName : internalCluster().nodesInclude(indexName)) {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName))
@@ -578,19 +537,22 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     static void assertIndexIsClosed(final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().indices().get(index);
             assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
             final Settings indexSettings = indexMetadata.getSettings();
             assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
             assertThat(indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
             assertThat(clusterState.routingTable().index(index), notNullValue());
-            assertThat(clusterState.blocks().hasIndexBlock(index, MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+            assertThat(
+                clusterState.blocks().hasIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, MetadataIndexStateService.INDEX_CLOSED_BLOCK),
+                is(true)
+            );
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(Metadata.DEFAULT_PROJECT_ID)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
@@ -601,9 +563,9 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     static void assertIndexIsOpened(final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().indices().get(index);
             assertThat(indexMetadata.getState(), is(IndexMetadata.State.OPEN));
             assertThat(indexMetadata.getSettings().hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
             assertThat(clusterState.routingTable().index(index), notNullValue());

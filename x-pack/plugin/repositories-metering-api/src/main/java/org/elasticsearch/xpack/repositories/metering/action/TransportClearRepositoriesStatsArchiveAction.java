@@ -12,14 +12,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -29,7 +29,8 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     ClearRepositoriesMeteringArchiveRequest,
     RepositoriesMeteringResponse,
     TransportClearRepositoriesStatsArchiveAction.ClearRepositoriesStatsArchiveNodeRequest,
-    RepositoriesNodeMeteringResponse> {
+    RepositoriesNodeMeteringResponse,
+    Void> {
 
     private final RepositoriesService repositoriesService;
 
@@ -77,7 +78,7 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), clearedStats);
     }
 
-    static final class ClearRepositoriesStatsArchiveNodeRequest extends TransportRequest {
+    static final class ClearRepositoriesStatsArchiveNodeRequest extends AbstractTransportRequest {
         private final long maxVersionToClear;
 
         ClearRepositoriesStatsArchiveNodeRequest(long maxVersionToClear) {

@@ -1,8 +1,8 @@
 {
   "ml.start_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
-      "description":"Start a trained model deployment."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-start-trained-model-deployment",
+      "description":"Start a trained model deployment"
     },
     "stability":"stable",
     "visibility":"public",
@@ -75,6 +75,10 @@
         "options": ["starting", "started", "fully_allocated"],
         "default": "started"
       }
+    },
+    "body":{
+      "description": "The settings for the trained model deployment",
+      "required": false
     }
   }
 }

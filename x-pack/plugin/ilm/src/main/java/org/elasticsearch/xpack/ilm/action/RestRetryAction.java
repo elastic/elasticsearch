@@ -15,10 +15,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.RetryActionRequest;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestRetryAction extends BaseRestHandler {
 
@@ -34,10 +37,8 @@ public class RestRetryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        TransportRetryAction.Request request = new TransportRetryAction.Request(indices);
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        final var indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
+        final var request = new RetryActionRequest(getMasterNodeTimeout(restRequest), getAckTimeout(restRequest), indices);
         request.indices(indices);
         request.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         return channel -> client.execute(ILMActions.RETRY, request, new RestToXContentListener<>(channel));

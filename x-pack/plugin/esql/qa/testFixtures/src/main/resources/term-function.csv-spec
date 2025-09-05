@@ -1,0 +1,209 @@
+###############################################
+# Tests for Term function
+#
+
+termWithTextField
+required_capability: term_function
+
+// tag::term-with-field[]
+FROM books 
+| WHERE TERM(author, "gabriel")  
+// end::term-with-field[]
+| KEEP book_no, title
+| LIMIT 3
+;
+ignoreOrder:true
+
+// tag::term-with-field-result[]
+book_no:keyword | title:text
+4814            | El Coronel No Tiene Quien Le Escriba / No One Writes to the Colonel (Spanish Edition)
+4917            | Autumn of the Patriarch
+6380            | La hojarasca (Spanish Edition)
+// end::term-with-field-result[]
+;
+
+termWithKeywordField
+required_capability: term_function
+
+from employees
+| where term(first_name, "Guoxiang")
+| keep emp_no, first_name;
+
+// tag::term-with-keyword-field-result[]
+emp_no:integer | first_name:keyword
+10015            | Guoxiang
+;
+// end::term-with-keyword-field-result[]
+
+termWithQueryExpressions
+required_capability: term_function
+
+from books 
+| where term(author, CONCAT("gab", "riel"))  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4814            | El Coronel No Tiene Quien Le Escriba / No One Writes to the Colonel (Spanish Edition)
+4917            | Autumn of the Patriarch
+6380            | La hojarasca (Spanish Edition)
+;
+
+termAfterKeep
+required_capability: term_function
+
+from books 
+| keep book_no, author 
+| where term(author, "faulkner")
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+termAfterDrop
+required_capability: term_function
+
+from books 
+| drop ratings, description, year, publisher, title, author.keyword
+| where term(author, "william")
+| keep book_no, author
+| sort book_no 
+| limit 2;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+;
+
+termAfterEval
+required_capability: term_function
+
+from books 
+| eval stars = to_long(ratings / 2.0) 
+| where term(author, "colleen")
+| sort book_no 
+| keep book_no, author, stars
+| limit 2;
+
+book_no:keyword | author:text      | stars:long
+2847            | Colleen Faulkner | 3
+4502            | Colleen Faulkner | 3
+;
+
+termWithConjunction
+required_capability: term_function
+
+from books 
+| where term(author, "tolkien") and ratings > 4.95
+| eval author = mv_sort(author)
+| keep book_no, ratings, author;
+ignoreOrder:true
+
+book_no:keyword | ratings:double | author:keyword
+2301            | 5.0            | John Ronald Reuel Tolkien    
+3254            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+7350            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+;
+
+termWithConjunctionAndSort
+required_capability: term_function
+
+from books 
+| where term(author, "tolkien") and ratings > 4.95
+| eval author = mv_sort(author)
+| keep book_no, ratings, author
+| sort book_no;
+
+book_no:keyword | ratings:double | author:keyword
+2301            | 5.0            | John Ronald Reuel Tolkien    
+3254            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+7350            | 5.0            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+;
+
+termWithFunctionPushedToLucene
+required_capability: term_function
+
+from hosts 
+| where term(host, "beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| keep card, host, ip0, ip1;
+ignoreOrder:true
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+;
+
+termWithNonPushableConjunction
+required_capability: term_function
+
+from books 
+| where term(title, "rings") and length(title) > 75
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+;
+
+termWithMultipleWhereClauses
+required_capability: term_function
+
+from books 
+| where term(title, "rings") 
+| where term(title, "lord") 
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2675            | The Lord of the Rings - Boxed Set           
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+termWithMultivaluedField
+required_capability: term_function
+
+from employees 
+| where term(job_positions, "Data Scientist") 
+| keep emp_no, first_name, last_name
+| sort emp_no asc
+| limit 2;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10014          | Berni              | Genin    
+10017          | Cristinel          | Bouloucos       
+;
+
+testWithMultiValuedFieldWithConjunction
+required_capability: term_function
+
+from employees 
+| where term(job_positions, "Data Scientist") and term(first_name, "Cristinel")
+| keep emp_no, first_name, last_name
+| limit 1;
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10017          | Cristinel          | Bouloucos
+;
+
+termWithConjQueryStringFunctions
+required_capability: term_function
+required_capability: qstr_function
+
+from employees 
+| where term(job_positions, "Data Scientist") and qstr("first_name: Cristinel and gender: F")
+| keep emp_no, first_name, last_name
+| sort emp_no ASC
+| limit 1;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10017          | Cristinel          | Bouloucos
+;

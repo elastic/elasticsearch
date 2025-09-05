@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
@@ -88,11 +88,11 @@ public interface Operator extends Releasable {
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
      * completed future.
      */
-    default SubscribableListener<Void> isBlocked() {
+    default IsBlockedResult isBlocked() {
         return NOT_BLOCKED;
     }
 
-    SubscribableListener<Void> NOT_BLOCKED = SubscribableListener.newSucceeded(null);
+    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
     /**
      * A factory for creating intermediate operators.
@@ -105,5 +105,21 @@ public interface Operator extends Releasable {
     /**
      * Status of an {@link Operator} to be returned by the tasks API.
      */
-    interface Status extends ToXContentObject, NamedWriteable {}
+    interface Status extends ToXContentObject, VersionedNamedWriteable {
+        /**
+         * The number of documents found by this operator. Most operators
+         * don't find documents and will return {@code 0} here.
+         */
+        default long documentsFound() {
+            return 0;
+        }
+
+        /**
+         * The number of values loaded by this operator. Most operators
+         * don't load values and will return {@code 0} here.
+         */
+        default long valuesLoaded() {
+            return 0;
+        }
+    }
 }

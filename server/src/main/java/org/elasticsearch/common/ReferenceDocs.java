@@ -1,38 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
-import java.util.LinkedHashMap;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
  * Encapsulates links to pages in the reference docs, so that for example we can include URLs in logs and API outputs. Each instance's
  * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
- * {@code reference-docs-links.json} which must include definitions for exactly the set of values of this enum.
+ * {@code reference-docs-links.txt} which must include definitions for exactly the set of values of this enum.
  */
 public enum ReferenceDocs {
     /*
-     * Note that the docs subsystem parses {@code reference-docs-links.json} with regexes, not a JSON parser, so the whitespace in the file
-     * is important too. See {@code sub check_elasticsearch_links} in {@code https://github.com/elastic/docs/blob/master/build_docs.pl} for
-     * more details.
+     * Note that the docs subsystem parses {@code reference-docs-links.txt} differently. See {@code sub check_elasticsearch_links} in
+     * {@code https://github.com/elastic/docs/blob/master/build_docs.pl} for more details.
      *
      * Also note that the docs are built from the HEAD of each minor release branch, so in principle docs can move around independently of
      * the ES release process. To avoid breaking any links that have been baked into earlier patch releases, you may only add links in a
@@ -43,6 +41,7 @@ public enum ReferenceDocs {
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
     LAGGING_NODE_TROUBLESHOOTING,
     SHARD_LOCK_TROUBLESHOOTING,
+    NETWORK_DISCONNECT_TROUBLESHOOTING,
     CONCURRENT_REPOSITORY_WRITERS,
     ARCHIVE_INDICES,
     HTTP_TRACER,
@@ -59,7 +58,6 @@ public enum ReferenceDocs {
     BOOTSTRAP_CHECK_SYSTEM_CALL_FILTER,
     BOOTSTRAP_CHECK_ONERROR_AND_ONOUTOFMEMORYERROR,
     BOOTSTRAP_CHECK_EARLY_ACCESS,
-    BOOTSTRAP_CHECK_G1GC,
     BOOTSTRAP_CHECK_ALL_PERMISSION,
     BOOTSTRAP_CHECK_DISCOVERY_CONFIGURATION,
     BOOTSTRAP_CHECKS,
@@ -68,16 +66,47 @@ public enum ReferenceDocs {
     BOOTSTRAP_CHECK_ROLE_MAPPINGS,
     BOOTSTRAP_CHECK_TLS,
     BOOTSTRAP_CHECK_TOKEN_SSL,
-    BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP,
     CONTACT_SUPPORT,
     UNASSIGNED_SHARDS,
+    EXECUTABLE_JNA_TMPDIR,
+    NETWORK_THREADING_MODEL,
+    ALLOCATION_EXPLAIN_API,
+    NETWORK_BINDING_AND_PUBLISHING,
+    SNAPSHOT_REPOSITORY_ANALYSIS,
+    S3_COMPATIBLE_REPOSITORIES,
+    LUCENE_MAX_DOCS_LIMIT,
+    MAX_SHARDS_PER_NODE,
+    FLOOD_STAGE_WATERMARK,
+    X_OPAQUE_ID,
+    FORMING_SINGLE_NODE_CLUSTERS,
+    CIRCUIT_BREAKER_ERRORS,
+    ALLOCATION_EXPLAIN_NO_COPIES,
+    ALLOCATION_EXPLAIN_MAX_RETRY,
+    SECURE_SETTINGS,
+    CLUSTER_SHARD_LIMIT,
+    DEPLOY_CLOUD_DIFF_FROM_STATEFUL,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 
-    private static final Map<String, String> linksBySymbol;
+    private static final Map<String, LinkComponents> linksBySymbol;
+
+    record LinkComponents(String path, String fragment) {
+        static LinkComponents ofLink(String link) {
+            if (link.indexOf('?') != -1) {
+                throw new IllegalStateException("ReferenceDocs does not support links containing pre-existing query parameters: " + link);
+            }
+
+            final var fragmentIndex = link.indexOf('#');
+            if (fragmentIndex == -1) {
+                return new LinkComponents(link, "");
+            } else {
+                return new LinkComponents(link.substring(0, fragmentIndex), link.substring(fragmentIndex));
+            }
+        }
+    }
 
     static {
-        try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.json"))) {
+        try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.txt"))) {
             linksBySymbol = Map.copyOf(readLinksBySymbol(resourceStream));
         } catch (Exception e) {
             assert false : e;
@@ -89,24 +118,53 @@ public enum ReferenceDocs {
     static final String CURRENT_VERSION_COMPONENT = "current";
     static final String VERSION_COMPONENT = getVersionComponent(Build.current().version(), Build.current().isSnapshot());
 
-    static Map<String, String> readLinksBySymbol(InputStream inputStream) throws Exception {
-        try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, inputStream)) {
-            final var result = parser.map(LinkedHashMap::new, XContentParser::text);
-            final var iterator = result.keySet().iterator();
-            for (int i = 0; i < values().length; i++) {
-                final var expected = values()[i].name();
-                if (iterator.hasNext() == false) {
-                    throw new IllegalStateException("ran out of values at index " + i + ": expecting " + expected);
+    static final int SYMBOL_COLUMN_WIDTH = 64; // increase as needed to accommodate yet longer symbols
+
+    // exposed for tests
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static Map<String, LinkComponents> readLinksBySymbol(InputStream inputStream) throws IOException {
+        final var linksBySymbolEntries = new Map.Entry[values().length];
+        createLinkComponentEntries(inputStream, linksBySymbolEntries);
+        return Map.ofEntries(linksBySymbolEntries);
+    }
+
+    private static void createLinkComponentEntries(InputStream inputStream, Map.Entry<?, ?>[] linksBySymbolEntries) throws IOException {
+        final var padding = " ".repeat(SYMBOL_COLUMN_WIDTH);
+        final var symbolCount = linksBySymbolEntries.length;
+        try (var reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            for (int i = 0; i < symbolCount; i++) {
+                final var currentLine = reader.readLine();
+                final var symbol = values()[i].name();
+                if (currentLine == null) {
+                    throw new IllegalStateException("links resource truncated at line " + (i + 1));
                 }
-                final var actual = iterator.next();
-                if (actual.equals(expected) == false) {
-                    throw new IllegalStateException("mismatch at index " + i + ": found " + actual + " but expected " + expected);
+                if (currentLine.startsWith(symbol + " ") == false) {
+                    throw new IllegalStateException(
+                        "unexpected symbol at line " + (i + 1) + ": expected line starting with [" + symbol + " ]"
+                    );
                 }
+                final var link = currentLine.substring(SYMBOL_COLUMN_WIDTH).trim();
+                if (Strings.hasText(link) == false) {
+                    throw new IllegalStateException("no link found for [" + symbol + "] at line " + (i + 1));
+                }
+                final var expectedLine = (symbol + padding).substring(0, SYMBOL_COLUMN_WIDTH) + link;
+                if (currentLine.equals(expectedLine) == false) {
+                    throw new IllegalStateException("unexpected content at line " + (i + 1) + ": expected [" + expectedLine + "]");
+                }
+
+                // We must only link to anchors with fixed IDs (defined by [[fragment-name]] in the docs) because auto-generated fragment
+                // IDs depend on the heading text and are too easy to break inadvertently. Auto-generated fragment IDs begin with "_"
+                if (link.startsWith("_") || link.contains("#_")) {
+                    throw new IllegalStateException(
+                        "found auto-generated fragment ID in link [" + link + "] for [" + symbol + "] at line " + (i + 1)
+                    );
+                }
+                linksBySymbolEntries[i] = Map.entry(symbol, LinkComponents.ofLink(link));
             }
-            if (iterator.hasNext()) {
-                throw new IllegalStateException("found unexpected extra value: " + iterator.next());
+
+            if (reader.readLine() != null) {
+                throw new IllegalStateException("unexpected trailing content at line " + (symbolCount + 1));
             }
-            return result;
         }
     }
 
@@ -137,13 +195,14 @@ public enum ReferenceDocs {
             return UNRELEASED_VERSION_COMPONENT;
         }
         // Non-semantic, released version -> point to latest information (current release documentation, e.g.
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-plugins.html)
+        // https://www.elastic.co/docs/modules-plugins?version=current)
         return CURRENT_VERSION_COMPONENT;
     }
 
     @Override
     public String toString() {
-        return "https://www.elastic.co/guide/en/elasticsearch/reference/" + VERSION_COMPONENT + "/" + linksBySymbol.get(name());
+        final var linkComponents = linksBySymbol.get(name());
+        return "https://www.elastic.co/docs/" + linkComponents.path() + "?version=" + VERSION_COMPONENT + linkComponents.fragment();
     }
 
     @SuppressForbidden(reason = "reads resource from jar")

@@ -86,4 +86,31 @@ public class ConnectorSyncJobStateMachineTests extends ESTestCase {
             );
         }
     }
+
+    public void testAssertValidStateTransition_ExpectExceptionOnInvalidTransition() {
+        assertThrows(
+            ConnectorSyncJobInvalidStatusTransitionException.class,
+            () -> ConnectorSyncJobStateMachine.assertValidStateTransition(ConnectorSyncStatus.PENDING, ConnectorSyncStatus.CANCELING)
+        );
+    }
+
+    public void testAssertValidStateTransition_ExpectNoExceptionOnValidTransition() {
+        ConnectorSyncStatus prevStatus = ConnectorSyncStatus.PENDING;
+        ConnectorSyncStatus nextStatus = ConnectorSyncStatus.CANCELED;
+
+        try {
+            ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+        } catch (ConnectorSyncJobInvalidStatusTransitionException e) {
+            fail(
+                "Did not expect "
+                    + ConnectorSyncJobInvalidStatusTransitionException.class.getSimpleName()
+                    + " to be thrown for valid state transition ["
+                    + prevStatus
+                    + "] -> "
+                    + "["
+                    + nextStatus
+                    + "]."
+            );
+        }
+    }
 }

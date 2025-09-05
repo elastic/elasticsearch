@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cloud.azure.classic.management;
@@ -28,9 +29,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
@@ -93,11 +91,8 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent implemen
     public HostedServiceGetDetailedResponse getServiceDetails() {
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<HostedServiceGetDetailedResponse>) () -> client.getHostedServicesOperations()
-                    .getDetailed(serviceName)
-            );
-        } catch (PrivilegedActionException e) {
+            return client.getHostedServicesOperations().getDetailed(serviceName);
+        } catch (Exception e) {
             throw new AzureServiceRemoteException("can not get list of azure nodes", e.getCause());
         }
     }

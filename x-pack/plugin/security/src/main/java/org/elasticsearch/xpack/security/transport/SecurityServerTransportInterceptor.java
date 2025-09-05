@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
@@ -46,7 +47,9 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -76,7 +79,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         "internal:admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/file_chunk/get",
-        "indices:internal/admin/ccr/restore/file_chunk/get"
+        "indices:internal/admin/ccr/restore/file_chunk/get",
+        "internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/open_exchange",
+        "internal:data/read/esql/exchange",
+        "cluster:internal:data/read/esql/exchange",
+        TaskCancellationService.BAN_PARENT_ACTION_NAME,
+        TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+        TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
+        TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
     );
 
     private final AuthenticationService authcService;
@@ -313,7 +324,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate cross cluster access headers should be sent but target cluster version ["
-                            + connection.getTransportVersion()
+                            + connection.getTransportVersion().toReleaseVersion()
                             + "] does not support receiving them"
                     );
                 }
@@ -373,6 +384,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert false == action.startsWith("internal:") : "internal action must be sent with system user";
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
+                        connection.getTransportVersion(),
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             logger.trace(
@@ -385,7 +397,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 )
                             );
                             if (roleDescriptorsIntersection.isEmpty()) {
-                                throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
+                                throw authzService.remoteActionDenied(
+                                    authentication,
+                                    SecurityActionMapper.action(action, request),
+                                    remoteClusterAlias
+                                );
                             }
                             final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                                 remoteClusterCredentials.credentials(),
@@ -467,7 +483,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
@@ -475,9 +491,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
 
-        for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
-            final SslConfiguration profileConfiguration = entry.getValue();
+        for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
             final String profileName = entry.getKey();
+            final SslProfile sslProfile = entry.getValue();
+            final SslConfiguration profileConfiguration = sslProfile.configuration();
+            assert profileConfiguration != null : "Ssl Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
             if (useRemoteClusterProfile) {
                 profileFilters.put(

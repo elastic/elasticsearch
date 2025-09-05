@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -25,14 +26,16 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapsUtils;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -44,26 +47,28 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.cluster.ClusterFeatures;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -72,7 +77,10 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -81,17 +89,17 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -107,11 +115,13 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -130,13 +140,22 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_ACTION_NAME;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -157,13 +176,36 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
 
+    private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
+
+    private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
+        "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
+    public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        if (warnings.isEmpty()) {
+            return false;
+        } else {
+            // Sometimes multiple rollup deprecation warnings. Transport actions can be invoked multiple time on different nodes.
+            for (String warning : warnings) {
+                if (EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    });
+
     /**
      * Convert the entity from a {@link Response} into a map of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
         return entityAsMap(response.getEntity());
     }
 
+    /**
+     * Convert the entity from a {@link Response} into a map of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
+     */
     public static Map<String, Object> entityAsMap(HttpEntity entity) throws IOException {
         XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
@@ -176,11 +218,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 )
         ) {
             return parser.map();
+        } finally {
+            EntityUtils.consumeQuietly(entity);
         }
     }
 
     /**
      * Convert the entity from a {@link Response} into a list of maps.
+     * Consumes the underlying HttpEntity, releasing any resources it may be holding.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
@@ -194,6 +239,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 )
         ) {
             return parser.list();
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
         }
     }
 
@@ -217,6 +264,15 @@ public abstract class ESRestTestCase extends ESTestCase {
      * completes
      */
     private static RestClient adminClient;
+    /**
+     * A client for the running Elasticsearch cluster configured to clean up the cluster after tests
+     */
+    private static RestClient cleanupClient;
+
+    private static boolean multiProjectEnabled;
+    private static String activeProject;
+    private static Set<String> extraProjects;
+    private static boolean projectsConfigured = false;
 
     public enum ProductFeature {
         XPACK,
@@ -231,20 +287,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
-
-    private static final TestFeatureService ALL_FEATURES = new TestFeatureService() {
-        @Override
-        public boolean clusterHasFeature(String featureId) {
-            return true;
-        }
-
-        @Override
-        public Set<String> getAllSupportedFeatures() {
-            throw new UnsupportedOperationException(
-                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
-            );
-        }
-    };
 
     protected static TestFeatureService testFeatureService = ALL_FEATURES;
 
@@ -266,16 +308,68 @@ public abstract class ESRestTestCase extends ESTestCase {
             .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
     }
 
+    /**
+     * Does the cluster being tested support the set of capabilities
+     * for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        return clusterHasCapability(adminClient, method, path, parameters, capabilities);
+    }
+
+    /**
+     * Does the cluster on the other side of {@code client} support the set
+     * of capabilities for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        RestClient client,
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        Request request = new Request("GET", "_capabilities");
+        request.addParameter("method", method);
+        request.addParameter("path", path);
+        if (parameters.isEmpty() == false) {
+            request.addParameter("parameters", String.join(",", parameters));
+        }
+        if (capabilities.isEmpty() == false) {
+            request.addParameter("capabilities", String.join(",", capabilities));
+        }
+        try {
+            Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
+            return Optional.ofNullable((Boolean) response.get("supported"));
+        } catch (ResponseException responseException) {
+            if (responseException.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                return Optional.empty(); // we don't know, the capabilities API is unsupported
+            }
+            throw responseException;
+        }
+    }
+
     protected static boolean clusterHasFeature(String featureId) {
-        return testFeatureService.clusterHasFeature(featureId);
+        return testFeatureService.clusterHasFeature(featureId, false);
     }
 
     protected static boolean clusterHasFeature(NodeFeature feature) {
-        return testFeatureService.clusterHasFeature(feature.id());
+        return testFeatureService.clusterHasFeature(feature.id(), false);
     }
 
     protected static boolean testFeatureServiceInitialized() {
         return testFeatureService != ALL_FEATURES;
+    }
+
+    @BeforeClass
+    public static void initializeProjectIds() {
+        // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
+        activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
+        multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
     }
 
     @Before
@@ -288,8 +382,15 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            // We add the project ID to the client settings afterward because a lot of subclasses don't call super.restClientSettings(),
+            // meaning the project ID would be removed from the settings.
+            var clientSettings = addProjectIdToSettings(restClientSettings());
+            var adminSettings = restAdminSettings();
+            var cleanupSettings = cleanupClientSettings();
+            var hosts = clusterHosts.toArray(new HttpHost[0]);
+            client = buildClient(clientSettings, hosts);
+            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
+            cleanupClient = adminSettings.equals(cleanupSettings) ? adminClient : buildClient(cleanupSettings, hosts);
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
@@ -343,8 +444,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
-
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+
+            configureProjects();
         }
 
         assert testFeatureServiceInitialized();
@@ -355,31 +457,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected TestFeatureService createTestFeatureService(
+    protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        // Historical features information is unavailable when using legacy test plugins
-        boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-
-        final List<FeatureSpecification> featureSpecifications;
-        if (hasHistoricalFeaturesInformation) {
-            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
-        } else {
-            logger.warn(
-                "This test is running on the legacy test framework; historical features from production code will not be available. "
-                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
-                RestTestLegacyFeatures.class.getCanonicalName()
-            );
-            featureSpecifications = List.of(new RestTestLegacyFeatures());
-        }
-
-        return new ESRestTestFeatureService(
-            featureSpecifications,
-            semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-        );
+        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -546,11 +628,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     @AfterClass
     public static void closeClients() throws IOException {
         try {
-            IOUtils.close(client, adminClient);
+            IOUtils.close(client, adminClient, cleanupClient);
         } finally {
             clusterHosts = null;
             client = null;
             adminClient = null;
+            cleanupClient = null;
             availableFeatures = null;
             nodesVersions = null;
             testFeatureService = ALL_FEATURES;
@@ -569,6 +652,13 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient adminClient() {
         return adminClient;
+    }
+
+    /**
+     * Get the client used for cleaning up the cluster.
+     */
+    protected static RestClient cleanupClient() {
+        return cleanupClient;
     }
 
     /**
@@ -615,6 +705,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                             final String taskName = line.split("\\s+")[0];
                             if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskName.startsWith(LEADER_CHECK_ACTION_NAME)
+                                || taskName.startsWith(FOLLOWER_CHECK_ACTION_NAME)
                                 || taskFilter.test(taskName)) {
                                 continue;
                             }
@@ -679,14 +771,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
     protected boolean resetFeatureStates() {
-        if (clusterHasFeature(RestTestLegacyFeatures.FEATURE_STATE_RESET_SUPPORTED) == false) {
-            return false;
-        }
-
-        // ML reset fails when ML is disabled in versions before 8.7
-        if (isMlEnabled() == false && clusterHasFeature(RestTestLegacyFeatures.ML_STATE_RESET_FALLBACK_ON_DISABLED) == false) {
-            return false;
-        }
         return true;
     }
 
@@ -761,7 +845,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             "profiling-60-days",
             "profiling-60-days@lifecycle",
             "synthetics",
+            "agentless",
             "synthetics@lifecycle",
+            "traces@lifecycle",
             "7-days-default",
             "7-days@lifecycle",
             "30-days-default",
@@ -781,7 +867,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
             ".monitoring-8-ilm-policy",
-            "behavioral_analytics-events-default_policy"
+            "behavioral_analytics-events-default_policy",
+            "logs-apm.app_logs-default_policy",
+            "logs-apm.error_logs-default_policy",
+            "metrics-apm.app_metrics-default_policy",
+            "metrics-apm.internal_metrics-default_policy",
+            "metrics-apm.service_destination_10m_metrics-default_policy",
+            "metrics-apm.service_destination_1m_metrics-default_policy",
+            "metrics-apm.service_destination_60m_metrics-default_policy",
+            "metrics-apm.service_summary_10m_metrics-default_policy",
+            "metrics-apm.service_summary_1m_metrics-default_policy",
+            "metrics-apm.service_summary_60m_metrics-default_policy",
+            "metrics-apm.service_transaction_10m_metrics-default_policy",
+            "metrics-apm.service_transaction_1m_metrics-default_policy",
+            "metrics-apm.service_transaction_60m_metrics-default_policy",
+            "metrics-apm.transaction_10m_metrics-default_policy",
+            "metrics-apm.transaction_1m_metrics-default_policy",
+            "metrics-apm.transaction_60m_metrics-default_policy",
+            "traces-apm.rum_traces-default_policy",
+            "traces-apm.sampled_traces-default_policy",
+            "traces-apm.traces-default_policy"
         );
     }
 
@@ -813,8 +918,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
-        logger.info("Waiting for all cluster updates up to this moment to be processed");
-        assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+        waitForClusterUpdates();
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
@@ -840,7 +944,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (resetFeatureStates()) {
             final Request postRequest = new Request("POST", "/_features/_reset");
-            adminClient().performRequest(postRequest);
+            cleanupClient().performRequest(postRequest);
         }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
@@ -862,81 +966,53 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                // In case of bwc testing, we need to delete component and composable
-                // index templates only for clusters that support this historical feature
-                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
-                    try {
-                        Request getTemplatesRequest = new Request("GET", "_index_template");
-                        Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
-                            JsonXContent.jsonXContent,
-                            EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
-                            false
-                        );
-                        List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList());
-                        if (names.isEmpty() == false) {
-                            // Ideally we would want to check if the elected master node supports this feature and send the delete request
-                            // directly to that node, but node-specific feature checks is something we want to avoid if possible.
-                            if (clusterHasFeature(RestTestLegacyFeatures.DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED)) {
-                                try {
-                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
-                                } catch (ResponseException e) {
-                                    logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
-                                }
-                            } else {
-                                for (String name : names) {
-                                    try {
-                                        adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
-                                    } catch (ResponseException e) {
-                                        logger.warn(() -> format("unable to remove composable index template %s", name), e);
-                                    }
-                                }
-                            }
+                try {
+                    Request getTemplatesRequest = new Request("GET", "_index_template");
+                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(cleanupClient().performRequest(getTemplatesRequest).getEntity()),
+                        false
+                    );
+                    List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    if (names.isEmpty() == false) {
+                        try {
+                            cleanupClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
                         }
-                    } catch (Exception e) {
-                        logger.debug("ignoring exception removing all composable index templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
-                    try {
-                        Request compReq = new Request("GET", "_component_template");
-                        String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                        Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                        List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toList());
-                        if (names.isEmpty() == false) {
-                            // Ideally we would want to check if the elected master node supports this feature and send the delete request
-                            // directly to that node, but node-specific feature checks is something we want to avoid if possible.
-                            if (clusterHasFeature(RestTestLegacyFeatures.DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED)) {
-                                try {
-                                    adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
-                                } catch (ResponseException e) {
-                                    logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
-                                }
-                            } else {
-                                for (String componentTemplate : names) {
-                                    try {
-                                        adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                                    } catch (ResponseException e) {
-                                        logger.warn(() -> format("unable to remove component template %s", componentTemplate), e);
-                                    }
-                                }
-                            }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all composable index templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
+                try {
+                    Request compReq = new Request("GET", "_component_template");
+                    String componentTemplates = EntityUtils.toString(cleanupClient().performRequest(compReq).getEntity());
+                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                    List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList());
+                    if (names.isEmpty() == false) {
+                        try {
+                            cleanupClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                        } catch (ResponseException e) {
+                            logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
                         }
-                    } catch (Exception e) {
-                        logger.debug("ignoring exception removing all component templates", e);
-                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
+                } catch (Exception e) {
+                    logger.debug("ignoring exception removing all component templates", e);
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
 
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
                     Request getLegacyTemplatesRequest = new Request("GET", "_template");
                     Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
-                        EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
+                        EntityUtils.toString(cleanupClient().performRequest(getLegacyTemplatesRequest).getEntity()),
                         false
                     );
                     for (String name : legacyTemplates.keySet()) {
@@ -944,7 +1020,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                             continue;
                         }
                         try {
-                            adminClient().performRequest(new Request("DELETE", "_template/" + name));
+                            cleanupClient().performRequest(new Request("DELETE", "_template/" + name));
                         } catch (ResponseException e) {
                             logger.debug(() -> format("unable to remove index template %s", name), e);
                         }
@@ -953,11 +1029,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             } else {
                 logger.debug("Clearing all templates");
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
-                    adminClient().performRequest(new Request("DELETE", "_template/*"));
+                    cleanupClient().performRequest(new Request("DELETE", "_template/*"));
                 }
                 try {
-                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
-                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                    cleanupClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    cleanupClient().performRequest(new Request("DELETE", "_component_template/*"));
                 } catch (ResponseException e) {
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
@@ -978,6 +1054,57 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         deleteAllNodeShutdownMetadata();
+    }
+
+    public void waitForClusterUpdates() throws Exception {
+        logger.info("Waiting for all cluster updates up to this moment to be processed");
+
+        try {
+            assertOK(cleanupClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                StringBuilder logMessage = new StringBuilder("Timed out waiting for cluster updates to be processed.");
+                final var pendingTasks = getPendingClusterStateTasks();
+                if (pendingTasks != null) {
+                    logMessage.append('\n').append(pendingTasks);
+                }
+                final var hotThreads = getHotThreads();
+                if (hotThreads != null) {
+                    logMessage.append("\nHot threads: ").append(hotThreads);
+                }
+                logger.error(logMessage.toString());
+            }
+            throw e;
+        }
+    }
+
+    private static String getPendingClusterStateTasks() {
+        try {
+            Response response = cleanupClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
+            List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+            if (tasks.isEmpty() == false) {
+                StringBuilder message = new StringBuilder("There are still running tasks:");
+                for (Object task : tasks) {
+                    message.append('\n').append(task.toString());
+                }
+                return message.toString();
+            }
+        } catch (IOException e) {
+            fail(e, "Failed to retrieve pending tasks in the cluster during cleanup");
+        }
+        return null;
+    }
+
+    private String getHotThreads() {
+        try {
+            Response response = adminClient().performRequest(
+                new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")
+            );
+            return EntityUtils.toString(response.getEntity());
+        } catch (IOException e) {
+            logger.error("Failed to retrieve hot threads in the cluster during cleanup", e);
+        }
+        return null;
     }
 
     /**
@@ -1005,7 +1132,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static Set<String> getAllUnexpectedIlmPolicies(Set<String> exclusions) throws IOException {
         Map<String, Object> policies;
         try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
+            Response response = cleanupClient().performRequest(new Request("GET", "/_ilm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
             if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
@@ -1027,35 +1154,31 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (has(ProductFeature.XPACK)) {
-                // In case of bwc testing, we need to delete component and composable
-                // index templates only for clusters that support this historical feature
-                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
-                    Request getTemplatesRequest = new Request("GET", "_index_template");
-                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
-                        JsonXContent.jsonXContent,
-                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
-                        false
-                    );
-                    unexpectedTemplates.addAll(
-                        ((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                            .filter(name -> isXPackTemplate(name) == false)
-                            .collect(Collectors.toSet())
-                    );
-                    Request compReq = new Request("GET", "_component_template");
-                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    ((List<?>) cTemplates.get("component_templates")).stream()
+                Request getTemplatesRequest = new Request("GET", "_index_template");
+                Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(cleanupClient().performRequest(getTemplatesRequest).getEntity()),
+                    false
+                );
+                unexpectedTemplates.addAll(
+                    ((List<?>) composableIndexTemplates.get("index_templates")).stream()
                         .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
                         .filter(name -> isXPackTemplate(name) == false)
-                        .forEach(unexpectedTemplates::add);
-                }
+                        .collect(Collectors.toSet())
+                );
+                Request compReq = new Request("GET", "_component_template");
+                String componentTemplates = EntityUtils.toString(cleanupClient().performRequest(compReq).getEntity());
+                Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                ((List<?>) cTemplates.get("component_templates")).stream()
+                    .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                    .filter(name -> isXPackTemplate(name) == false)
+                    .forEach(unexpectedTemplates::add);
 
                 if (has(ProductFeature.LEGACY_TEMPLATES)) {
                     Request getLegacyTemplatesRequest = new Request("GET", "_template");
                     Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
-                        EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
+                        EntityUtils.toString(cleanupClient().performRequest(getLegacyTemplatesRequest).getEntity()),
                         false
                     );
                     unexpectedTemplates.addAll(
@@ -1079,7 +1202,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        Map<String, Object> statusResponse = responseAsMap(cleanupClient().performRequest(getShutdownStatus));
 
         Object nodesResponse = statusResponse.get("nodes");
         final List<String> nodeIds;
@@ -1092,7 +1215,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-            assertOK(adminClient().performRequest(deleteRequest));
+            assertOK(cleanupClient().performRequest(deleteRequest));
         }
     }
 
@@ -1101,16 +1224,25 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
-        boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         try {
-            // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
-            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
+            // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
+            final List<String> indexPatterns = new ArrayList<>(
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
+            );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
-            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
-            final Response response = adminClient().performRequest(deleteRequest);
+            deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
+
+            // If system index warning, ignore but log
+            // See: https://github.com/elastic/elasticsearch/issues/117099
+            // and: https://github.com/elastic/elasticsearch/issues/115809
+            deleteRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
+            );
+
+            final Response response = cleanupClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }
@@ -1122,22 +1254,41 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+        for (String warning : warnings) {
+            if (warning.startsWith("this request accesses system indices:")) {
+                SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
+            } else {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected static void wipeDataStreams() throws IOException {
         try {
             if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
+                cleanupClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't understand expand_wildcards, try again without it
             try {
                 if (hasXPack()) {
-                    adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                    cleanupClient().performRequest(new Request("DELETE", "_data_stream/*"));
                 }
             } catch (ResponseException ee) {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
                 // or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
-                if (statusCode < 404 || statusCode > 405) {
+                if (statusCode == 400) {
+                    // the test cluster likely does not include the data streams module so we can ignore this error code
+                    // additionally there is an implementation gotcha that cause response code to be 400 or 405 dependent on if
+                    // "_data_stream/*" matches a registered index pattern such as {a}/{b} but not for the HTTP verb.
+                    // Prior to v9 POST {index}/{type} was registered as a compatible index pattern so the request would partially match
+                    // and return a 405, but without that pattern registered at all the return value is a 400.
+                    return;
+                } else if (statusCode < 404 || statusCode > 405) {
                     throw ee;
                 }
             }
@@ -1149,7 +1300,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = new Request("GET", "_cluster/state/metadata");
         request.addParameter("filter_path", "metadata.indices.*.settings.index.store.snapshot");
 
-        final Response response = adminClient().performRequest(request);
+        final Response response = cleanupClient().performRequest(request);
         @SuppressWarnings("unchecked")
         Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
         if (indices != null) {
@@ -1157,7 +1308,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 try {
                     assertAcked(
                         "Failed to delete searchable snapshot index [" + index + ']',
-                        adminClient().performRequest(new Request("DELETE", index))
+                        cleanupClient().performRequest(new Request("DELETE", index))
                     );
                 } catch (ResponseException e) {
                     if (isNotFoundResponseException(e) == false) {
@@ -1173,13 +1324,13 @@ public abstract class ESRestTestCase extends ESTestCase {
      * start empty.
      */
     protected void wipeSnapshots() throws IOException {
-        for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
+        for (Map.Entry<String, ?> repo : entityAsMap(cleanupClient().performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
             if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
-                adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/*"));
+                cleanupClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/*"));
             }
             if (preserveReposUponCompletion() == false) {
                 deleteRepository(repoName);
@@ -1189,14 +1340,14 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected void deleteRepository(String repoName) throws IOException {
         logger.debug("wiping snapshot repository [{}]", repoName);
-        adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+        cleanupClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
     }
 
     /**
      * Remove any cluster settings.
      */
     private static void wipeClusterSettings() throws IOException {
-        Map<?, ?> getResponse = entityAsMap(adminClient().performRequest(new Request("GET", "/_cluster/settings")));
+        Map<?, ?> getResponse = entityAsMap(cleanupClient().performRequest(new Request("GET", "/_cluster/settings")));
 
         final var mustClear = new AtomicBoolean();
         final var request = newXContentRequest(HttpMethod.PUT, "/_cluster/settings", (clearCommand, params) -> {
@@ -1226,14 +1377,16 @@ public abstract class ESRestTestCase extends ESTestCase {
                     return warnings.get(0).contains("xpack.monitoring") == false;
                 }
             }));
-            adminClient().performRequest(request);
+            cleanupClient().performRequest(request);
         }
     }
 
     private void wipeRollupJobs() throws IOException {
         final Response response;
         try {
-            response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+            var request = new Request("GET", "/_rollup/job/_all");
+            request.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            response = cleanupClient().performRequest(request);
         } catch (ResponseException e) {
             // If we don't see the rollup endpoint (possibly because of running against an older ES version) we just bail
             if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -1253,27 +1406,28 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("POST", "/_rollup/job/" + jobId + "/_stop");
+            request.setOptions(ROLLUP_REQUESTS_OPTIONS);
             setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
-            adminClient().performRequest(request);
+            cleanupClient().performRequest(request);
         }
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("DELETE", "/_rollup/job/" + jobId);
+            request.setOptions(ROLLUP_REQUESTS_OPTIONS);
             setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // 404s imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
-            adminClient().performRequest(request);
+            cleanupClient().performRequest(request);
         }
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open,hidden");
         // Allow system index deprecation warnings
         refreshRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
@@ -1306,7 +1460,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     );
 
     static {
-        BaseBroadcastResponse.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
+        AbstractBroadcastResponseTestCase.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
     }
 
     protected static BroadcastResponse refresh(RestClient client, String index) throws IOException {
@@ -1318,14 +1472,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static void waitForPendingRollupTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
+        waitForPendingTasks(cleanupClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
     private static void deleteAllILMPolicies(Set<String> exclusions) throws IOException {
         Map<String, Object> policies;
 
         try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
+            Response response = cleanupClient().performRequest(new Request("GET", "/_ilm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
             if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
@@ -1342,7 +1496,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         policies.keySet().stream().filter(p -> exclusions.contains(p) == false).forEach(policyName -> {
             try {
-                adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
+                cleanupClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
             } catch (IOException e) {
                 throw new RuntimeException("failed to delete policy: " + policyName, e);
             }
@@ -1353,7 +1507,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, Object> policies;
 
         try {
-            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
+            Response response = cleanupClient().performRequest(new Request("GET", "/_slm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
             if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
@@ -1369,7 +1523,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
+            cleanupClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
         }
     }
 
@@ -1378,7 +1532,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final List<Map<?, ?>> patterns;
 
         try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ccr/auto_follow"));
+            Response response = cleanupClient().performRequest(new Request("GET", "/_ccr/auto_follow"));
             patterns = (List<Map<?, ?>>) entityAsMap(response).get("patterns");
         } catch (ResponseException e) {
             if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
@@ -1395,7 +1549,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         for (Map<?, ?> pattern : patterns) {
             String patternName = (String) pattern.get("name");
-            adminClient().performRequest(new Request("DELETE", "/_ccr/auto_follow/" + patternName));
+            cleanupClient().performRequest(new Request("DELETE", "/_ccr/auto_follow/" + patternName));
         }
     }
 
@@ -1404,7 +1558,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * other tests.
      */
     private void logIfThereAreRunningTasks() throws IOException {
-        Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
+        Set<String> runningTasks = runningTasks(cleanupClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
         runningTasks.remove(TransportListTasksAction.TYPE.name());
         runningTasks.remove(TransportListTasksAction.TYPE.name() + "[n]");
@@ -1427,18 +1581,9 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static void waitForClusterStateUpdatesToFinish() throws Exception {
         assertBusy(() -> {
-            try {
-                Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
-                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
-                if (false == tasks.isEmpty()) {
-                    StringBuilder message = new StringBuilder("there are still running tasks:");
-                    for (Object task : tasks) {
-                        message.append('\n').append(task.toString());
-                    }
-                    fail(message.toString());
-                }
-            } catch (IOException e) {
-                fail("cannot get cluster's pending tasks: " + e.getMessage());
+            final var pendingTasks = getPendingClusterStateTasks();
+            if (pendingTasks != null) {
+                fail(pendingTasks);
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -1458,7 +1603,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             String username = System.getProperty("tests.rest.cluster.username");
             String password = System.getProperty("tests.rest.cluster.password");
             String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
-            return builder.put(ThreadContext.PREFIX + ".Authorization", token).build();
+            builder.put(ThreadContext.PREFIX + ".Authorization", token);
+        }
+        if (System.getProperty("tests.rest.project.id") != null) {
+            final var projectId = System.getProperty("tests.rest.project.id");
+            builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
         return builder.build();
     }
@@ -1468,6 +1617,26 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected Settings restAdminSettings() {
         return restClientSettings(); // default to the same client settings
+    }
+
+    /**
+     * Returns the REST client used for cleaning up the cluster.
+     */
+    protected Settings cleanupClientSettings() {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return restAdminSettings();
+        }
+        return addProjectIdToSettings(restAdminSettings());
+    }
+
+    private Settings addProjectIdToSettings(Settings settings) {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return settings;
+        }
+        return Settings.builder()
+            .put(settings)
+            .put(ThreadContext.PREFIX + "." + Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, activeProject)
+            .build();
     }
 
     /**
@@ -1606,6 +1775,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return response;
     }
 
+    public static void assertOKAndConsume(Response response) {
+        try {
+            assertOK(response);
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
+    }
+
     public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
         assertOK(response);
         return ObjectPath.createFromResponse(response);
@@ -1625,9 +1802,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     public static void assertAcknowledged(Response response) throws IOException {
-        assertOK(response);
-        String jsonBody = EntityUtils.toString(response.getEntity());
-        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+        try {
+            assertOK(response);
+            String jsonBody = EntityUtils.toString(response.getEntity());
+            assertThat(jsonBody, containsString("\"acknowledged\":true"));
+        } finally {
+            // if assertOK throws an exception, still release resources
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
     }
 
     /**
@@ -1663,7 +1845,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     public final void ensureGreen(String index) throws IOException {
-        ensureHealth(index, (request) -> {
+        ensureGreen(client(), index);
+    }
+
+    public final void ensureGreen(RestClient client, String index) throws IOException {
+        ensureHealth(client, index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
             final String ensureGreenTimeout = getEnsureGreenTimeout();
@@ -1686,7 +1872,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(restClient, "", requestConsumer);
     }
 
-    protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
+    public static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
         Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
         requestConsumer.accept(request);
         try {
@@ -1720,7 +1906,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");
         request.addParameter("level", "shards");
-        adminClient().performRequest(request);
+        cleanupClient().performRequest(request);
     }
 
     protected static CreateIndexResponse createIndex(String name) throws IOException {
@@ -1735,6 +1921,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client, name, settings, null, null);
     }
 
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
+        return createIndex(client, name, settings, mapping, null);
+    }
+
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
         return createIndex(name, settings, mapping, null);
     }
@@ -1745,7 +1935,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
         throws IOException {
+        return createIndex(client::performRequest, name, settings, mapping, aliases);
+    }
 
+    protected static CreateIndexResponse createIndex(
+        CheckedFunction<Request, Response, IOException> execute,
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases
+    ) throws IOException {
         final Request request = newXContentRequest(HttpMethod.PUT, "/" + name, (builder, params) -> {
             if (settings != null) {
                 builder.startObject("settings");
@@ -1778,10 +1977,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
         }
-
-        final Response response = client.performRequest(request);
+        final Response response = execute.apply(request);
         try (var parser = responseAsParser(response)) {
-            return CreateIndexResponse.fromXContent(parser);
+            return TestResponseParsers.parseCreateIndexResponse(parser);
         }
     }
 
@@ -1793,7 +1991,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
         try (var parser = responseAsParser(response)) {
-            return AcknowledgedResponse.fromXContent(parser);
+            return TestResponseParsers.parseAcknowledgedResponse(parser);
         }
     }
 
@@ -1823,8 +2021,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
+        return getIndexSettings(index, false);
+    }
+
+    protected static Map<String, Object> getIndexSettings(String index, boolean includeDefaults) throws IOException {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
+        if (includeDefaults) {
+            request.addParameter("include_defaults", "true");
+        }
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(
@@ -1836,7 +2041,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+    protected static Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
         Map<String, Object> indexSettings = getIndexSettings(index);
         return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
@@ -1852,16 +2057,51 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(new Request("HEAD", "/" + index));
-        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+        return indexExists(client(), index);
+    }
+
+    protected static boolean indexExists(RestClient client, String index) throws IOException {
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("timeout", "0");
+        request.addParameter("level", "indices");
+        try {
+            final var response = client.performRequest(request);
+            @SuppressWarnings("unchecked")
+            final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
+            return indices.containsKey(index);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    protected static void awaitIndexExists(String index) throws IOException {
+        awaitIndexExists(index, SAFE_AWAIT_TIMEOUT);
+    }
+
+    protected static void awaitIndexExists(String index, TimeValue timeout) throws IOException {
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index) throws Exception {
+        awaitIndexDoesNotExist(index, TimeValue.timeValueSeconds(10));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
+        assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v9 since it is not
-     * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
-     * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
+     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v10 since it is not
+     * emitted in v8 or v9 and N-2 versions are now supported.
+     * Note that this message is also permitted in certain YAML test cases, it can be removed there too.
+     * See https://github.com/elastic/elasticsearch/issues/66419 and https://github.com/elastic/elasticsearch/pull/119594 for more details.
      */
-    @UpdateForV9
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
@@ -1885,6 +2125,27 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static boolean aliasExists(String index, String alias) throws IOException {
         Response response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + alias));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
+        return getDataStreamBackingIndexNames(client(), dataStreamName);
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(RestClient client, String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client, "/_data_stream/" + dataStreamName);
+        List<?> dataStreams = (List<?>) response.get("data_streams");
+        assertThat(dataStreams.size(), equalTo(1));
+        Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
+        assertThat(dataStream.get("name"), equalTo(dataStreamName));
+        List<?> indices = (List<?>) dataStream.get("indices");
+        return indices.stream().map(index -> ((Map<String, String>) index).get("index_name")).toList();
     }
 
     @SuppressWarnings("unchecked")
@@ -1958,7 +2219,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = newXContentRequest(
             HttpMethod.PUT,
             "/_snapshot/" + repository,
-            new PutRepositoryRequest(repository).type(type).settings(settings)
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repository).type(type).settings(settings)
         );
         request.addParameter("verify", Boolean.toString(verify));
 
@@ -2084,6 +2345,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics-tsdb-settings":
             case "metrics-mappings":
             case "synthetics":
+            case "agentless":
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
@@ -2096,6 +2358,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             default:
                 return false;
         }
+    }
+
+    protected static boolean isXPackIngestPipeline(String id) {
+        if (id.matches("(logs|metrics|traces)-apm(\\.\\w+)?@default-pipeline")) {
+            return true;
+        }
+        return switch (id) {
+            case "logs-default-pipeline", "logs@default-pipeline", "logs@json-message", "logs@json-pipeline" -> true;
+            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline", "logs-apm@pipeline" -> true;
+            case "behavioral_analytics-events-final_pipeline", "ent-search-generic-ingestion", "search-default-ingestion" -> true;
+            case "reindex-data-stream-pipeline" -> true;
+            default -> false;
+        };
     }
 
     public void flush(String index, boolean force) throws IOException {
@@ -2194,6 +2469,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
         request.addParameter("filter_path", "nodes_features");
+        if (multiProjectEnabled) {
+            request.addParameter("multi_project", "true");
+        }
 
         final Response response = adminClient.performRequest(request);
 
@@ -2215,7 +2493,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static IndexVersion minimumIndexVersion() throws IOException {
         final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version,nodes.*.index_version");
 
         final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
@@ -2223,10 +2501,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         IndexVersion minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
-            String versionStr = (String) nodeData.get("max_index_version");
+            Object versionStr = nodeData.get("index_version");
+            if (versionStr == null) {
+                versionStr = nodeData.get("max_index_version");
+            }
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
-                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                ? IndexVersion.fromId(Integer.parseInt(versionStr.toString()))
                 : IndexVersion.fromId(
                     parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id())
                 );
@@ -2252,7 +2533,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             var transportVersion = getTransportVersionWithFallback(
                 objectPath.evaluate("nodes." + id + ".version"),
                 objectPath.evaluate("nodes." + id + ".transport_version"),
-                () -> TransportVersions.MINIMUM_COMPATIBLE
+                () -> TransportVersion.minimumCompatible()
             );
             if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
                 minTransportVersion = transportVersion;
@@ -2320,7 +2601,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 assertThat("Expecting non-null license status", status, notNullValue());
                 assertThat("Expecting active license", status, equalTo("active"));
             }
-        });
+        }, 10, TimeUnit.MINUTES);
     }
 
     // TODO: replace usages of this with warning_regex or allowed_warnings_regex
@@ -2392,7 +2673,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = responseAsParser(response)) {
-            return FieldCapabilitiesResponse.fromXContent(parser);
+            return FieldCapsUtils.parseFieldCapsResponse(parser);
         }
     }
 
@@ -2406,42 +2687,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private static class ESRestTestCaseHistoricalFeatures implements FeatureSpecification {
-        private static Map<NodeFeature, Version> historicalFeatures;
-
-        @Override
-        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
-        public Map<NodeFeature, Version> getHistoricalFeatures() {
-            if (historicalFeatures == null) {
-                Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
-                String metadataPath = System.getProperty("tests.features.metadata.path");
-                if (metadataPath == null) {
-                    throw new UnsupportedOperationException(
-                        "Historical features information is unavailable when using legacy test plugins."
-                    );
-                }
-
-                String[] metadataFiles = metadataPath.split(File.pathSeparator);
-                for (String metadataFile : metadataFiles) {
-                    try (
-                        InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
-                        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
-                    ) {
-                        for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {
-                            historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-
-                historicalFeatures = Collections.unmodifiableMap(historicalFeaturesMap);
-            }
-
-            return historicalFeatures;
-        }
-    }
-
     public static void setIgnoredErrorResponseCodes(Request request, RestStatus... restStatuses) {
         request.addParameter(
             IGNORE_RESPONSE_CODES_PARAM,
@@ -2450,18 +2695,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static XContentType randomSupportedContentType() {
-        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_TRUE_BINARY_RESPONSES) == false) {
-            // Very old versions encode binary stored fields using base64 in all formats, not just JSON, but we expect to see raw binary
-            // fields in non-JSON formats, so we stick to JSON in these cases.
-            return XContentType.JSON;
-        }
-
-        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES) == false) {
-            // The VND_* formats were introduced part-way through the 7.x series for compatibility with 8.x, but are not supported by older
-            // 7.x versions.
-            return randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
-        }
-
         return randomFrom(XContentType.values());
     }
 
@@ -2481,5 +2714,265 @@ public abstract class ESRestTestCase extends ESTestCase {
         final var request = new Request(method.name(), endpoint);
         addXContentBody(request, body);
         return request;
+    }
+
+    protected static MapMatcher getProfileMatcher() {
+        return matchesMap() //
+            .entry("query", instanceOf(Map.class))
+            .entry("planning", instanceOf(Map.class))
+            .entry("drivers", instanceOf(List.class))
+            .entry("plans", instanceOf(List.class));
+    }
+
+    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {
+        MapMatcher mapMatcher = matchesMap();
+        if (includeDocumentsFound) {
+            // Older versions may not return documents_found and values_loaded.
+            mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
+        if (includeMetadata) {
+            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        }
+        // Older version may not have is_partial
+        if (includePartial) {
+            mapMatcher = mapMatcher.entry("is_partial", false);
+        }
+        return mapMatcher;
+    }
+
+    /**
+     * Create empty result matcher from result, taking into account all metadata items.
+     */
+    protected static MapMatcher getResultMatcher(Map<String, Object> result) {
+        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"), result.containsKey("documents_found"));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    protected static void assertResultMap(Map<String, Object> result, Object columnMatcher, Object valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(
+        Map<String, Object> result,
+        MapMatcher mapMatcher,
+        Matcher<?> columnMatcher,
+        Matcher<?> valuesMatcher
+    ) {
+        assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    /**
+     * Whether the test framework should configure an active projects and some extra projects. This is true by default (when multi-project
+     * is enabled). Subclasses can override this method to avoid configuring projects - e.g. when they configure projects themselves.
+     */
+    protected boolean shouldConfigureProjects() {
+        assert multiProjectEnabled;
+        return true;
+    }
+
+    private void configureProjects() throws IOException {
+        if (projectsConfigured || multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return;
+        }
+        projectsConfigured = true;
+        createProject(activeProject);
+        for (var project : extraProjects) {
+            createProject(project);
+        }
+
+        // The admin client does not set a project id, and can see all projects
+        assertProjectIds(
+            adminClient(),
+            CollectionUtils.concatLists(List.of(Metadata.DEFAULT_PROJECT_ID.id(), activeProject), extraProjects)
+        );
+        // The test client can only see the project it targets
+        assertProjectIds(client(), List.of(activeProject));
+    }
+
+    @After
+    public final void assertEmptyProjects() throws Exception {
+        if (projectsConfigured == false) {
+            return;
+        }
+        assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
+        for (var project : extraProjects) {
+            assertEmptyProject(project);
+        }
+    }
+
+    /**
+     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST
+     * responses. Otherwise, returns the empty string.
+     */
+    protected String activeProjectPrefix() {
+        return multiProjectEnabled ? (activeProject + "/") : "";
+    }
+
+    protected void createProject(String project) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("PUT", "/_project/" + project);
+        try {
+            final Response response = adminClient().performRequest(request);
+            logger.info("Created project {} : {}", project, response.getStatusLine());
+        } catch (ResponseException e) {
+            logger.error("Failed to create project: {}", project);
+            throw e;
+        }
+    }
+
+    protected void assertProjectIds(RestClient client, List<String> expectedProjects) throws IOException {
+        assert multiProjectEnabled;
+        final Collection<String> actualProjects = getProjectIds(client);
+        assertThat(
+            "Cluster returned project ids: " + actualProjects,
+            actualProjects,
+            containsInAnyOrder(expectedProjects.toArray(String[]::new))
+        );
+    }
+
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
+        try {
+            final ObjectPath response = ObjectPath.createFromResponse(client.performRequest(request));
+            final List<Map<String, Object>> projectRouting = response.evaluate("routing_table.projects");
+            return projectRouting.stream().map(obj -> (String) obj.get("id")).toList();
+        } catch (ResponseException e) {
+            logger.error("Failed to retrieve cluster state");
+            throw e;
+        }
+    }
+
+    protected void cleanUpProjects() throws IOException {
+        assert multiProjectEnabled;
+        final var projectIds = getProjectIds(adminClient());
+        for (String projectId : projectIds) {
+            if (projectId.equals(ProjectId.DEFAULT.id())) {
+                continue;
+            }
+            deleteProject(projectId);
+        }
+    }
+
+    private void deleteProject(String project) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("DELETE", "/_project/" + project);
+        cleanupClient().performRequest(request);
+    }
+
+    protected void assertEmptyProject(String projectId) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "_cluster/state/metadata,routing_table,customs");
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId).build());
+
+        var response = responseAsMap(adminClient().performRequest(request));
+        ObjectPath state = new ObjectPath(response);
+
+        final var indexNames = ((Map<?, ?>) state.evaluate("metadata.indices")).keySet();
+        final var routingTableEntries = ((Map<?, ?>) state.evaluate("routing_table.indices")).keySet();
+        if (indexNames.isEmpty() == false || routingTableEntries.isEmpty() == false) {
+            // Only the default project is allowed to have the security index after tests complete.
+            // The security index could show up in the indices, routing table, or both.
+            // If that happens, we need to check that it hasn't been modified by any leaking API calls.
+            if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())
+                && (indexNames.isEmpty() || (indexNames.size() == 1 && indexNames.contains(".security-7")))
+                && (routingTableEntries.isEmpty() || (routingTableEntries.size() == 1 && routingTableEntries.contains(".security-7")))) {
+                checkSecurityIndex();
+            } else {
+                // If there are any other indices or if this is for a non-default project, we fail the test.
+                assertThat("Project [" + projectId + "] should not have indices", indexNames, empty());
+                assertThat("Project [" + projectId + "] should not have routing entries", routingTableEntries, empty());
+            }
+        }
+        assertThat(
+            "Project [" + projectId + "] should not have graveyard entries",
+            state.evaluate("metadata.index-graveyard.tombstones"),
+            empty()
+        );
+
+        final Map<String, ?> legacyTemplates = state.evaluate("metadata.templates");
+        if (legacyTemplates != null) {
+            var templateNames = legacyTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have legacy templates", templateNames, empty());
+        }
+
+        final Map<String, Object> indexTemplates = state.evaluate("metadata.index_template.index_template");
+        if (indexTemplates != null) {
+            var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
+        }
+
+        final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
+        if (componentTemplates != null) {
+            var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
+        }
+
+        final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
+        if (pipelines != null) {
+            var pipelineNames = pipelines.stream()
+                .map(pipeline -> String.valueOf(pipeline.get("id")))
+                .filter(id -> isXPackIngestPipeline(id) == false)
+                .toList();
+            assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
+        }
+
+        if (has(ProductFeature.ILM)) {
+            final Map<String, Object> ilmPolicies = state.evaluate("metadata.index_lifecycle.policies");
+            if (ilmPolicies != null) {
+                var policyNames = new HashSet<>(ilmPolicies.keySet());
+                policyNames.removeAll(preserveILMPolicyIds());
+                assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
+            }
+        }
+    }
+
+    private void checkSecurityIndex() throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "/_security/_query/role");
+        request.setJsonEntity("""
+            {
+              "query": {
+                "bool": {
+                  "must_not": {
+                    "term": {
+                      "metadata._reserved": true
+                    }
+                  }
+                }
+              }
+            }""");
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, Metadata.DEFAULT_PROJECT_ID.id()).build()
+        );
+        final var response = responseAsMap(adminClient().performRequest(request));
+        assertThat("Security index should not contain any non-reserved roles", (Collection<?>) response.get("roles"), empty());
+    }
+
+    public static final String FIPS_KEYSTORE_PASSWORD = "keystore-password";
+
+    /**
+     * @return a REST {@link Request} which will reload the keystore in the test cluster.
+     */
+    protected final Request createReloadSecureSettingsRequest() {
+        try {
+            return newXContentRequest(
+                HttpMethod.POST,
+                "/_nodes/reload_secure_settings",
+                (b, p) -> inFipsJvm() ? b.field("secure_settings_password", FIPS_KEYSTORE_PASSWORD) : b
+            );
+        } catch (IOException e) {
+            throw new AssertionError("impossible", e);
+        }
     }
 }

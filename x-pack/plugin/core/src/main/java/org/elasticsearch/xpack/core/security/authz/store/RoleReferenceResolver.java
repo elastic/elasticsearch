@@ -30,4 +30,9 @@ public interface RoleReferenceResolver {
         RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
         ActionListener<RolesRetrievalResult> listener
     );
+
+    void resolveCrossClusterApiKeyRoleReference(
+        RoleReference.CrossClusterApiKeyRoleReference crossClusterApiKeyRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    );
 }

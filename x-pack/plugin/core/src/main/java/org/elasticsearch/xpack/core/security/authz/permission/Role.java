@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -61,6 +62,8 @@ public interface Role {
     RunAsPermission runAs();
 
     RemoteIndicesPermission remoteIndices();
+
+    RemoteClusterPermissions remoteCluster();
 
     boolean hasWorkflowsRestriction();
 
@@ -177,7 +180,7 @@ public interface Role {
     IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     );
 
@@ -185,10 +188,14 @@ public interface Role {
      * Returns the intersection of role descriptors defined for a remote cluster with the given alias.
      *
      * @param remoteClusterAlias the remote cluster alias for which to return a role descriptors intersection
+     * @param remoteClusterVersion the version of the remote cluster
      * @return an intersection of role descriptors that describe the remote privileges towards a given cluster,
      *         otherwise an empty intersection if remote privileges are not defined
      */
-    RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(String remoteClusterAlias);
+    RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(
+        String remoteClusterAlias,
+        TransportVersion remoteClusterVersion
+    );
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.
@@ -214,10 +221,11 @@ public interface Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
-        private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
+        private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteIndicesGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
         private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.NONE;
+        private RemoteClusterPermissions remoteClusterPermissions = null;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
@@ -225,7 +233,7 @@ public interface Role {
         }
 
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
-            ClusterPermission.Builder builder = ClusterPermission.builder();
+            ClusterPermission.Builder builder = new ClusterPermission.Builder(restrictedIndices);
             if (privilegeNames.isEmpty() == false) {
                 for (String name : privilegeNames) {
                     builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);
@@ -244,7 +252,19 @@ public interface Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermissionGroupDefinition(privilege, FieldPermissions.DEFAULT, null, false, indices));
+            return add(FieldPermissions.DEFAULT, null, privilege, false, indices);
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            Set<IndexPrivilege> privilegesSplitBySelector,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
+            for (var indexPrivilege : privilegesSplitBySelector) {
+                add(fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+            }
             return this;
         }
 
@@ -259,7 +279,21 @@ public interface Role {
             return this;
         }
 
-        public Builder addRemoteGroup(
+        public Builder addRemoteIndicesGroup(
+            final Set<String> remoteClusterAliases,
+            final FieldPermissions fieldPermissions,
+            final Set<BytesReference> query,
+            final Set<IndexPrivilege> privilegesSplitBySelector,
+            final boolean allowRestrictedIndices,
+            final String... indices
+        ) {
+            for (var indexPrivilege : privilegesSplitBySelector) {
+                addRemoteIndicesGroup(remoteClusterAliases, fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+            }
+            return this;
+        }
+
+        public Builder addRemoteIndicesGroup(
             final Set<String> remoteClusterAliases,
             final FieldPermissions fieldPermissions,
             final Set<BytesReference> query,
@@ -267,8 +301,18 @@ public interface Role {
             final boolean allowRestrictedIndices,
             final String... indices
         ) {
-            remoteGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
+            remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
                 .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return this;
+        }
+
+        public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions) {
+            Objects.requireNonNull(remoteClusterPermissions, "remoteClusterPermissions must not be null");
+            assert this.remoteClusterPermissions == null : "addRemoteClusterPermissions should only be called once";
+            if (remoteClusterPermissions.hasAnyPrivileges()) {
+                remoteClusterPermissions.validate();
+            }
+            this.remoteClusterPermissions = remoteClusterPermissions;
             return this;
         }
 
@@ -304,12 +348,13 @@ public interface Role {
                 indices = indicesBuilder.build();
             }
 
-            final RemoteIndicesPermission remoteIndices;
-            if (remoteGroups.isEmpty()) {
-                remoteIndices = RemoteIndicesPermission.NONE;
+            final RemoteIndicesPermission remoteIndicesPermission;
+            if (remoteIndicesGroups.isEmpty()) {
+                remoteIndicesPermission = RemoteIndicesPermission.NONE;
             } else {
                 final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder();
-                for (final Map.Entry<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroupEntry : remoteGroups.entrySet()) {
+                for (final Map.Entry<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroupEntry : remoteIndicesGroups
+                    .entrySet()) {
                     final var clusterAlias = remoteGroupEntry.getKey();
                     for (IndicesPermissionGroupDefinition group : remoteGroupEntry.getValue()) {
                         remoteIndicesBuilder.addGroup(
@@ -322,13 +367,22 @@ public interface Role {
                         );
                     }
                 }
-                remoteIndices = remoteIndicesBuilder.build();
+                remoteIndicesPermission = remoteIndicesBuilder.build();
             }
 
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices, workflowsRestriction);
+            return new SimpleRole(
+                names,
+                cluster,
+                indices,
+                applicationPermission,
+                runAs,
+                remoteIndicesPermission,
+                remoteClusterPermissions == null ? RemoteClusterPermissions.NONE : remoteClusterPermissions,
+                workflowsRestriction
+            );
         }
 
         private static class IndicesPermissionGroupDefinition {
@@ -383,7 +437,7 @@ public interface Role {
                     new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                 ),
                 indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                IndexPrivilege.resolveBySelectorAccess(Set.of(indexPrivilege.getPrivileges())),
                 indexPrivilege.allowRestrictedIndices(),
                 indexPrivilege.getIndices()
             );
@@ -394,17 +448,26 @@ public interface Role {
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote indices privileges for specific clusters";
             final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
-            builder.addRemoteGroup(
+            builder.addRemoteIndicesGroup(
                 Set.of(clusterAliases),
                 fieldPermissionsCache.getFieldPermissions(
                     new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
                 ),
                 indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
-                IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
+                IndexPrivilege.resolveBySelectorAccess(Set.of(indicesPrivileges.getPrivileges())),
                 indicesPrivileges.allowRestrictedIndices(),
                 indicesPrivileges.getIndices()
             );
         }
+
+        RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();
+        for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
+            final String[] clusterAliases = group.remoteClusterAliases();
+            // note: this validation only occurs from reserved roles
+            assert Arrays.equals(new String[] { "*" }, clusterAliases)
+                : "reserved role should not define remote cluster privileges for specific clusters";
+        }
+        builder.addRemoteClusterPermissions(remoteClusterPermissions);
 
         for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : roleDescriptor.getApplicationPrivileges()) {
             ApplicationPrivilege.get(

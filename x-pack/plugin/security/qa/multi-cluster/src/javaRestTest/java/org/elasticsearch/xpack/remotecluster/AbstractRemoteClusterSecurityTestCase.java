@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.remotecluster;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -49,11 +48,12 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String USER = "test_user";
     protected static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
     protected static final String REMOTE_SEARCH_USER = "remote_search_user";
+    protected static final String MANAGE_USER = "manage_user";
     protected static final String REMOTE_METRIC_USER = "remote_metric_user";
     protected static final String REMOTE_TRANSFORM_USER = "remote_transform_user";
     protected static final String REMOTE_SEARCH_ROLE = "remote_search";
     protected static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
-    private static final String KEYSTORE_PASSWORD = "keystore-password";
+    static final String KEYSTORE_PASSWORD = "keystore-password";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
         .keystorePassword(KEYSTORE_PASSWORD)
@@ -78,6 +78,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         .configFile("remote-cluster-client.key", Resource.fromClasspath("ssl/remote-cluster-client.key"))
         .configFile("remote-cluster-client.crt", Resource.fromClasspath("ssl/remote-cluster-client.crt"))
         .configFile("remote-cluster-client-ca.crt", Resource.fromClasspath("ssl/remote-cluster-client-ca.crt"))
+        .module("reindex") // Needed for the role metadata migration
         .user(USER, PASS.toString());
 
     protected static ElasticsearchCluster fulfillingCluster;
@@ -217,7 +218,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private void reloadSecureSettings() throws IOException {
+    protected void reloadSecureSettings() throws IOException {
         final Request request = new Request("POST", "/_nodes/reload_secure_settings");
         request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
         final Response reloadResponse = adminClient().performRequest(request);
@@ -293,7 +294,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected static Response performRequestWithAdminUser(RestClient targetFulfillingClusterClient, Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         return targetFulfillingClusterClient.performRequest(request);
     }
 

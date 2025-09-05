@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -26,11 +28,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,18 +49,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     public static final String NAME = "painless";
 
-    /**
-     * Permissions context used during compilation.
-     */
-    private static final AccessControlContext COMPILATION_CONTEXT;
-
     /*
      * Setup the allowed permissions.
      */
     static {
         final Permissions none = new Permissions();
         none.setReadOnly();
-        COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, none) });
     }
 
     /**
@@ -122,12 +114,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         SpecialPermission.check();
 
         // Create our loader (which loads compiled code with no permissions).
-        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-            @Override
-            public Loader run() {
-                return compiler.createLoader(getClass().getClassLoader());
-            }
-        });
+        final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
         ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
 
@@ -397,17 +384,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<ScriptScope>() {
-                @Override
-                public ScriptScope run() {
-                    String name = scriptName == null ? source : scriptName;
-                    return compiler.compile(loader, name, source, compilerSettings);
-                }
-            }, COMPILATION_CONTEXT);
+            String name = scriptName == null ? source : scriptName;
+            return compiler.compile(loader, name, source, compilerSettings);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (SecurityException e) {
-            // security exceptions are rethrown so that they can propagate to the ES log, they are not user errors
-            throw e;
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
         }
@@ -436,7 +415,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             value = copy.remove(CompilerSettings.PICKY);
             if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
+                compilerSettings.setPicky(parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
@@ -459,6 +438,13 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
         return compilerSettings;
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean parseBoolean(String value) {
+        return Boolean.parseBoolean(value);
     }
 
     private static ScriptException convertToScriptException(String scriptSource, Throwable t) {

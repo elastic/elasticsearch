@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -36,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
@@ -76,7 +78,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -88,11 +89,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -143,6 +142,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -175,7 +175,13 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override
@@ -288,8 +294,18 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchNoDocsQuery() throws Exception {
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            testMatchNoDocsQuery(executionMode);
+        }
+        testMatchNoDocsQuery(null);
+    }
+
+    private void testMatchNoDocsQuery(TermsAggregatorFactory.ExecutionMode hint) throws Exception {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string");
+        if (hint != null) {
+            aggregationBuilder.executionHint(hint.toString());
+        }
         CheckedConsumer<RandomIndexWriter, IOException> createIndex = iw -> {
             iw.addDocument(doc(fieldType, "a", "b"));
             iw.addDocument(doc(fieldType, "", "c", "a"));
@@ -300,11 +316,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             createIndex,
             (InternalTerms<?, ?> result) -> { assertEquals(0, result.getBuckets().size()); },
             new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+                .withCheckAggregator(checkTopLevelAggregator(hint == null ? TermsAggregatorFactory.ExecutionMode.MAP : hint))
         );
-
-        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
-            assertEquals(impl, MapStringTermsAggregator.class);
-        }, fieldType);
     }
 
     public void testStringShardMinDocCount() throws IOException {
@@ -329,6 +342,140 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 assertEquals("d", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }, new AggTestConfig(aggregationBuilder, fieldType));
+        }
+    }
+
+    public void testStringShardZeroMinDocCount() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, Collections.emptyMap());
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string")
+                .executionHint(executionMode.toString())
+                .size(2)
+                .minDocCount(0)
+                .excludeDeletedDocs(true)
+                .order(BucketOrder.key(true));
+
+            {
+                boolean delete = randomBoolean();
+                // force single shard/segment
+                testCase(iw -> {
+                    // force single shard/segment
+                    iw.addDocuments(Arrays.asList(doc(fieldType, "a"), doc(fieldType, "b"), doc(fieldType, "c"), doc(fieldType, "d")));
+                    if (delete) {
+                        iw.deleteDocuments(new TermQuery(new Term("string", "b")));
+                    }
+                }, (InternalTerms<?, ?> result) -> {
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(0L, result.getBuckets().get(0).getDocCount());
+                    if (delete) {
+                        assertEquals("c", result.getBuckets().get(1).getKeyAsString());
+                    } else {
+                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                    }
+                    assertEquals(0L, result.getBuckets().get(1).getDocCount());
+                },
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(new TermQuery(new Term("string", "e")))
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
+                );
+            }
+
+            {
+                boolean delete = randomBoolean();
+                // force single shard/segment
+                testCase(iw -> {
+                    // force single shard/segment
+                    iw.addDocuments(
+                        Arrays.asList(doc(fieldType, "a"), doc(fieldType, "c", "d"), doc(fieldType, "b", "d"), doc(fieldType, "b"))
+                    );
+                    if (delete) {
+                        iw.deleteDocuments(new TermQuery(new Term("string", "b")));
+                    }
+                }, (InternalTerms<?, ?> result) -> {
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(0L, result.getBuckets().get(0).getDocCount());
+                    if (delete) {
+                        assertEquals("c", result.getBuckets().get(1).getKeyAsString());
+                    } else {
+                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                    }
+                    assertEquals(0L, result.getBuckets().get(1).getDocCount());
+                },
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(new TermQuery(new Term("string", "e")))
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
+                );
+            }
+        }
+    }
+
+    /**
+     * Asserts that sane output for {@code min_doc_count: 0} when the top level
+     * query is {@code match_none}. Especially important is that we respect the
+     * execution hint in this case. It's a lot faster to collect {@code min_doc_count: 0}
+     * via ordinals.
+     */
+    public void testStringZeroMinDocCountMatchNone() throws IOException {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, Collections.emptyMap());
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string")
+                .executionHint(executionMode.toString())
+                .size(2)
+                .minDocCount(0)
+                .excludeDeletedDocs(true)
+                .order(BucketOrder.key(true));
+
+            {
+                boolean delete = randomBoolean();
+                // force single shard/segment
+                testCase(iw -> {
+                    // force single shard/segment
+                    iw.addDocuments(Arrays.asList(doc(fieldType, "a"), doc(fieldType, "b"), doc(fieldType, "c"), doc(fieldType, "d")));
+                    if (delete) {
+                        iw.deleteDocuments(new TermQuery(new Term("string", "b")));
+                    }
+                }, (InternalTerms<?, ?> result) -> {
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(0L, result.getBuckets().get(0).getDocCount());
+                    if (delete) {
+                        assertEquals("c", result.getBuckets().get(1).getKeyAsString());
+                    } else {
+                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                    }
+                    assertEquals(0L, result.getBuckets().get(1).getDocCount());
+                },
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
+                );
+            }
+
+            {
+                boolean delete = randomBoolean();
+                // force single shard/segment
+                testCase(iw -> {
+                    // force single shard/segment
+                    iw.addDocuments(
+                        Arrays.asList(doc(fieldType, "a"), doc(fieldType, "c", "d"), doc(fieldType, "b", "d"), doc(fieldType, "b"))
+                    );
+                    if (delete) {
+                        iw.deleteDocuments(new TermQuery(new Term("string", "b")));
+                    }
+                }, (InternalTerms<?, ?> result) -> {
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(0L, result.getBuckets().get(0).getDocCount());
+                    if (delete) {
+                        assertEquals("c", result.getBuckets().get(1).getKeyAsString());
+                    } else {
+                        assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+                    }
+                    assertEquals(0L, result.getBuckets().get(1).getDocCount());
+                },
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
+                );
+            }
         }
     }
 
@@ -969,7 +1116,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                                 .field("field")
                         );
-                        result = ((Filter) searchAndReduce(
+                        result = ((SingleBucketAggregation) searchAndReduce(
                             indexReader,
                             new AggTestConfig(aggregationBuilder, fieldType, filterFieldType).withSplitLeavesIntoSeperateAggregators(false)
                         )).getAggregations().get("_name2");
@@ -1188,6 +1335,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false
         );
         testCase(iw -> {
@@ -1305,57 +1453,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertEquals(expected * 2, buckets.get(2).getDocCount());
             assertEquals("1000.0", buckets.get(3).getKeyAsString());
             assertEquals(expected, buckets.get(3).getDocCount());
-        }
-    }
-
-    public void testGlobalAggregationWithScore() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("a")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("c")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
-                indexWriter.addDocument(document);
-                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
-                    Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
-                    GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
-                        new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
-                            .executionHint(executionHint)
-                            .collectMode(collectionMode)
-                            .field("keyword")
-                            .order(BucketOrder.key(true))
-                            .subAggregation(
-                                new TermsAggregationBuilder("sub_terms").userValueTypeHint(ValueType.STRING)
-                                    .executionHint(executionHint)
-                                    .collectMode(collectionMode)
-                                    .field("keyword")
-                                    .order(BucketOrder.key(true))
-                                    .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"))
-                            )
-                    );
-
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
-
-                    InternalGlobal result = searchAndReduce(indexReader, new AggTestConfig(globalBuilder, fieldType));
-                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                    assertThat(terms.getBuckets().size(), equalTo(3));
-                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
-                        assertThat(subTerms.getBuckets().size(), equalTo(1));
-                        MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
-                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
-                        assertThat(topHits.getHits().getHits().length, equalTo(1));
-                        for (SearchHit hit : topHits.getHits()) {
-                            assertThat(hit.getScore(), greaterThan(0f));
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -1724,8 +1821,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         int ptr = 9;
         for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
             InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-            assertThat(topHits.getHits().getTotalHits().value, equalTo((long) ptr));
-            assertEquals(TotalHits.Relation.EQUAL_TO, topHits.getHits().getTotalHits().relation);
+            assertThat(topHits.getHits().getTotalHits().value(), equalTo((long) ptr));
+            assertEquals(TotalHits.Relation.EQUAL_TO, topHits.getHits().getTotalHits().relation());
             if (withScore) {
                 assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
             } else {
@@ -2163,7 +2260,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, keywordFt);
     }
 
-    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+        SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+    );
 
     private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
         List<Iterable<IndexableField>> documents = new ArrayList<>();
@@ -2272,5 +2371,15 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private String randomHint() {
         return randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+    }
+
+    private Consumer<Aggregator> checkTopLevelAggregator(TermsAggregatorFactory.ExecutionMode executionMode) {
+        return switch (executionMode) {
+            case MAP -> a -> assertThat(a, instanceOf(MapStringTermsAggregator.class));
+            case GLOBAL_ORDINALS -> a -> assertThat(
+                a,
+                anyOf(instanceOf(GlobalOrdinalsStringTermsAggregator.class), instanceOf(StringTermsAggregatorFromFilters.class))
+            );
+        };
     }
 }

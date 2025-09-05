@@ -15,17 +15,21 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
@@ -94,21 +98,28 @@ public class WatcherScheduleEngineBenchmark {
         );
         System.out.println("and heap_max=" + JvmInfo.jvmInfo().getMem().getHeapMax());
 
+        Environment internalNodeEnv = InternalSettingsPreparer.prepareEnvironment(
+            Settings.builder().put(SETTINGS).put("node.data", false).build(),
+            emptyMap(),
+            null,
+            () -> {
+                throw new IllegalArgumentException("settings must have [node.name]");
+            }
+        );
+
         // First clean everything and index the watcher (but not via put alert api!)
         try (
             Node node = new Node(
-                InternalSettingsPreparer.prepareEnvironment(
-                    Settings.builder().put(SETTINGS).put("node.data", false).build(),
-                    emptyMap(),
-                    null,
-                    () -> {
-                        throw new IllegalArgumentException("settings must have [node.name]");
-                    }
+                internalNodeEnv,
+                PluginsLoader.createPluginsLoader(
+                    PluginsLoader.loadModulesBundles(internalNodeEnv.modulesDir()),
+                    PluginsLoader.loadPluginsBundles(internalNodeEnv.pluginsDir()),
+                    Map.of()
                 )
             ).start()
         ) {
             final Client client = node.client();
-            ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
+            ClusterHealthResponse response = client.admin().cluster().prepareHealth(TimeValue.THIRTY_SECONDS).setWaitForNodes("2").get();
             if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {
                 throw new IllegalStateException("This benchmark needs one extra data only node running outside this benchmark");
             }
@@ -160,9 +171,9 @@ public class WatcherScheduleEngineBenchmark {
                 .build();
             try (Node node = new MockNode(settings, Arrays.asList(LocalStateWatcher.class))) {
                 final Client client = node.client();
-                client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
+                client.admin().cluster().prepareHealth(TimeValue.THIRTY_SECONDS).setWaitForNodes("2").get();
                 client.admin().indices().prepareDelete(HistoryStoreField.DATA_STREAM + "*").get();
-                client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
+                client.admin().cluster().prepareHealth(TimeValue.THIRTY_SECONDS, Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                 Clock clock = node.injector().getInstance(Clock.class);
                 while (new WatcherStatsRequestBuilder(client).get()
@@ -242,7 +253,7 @@ public class WatcherScheduleEngineBenchmark {
                         Percentiles percentiles = searchResponse.getAggregations().get("percentile_delay");
                         stats.setDelayPercentiles(percentiles);
                         stats.setAvgJvmUsed(jvmUsedHeapSpace);
-                        new WatcherServiceRequestBuilder(client).stop().get();
+                        new WatcherServiceRequestBuilder(ESTestCase.TEST_REQUEST_TIMEOUT, client).stop().get();
                     }
                 );
             }

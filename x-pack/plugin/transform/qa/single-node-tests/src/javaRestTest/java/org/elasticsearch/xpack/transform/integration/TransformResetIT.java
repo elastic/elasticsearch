@@ -32,6 +32,13 @@ public class TransformResetIT extends TransformRestTestCase {
         TEST_PASSWORD_SECURE_STRING
     );
     private static final String DATA_ACCESS_ROLE = "test_data_access";
+    private static final String SYNC_CONFIG = """
+          "sync": {
+            "time": {
+              "field": "timestamp"
+            }
+          },
+        """;
 
     private static boolean indicesCreated = false;
 
@@ -132,6 +139,7 @@ public class TransformResetIT extends TransformRestTestCase {
     }
 
     private static String createConfig(String transformDestIndex) {
+        boolean isContinuous = randomBoolean();
         return Strings.format("""
             {
               "dest": {
@@ -140,6 +148,7 @@ public class TransformResetIT extends TransformRestTestCase {
               "source": {
                 "index": "%s"
               },
+              %s
               "pivot": {
                 "group_by": {
                   "reviewer": {
@@ -156,6 +165,6 @@ public class TransformResetIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""", transformDestIndex, REVIEWS_INDEX_NAME);
+            }""", transformDestIndex, REVIEWS_INDEX_NAME, isContinuous ? SYNC_CONFIG : "");
     }
 }

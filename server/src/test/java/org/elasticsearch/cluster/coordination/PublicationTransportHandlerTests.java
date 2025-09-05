@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -144,7 +144,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             StreamInput in = null;
             try {
                 in = request.bytes().streamInput();
-                final Compressor compressor = CompressorFactory.compressor(request.bytes());
+                final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
                 if (compressor != null) {
                     in = compressor.threadLocalStreamInput(in);
                 }
@@ -235,7 +235,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 allNodes.add(node);
                 nodeTransports.put(
                     node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.minimumCompatible(), TransportVersion.current())
                 );
             }
 
@@ -458,6 +458,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState0),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             receivedState0 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
@@ -499,6 +500,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState1),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             var receivedState1 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());

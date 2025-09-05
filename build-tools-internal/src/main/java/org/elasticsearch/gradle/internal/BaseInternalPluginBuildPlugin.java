@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -11,15 +12,13 @@ package org.elasticsearch.gradle.internal;
 import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
@@ -37,7 +36,9 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(PluginBuildPlugin.class);
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
-        project.getPluginManager().apply(HistoricalFeaturesMetadataPlugin.class);
+        project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
+        project.getPluginManager().apply(TransportVersionReferencesPlugin.class);
+        boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).getCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
@@ -53,7 +54,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
             .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
                 public void doCall(Project proj) {
                     // This is only a convenience for local developers so make this a noop when running in CI
-                    if (BuildParams.isCi() == false) {
+                    if (isCi == false) {
                         proj.afterEvaluate(project1 -> {
                             // let check depend on check tasks of qa sub-projects
                             final var checkTaskProvider = project1.getTasks().named("check");
@@ -79,29 +80,6 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         if (isModule == false || isXPackModule) {
             addNoticeGeneration(project, extension);
         }
-        project.afterEvaluate(p -> {
-            @SuppressWarnings("unchecked")
-            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
-            p.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add any dependent modules
-                findModulePath(project, pluginName).ifPresent(
-                    path -> testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path))
-                );
-            });
-        });
-    }
-
-    Optional<String> findModulePath(Project project, String pluginName) {
-        return project.getRootProject()
-            .getAllprojects()
-            .stream()
-            .filter(p -> GradleUtils.isModuleProject(p.getPath()))
-            .filter(p -> p.getPlugins().hasPlugin(PluginBuildPlugin.class))
-            .filter(p -> p.getExtensions().getByType(PluginPropertiesExtension.class).getName().equals(pluginName))
-            .findFirst()
-            .map(Project::getPath);
     }
 
     /**

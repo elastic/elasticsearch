@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -19,7 +19,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -584,7 +583,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "0.0" : "1.0"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
-                Filter filter = tag.getAggregations().get("filter");
+                SingleBucketAggregation filter = tag.getAggregations().get("filter");
                 assertThat(filter, notNullValue());
                 assertThat(filter.getDocCount(), equalTo(asc ? 2L : 3L));
 
@@ -627,10 +626,10 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "1.0" : "0.0"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get("filter2");
+                SingleBucketAggregation filter2 = filter1.getAggregations().get("filter2");
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Max max = filter2.getAggregations().get("max");
@@ -942,7 +941,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     public void testScriptCaching() throws Exception {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=float")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

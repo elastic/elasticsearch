@@ -8,3 +8,10 @@ dependencies {
   // TOML parser for EqlActionIT tests
   api 'io.ous:jtoml:2.0.0'
 }
+
+tasks.register("loadTestData", JavaExec) {
+  group = "Execution"
+  description = "Loads EQL Spec Tests data on a running stand-alone instance"
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = "org.elasticsearch.test.eql.DataLoader"
+}

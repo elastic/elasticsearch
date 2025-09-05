@@ -7,24 +7,39 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Locale;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 
 public class EsqlTypeResolutions {
 
+    public static Expression.TypeResolution isStringAndExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        Expression.TypeResolution resolution = TypeResolutions.isString(e, operationName, paramOrd);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isExact(e, operationName, paramOrd);
+    }
+
     public static Expression.TypeResolution isExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         if (e instanceof FieldAttribute fa) {
-            if (DataTypes.isString(fa.dataType())) {
+            if (DataType.isString(fa.dataType())) {
                 // ESQL can extract exact values for TEXT fields
                 return Expression.TypeResolution.TYPE_RESOLVED;
             }
@@ -45,7 +60,30 @@ public class EsqlTypeResolutions {
         return Expression.TypeResolution.TYPE_RESOLVED;
     }
 
+    private static final String[] SPATIAL_TYPE_NAMES = new String[] {
+        GEO_POINT.typeName(),
+        CARTESIAN_POINT.typeName(),
+        GEO_SHAPE.typeName(),
+        CARTESIAN_SHAPE.typeName() };
+    private static final String[] SPATIAL_AND_GRID_TYPE_NAMES = new String[] {
+        GEO_POINT.typeName(),
+        CARTESIAN_POINT.typeName(),
+        GEO_SHAPE.typeName(),
+        CARTESIAN_SHAPE.typeName(),
+        GEOHASH.typeName(),
+        GEOTILE.typeName(),
+        GEOHEX.typeName() };
+    private static final String[] POINT_TYPE_NAMES = new String[] { GEO_POINT.typeName(), CARTESIAN_POINT.typeName() };
+
     public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, "geo_point or cartesian_point");
+        return isType(e, DataType::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
+    }
+
+    public static Expression.TypeResolution isSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, DataType::isSpatial, operationName, paramOrd, SPATIAL_TYPE_NAMES);
+    }
+
+    public static Expression.TypeResolution isSpatialOrGrid(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, DataType::isSpatialOrGrid, operationName, paramOrd, SPATIAL_AND_GRID_TYPE_NAMES);
     }
 }

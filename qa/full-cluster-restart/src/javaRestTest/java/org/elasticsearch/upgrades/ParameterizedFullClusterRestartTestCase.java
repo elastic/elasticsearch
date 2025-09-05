@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -21,13 +22,13 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.OLD;
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADED;
@@ -36,13 +37,16 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
-    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+
+    protected static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString(
+        System.getProperty("tests.minimum.wire.compatible")
+    );
+    protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static IndexVersion oldIndexVersion;
     private static boolean upgradeFailed = false;
     private static boolean upgraded = false;
 
-    private static Set<String> oldClusterFeatures;
+    private static TestFeatureService oldClusterTestFeatureService;
     private final FullClusterRestartUpgradeStatus requestedUpgradeStatus;
 
     public ParameterizedFullClusterRestartTestCase(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -55,11 +59,10 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     }
 
     @Before
-    public void extractOldClusterFeatures() {
-        if (upgraded == false && oldClusterFeatures == null) {
-            assert testFeatureServiceInitialized()
-                : "Old cluster features can be extracted only after testFeatureService has been initialized. See ESRestTestCase#initClient";
-            oldClusterFeatures = Set.copyOf(testFeatureService.getAllSupportedFeatures());
+    public void retainOldClusterTestFeatureService() {
+        if (upgraded == false && oldClusterTestFeatureService == null) {
+            assert testFeatureServiceInitialized() : "testFeatureService must be initialized, see ESRestTestCase#initClient";
+            oldClusterTestFeatureService = testFeatureService;
         }
     }
 
@@ -124,20 +127,25 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     public static void resetUpgrade() {
         upgraded = false;
         upgradeFailed = false;
-        oldClusterFeatures = null;
+        oldClusterTestFeatureService = null;
     }
 
     public boolean isRunningAgainstOldCluster() {
         return requestedUpgradeStatus == OLD;
     }
 
-    public static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedFullClusterRestartTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterFeatures != null : "Old cluster features cannot be accessed before initialization is completed";
-        return oldClusterFeatures.contains(featureId);
+        assert oldClusterTestFeatureService != null
+            : "testFeatureService of old cluster cannot be accessed before initialization is completed";
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     protected static boolean oldClusterHasFeature(NodeFeature feature) {
@@ -150,7 +158,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     }
 
     public static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+        return Version.fromString(System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION));
     }
 
     protected abstract ElasticsearchCluster getUpgradeCluster();

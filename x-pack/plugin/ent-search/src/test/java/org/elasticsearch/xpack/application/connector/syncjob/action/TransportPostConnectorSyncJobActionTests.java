@@ -47,7 +47,7 @@ public class TransportPostConnectorSyncJobActionTests extends ESSingleNodeTestCa
             Collections.emptySet()
         );
 
-        action = new TransportPostConnectorSyncJobAction(transportService, clusterService, mock(ActionFilters.class), client());
+        action = new TransportPostConnectorSyncJobAction(transportService, mock(ActionFilters.class), client());
     }
 
     @Override

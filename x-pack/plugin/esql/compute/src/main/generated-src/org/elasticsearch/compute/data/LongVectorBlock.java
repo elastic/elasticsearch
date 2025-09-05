@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link LongVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class LongVectorBlock extends AbstractVectorBlock implements LongBlock {
 
@@ -21,7 +25,6 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     LongVectorBlock(LongVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +39,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +51,27 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public LongBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public LongBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public LongBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

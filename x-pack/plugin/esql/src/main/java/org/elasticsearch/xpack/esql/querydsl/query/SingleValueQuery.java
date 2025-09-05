@@ -7,49 +7,37 @@
 
 package org.elasticsearch.xpack.esql.querydsl.query;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.FilterOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.ql.util.SourceUtils.readSource;
-import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSource;
 
 /**
  * Lucene query that wraps another query and only selects documents that match
@@ -64,6 +52,9 @@ import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSource;
  *     for now we're going to always wrap so we can always push. When we find cases
  *     where double checking is better we'll try that.
  * </p>
+ * <p>
+ *     NOTE: This will only work with {@code text} fields.
+ * </p>
  */
 public class SingleValueQuery extends Query {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -72,35 +63,36 @@ public class SingleValueQuery extends Query {
         Builder::new
     );
 
-    public static final String MULTI_VALUE_WARNING = "single-value function encountered multi-value";
-
     private final Query next;
     private final String field;
+    private final UseSyntheticSourceDelegate useSyntheticSourceDelegate;
 
-    public SingleValueQuery(Query next, String field) {
+    /**
+     * Build.
+     * @param next the query whose documents we should use for single-valued fields
+     * @param field the name of the field whose values to check
+     * @param useSyntheticSourceDelegate Should we check the field's synthetic source delegate (true)
+     *                                   or it's values itself? If the field is a {@code text} field
+     *                                   we often want to use its delegate.
+     */
+    public SingleValueQuery(Query next, String field, boolean useSyntheticSourceDelegate) {
+        this(next, field, useSyntheticSourceDelegate ? UseSyntheticSourceDelegate.YES : UseSyntheticSourceDelegate.NO);
+    }
+
+    public SingleValueQuery(Query next, String field, UseSyntheticSourceDelegate useSyntheticSourceDelegate) {
         super(next.source());
         this.next = next;
         this.field = field;
+        this.useSyntheticSourceDelegate = useSyntheticSourceDelegate;
     }
 
     @Override
-    public boolean containsNestedField(String path, String field) {
-        return next.containsNestedField(path, field);
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        return next.addNestedField(path, field, format, hasDocValues);
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-        next.enrichNestedSort(sort);
-    }
-
-    @Override
-    public Builder asBuilder() {
-        return new Builder(next.asBuilder(), field, new Stats(), next.source());
+    protected AbstractBuilder asBuilder() {
+        return switch (useSyntheticSourceDelegate) {
+            case NO -> new Builder(next.toQueryBuilder(), field, next.source());
+            case YES -> new SyntheticSourceDelegateBuilder(next.toQueryBuilder(), field, next.source());
+            case YES_NEGATED -> new NegatedSyntheticSourceDelegateBuilder(next.toQueryBuilder(), field, next.source());
+        };
     }
 
     @Override
@@ -110,7 +102,11 @@ public class SingleValueQuery extends Query {
 
     @Override
     public SingleValueQuery negate(Source source) {
-        return new SingleValueQuery(next.negate(source), field);
+        return new SingleValueQuery(next.negate(source), field, switch (useSyntheticSourceDelegate) {
+            case NO -> UseSyntheticSourceDelegate.NO;
+            case YES -> UseSyntheticSourceDelegate.YES_NEGATED;
+            case YES_NEGATED -> UseSyntheticSourceDelegate.YES;
+        });
     }
 
     @Override
@@ -119,46 +115,61 @@ public class SingleValueQuery extends Query {
             return false;
         }
         SingleValueQuery other = (SingleValueQuery) o;
-        return Objects.equals(next, other.next) && Objects.equals(field, other.field);
+        return Objects.equals(next, other.next)
+            && Objects.equals(field, other.field)
+            && useSyntheticSourceDelegate == other.useSyntheticSourceDelegate;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), next, field);
+        return Objects.hash(super.hashCode(), next, field, useSyntheticSourceDelegate);
     }
 
-    public static class Builder extends AbstractQueryBuilder<Builder> {
+    @Override
+    public boolean containsPlan() {
+        return next.containsPlan();
+    }
+
+    public abstract static class AbstractBuilder extends AbstractQueryBuilder<AbstractBuilder> {
         private final QueryBuilder next;
         private final String field;
-        private final Stats stats;
         private final Source source;
 
-        Builder(QueryBuilder next, String field, Stats stats, Source source) {
+        AbstractBuilder(QueryBuilder next, String field, Source source) {
             this.next = next;
             this.field = field;
-            this.stats = stats;
             this.source = source;
         }
 
-        Builder(StreamInput in) throws IOException {
+        AbstractBuilder(StreamInput in) throws IOException {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
-            this.stats = new Stats();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.source = readSource(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                if (in instanceof PlanStreamInput psi) {
+                    this.source = Source.readFrom(psi);
+                } else {
+                    /*
+                     * For things like CanMatchNodeRequest we serialize without the Source. But we
+                     * don't use it, so that's ok.
+                     */
+                    this.source = Source.readEmpty(in);
+                }
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                this.source = readOldSource(in);
             } else {
                 this.source = Source.EMPTY;
-
             }
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
+        protected final void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                writeSource(out, source);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                source.writeTo(out);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                writeOldSource(out, source);
             }
         }
 
@@ -174,6 +185,69 @@ public class SingleValueQuery extends Query {
             return source;
         }
 
+        protected abstract AbstractBuilder rewrite(QueryBuilder next);
+
+        @Override
+        protected final QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            QueryBuilder rewritten = next.rewrite(queryRewriteContext);
+            if (rewritten instanceof MatchNoneQueryBuilder) {
+                return rewritten;
+            }
+            if (rewritten == next) {
+                return this;
+            }
+            return rewrite(rewritten);
+        }
+
+        @Override
+        protected final boolean doEquals(AbstractBuilder other) {
+            return next.equals(other.next) && field.equals(other.field);
+        }
+
+        @Override
+        protected final int doHashCode() {
+            return Objects.hash(next, field);
+        }
+
+        protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
+            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
+                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
+                Warnings.createWarnings(
+                    DriverContext.WarningsMode.COLLECT,
+                    source().source().getLineNumber(),
+                    source().source().getColumnNumber(),
+                    source().text()
+                ),
+                "single-value function encountered multi-value"
+            );
+            org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
+            if (rewrite instanceof MatchAllDocsQuery) {
+                // nothing to filter
+                return next().toQuery(context);
+            }
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
+            builder.add(rewrite, BooleanClause.Occur.FILTER);
+            return builder.build();
+        }
+
+        public String fieldName() {
+            return field;
+        }
+    }
+
+    /**
+     * Builds a {@code bool} query combining the "next" query and a {@link SingleValueMatchQuery}.
+     */
+    public static class Builder extends AbstractBuilder {
+        Builder(QueryBuilder next, String field, Source source) {
+            super(next, field, source);
+        }
+
+        Builder(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public String getWriteableName() {
             return ENTRY.name;
@@ -182,9 +256,9 @@ public class SingleValueQuery extends Query {
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(ENTRY.name);
-            builder.field("field", field);
-            builder.field("next", next, params);
-            builder.field("source", source.toString());
+            builder.field("field", field());
+            builder.field("next", next(), params);
+            builder.field("source", source().toString());
             builder.endObject();
         }
 
@@ -194,562 +268,220 @@ public class SingleValueQuery extends Query {
         }
 
         @Override
-        protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field);
+        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
+            MappedFieldType ft = context.getFieldType(field());
             if (ft == null) {
-                stats.missingField++;
-                return new MatchNoDocsQuery("missing field [" + field + "]");
+                return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
-            return new LuceneQuery(
-                next.toQuery(context),
-                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                stats,
-                new Warnings(source)
-            );
+            return simple(ft, context);
         }
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-            QueryBuilder rewritten = next.rewrite(queryRewriteContext);
-            if (rewritten instanceof MatchNoneQueryBuilder) {
-                stats.rewrittenToMatchNone++;
-                return rewritten;
-            }
-            if (rewritten == next) {
-                return this;
-            }
-            return new Builder(rewritten, field, stats, source);
-        }
-
-        @Override
-        protected boolean doEquals(Builder other) {
-            return next.equals(other.next) && field.equals(other.field);
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(next, field);
-        }
-
-        Stats stats() {
-            return stats;
-        }
-    }
-
-    private static class LuceneQuery extends org.apache.lucene.search.Query {
-        final org.apache.lucene.search.Query next;
-        private final IndexFieldData<?> fieldData;
-        private final Stats stats;
-        private final Warnings warnings;
-
-        LuceneQuery(org.apache.lucene.search.Query next, IndexFieldData<?> fieldData, Stats stats, Warnings warnings) {
-            this.next = next;
-            this.fieldData = fieldData;
-            this.stats = stats;
-            this.warnings = warnings;
-        }
-
-        @Override
-        public void visit(QueryVisitor visitor) {
-            if (visitor.acceptField(fieldData.getFieldName())) {
-                visitor.visitLeaf(next);
-            }
-        }
-
-        @Override
-        public org.apache.lucene.search.Query rewrite(IndexReader reader) throws IOException {
-            org.apache.lucene.search.Query rewritten = next.rewrite(reader);
-            if (rewritten instanceof MatchNoDocsQuery) {
-                stats.rewrittenToMatchNone++;
-                return rewritten;
-            }
-            if (rewritten == next) {
-                return this;
-            }
-            return new LuceneQuery(rewritten, fieldData, stats, warnings);
-        }
-
-        @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new SingleValueWeight(this, next.createWeight(searcher, scoreMode, boost), fieldData, warnings);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            }
-            if (obj == null || obj.getClass() != getClass()) {
-                return false;
-            }
-            SingleValueQuery.LuceneQuery other = (SingleValueQuery.LuceneQuery) obj;
-            return next.equals(other.next)
-                && fieldData.getFieldName().equals(other.fieldData.getFieldName())
-                && warnings.equals(other.warnings);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(classHash(), next, fieldData, warnings);
-        }
-
-        @Override
-        public String toString(String field) {
-            StringBuilder builder = new StringBuilder("single_value(");
-            if (false == this.fieldData.getFieldName().equals(field)) {
-                builder.append(this.fieldData.getFieldName());
-                builder.append(":");
-            }
-            builder.append(next);
-            return builder.append(")").toString();
-        }
-    }
-
-    private static class SingleValueWeight extends Weight {
-        private final Stats stats;
-        private final Weight next;
-        private final IndexFieldData<?> fieldData;
-        private final Warnings warnings;
-
-        private SingleValueWeight(SingleValueQuery.LuceneQuery query, Weight next, IndexFieldData<?> fieldData, Warnings warnings) {
-            super(query);
-            this.stats = query.stats;
-            this.next = next;
-            this.fieldData = fieldData;
-            this.warnings = warnings;
-        }
-
-        @Override
-        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            Explanation nextExplanation = next.explain(context, doc);
-            if (false == nextExplanation.isMatch()) {
-                return Explanation.noMatch("next didn't match", nextExplanation);
-            }
-            LeafFieldData lfd = fieldData.load(context);
-            SortedBinaryDocValues values = lfd.getBytesValues();
-            if (false == values.advanceExact(doc)) {
-                return Explanation.noMatch("no values in field", nextExplanation);
-            }
-            if (values.docValueCount() != 1) {
-                return Explanation.noMatch("field has too many values [" + values.docValueCount() + "]", nextExplanation);
-            }
-            return Explanation.match(nextExplanation.getValue(), "field has exactly 1 value", nextExplanation);
-        }
-
-        @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            Scorer nextScorer = next.scorer(context);
-            if (nextScorer == null) {
-                stats.noNextScorer++;
-                return null;
-            }
-            LeafFieldData lfd = fieldData.load(context);
-            /*
-             * SortedBinaryDocValues are available for most fields, but they
-             * are made available by eagerly converting non-bytes values to
-             * utf-8 strings. The eager conversion is quite expensive. So
-             * we specialize on numeric fields and fields with ordinals to
-             * avoid that expense in at least that case.
-             *
-             * Also! Lucene's FieldExistsQuery only needs one scorer that can
-             * use all the docs values iterators at DocIdSetIterators. We
-             * can't do that because we need the check the number of fields.
-             */
-            if (lfd instanceof LeafNumericFieldData n) {
-                return scorer(context, nextScorer, n);
-            }
-            if (lfd instanceof LeafOrdinalsFieldData o) {
-                return scorer(context, nextScorer, o);
-            }
-            return scorer(nextScorer, lfd);
-        }
-
-        private Scorer scorer(LeafReaderContext context, Scorer nextScorer, LeafNumericFieldData lfd) throws IOException {
-            SortedNumericDocValues sortedNumerics = lfd.getLongValues();
-            if (DocValues.unwrapSingleton(sortedNumerics) != null) {
-                /*
-                 * Segment contains only single valued fields. But it's possible
-                 * that some fields have 0 values. The most surefire way to check
-                 * is to look at the index for the data. If there isn't an index
-                 * this isn't going to work - but if there is we can compare the
-                 * number of documents in the index to the number of values in it -
-                 * if they are the same we've got a dense singleton.
-                 */
-                PointValues points = context.reader().getPointValues(fieldData.getFieldName());
-                if (points != null && points.getDocCount() == context.reader().maxDoc()) {
-                    stats.numericSingle++;
-                    return nextScorer;
-                }
-            }
-            TwoPhaseIterator nextIterator = nextScorer.twoPhaseIterator();
-            if (nextIterator == null) {
-                stats.numericMultiNoApprox++;
-                return new SingleValueQueryScorer(
-                    this,
-                    nextScorer,
-                    new TwoPhaseIteratorForSortedNumericsAndSinglePhaseQueries(nextScorer.iterator(), sortedNumerics, warnings)
-                );
-            }
-            stats.numericMultiApprox++;
-            return new SingleValueQueryScorer(
-                this,
-                nextScorer,
-                new TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries(nextIterator, sortedNumerics, warnings)
-            );
-        }
-
-        private Scorer scorer(LeafReaderContext context, Scorer nextScorer, LeafOrdinalsFieldData lfd) throws IOException {
-            SortedSetDocValues sortedSet = lfd.getOrdinalsValues();
-            if (DocValues.unwrapSingleton(sortedSet) != null) {
-                /*
-                 * Segment contains only single valued fields. But it's possible
-                 * that some fields have 0 values. The most surefire way to check
-                 * is to look at the index for the data. If there isn't an index
-                 * this isn't going to work - but if there is we can compare the
-                 * number of documents in the index to the number of values in it -
-                 * if they are the same we've got a dense singleton.
-                 */
-                Terms terms = context.reader().terms(fieldData.getFieldName());
-                if (terms != null && terms.getDocCount() == context.reader().maxDoc()) {
-                    stats.ordinalsSingle++;
-                    return nextScorer;
-                }
-            }
-            TwoPhaseIterator nextIterator = nextScorer.twoPhaseIterator();
-            if (nextIterator == null) {
-                stats.ordinalsMultiNoApprox++;
-                return new SingleValueQueryScorer(
-                    this,
-                    nextScorer,
-                    new TwoPhaseIteratorForSortedSetAndSinglePhaseQueries(nextScorer.iterator(), sortedSet, warnings)
-                );
-            }
-            stats.ordinalsMultiApprox++;
-            return new SingleValueQueryScorer(
-                this,
-                nextScorer,
-                new TwoPhaseIteratorForSortedSetAndTwoPhaseQueries(nextIterator, sortedSet, warnings)
-            );
-        }
-
-        private Scorer scorer(Scorer nextScorer, LeafFieldData lfd) {
-            SortedBinaryDocValues sortedBinary = lfd.getBytesValues();
-            TwoPhaseIterator nextIterator = nextScorer.twoPhaseIterator();
-            if (nextIterator == null) {
-                stats.bytesNoApprox++;
-                return new SingleValueQueryScorer(
-                    this,
-                    nextScorer,
-                    new TwoPhaseIteratorForSortedBinaryAndSinglePhaseQueries(nextScorer.iterator(), sortedBinary, warnings)
-                );
-            }
-            stats.bytesApprox++;
-            return new SingleValueQueryScorer(
-                this,
-                nextScorer,
-                new TwoPhaseIteratorForSortedBinaryAndTwoPhaseQueries(nextIterator, sortedBinary, warnings)
-            );
-        }
-
-        @Override
-        public boolean isCacheable(LeafReaderContext ctx) {
-            return next.isCacheable(ctx);
-        }
-    }
-
-    private static class SingleValueQueryScorer extends Scorer {
-        private final Scorer next;
-        private final TwoPhaseIterator iterator;
-
-        private SingleValueQueryScorer(Weight weight, Scorer next, TwoPhaseIterator iterator) {
-            super(weight);
-            this.next = next;
-            this.iterator = iterator;
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            return TwoPhaseIterator.asDocIdSetIterator(iterator);
-        }
-
-        @Override
-        public TwoPhaseIterator twoPhaseIterator() {
-            return iterator;
-        }
-
-        @Override
-        public float getMaxScore(int upTo) throws IOException {
-            return next.getMaxScore(upTo);
-        }
-
-        @Override
-        public float score() throws IOException {
-            return next.score();
-        }
-
-        @Override
-        public int docID() {
-            return next.docID();
+        protected AbstractBuilder rewrite(QueryBuilder next) {
+            return new Builder(next, field(), source());
         }
     }
 
     /**
-     * The estimated number of comparisons to check if a {@link SortedNumericDocValues}
-     * has more than one value. There isn't a good way to get that number out of
-     * {@link SortedNumericDocValues} so this is a guess.
+     * Builds a {@code bool} query ANDing the "next" query, a {@link SingleValueMatchQuery},
+     * and a {@link TermQuery} making sure we didn't ignore any values. Three total queries.
+     * This is only used if the "next" query matches fields that would not be ignored. Read all
+     * the paragraphs below to understand it. It's tricky!
+     * <p>
+     *     This is used in the case when you do {@code text_field == "foo"} and {@code text_field}
+     *     has a {@code keyword} sub-field. See, {@code text} typed fields can't do our equality -
+     *     they only do matching. But {@code keyword} fields *can* do the equality. In this case
+     *     the "next" query is a {@link TermQuery} like {@code text_field.raw:foo}.
+     * </p>
+     * <p>
+     *     But there's a big wrinkle! If you index a field longer than {@code ignore_above} into
+     *     {@code text_field.raw} field then it'll drop its value on the floor. So the
+     *     {@link SingleValueMatchQuery} isn't enough to emulate {@code ==}. You have to remove
+     *     any matches that ignored a field. Luckily we have {@link IgnoredFieldMapper}! We can
+     *     do a {@link TermQuery} like {@code NOT(_ignored:text_field.raw)} to filter those out.
+     * </p>
+     * <p>
+     *     You may be asking, "how would the first {@code text_field.raw:foo} query work if the
+     *     value we're searching for is very long?" In that case we never use this query at all.
+     *     We have to delegate the filtering to the compute engine. No fancy lucene searches in
+     *     that case.
+     * </p>
      */
-    private static final int SORTED_NUMERIC_MATCH_COST = 10;
-
-    private static class TwoPhaseIteratorForSortedNumericsAndSinglePhaseQueries extends TwoPhaseIterator {
-        private final SortedNumericDocValues sortedNumerics;
-        private final Warnings warnings;
-
-        private TwoPhaseIteratorForSortedNumericsAndSinglePhaseQueries(
-            DocIdSetIterator approximation,
-            SortedNumericDocValues sortedNumerics,
-            Warnings warning
-        ) {
-            super(approximation);
-            this.sortedNumerics = sortedNumerics;
-            this.warnings = warning;
+    public static class SyntheticSourceDelegateBuilder extends AbstractBuilder {
+        SyntheticSourceDelegateBuilder(QueryBuilder next, String field, Source source) {
+            super(next, field, source);
         }
 
         @Override
-        public boolean matches() throws IOException {
-            if (false == sortedNumerics.advanceExact(approximation.docID())) {
-                return false;
-            }
-            if (sortedNumerics.docValueCount() != 1) {
-                warnings.registerException(new IllegalArgumentException(MULTI_VALUE_WARNING));
-                return false;
-            }
-            return true;
+        public String getWriteableName() {
+            throw new UnsupportedOperationException("Not serialized");
         }
 
         @Override
-        public float matchCost() {
-            return SORTED_NUMERIC_MATCH_COST;
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(ENTRY.name);
+            builder.field("field", field() + ":synthetic_source_delegate");
+            builder.field("next", next(), params);
+            builder.field("source", source().toString());
+            builder.endObject();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            throw new UnsupportedOperationException("Not serialized");
+        }
+
+        @Override
+        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
+            MappedFieldType ft = context.getFieldType(field());
+            if (ft == null) {
+                return new MatchNoDocsQuery("missing field [" + field() + "]");
+            }
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
+
+            org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
+                context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
+                Warnings.createWarnings(
+                    DriverContext.WarningsMode.COLLECT,
+                    source().source().getLineNumber(),
+                    source().source().getColumnNumber(),
+                    source().text()
+                ),
+                "single-value function encountered multi-value"
+            );
+            singleValueQuery = singleValueQuery.rewrite(context.searcher());
+            if (singleValueQuery instanceof MatchAllDocsQuery == false) {
+                builder.add(singleValueQuery, BooleanClause.Occur.FILTER);
+            }
+
+            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            ignored = ignored.rewrite(context.searcher());
+            if (ignored instanceof MatchNoDocsQuery == false) {
+                builder.add(ignored, BooleanClause.Occur.MUST_NOT);
+            }
+
+            return builder.build();
+        }
+
+        @Override
+        protected AbstractBuilder rewrite(QueryBuilder next) {
+            return new Builder(next, field(), source());
         }
     }
 
-    private static class TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries extends TwoPhaseIterator {
-        private final SortedNumericDocValues sortedNumerics;
-        private final TwoPhaseIterator next;
-        private final Warnings warnings;
-
-        private TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries(
-            TwoPhaseIterator next,
-            SortedNumericDocValues sortedNumerics,
-            Warnings warnings
-        ) {
-            super(next.approximation());
-            this.sortedNumerics = sortedNumerics;
-            this.next = next;
-            this.warnings = warnings;
+    /**
+     * Builds a query matching either ignored values OR the union of {@code next} query
+     * and {@link SingleValueMatchQuery}. Three total queries. This is used to generate
+     * candidate matches for queries like {@code NOT(a == "b")} where some values of {@code a}
+     * are not indexed. In fact, let's use that as an example.
+     * <p>
+     *     In that case you use a query for {@code a != "b"} as the "next" query. Then
+     *     this query will find all documents where {@code a} is single valued and
+     *     {@code == "b"} AND all documents that have ignored some values of {@code a}.
+     *     This produces <strong>candidate</strong> matches for {@code NOT(a == "b")}.
+     *     It'll find documents like:
+     * </p>
+     * <ul>
+     *     <li>"a"</li>
+     *     <li>ignored_value</li>
+     *     <li>["a", ignored_value]</li>
+     *     <li>[ignored_value1, ignored_value2]</li>
+     *     <li>["b", ignored_field]</li>
+     * </ul>
+     * <p>
+     *     The first and second of those <strong>should</strong> match {@code NOT(a == "b")}.
+     *     The last three should be rejected. So! When using this query you <strong>must</strong>
+     *     push this query to the {@link LuceneSourceOperator} <strong>and</strong>
+     *     retain it in the {@link FilterOperator}.
+     * </p>
+     * <p>
+     *     This will not find:
+     * </p>
+     * <ul>
+     *     <li>"b"</li>
+     * </ul>
+     * <p>
+     *     And that's also great! These can't match {@code NOT(a == "b")}
+     * </p>
+     */
+    public static class NegatedSyntheticSourceDelegateBuilder extends AbstractBuilder {
+        NegatedSyntheticSourceDelegateBuilder(QueryBuilder next, String field, Source source) {
+            super(next, field, source);
         }
 
         @Override
-        public boolean matches() throws IOException {
-            if (false == sortedNumerics.advanceExact(approximation.docID())) {
-                return false;
-            }
-            if (sortedNumerics.docValueCount() != 1) {
-                warnings.registerException(new IllegalArgumentException(MULTI_VALUE_WARNING));
-                return false;
-            }
-            return next.matches();
+        public String getWriteableName() {
+            throw new UnsupportedOperationException("Not serialized");
         }
 
         @Override
-        public float matchCost() {
-            return SORTED_NUMERIC_MATCH_COST + next.matchCost();
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("negated_" + ENTRY.name);
+            builder.field("field", field() + ":synthetic_source_delegate");
+            builder.field("next", next(), params);
+            builder.field("source", source().toString());
+            builder.endObject();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            throw new UnsupportedOperationException("Not serialized");
+        }
+
+        @Override
+        protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
+            MappedFieldType ft = context.getFieldType(field());
+            if (ft == null) {
+                return new MatchNoDocsQuery("missing field [" + field() + "]");
+            }
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+            org.apache.lucene.search.Query svNext = simple(ft, context);
+
+            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            ignored = ignored.rewrite(context.searcher());
+            if (ignored instanceof MatchNoDocsQuery) {
+                return svNext;
+            }
+
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(svNext, BooleanClause.Occur.SHOULD);
+            builder.add(ignored, BooleanClause.Occur.SHOULD);
+            return builder.build();
+        }
+
+        @Override
+        protected AbstractBuilder rewrite(QueryBuilder next) {
+            return new Builder(next, field(), source());
         }
     }
 
-    private static class TwoPhaseIteratorForSortedBinaryAndSinglePhaseQueries extends TwoPhaseIterator {
-        private final SortedBinaryDocValues sortedBinary;
-        private final Warnings warnings;
-
-        private TwoPhaseIteratorForSortedBinaryAndSinglePhaseQueries(
-            DocIdSetIterator approximation,
-            SortedBinaryDocValues sortedBinary,
-            Warnings warnings
-        ) {
-            super(approximation);
-            this.sortedBinary = sortedBinary;
-            this.warnings = warnings;
-        }
-
-        @Override
-        public boolean matches() throws IOException {
-            if (false == sortedBinary.advanceExact(approximation.docID())) {
-                return false;
-            }
-            if (sortedBinary.docValueCount() != 1) {
-                warnings.registerException(new IllegalArgumentException(MULTI_VALUE_WARNING));
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public float matchCost() {
-            return SORTED_NUMERIC_MATCH_COST;
-        }
+    /**
+     * Write a {@link Source} including the text in it.
+     */
+    static void writeOldSource(StreamOutput out, Source source) throws IOException {
+        out.writeInt(source.source().getLineNumber());
+        out.writeInt(source.source().getColumnNumber());
+        out.writeString(source.text());
     }
 
-    private static class TwoPhaseIteratorForSortedSetAndTwoPhaseQueries extends TwoPhaseIterator {
-        private final SortedSetDocValues sortedSet;
-        private final TwoPhaseIterator next;
-        private final Warnings warnings;
+    /**
+     * Read a {@link Source} including the text in it.
+     */
+    static Source readOldSource(StreamInput in) throws IOException {
+        int line = in.readInt();
+        int column = in.readInt();
+        int charPositionInLine = column - 1;
 
-        private TwoPhaseIteratorForSortedSetAndTwoPhaseQueries(TwoPhaseIterator next, SortedSetDocValues sortedSet, Warnings warnings) {
-            super(next.approximation());
-            this.sortedSet = sortedSet;
-            this.next = next;
-            this.warnings = warnings;
-        }
-
-        @Override
-        public boolean matches() throws IOException {
-            if (false == sortedSet.advanceExact(approximation.docID())) {
-                return false;
-            }
-            if (sortedSet.docValueCount() != 1) {
-                warnings.registerException(new IllegalArgumentException(MULTI_VALUE_WARNING));
-                return false;
-            }
-            return next.matches();
-        }
-
-        @Override
-        public float matchCost() {
-            return SORTED_NUMERIC_MATCH_COST + next.matchCost();
-        }
+        String text = in.readString();
+        return new Source(new Location(line, charPositionInLine), text);
     }
 
-    private static class TwoPhaseIteratorForSortedSetAndSinglePhaseQueries extends TwoPhaseIterator {
-        private final SortedSetDocValues sortedSet;
-        private final Warnings warnings;
-
-        private TwoPhaseIteratorForSortedSetAndSinglePhaseQueries(
-            DocIdSetIterator approximation,
-            SortedSetDocValues sortedSet,
-            Warnings warnings
-        ) {
-            super(approximation);
-            this.sortedSet = sortedSet;
-            this.warnings = warnings;
-        }
-
-        @Override
-        public boolean matches() throws IOException {
-            if (false == sortedSet.advanceExact(approximation.docID())) {
-                return false;
-            }
-            if (sortedSet.docValueCount() != 1) {
-                warnings.registerException(new IllegalArgumentException(MULTI_VALUE_WARNING));
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public float matchCost() {
-            return SORTED_NUMERIC_MATCH_COST;
-        }
-    }
-
-    private static class TwoPhaseIteratorForSortedBinaryAndTwoPhaseQueries extends TwoPhaseIterator {
-        private final SortedBinaryDocValues sortedBinary;
-        private final TwoPhaseIterator next;
-        private final Warnings warnings;
-
-        private TwoPhaseIteratorForSortedBinaryAndTwoPhaseQueries(
-            TwoPhaseIterator next,
-            SortedBinaryDocValues sortedBinary,
-            Warnings warnings
-        ) {
-            super(next.approximation());
-            this.sortedBinary = sortedBinary;
-            this.next = next;
-            this.warnings = warnings;
-        }
-
-        @Override
-        public boolean matches() throws IOException {
-            if (false == sortedBinary.advanceExact(approximation.docID())) {
-                return false;
-            }
-            if (sortedBinary.docValueCount() != 1) {
-                warnings.registerException(new IllegalArgumentException(MULTI_VALUE_WARNING));
-                return false;
-            }
-            return next.matches();
-        }
-
-        @Override
-        public float matchCost() {
-            return SORTED_NUMERIC_MATCH_COST + next.matchCost();
-        }
-    }
-
-    static class Stats {
-        // TODO expose stats somehow
-        private int missingField;
-        private int rewrittenToMatchNone;
-        private int noNextScorer;
-        private int numericSingle;
-        private int numericMultiNoApprox;
-        private int numericMultiApprox;
-        private int ordinalsSingle;
-        private int ordinalsMultiNoApprox;
-        private int ordinalsMultiApprox;
-        private int bytesNoApprox;
-        private int bytesApprox;
-
-        int missingField() {
-            return missingField;
-        }
-
-        int rewrittenToMatchNone() {
-            return rewrittenToMatchNone;
-        }
-
-        int noNextScorer() {
-            return noNextScorer;
-        }
-
-        int numericSingle() {
-            return numericSingle;
-        }
-
-        int numericMultiNoApprox() {
-            return numericMultiNoApprox;
-        }
-
-        int numericMultiApprox() {
-            return numericMultiApprox;
-        }
-
-        int ordinalsSingle() {
-            return ordinalsSingle;
-        }
-
-        int ordinalsMultiNoApprox() {
-            return ordinalsMultiNoApprox;
-        }
-
-        int ordinalsMultiApprox() {
-            return ordinalsMultiApprox;
-        }
-
-        int bytesNoApprox() {
-            return bytesNoApprox;
-        }
-
-        int bytesApprox() {
-            return bytesApprox;
-        }
+    public enum UseSyntheticSourceDelegate {
+        NO,
+        YES,
+        YES_NEGATED;
     }
 }

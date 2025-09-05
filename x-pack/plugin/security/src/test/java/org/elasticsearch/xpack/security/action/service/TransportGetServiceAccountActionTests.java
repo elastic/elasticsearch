@@ -20,7 +20,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,10 +48,8 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
         assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(4));
         assertThat(
-            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos())
-                .map(ServiceAccountInfo::getPrincipal)
-                .collect(Collectors.toList()),
-            containsInAnyOrder("elastic/enterprise-search-server", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
+            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::getPrincipal).toList(),
+            containsInAnyOrder("elastic/auto-ops", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
         );
 
         final GetServiceAccountRequest request2 = new GetServiceAccountRequest("elastic", "fleet-server");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -110,11 +111,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
             if ("size".equals(key)) {
                 return size();
             } else if (key instanceof Number number) {
-                return Array.get(array, number.intValue());
+                return number.intValue() >= 0 && number.intValue() < length ? Array.get(array, number.intValue()) : null;
             }
             try {
                 int index = Integer.parseInt(key.toString());
-                return Array.get(array, index);
+                return index >= 0 && index < length ? Array.get(array, index) : null;
             } catch (NumberFormatException nfe) {
                 // if it's not a number it is as if the key doesn't exist
                 return null;
@@ -168,11 +169,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
             if ("size".equals(key)) {
                 return col.size();
             } else if (key instanceof Number number) {
-                return Iterables.get(col, number.intValue());
+                return number.intValue() >= 0 && number.intValue() < col.size() ? Iterables.get(col, number.intValue()) : null;
             }
             try {
                 int index = Integer.parseInt(key.toString());
-                return Iterables.get(col, index);
+                return index >= 0 && index < col.size() ? Iterables.get(col, index) : null;
             } catch (NumberFormatException nfe) {
                 // if it's not a number it is as if the key doesn't exist
                 return null;

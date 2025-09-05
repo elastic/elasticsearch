@@ -10,7 +10,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -149,7 +148,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
         // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean());
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(
+            client(),
+            getInstanceFromNode(ClusterService.class),
+            TestIndexNameExpressionResolver.newInstance(),
+            randomBoolean()
+        );
         jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
@@ -165,7 +169,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -199,7 +204,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.get();

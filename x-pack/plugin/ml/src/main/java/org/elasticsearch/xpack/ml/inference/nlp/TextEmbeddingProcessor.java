@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
@@ -60,22 +60,32 @@ public class TextEmbeddingProcessor extends NlpTask.Processor {
         boolean chunkResults
     ) {
         if (chunkResults) {
-            var embeddings = new ArrayList<ChunkedTextEmbeddingResults.EmbeddingChunk>();
+            var embeddings = new ArrayList<MlChunkedTextEmbeddingFloatResults.EmbeddingChunk>();
             for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
-                int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
-                int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
-                int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
-                String matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
+                String matchedText;
+                if (tokenization.getTokenization(i).tokens().get(0).isEmpty() == false) {
+                    int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
+                    int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
+                    int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
+                    matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
 
-                embeddings.add(new ChunkedTextEmbeddingResults.EmbeddingChunk(matchedText, pyTorchResult.getInferenceResult()[0][i]));
+                } else {
+                    // No tokens in the input, this should only happen with and empty string
+                    assert tokenization.getTokenization(i).input().get(0).isEmpty();
+                    matchedText = "";
+                }
+
+                embeddings.add(
+                    new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(matchedText, pyTorchResult.getInferenceResult()[0][i])
+                );
             }
-            return new ChunkedTextEmbeddingResults(
+            return new MlChunkedTextEmbeddingFloatResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 embeddings,
                 tokenization.anyTruncated()
             );
         } else {
-            return new TextEmbeddingResults(
+            return new MlTextEmbeddingResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 pyTorchResult.getInferenceResult()[0][0],
                 tokenization.anyTruncated()

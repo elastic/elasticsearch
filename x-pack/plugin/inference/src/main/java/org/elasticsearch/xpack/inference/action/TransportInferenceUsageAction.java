@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,6 +36,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
 
+    private final Logger logger = LogManager.getLogger(TransportInferenceUsageAction.class);
+
     private final Client client;
 
     @Inject
@@ -42,31 +46,23 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.INFERENCE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.INFERENCE.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY);
-        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
+        GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY, false);
+        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(response -> {
             Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
-            for (ModelConfigurations model : response.getModels()) {
+            for (ModelConfigurations model : response.getEndpoints()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
                 InferenceFeatureSetUsage.ModelStats stat = stats.computeIfAbsent(
                     statKey,
@@ -75,7 +71,10 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 stat.add();
             }
             InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
-            delegate.onResponse(new XPackUsageFeatureResponse(usage));
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }, e -> {
+            logger.warn(Strings.format("Retrieving inference usage failed with error: %s", e.getMessage()), e);
+            listener.onResponse(new XPackUsageFeatureResponse(InferenceFeatureSetUsage.EMPTY));
         }));
     }
 }

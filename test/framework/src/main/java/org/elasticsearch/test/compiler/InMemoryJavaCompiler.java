@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.compiler;
-
-import org.elasticsearch.test.PrivilegedOperations;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -136,7 +135,7 @@ public class InMemoryJavaCompiler {
         try (FileManagerWrapper wrapper = new FileManagerWrapper(files)) {
             CompilationTask task = getCompilationTask(wrapper, options);
 
-            boolean result = PrivilegedOperations.compilationTaskCall(task);
+            boolean result = task.call();
             if (result == false) {
                 throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
             }
@@ -161,7 +160,7 @@ public class InMemoryJavaCompiler {
         try (FileManagerWrapper wrapper = new FileManagerWrapper(file)) {
             CompilationTask task = getCompilationTask(wrapper, options);
 
-            boolean result = PrivilegedOperations.compilationTaskCall(task);
+            boolean result = task.call();
             if (result == false) {
                 throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
             }

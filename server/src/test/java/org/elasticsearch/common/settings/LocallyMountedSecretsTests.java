@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -96,7 +97,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testProcessSettingsFile() throws Exception {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
         assertThat(secrets.getVersion(), equalTo(1L));
@@ -108,7 +109,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testProcessDeprecatedSettingsFile() throws Exception {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
         assertThat(secrets.getVersion(), equalTo(1L));
@@ -118,7 +119,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testDuplicateSettingKeys() throws Exception {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDuplicateKeys);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSONDuplicateKeys);
         Exception e = expectThrows(Exception.class, () -> new LocallyMountedSecrets(env));
         assertThat(e, instanceOf(XContentParseException.class));
         assertThat(e.getMessage(), containsString("failed to parse field"));
@@ -133,7 +134,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testSettingsGetFile() throws IOException, GeneralSecurityException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc", "eee"));
@@ -164,7 +165,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testSettingsSHADigest() throws IOException, GeneralSecurityException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc", "eee"));
@@ -177,7 +178,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testProcessBadSettingsFile() throws IOException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), noMetadataJSON);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), noMetadataJSON);
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> new LocallyMountedSecrets(env)).getMessage(),
             containsString("Required [metadata]")
@@ -185,7 +186,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testSerializationWithSecrets() throws Exception {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -212,7 +213,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testClose() throws IOException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configDir().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());
@@ -235,7 +236,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
 
-        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, contents);
         Files.createDirectories(path.getParent());
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }

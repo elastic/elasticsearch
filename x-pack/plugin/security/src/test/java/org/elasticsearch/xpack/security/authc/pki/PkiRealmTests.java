@@ -140,7 +140,7 @@ public class PkiRealmTests extends ESTestCase {
         X509AuthenticationToken token = buildToken();
         UserRoleMapper roleMapper = buildRoleMapper(roles, token.dn());
         PkiRealm realm = buildRealm(roleMapper, globalSettings);
-        verify(roleMapper).refreshRealmOnChange(realm);
+        verify(roleMapper).clearRealmCacheOnChange(realm);
 
         final String expectedUsername = PkiRealm.getPrincipalFromSubjectDN(
             Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN),

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.action;
@@ -26,7 +27,8 @@ import java.util.Set;
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class ReservedClusterSettingsActionTests extends ESTestCase {
 
@@ -53,9 +55,9 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
                 "indices.recovery.min_bytes_per_sec": "50mb"
             }""";
 
-        assertEquals(
-            "persistent setting [indices.recovery.min_bytes_per_sec], not recognized",
-            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
+            is("persistent setting [indices.recovery.min_bytes_per_sec], not recognized")
         );
     }
 
@@ -69,7 +71,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         String emptyJSON = "";
 
         TransformState updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
         String settingsJSON = """
@@ -89,8 +91,8 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, settingsJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("indices.recovery.max_bytes_per_sec", "cluster.remote.cluster_one.seeds"));
-        assertEquals("50mb", updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"));
-        assertEquals("[127.0.0.1:9300]", updatedState.state().metadata().persistentSettings().get("cluster.remote.cluster_one.seeds"));
+        assertThat(updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"), is("50mb"));
+        assertThat(updatedState.state().metadata().persistentSettings().get("cluster.remote.cluster_one.seeds"), is("[127.0.0.1:9300]"));
 
         String oneSettingJSON = """
             {
@@ -100,12 +102,12 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, oneSettingJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("indices.recovery.max_bytes_per_sec"));
-        assertEquals("25mb", updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"));
+        assertThat(updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"), is("25mb"));
         assertNull(updatedState.state().metadata().persistentSettings().get("cluster.remote.cluster_one.seeds"));
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        assertThat(updatedState.keys(), empty());
         assertNull(updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"));
     }
 
@@ -130,8 +132,8 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
 
         TransformState newState = processJSON(testAction, prevState, json);
         assertThat(newState.keys(), containsInAnyOrder("dummy.setting1", "dummy.setting2"));
-        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), equalTo("value1"));
-        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting2"), equalTo("value2"));
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("value1"));
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting2"), is("value2"));
 
         String jsonRemoval = """
             {
@@ -142,6 +144,6 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             """;
         TransformState newState2 = processJSON(testAction, prevState, jsonRemoval);
         assertThat(newState2.keys(), containsInAnyOrder("dummy.setting2"));
-        assertThat(newState2.state().metadata().persistentSettings().get("dummy.setting2"), equalTo("value2"));
+        assertThat(newState2.state().metadata().persistentSettings().get("dummy.setting2"), is("value2"));
     }
 }

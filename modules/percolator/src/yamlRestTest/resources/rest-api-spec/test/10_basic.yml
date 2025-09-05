@@ -126,3 +126,42 @@
                 document:
                   foo.bar: value
   - match:  { hits.total.value: 1 }
+
+---
+"Synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: queries_index
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              query:
+                type: percolator
+
+  - do:
+      index:
+        index: queries_index
+        id: test_percolator
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: queries_index
+        id: "test_percolator"
+
+  - match:
+      _source:
+        query:
+          match_all: {}

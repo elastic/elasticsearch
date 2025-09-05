@@ -23,6 +23,8 @@ public class WorkflowService {
 
     private static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
+    private WorkflowService() {}
+
     public static Workflow resolveWorkflowAndStoreInThreadContext(RestHandler restHandler, ThreadContext threadContext) {
         Workflow workflow = resolveWorkflow(restHandler);
         if (workflow != null) {

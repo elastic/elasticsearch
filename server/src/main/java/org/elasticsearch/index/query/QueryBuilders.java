@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -340,14 +341,6 @@ public final class QueryBuilders {
         return new SpanOrQueryBuilder(initialClause);
     }
 
-    /** Creates a new {@code span_within} builder.
-    * @param big the big clause, it must enclose {@code little} for a match.
-    * @param little the little clause, it must be contained within {@code big} for a match.
-    */
-    public static SpanWithinQueryBuilder spanWithinQuery(SpanQueryBuilder big, SpanQueryBuilder little) {
-        return new SpanWithinQueryBuilder(big, little);
-    }
-
     /**
      * Creates a new {@code span_containing} builder.
      * @param big the big clause, it must enclose {@code little} for a match.
@@ -659,33 +652,9 @@ public final class QueryBuilders {
         return builder;
     }
 
-    /**
-     * A filter to filter indexed shapes that are contained by a shape
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, Geometry shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
     public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId) {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
         builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    /**
-     * A filter to filter indexed shapes that are not intersection with the query shape
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, Geometry shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.DISJOINT);
         return builder;
     }
 

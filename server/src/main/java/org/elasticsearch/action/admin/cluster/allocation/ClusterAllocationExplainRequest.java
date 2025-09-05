@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,12 +28,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
 
+    public static final String INDEX_PARAMETER_NAME = "index";
+    public static final String SHARD_PARAMETER_NAME = "shard";
+    public static final String PRIMARY_PARAMETER_NAME = "primary";
+    public static final String CURRENT_NODE_PARAMETER_NAME = "current_node";
+    public static final String INCLUDE_YES_DECISIONS_PARAMETER_NAME = "include_yes_decisions";
+    public static final String INCLUDE_DISK_INFO_PARAMETER_NAME = "include_disk_info";
+
     private static final ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {
-        PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
-        PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
-        PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField("primary"));
-        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField("current_node"));
+        PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField(INDEX_PARAMETER_NAME));
+        PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField(SHARD_PARAMETER_NAME));
+        PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField(PRIMARY_PARAMETER_NAME));
+        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField(CURRENT_NODE_PARAMETER_NAME));
     }
 
     @Nullable
@@ -48,7 +57,8 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     /**
      * Create a new allocation explain request to explain any unassigned shard in the cluster.
      */
-    public ClusterAllocationExplainRequest() {
+    public ClusterAllocationExplainRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
         this.index = null;
         this.shard = null;
         this.primary = null;
@@ -69,10 +79,10 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * Create a new allocation explain request. If {@code primary} is false, the first unassigned replica
      * will be picked for explanation. If no replicas are unassigned, the first assigned replica will
      * be explained.
-     *
-     * Package private for testing.
      */
-    ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNode) {
+    // Package private for testing.
+    ClusterAllocationExplainRequest(TimeValue masterNodeTimeout, String index, int shard, boolean primary, @Nullable String currentNode) {
+        super(masterNodeTimeout);
         this.index = index;
         this.shard = shard;
         this.primary = primary;
@@ -218,18 +228,19 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         if (this.useAnyUnassignedShard()) {
             sb.append("useAnyUnassignedShard=true");
         } else {
-            sb.append("index=").append(index);
-            sb.append(",shard=").append(shard);
-            sb.append(",primary?=").append(primary);
+            sb.append(INDEX_PARAMETER_NAME).append("=").append(index);
+            sb.append(",").append(SHARD_PARAMETER_NAME).append("=").append(shard);
+            sb.append(",").append(PRIMARY_PARAMETER_NAME).append("?=").append(primary);
             if (currentNode != null) {
-                sb.append(",currentNode=").append(currentNode);
+                sb.append(",").append(CURRENT_NODE_PARAMETER_NAME).append("=").append(currentNode);
             }
         }
-        sb.append(",includeYesDecisions?=").append(includeYesDecisions);
+        sb.append(",").append(INCLUDE_YES_DECISIONS_PARAMETER_NAME).append("?=").append(includeYesDecisions);
+        sb.append(",").append(INCLUDE_DISK_INFO_PARAMETER_NAME).append("?=").append(includeDiskInfo);
         return sb.toString();
     }
 
-    public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new ClusterAllocationExplainRequest(), null);
+    public static ClusterAllocationExplainRequest parse(ClusterAllocationExplainRequest request, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, request, null);
     }
 }

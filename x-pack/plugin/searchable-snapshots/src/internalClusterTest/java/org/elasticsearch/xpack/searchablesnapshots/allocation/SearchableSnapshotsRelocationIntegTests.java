@@ -75,10 +75,16 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         });
 
         assertBusy(() -> assertSame(RecoveryState.Stage.FINALIZE, getRelocations(restoredIndex).get(0).getStage()));
-        final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
+        final Index restoredIdx = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(restoredIndex)
+            .getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
         final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);
         assertEquals(firstDataNode, primaryNode.getName());
@@ -87,7 +93,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         latch.countDown();
 
         assertFalse(
-            clusterAdmin().prepareHealth(restoredIndex)
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, restoredIndex)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get()

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -22,22 +23,36 @@ public class GetApiKeyRequestTests extends ESTestCase {
         GetApiKeyRequest request = GetApiKeyRequest.builder()
             .apiKeyId(randomAlphaOfLength(5))
             .ownedByAuthenticatedUser(randomBoolean())
+            .withProfileUid(randomBoolean())
             .build();
         ActionRequestValidationException ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().apiKeyName(randomAlphaOfLength(5)).ownedByAuthenticatedUser(randomBoolean()).build();
+        request = GetApiKeyRequest.builder()
+            .apiKeyName(randomAlphaOfLength(5))
+            .ownedByAuthenticatedUser(randomBoolean())
+            .withProfileUid(randomBoolean())
+            .build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
+        request = GetApiKeyRequest.builder()
+            .realmName(randomAlphaOfLength(5))
+            .activeOnly(randomBoolean())
+            .withProfileUid(randomBoolean())
+            .build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.builder().userName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
+        request = GetApiKeyRequest.builder()
+            .userName(randomAlphaOfLength(5))
+            .activeOnly(randomBoolean())
+            .withProfileUid(randomBoolean())
+            .build();
         ve = request.validate();
         assertNull(ve);
         request = GetApiKeyRequest.builder()
             .realmName(randomAlphaOfLength(5))
             .userName(randomAlphaOfLength(7))
             .activeOnly(randomBoolean())
+            .withProfileUid(randomBoolean())
             .build();
         ve = request.validate();
         assertNull(ve);
@@ -69,7 +84,8 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .userName(inputs[caseNo][1])
                 .apiKeyId(inputs[caseNo][2])
                 .apiKeyName(inputs[caseNo][3])
-                .ownedByAuthenticatedUser(Boolean.parseBoolean(inputs[caseNo][4]))
+                .ownedByAuthenticatedUser(Booleans.parseBoolean(inputs[caseNo][4]))
+                .withProfileUid(randomBoolean())
                 .build();
             ActionRequestValidationException ve = request.validate();
             assertNotNull(ve);
@@ -87,6 +103,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
             .apiKeyName(randomBlankString.get())
             .ownedByAuthenticatedUser(randomBoolean())
             .withLimitedBy(randomBoolean())
+            .withProfileUid(randomBoolean())
             .build();
         assertThat(request.getRealmName(), nullValue());
         assertThat(request.getUserName(), nullValue());

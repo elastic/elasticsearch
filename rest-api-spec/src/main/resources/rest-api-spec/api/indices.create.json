@@ -1,8 +1,8 @@
 {
   "indices.create":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
-      "description":"Creates an index with optional settings and mappings."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create",
+      "description":"Create an index"
     },
     "stability":"stable",
     "visibility":"public",

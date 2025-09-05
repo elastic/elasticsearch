@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -142,8 +143,8 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
 
             BooleanQuery booleanQuery = (BooleanQuery) query;
             assertThat(booleanQuery.clauses().size(), equalTo(2));
-            assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(CombinedFieldQuery.class));
-            assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(CombinedFieldQuery.class));
+            assertThat(booleanQuery.clauses().get(0).query(), instanceOf(CombinedFieldQuery.class));
+            assertThat(booleanQuery.clauses().get(1).query(), instanceOf(CombinedFieldQuery.class));
         });
     }
 
@@ -163,8 +164,8 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(minimumShouldMatch));
 
         assertThat(booleanQuery.clauses().size(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(occur));
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(occur));
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(occur));
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(occur));
     }
 
     public void testQueryBoost() throws IOException {

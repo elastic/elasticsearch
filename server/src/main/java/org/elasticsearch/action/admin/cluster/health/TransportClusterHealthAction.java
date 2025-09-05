@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -27,16 +28,19 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +56,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AllocationService allocationService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportClusterHealthAction(
@@ -61,7 +67,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationService allocationService
+        AllocationService allocationService,
+        ProjectResolver projectResolver
     ) {
         super(
             NAME,
@@ -71,12 +78,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             threadPool,
             actionFilters,
             ClusterHealthRequest::new,
-            indexNameExpressionResolver,
             ClusterHealthResponse::new,
             // fork to management since the health computation can become expensive for large cluster states.
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.allocationService = allocationService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,13 +97,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     protected void masterOperation(
         final Task task,
         final ClusterHealthRequest request,
-        final ClusterState unusedState,
+        final ClusterState state,
         final ActionListener<ClusterHealthResponse> listener
     ) {
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final int waitCount = getWaitCount(request);
+        final ProjectId projectId = projectResolver.getProjectId();
 
         if (request.waitForEvents() != null) {
             waitForEventsAndExecuteHealth(
@@ -103,16 +112,18 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 request,
                 listener,
                 waitCount,
-                threadPool.relativeTimeInMillis() + request.timeout().millis()
+                threadPool.relativeTimeInMillis() + request.timeout().millis(),
+                projectId
             );
         } else {
             executeHealth(
                 cancellableTask,
                 request,
                 clusterService.state(),
+                projectId,
                 listener,
                 waitCount,
-                clusterState -> sendResponse(cancellableTask, request, clusterState, waitCount, TimeoutState.OK, listener)
+                clusterState -> sendResponse(cancellableTask, request, clusterState, projectId, waitCount, TimeoutState.OK, listener)
             );
         }
     }
@@ -122,7 +133,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final ClusterHealthRequest request,
         final ActionListener<ClusterHealthResponse> listener,
         final int waitCount,
-        final long endTimeRelativeMillis
+        final long endTimeRelativeMillis,
+        final ProjectId projectId
     ) {
         if (task.notifyIfCancelled(listener)) {
             return;
@@ -144,9 +156,17 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                             task,
                             request,
                             clusterService.state(),
+                            projectId,
                             listener,
                             waitCount,
-                            observedState -> waitForEventsAndExecuteHealth(task, request, listener, waitCount, endTimeRelativeMillis)
+                            observedState -> waitForEventsAndExecuteHealth(
+                                task,
+                                request,
+                                listener,
+                                waitCount,
+                                endTimeRelativeMillis,
+                                projectId
+                            )
                         )
                     );
                 }
@@ -183,9 +203,17 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                             task,
                             request,
                             appliedState,
+                            projectId,
                             listener,
                             waitCount,
-                            observedState -> waitForEventsAndExecuteHealth(task, request, listener, waitCount, endTimeRelativeMillis)
+                            observedState -> waitForEventsAndExecuteHealth(
+                                task,
+                                request,
+                                listener,
+                                waitCount,
+                                endTimeRelativeMillis,
+                                projectId
+                            )
                         )
                     );
                 }
@@ -194,7 +222,15 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 public void onFailure(Exception e) {
                     if (e instanceof ProcessClusterEventTimeoutException) {
                         executor.execute(
-                            () -> sendResponse(task, request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT, listener)
+                            () -> sendResponse(
+                                task,
+                                request,
+                                clusterService.state(),
+                                projectId,
+                                waitCount,
+                                TimeoutState.TIMED_OUT,
+                                listener
+                            )
                         );
                     } else {
                         final Level level = isExpectedFailure(e) ? Level.TRACE : Level.ERROR;
@@ -225,6 +261,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final CancellableTask task,
         final ClusterHealthRequest request,
         final ClusterState currentState,
+        final ProjectId projectId,
         final ActionListener<ClusterHealthResponse> listener,
         final int waitCount,
         final Consumer<ClusterState> onNewClusterStateAfterDelay
@@ -234,13 +271,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         }
 
         if (request.timeout().millis() == 0) {
-            sendResponse(task, request, currentState, waitCount, TimeoutState.ZERO_TIMEOUT, listener);
+            sendResponse(task, request, currentState, projectId, waitCount, TimeoutState.ZERO_TIMEOUT, listener);
             return;
         }
 
-        final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, waitCount);
+        final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, projectId, waitCount);
         if (validationPredicate.test(currentState)) {
-            sendResponse(task, request, currentState, waitCount, TimeoutState.OK, listener);
+            sendResponse(task, request, currentState, projectId, waitCount, TimeoutState.OK, listener);
         } else {
             final ClusterStateObserver observer = new ClusterStateObserver(
                 currentState,
@@ -263,7 +300,15 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     executor.execute(
-                        () -> sendResponse(task, request, observer.setAndGetObservedState(), waitCount, TimeoutState.TIMED_OUT, listener)
+                        () -> sendResponse(
+                            task,
+                            request,
+                            observer.setAndGetObservedState(),
+                            projectId,
+                            waitCount,
+                            TimeoutState.TIMED_OUT,
+                            listener
+                        )
                     );
                 }
             };
@@ -294,15 +339,22 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         return waitCount;
     }
 
-    private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitCount) {
+    private boolean validateRequest(
+        final ClusterHealthRequest request,
+        final ClusterState clusterState,
+        final ProjectId projectId,
+        final int waitCount
+    ) {
+        var project = clusterState.metadata().getProject(projectId);
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
+            projectId,
             clusterService.getMasterService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
             clusterService.getMasterService().getMaxTaskWaitTime()
         );
-        return prepareResponse(request, response, clusterState, indexNameExpressionResolver) == waitCount;
+        return prepareResponse(request, response, project, indexNameExpressionResolver) == waitCount;
     }
 
     private enum TimeoutState {
@@ -315,6 +367,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final CancellableTask task,
         final ClusterHealthRequest request,
         final ClusterState clusterState,
+        final ProjectId projectId,
         final int waitFor,
         final TimeoutState timeoutState,
         final ActionListener<ClusterHealthResponse> listener
@@ -328,11 +381,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             ClusterHealthResponse response = clusterHealth(
                 request,
                 clusterState,
+                projectId,
                 clusterService.getMasterService().numberOfPendingTasks(),
                 allocationService.getNumberOfInFlightFetches(),
                 clusterService.getMasterService().getMaxTaskWaitTime()
             );
-            int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
+            var project = clusterState.metadata().getProject(projectId);
+            int readyCounter = prepareResponse(request, response, project, indexNameExpressionResolver);
             boolean valid = (readyCounter == waitFor);
             assert valid || (timeoutState != TimeoutState.OK);
             // If valid && timeoutState == TimeoutState.ZERO_TIMEOUT then we immediately found **and processed** a valid state, so we don't
@@ -346,7 +401,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     static int prepareResponse(
         final ClusterHealthRequest request,
         final ClusterHealthResponse response,
-        final ClusterState clusterState,
+        final ProjectMetadata project,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         int waitForCounter = 0;
@@ -375,7 +430,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         }
         if (CollectionUtils.isEmpty(request.indices()) == false) {
             try {
-                indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), request);
+                indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.strictExpand(), request);
                 waitForCounter++;
             } catch (IndexNotFoundException e) {
                 response.setStatus(ClusterHealthStatus.RED); // no indices, make sure its RED
@@ -436,6 +491,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     private ClusterHealthResponse clusterHealth(
         ClusterHealthRequest request,
         ClusterState clusterState,
+        ProjectId projectId,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         TimeValue pendingTaskTimeInQueue
@@ -445,14 +501,16 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         }
 
         String[] concreteIndices;
+        ProjectMetadata projectMetadata = clusterState.getMetadata().getProject(projectId);
         try {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectMetadata, request);
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(
                 clusterState.getClusterName().value(),
                 Strings.EMPTY_ARRAY,
                 clusterState,
+                projectId,
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
                 UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
@@ -466,6 +524,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             clusterState.getClusterName().value(),
             concreteIndices,
             clusterState,
+            projectId,
             numberOfPendingTasks,
             numberOfInFlightFetch,
             UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),

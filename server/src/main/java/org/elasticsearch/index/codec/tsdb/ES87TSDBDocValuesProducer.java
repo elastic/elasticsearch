@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -15,6 +16,8 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
@@ -26,6 +29,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -39,28 +44,38 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
-public class ES87TSDBDocValuesProducer extends DocValuesProducer {
-    private final Map<String, NumericEntry> numerics = new HashMap<>();
-    private final Map<String, BinaryEntry> binaries = new HashMap<>();
-    private final Map<String, SortedEntry> sorted = new HashMap<>();
-    private final Map<String, SortedSetEntry> sortedSets = new HashMap<>();
-    private final Map<String, SortedNumericEntry> sortedNumerics = new HashMap<>();
+final class ES87TSDBDocValuesProducer extends DocValuesProducer {
+    private final IntObjectHashMap<NumericEntry> numerics;
+    private final IntObjectHashMap<BinaryEntry> binaries;
+    private final IntObjectHashMap<SortedEntry> sorted;
+    private final IntObjectHashMap<SortedSetEntry> sortedSets;
+    private final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
+    private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
+    private final int version;
+    private final boolean merging;
 
     ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
         throws IOException {
-        String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
+        this.numerics = new IntObjectHashMap<>();
+        this.binaries = new IntObjectHashMap<>();
+        this.sorted = new IntObjectHashMap<>();
+        this.sortedSets = new IntObjectHashMap<>();
+        this.sortedNumerics = new IntObjectHashMap<>();
+        this.skippers = new IntObjectHashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
+        this.merging = false;
 
         // read in the entries from the metadata file.
         int version = -1;
-        try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName, state.context)) {
+        String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
+        try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
             Throwable priorE = null;
 
             try {
@@ -105,6 +120,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             CodecUtil.retrieveChecksum(data);
 
             success = true;
+            this.version = version;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(this.data);
@@ -112,20 +128,49 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    private ES87TSDBDocValuesProducer(
+        IntObjectHashMap<NumericEntry> numerics,
+        IntObjectHashMap<BinaryEntry> binaries,
+        IntObjectHashMap<SortedEntry> sorted,
+        IntObjectHashMap<SortedSetEntry> sortedSets,
+        IntObjectHashMap<SortedNumericEntry> sortedNumerics,
+        IntObjectHashMap<DocValuesSkipperEntry> skippers,
+        IndexInput data,
+        int maxDoc,
+        int version,
+        boolean merging
+    ) {
+        this.numerics = numerics;
+        this.binaries = binaries;
+        this.sorted = sorted;
+        this.sortedSets = sortedSets;
+        this.sortedNumerics = sortedNumerics;
+        this.skippers = skippers;
+        this.data = data.clone();
+        this.maxDoc = maxDoc;
+        this.version = version;
+        this.merging = merging;
+    }
+
+    @Override
+    public DocValuesProducer getMergeInstance() {
+        return new ES87TSDBDocValuesProducer(numerics, binaries, sorted, sortedSets, sortedNumerics, skippers, data, maxDoc, version, true);
+    }
+
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-        NumericEntry entry = numerics.get(field.name);
+        NumericEntry entry = numerics.get(field.number);
         return getNumeric(entry, -1);
     }
 
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        BinaryEntry entry = binaries.get(field.name);
+        BinaryEntry entry = binaries.get(field.number);
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyBinary();
         }
 
-        final IndexInput bytesSlice = data.slice("fixed-binary", entry.dataOffset, entry.dataLength);
+        final RandomAccessInput bytesSlice = data.randomAccessSlice(entry.dataOffset, entry.dataLength);
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
@@ -137,15 +182,14 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
-                        bytesSlice.seek((long) doc * length);
-                        bytesSlice.readBytes(bytes.bytes, 0, length);
+                        bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
                     }
                 };
             } else {
                 // variable length
                 final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
 
@@ -153,8 +197,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     public BytesRef binaryValue() throws IOException {
                         long startOffset = addresses.get(doc);
                         bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
-                        bytesSlice.seek(startOffset);
-                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
+                        bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
                     }
                 };
@@ -177,15 +220,14 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
-                        bytesSlice.seek((long) disi.index() * length);
-                        bytesSlice.readBytes(bytes.bytes, 0, length);
+                        bytesSlice.readBytes((long) disi.index() * length, bytes.bytes, 0, length);
                         return bytes;
                     }
                 };
             } else {
                 // variable length
                 final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new SparseBinaryDocValues(disi) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
 
@@ -194,8 +236,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                         final int index = disi.index();
                         long startOffset = addresses.get(index);
                         bytes.length = (int) (addresses.get(index + 1L) - startOffset);
-                        bytesSlice.seek(startOffset);
-                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
+                        bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
                     }
                 };
@@ -278,7 +319,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedDocValues getSorted(FieldInfo field) throws IOException {
-        SortedEntry entry = sorted.get(field.name);
+        SortedEntry entry = sorted.get(field.number);
         return getSorted(entry);
     }
 
@@ -342,31 +383,29 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public int lookupTerm(BytesRef key) throws IOException {
             TermsEnum.SeekStatus status = termsEnum.seekCeil(key);
-            switch (status) {
-                case FOUND:
-                    return Math.toIntExact(termsEnum.ord());
-                case NOT_FOUND:
-                case END:
-                default:
-                    return Math.toIntExact(-1L - termsEnum.ord());
-            }
+            return switch (status) {
+                case FOUND -> Math.toIntExact(termsEnum.ord());
+                default -> Math.toIntExact(-1L - termsEnum.ord());
+            };
         }
 
         @Override
         public TermsEnum termsEnum() throws IOException {
-            return new TermsDict(entry.termsDictEntry, data);
+            return new TermsDict(entry.termsDictEntry, data, merging);
         }
     }
 
-    private abstract class BaseSortedSetDocValues extends SortedSetDocValues {
+    private abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
 
         final SortedSetEntry entry;
         final IndexInput data;
+        final boolean merging;
         final TermsEnum termsEnum;
 
-        BaseSortedSetDocValues(SortedSetEntry entry, IndexInput data) throws IOException {
+        BaseSortedSetDocValues(SortedSetEntry entry, IndexInput data, boolean merging) throws IOException {
             this.entry = entry;
             this.data = data;
+            this.merging = merging;
             this.termsEnum = termsEnum();
         }
 
@@ -384,23 +423,19 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public long lookupTerm(BytesRef key) throws IOException {
             TermsEnum.SeekStatus status = termsEnum.seekCeil(key);
-            switch (status) {
-                case FOUND:
-                    return termsEnum.ord();
-                case NOT_FOUND:
-                case END:
-                default:
-                    return -1L - termsEnum.ord();
-            }
+            return switch (status) {
+                case FOUND -> termsEnum.ord();
+                default -> -1L - termsEnum.ord();
+            };
         }
 
         @Override
         public TermsEnum termsEnum() throws IOException {
-            return new TermsDict(entry.termsDictEntry, data);
+            return new TermsDict(entry.termsDictEntry, data, merging);
         }
     }
 
-    private class TermsDict extends BaseTermsEnum {
+    private static class TermsDict extends BaseTermsEnum {
         static final int LZ4_DECOMPRESSOR_PADDING = 7;
 
         final TermsDictEntry entry;
@@ -408,7 +443,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final IndexInput bytes;
         final long blockMask;
         final LongValues indexAddresses;
-        final IndexInput indexBytes;
+        final RandomAccessInput indexBytes;
         final BytesRef term;
         long ord = -1;
 
@@ -417,18 +452,18 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         long currentCompressedBlockStart = -1;
         long currentCompressedBlockEnd = -1;
 
-        TermsDict(TermsDictEntry entry, IndexInput data) throws IOException {
+        TermsDict(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
             this.entry = entry;
             RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
-            blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice);
+            blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
             bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
             blockMask = (1L << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,
                 entry.termsIndexAddressesLength
             );
-            indexAddresses = DirectMonotonicReader.getInstance(entry.termsIndexAddressesMeta, indexAddressesSlice);
-            indexBytes = data.slice("terms-index", entry.termsIndexOffset, entry.termsIndexLength);
+            indexAddresses = DirectMonotonicReader.getInstance(entry.termsIndexAddressesMeta, indexAddressesSlice, merging);
+            indexBytes = data.randomAccessSlice(entry.termsIndexOffset, entry.termsIndexLength);
             term = new BytesRef(entry.maxTermLength);
 
             // add the max term length for the dictionary
@@ -486,8 +521,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             assert index >= 0 && index <= (entry.termsDictSize - 1) >>> entry.termsDictIndexShift;
             final long start = indexAddresses.get(index);
             term.length = (int) (indexAddresses.get(index + 1) - start);
-            indexBytes.seek(start);
-            indexBytes.readBytes(term.bytes, 0, term.length);
+            indexBytes.readBytes(start, term.bytes, 0, term.length);
             return term;
         }
 
@@ -640,20 +674,20 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        SortedNumericEntry entry = sortedNumerics.get(field.name);
+        SortedNumericEntry entry = sortedNumerics.get(field.number);
         return getSortedNumeric(entry, -1);
     }
 
     @Override
     public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
-        SortedSetEntry entry = sortedSets.get(field.name);
+        SortedSetEntry entry = sortedSets.get(field.number);
         if (entry.singleValueEntry != null) {
             return DocValues.singleton(getSorted(entry.singleValueEntry));
         }
 
         SortedNumericEntry ordsEntry = entry.ordsEntry;
         final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, entry.termsDictEntry.termsDictSize);
-        return new BaseSortedSetDocValues(entry, data) {
+        return new BaseSortedSetDocValues(entry, data, merging) {
 
             int i = 0;
             int count = 0;
@@ -666,9 +700,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     i = 0;
                     count = ords.docValueCount();
                 }
-                if (i++ == count) {
-                    return NO_MORE_ORDS;
-                }
+                assert i < count;
+                i++;
                 return ords.nextValue();
             }
 
@@ -708,6 +741,116 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
+    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+        final DocValuesSkipperEntry entry = skippers.get(field.number);
+
+        final IndexInput input = data.slice("doc value skipper", entry.offset, entry.length);
+        // Prefetch the first page of data. Following pages are expected to get prefetched through
+        // read-ahead.
+        if (input.length() > 0) {
+            input.prefetch(0, 1);
+        }
+        // TODO: should we write to disk the actual max level for this segment?
+        return new DocValuesSkipper() {
+            final int[] minDocID = new int[SKIP_INDEX_MAX_LEVEL];
+            final int[] maxDocID = new int[SKIP_INDEX_MAX_LEVEL];
+
+            {
+                for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
+                    minDocID[i] = maxDocID[i] = -1;
+                }
+            }
+
+            final long[] minValue = new long[SKIP_INDEX_MAX_LEVEL];
+            final long[] maxValue = new long[SKIP_INDEX_MAX_LEVEL];
+            final int[] docCount = new int[SKIP_INDEX_MAX_LEVEL];
+            int levels = 1;
+
+            @Override
+            public void advance(int target) throws IOException {
+                if (target > entry.maxDocId) {
+                    // skipper is exhausted
+                    for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
+                        minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
+                    }
+                } else {
+                    // find next interval
+                    assert target > maxDocID[0] : "target must be bigger that current interval";
+                    while (true) {
+                        levels = input.readByte();
+                        assert levels <= SKIP_INDEX_MAX_LEVEL && levels > 0 : "level out of range [" + levels + "]";
+                        boolean valid = true;
+                        // check if current interval is competitive or we can jump to the next position
+                        for (int level = levels - 1; level >= 0; level--) {
+                            if ((maxDocID[level] = input.readInt()) < target) {
+                                input.skipBytes(SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level]); // the jump for the level
+                                valid = false;
+                                break;
+                            }
+                            minDocID[level] = input.readInt();
+                            maxValue[level] = input.readLong();
+                            minValue[level] = input.readLong();
+                            docCount[level] = input.readInt();
+                        }
+                        if (valid) {
+                            // adjust levels
+                            while (levels < SKIP_INDEX_MAX_LEVEL && maxDocID[levels] >= target) {
+                                levels++;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public int numLevels() {
+                return levels;
+            }
+
+            @Override
+            public int minDocID(int level) {
+                return minDocID[level];
+            }
+
+            @Override
+            public int maxDocID(int level) {
+                return maxDocID[level];
+            }
+
+            @Override
+            public long minValue(int level) {
+                return minValue[level];
+            }
+
+            @Override
+            public long maxValue(int level) {
+                return maxValue[level];
+            }
+
+            @Override
+            public int docCount(int level) {
+                return docCount[level];
+            }
+
+            @Override
+            public long minValue() {
+                return entry.minValue;
+            }
+
+            @Override
+            public long maxValue() {
+                return entry.maxValue;
+            }
+
+            @Override
+            public int docCount() {
+                return entry.docCount;
+            }
+        };
+    }
+
+    @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
     }
@@ -724,16 +867,19 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
             byte type = meta.readByte();
+            if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+                skippers.put(info.number, readDocValueSkipperMeta(meta));
+            }
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
-                numerics.put(info.name, readNumeric(meta));
+                numerics.put(info.number, readNumeric(meta));
             } else if (type == ES87TSDBDocValuesFormat.BINARY) {
-                binaries.put(info.name, readBinary(meta));
+                binaries.put(info.number, readBinary(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED) {
-                sorted.put(info.name, readSorted(meta));
+                sorted.put(info.number, readSorted(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
-                sortedSets.put(info.name, readSortedSet(meta));
+                sortedSets.put(info.number, readSortedSet(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
-                sortedNumerics.put(info.name, readSortedNumeric(meta));
+                sortedNumerics.put(info.number, readSortedNumeric(meta));
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
@@ -744,6 +890,17 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         NumericEntry entry = new NumericEntry();
         readNumeric(meta, entry);
         return entry;
+    }
+
+    private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta) throws IOException {
+        long offset = meta.readLong();
+        long length = meta.readLong();
+        long maxValue = meta.readLong();
+        long minValue = meta.readLong();
+        int docCount = meta.readInt();
+        int maxDocID = meta.readInt();
+
+        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
@@ -962,7 +1119,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         // makes things slower.
 
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
-        final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice);
+        final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
@@ -972,7 +1129,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                 private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
-                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1011,8 +1168,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     final int blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
                     if (blockIndex != currentBlockIndex) {
-                        assert blockIndex > currentBlockIndex;
-                        if (blockIndex - 1 > currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                        // no need to seek if the loading block is the next block
+                        if (currentBlockIndex + 1 != blockIndex) {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
@@ -1036,7 +1194,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new NumericDocValues() {
 
-                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1071,8 +1229,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     final int blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
                     if (blockIndex != currentBlockIndex) {
-                        assert blockIndex > currentBlockIndex;
-                        if (blockIndex - 1 > currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
+                        // no need to seek if the loading block is the next block
+                        if (currentBlockIndex + 1 != blockIndex) {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
@@ -1091,13 +1250,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
-        final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice);
+        final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         return new NumericValues() {
 
-            private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+            private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
             private long currentBlockIndex = -1;
             private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1106,8 +1265,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 final long blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                 final int blockInIndex = (int) (index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
                 if (blockIndex != currentBlockIndex) {
-                    assert blockIndex > currentBlockIndex;
-                    if (blockIndex - 1 > currentBlockIndex) {
+                    // no need to seek if the loading block is the next block
+                    if (currentBlockIndex + 1 != blockIndex) {
                         valuesData.seek(indexReader.get(blockIndex));
                     }
                     currentBlockIndex = blockIndex;
@@ -1128,7 +1287,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-        final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput);
+        final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput, merging);
 
         final NumericValues values = getValues(entry, maxOrd);
 
@@ -1253,6 +1412,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             };
         }
     }
+
+    private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
     private static class NumericEntry {
         long docsWithFieldOffset;

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
@@ -17,19 +19,29 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * An index template consists of a set of index patterns, an optional template, and a list of
@@ -37,6 +49,7 @@ import java.util.Objects;
  * index.
  */
 public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
+
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -47,23 +60,37 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
     private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
+    private static final ParseField CREATED_DATE_MILLIS = new ParseField("created_date_millis");
+    private static final ParseField CREATED_DATE = new ParseField("created_date");
+    private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
+    private static final ParseField MODIFIED_DATE = new ParseField("modified_date");
+    public static final CompressedXContent EMPTY_MAPPINGS;
+    static {
+        try {
+            EMPTY_MAPPINGS = new CompressedXContent(Map.of());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
-        a -> new ComposableIndexTemplate(
-            (List<String>) a[0],
-            (Template) a[1],
-            (List<String>) a[2],
-            (Long) a[3],
-            (Long) a[4],
-            (Map<String, Object>) a[5],
-            (DataStreamTemplate) a[6],
-            (Boolean) a[7],
-            (List<String>) a[8],
-            (Boolean) a[9]
-        )
+        a -> ComposableIndexTemplate.builder()
+            .indexPatterns((List<String>) a[0])
+            .template((Template) a[1])
+            .componentTemplates((List<String>) a[2])
+            .priority((Long) a[3])
+            .version((Long) a[4])
+            .metadata((Map<String, Object>) a[5])
+            .dataStreamTemplate((DataStreamTemplate) a[6])
+            .allowAutoCreate((Boolean) a[7])
+            .ignoreMissingComponentTemplates((List<String>) a[8])
+            .deprecated((Boolean) a[9])
+            .createdDate((Long) a[10])
+            .modifiedDate((Long) a[11])
+            .build()
     );
 
     static {
@@ -77,7 +104,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CREATED_DATE_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_MILLIS);
     }
+
+    private static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = TransportVersion.fromName("index_template_tracking_info");
 
     private final List<String> indexPatterns;
     @Nullable
@@ -98,6 +129,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private final List<String> ignoreMissingComponentTemplates;
     @Nullable
     private final Boolean deprecated;
+    @Nullable
+    private final Long createdDateMillis;
+    @Nullable
+    private final Long modifiedDateMillis;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
@@ -111,28 +146,19 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return new Builder();
     }
 
-    private ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate,
-        @Nullable Boolean allowAutoCreate,
-        @Nullable List<String> ignoreMissingComponentTemplates,
-        @Nullable Boolean deprecated
-    ) {
-        this.indexPatterns = indexPatterns;
-        this.template = template;
-        this.componentTemplates = componentTemplates == null ? List.of() : componentTemplates;
-        this.priority = priority;
-        this.version = version;
-        this.metadata = metadata;
-        this.dataStreamTemplate = dataStreamTemplate;
-        this.allowAutoCreate = allowAutoCreate;
-        this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
-        this.deprecated = deprecated;
+    private ComposableIndexTemplate(final Builder b) {
+        this.indexPatterns = b.indexPatterns;
+        this.template = b.template;
+        this.componentTemplates = b.componentTemplates == null ? List.of() : b.componentTemplates;
+        this.priority = b.priority;
+        this.version = b.version;
+        this.metadata = b.metadata;
+        this.dataStreamTemplate = b.dataStreamTemplate;
+        this.allowAutoCreate = b.allowAutoCreate;
+        this.ignoreMissingComponentTemplates = b.ignoreMissingComponentTemplates;
+        this.deprecated = b.deprecated;
+        this.createdDateMillis = b.createdDateMillis;
+        this.modifiedDateMillis = b.modifiedDateMillis;
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
@@ -157,6 +183,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
+        }
+        if (in.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
+            this.createdDateMillis = in.readOptionalLong();
+            this.modifiedDateMillis = in.readOptionalLong();
+        } else {
+            this.createdDateMillis = null;
+            this.modifiedDateMillis = null;
         }
     }
 
@@ -188,9 +221,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (ignoreMissingComponentTemplates == null) {
             return componentTemplates;
         }
-        return componentTemplates.stream()
-            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
-            .toList();
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+        List<String> required = new ArrayList<>(componentTemplates.size());
+        for (String template : componentTemplates) {
+            if (ignoreMissingComponentTemplates.contains(template) == false) {
+                required.add(template);
+            }
+        }
+        return Collections.unmodifiableList(required);
     }
 
     @Nullable
@@ -234,6 +272,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return Boolean.TRUE.equals(deprecated);
     }
 
+    public Optional<Long> createdDateMillis() {
+        return Optional.ofNullable(createdDateMillis);
+    }
+
+    public Optional<Long> modifiedDateMillis() {
+        return Optional.ofNullable(modifiedDateMillis);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.indexPatterns);
@@ -254,6 +300,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
+        }
+        if (out.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
+            out.writeOptionalLong(createdDateMillis);
+            out.writeOptionalLong(modifiedDateMillis);
         }
     }
 
@@ -297,8 +347,108 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (this.deprecated != null) {
             builder.field(DEPRECATED.getPreferredName(), deprecated);
         }
+        if (this.createdDateMillis != null) {
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATED_DATE_MILLIS.getPreferredName(),
+                CREATED_DATE.getPreferredName(),
+                this.createdDateMillis
+            );
+        }
+        if (this.modifiedDateMillis != null) {
+            builder.timestampFieldsFromUnixEpochMillis(
+                MODIFIED_DATE_MILLIS.getPreferredName(),
+                MODIFIED_DATE.getPreferredName(),
+                this.modifiedDateMillis
+            );
+        }
         builder.endObject();
         return builder;
+    }
+
+    /*
+     * Merges the given settings into the settings in this ComposableIndexTemplate. Any null values in the
+     * given settings are removed from the settings in the returned ComposableIndexTemplate. If this
+     * ComposableIndexTemplate has no settings, the given settings are the only ones in the returned template
+     * (with any null values removed). If this ComposableIndexTemplate has no template, an empty template with
+     * those settings is created. If the given settings are empty, this ComposableIndexTemplate is just
+     * returned unchanged. This method never changes this object.
+     */
+    public ComposableIndexTemplate mergeSettings(Settings settings) {
+        Objects.requireNonNull(settings);
+        if (Settings.EMPTY.equals(settings)) {
+            return this;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        Settings templateSettings;
+        if (this.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateSettings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(this.template());
+            templateSettings = this.template().settings();
+        }
+        mergedTemplateBuilder.settings(templateSettings == null ? settings : templateSettings.merge(settings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    public ComposableIndexTemplate mergeMappings(CompressedXContent mappings) throws IOException {
+        Objects.requireNonNull(mappings);
+        if (Mapping.EMPTY.toCompressedXContent().equals(mappings) && this.template() != null && this.template().mappings() != null) {
+            return this;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        CompressedXContent templateMappings;
+        if (this.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateMappings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(this.template());
+            templateMappings = this.template().mappings();
+        }
+        mergedTemplateBuilder.mappings(templateMappings == null ? mappings : merge(templateMappings, mappings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static CompressedXContent merge(CompressedXContent originalMapping, CompressedXContent mappingAddition) throws IOException {
+        Map<String, Object> mappingAdditionMap = XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2();
+        Map<String, Object> combinedMappingMap = new HashMap<>();
+        if (originalMapping != null) {
+            Map<String, Object> originalMappingMap = XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON)
+                .v2();
+            if (originalMappingMap.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                combinedMappingMap.putAll((Map<String, ?>) originalMappingMap.get(MapperService.SINGLE_MAPPING_NAME));
+            } else {
+                combinedMappingMap.putAll(originalMappingMap);
+            }
+        }
+        XContentHelper.update(combinedMappingMap, mappingAdditionMap, true);
+        return convertMappingMapToXContent(combinedMappingMap);
+    }
+
+    public static CompressedXContent convertMappingMapToXContent(Map<String, ?> rawAdditionalMapping) throws IOException {
+        CompressedXContent compressedXContent;
+        if (rawAdditionalMapping.isEmpty()) {
+            compressedXContent = EMPTY_MAPPINGS;
+        } else {
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
+                compressedXContent = mappingFromXContent(parser);
+            }
+        }
+        return compressedXContent;
+    }
+
+    private static CompressedXContent mappingFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     @Override
@@ -313,7 +463,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.dataStreamTemplate,
             this.allowAutoCreate,
             this.ignoreMissingComponentTemplates,
-            this.deprecated
+            this.deprecated,
+            this.createdDateMillis,
+            this.modifiedDateMillis
         );
     }
 
@@ -335,7 +487,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates)
-            && Objects.equals(deprecated, other.deprecated);
+            && Objects.equals(deprecated, other.deprecated)
+            && Objects.equals(createdDateMillis, other.createdDateMillis)
+            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
     }
 
     static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
@@ -369,37 +523,25 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            args -> new DataStreamTemplate(
-                args[0] != null && (boolean) args[0],
-                args[1] != null && (boolean) args[1],
-                DataStream.isFailureStoreEnabled() && args[2] != null && (boolean) args[2]
-            )
+            args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreEnabled()) {
-                PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
-            }
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
         }
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
-        private final boolean failureStore;
 
         public DataStreamTemplate() {
-            this(false, false, false);
+            this(false, false);
         }
 
         public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
-            this(hidden, allowCustomRouting, false);
-        }
-
-        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, boolean failureStore) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
-            this.failureStore = failureStore;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -417,17 +559,16 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-            if (in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-                failureStore = in.readBoolean();
-            } else {
-                failureStore = false;
+            if (in.getTransportVersion()
+                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+                in.readBoolean();
             }
         }
 
         /**
          * A mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
-        public static CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
+        public static final CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
 
         static {
             try {
@@ -450,10 +591,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return allowCustomRouting;
         }
 
-        public boolean hasFailureStore() {
-            return failureStore;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
@@ -464,8 +601,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // See comment in constructor.
                 out.writeBoolean(false);
             }
-            if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-                out.writeBoolean(failureStore);
+            if (out.getTransportVersion()
+                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+                // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
+                // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
+                out.writeBoolean(false);
             }
         }
 
@@ -474,9 +614,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            if (DataStream.isFailureStoreEnabled()) {
-                builder.field(FAILURE_STORE.getPreferredName(), failureStore);
-            }
             builder.endObject();
             return builder;
         }
@@ -486,12 +623,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && failureStore == that.failureStore;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting, failureStore);
+            return Objects.hash(hidden, allowCustomRouting);
         }
     }
 
@@ -506,6 +643,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private Boolean allowAutoCreate;
         private List<String> ignoreMissingComponentTemplates;
         private Boolean deprecated;
+        private Long createdDateMillis;
+        private Long modifiedDateMillis;
 
         /**
          * @deprecated use {@link ComposableIndexTemplate#builder()}
@@ -524,6 +663,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.allowAutoCreate = template.allowAutoCreate;
             this.ignoreMissingComponentTemplates = template.ignoreMissingComponentTemplates;
             this.deprecated = template.deprecated;
+            this.createdDateMillis = template.createdDateMillis;
+            this.modifiedDateMillis = template.modifiedDateMillis;
         }
 
         public Builder indexPatterns(List<String> indexPatterns) {
@@ -533,6 +674,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         public Builder template(Template template) {
             this.template = template;
+            return this;
+        }
+
+        public Builder template(Template.Builder template) {
+            this.template = template.build();
             return this;
         }
 
@@ -576,19 +722,18 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
+        public Builder createdDate(@Nullable Long createdDate) {
+            this.createdDateMillis = createdDate;
+            return this;
+        }
+
+        public Builder modifiedDate(@Nullable Long modifiedDate) {
+            this.modifiedDateMillis = modifiedDate;
+            return this;
+        }
+
         public ComposableIndexTemplate build() {
-            return new ComposableIndexTemplate(
-                this.indexPatterns,
-                this.template,
-                this.componentTemplates,
-                this.priority,
-                this.version,
-                this.metadata,
-                this.dataStreamTemplate,
-                this.allowAutoCreate,
-                this.ignoreMissingComponentTemplates,
-                this.deprecated
-            );
+            return new ComposableIndexTemplate(this);
         }
     }
 }

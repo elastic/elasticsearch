@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -119,6 +120,10 @@ gradlePlugin {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
     }
+    javaBase {
+      id = 'elasticsearch.java-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
@@ -175,6 +180,10 @@ gradlePlugin {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
+    deployTestFixtures {
+      id = 'elasticsearch.deploy-test-fixtures'
+      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin'
+    }
     testBase {
       id = 'elasticsearch.test-base'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin'
@@ -210,6 +219,14 @@ gradlePlugin {
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
+    }
+    transportVersionReferencesPlugin {
+      id = 'elasticsearch.transport-version-references'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'
+    }
+    transportVersionResourcesPlugin {
+      id = 'elasticsearch.transport-version-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
     }
   }
 }
@@ -263,10 +280,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.6')
-    api("org.yaml:snakeyaml") {
-      version { strictly(versions.snakeyaml) }
-    }
+    api(buildLibs.snakeyaml)
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)
@@ -276,8 +290,6 @@ dependencies {
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  // same version as http client transitive dep
-  api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.nebula.info
   api buildLibs.apache.rat
@@ -297,13 +309,13 @@ dependencies {
   api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
-  api buildLibs.httpclient
-  api buildLibs.httpcore
+  api buildLibs.httpclient5
+  api buildLibs.httpcore5
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
 
-  implementation 'com.github.javaparser:javaparser-core:3.18.0'
+  implementation buildLibs.javaparser
 
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
@@ -373,6 +385,18 @@ tasks.register("bootstrapPerformanceTests", Copy) {
 
 tasks.named("jar") {
   exclude("classpath.index")
+}
+
+spotless {
+  java {
+
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
+  }
 }
 
 def resolveMainWrapperVersion() {

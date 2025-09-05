@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -18,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -35,7 +38,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     InternalVariableWidthHistogram,
     InternalVariableWidthHistogram.Bucket> implements Histogram, HistogramFactory {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
+    public static class Bucket extends AbstractHistogramBucket implements KeyComparable<Bucket> {
 
         public static class BucketBounds {
             public double min;
@@ -70,28 +73,23 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
 
         private final BucketBounds bounds;
-        private long docCount;
-        private InternalAggregations aggregations;
-        protected final transient DocValueFormat format;
-        private double centroid;
+        private final double centroid;
 
         public Bucket(double centroid, BucketBounds bounds, long docCount, DocValueFormat format, InternalAggregations aggregations) {
-            this.format = format;
+            super(docCount, aggregations, format);
             this.centroid = centroid;
             this.bounds = bounds;
-            this.docCount = docCount;
-            this.aggregations = aggregations;
         }
 
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, DocValueFormat format) throws IOException {
-            this.format = format;
-            centroid = in.readDouble();
-            docCount = in.readVLong();
-            bounds = new BucketBounds(in);
-            aggregations = InternalAggregations.readFrom(in);
+        public static Bucket readFrom(StreamInput in, DocValueFormat format) throws IOException {
+            final double centroid = in.readDouble();
+            final long docCount = in.readVLong();
+            final BucketBounds bounds = new BucketBounds(in);
+            final InternalAggregations aggregations = InternalAggregations.readFrom(in);
+            return new Bucket(centroid, bounds, docCount, format, aggregations);
         }
 
         @Override
@@ -121,7 +119,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
         @Override
         public String getKeyAsString() {
-            return format.format((double) getKey()).toString();
+            return format.format(centroid).toString();
         }
 
         /**
@@ -146,18 +144,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return centroid;
         }
 
-        @Override
-        public long getDocCount() {
-            return docCount;
-        }
-
-        @Override
-        public InternalAggregations getAggregations() {
-            return aggregations;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             String keyAsString = format.format((double) getKey()).toString();
             builder.startObject();
 
@@ -179,7 +166,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -229,7 +215,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
     }
 
-    private List<Bucket> buckets;
+    private final List<Bucket> buckets;
     private final DocValueFormat format;
     private final int targetNumBuckets;
     final EmptyBucketInfo emptyBucketInfo;
@@ -256,8 +242,13 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         super(in);
         emptyBucketInfo = new EmptyBucketInfo(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
+        buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
         targetNumBuckets = in.readVInt();
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingDouble(b -> b.centroid));
+        }
     }
 
     @Override
@@ -307,41 +298,29 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        long docCount = 0;
+        assert buckets.isEmpty() == false;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
         double sum = 0;
-        for (InternalVariableWidthHistogram.Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-            min = Math.min(min, bucket.bounds.min);
-            max = Math.max(max, bucket.bounds.max);
-            sum += bucket.docCount * bucket.centroid;
+        try (BucketReducer<Bucket> reducer = new BucketReducer<>(buckets.get(0), context, buckets.size())) {
+            for (Bucket bucket : buckets) {
+                min = Math.min(min, bucket.bounds.min);
+                max = Math.max(max, bucket.bounds.max);
+                sum += bucket.docCount * bucket.centroid;
+                reducer.accept(bucket);
+            }
+            final double centroid = sum / reducer.getDocCount();
+            final Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
+            return new Bucket(centroid, bounds, reducer.getDocCount(), format, reducer.getAggregations());
         }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        final double centroid = sum / docCount;
-        final Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
-        return new Bucket(centroid, bounds, docCount, format, aggs);
     }
 
-    public List<Bucket> reduceBuckets(List<InternalVariableWidthHistogram> aggregations, AggregationReduceContext reduceContext) {
-        PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
-            @Override
-            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                return Double.compare(a.current().centroid, b.current().centroid) < 0;
-            }
-        };
-        for (InternalVariableWidthHistogram histogram : aggregations) {
-            if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
-            }
-        }
-
+    public List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             double key = pq.top().current().centroid();
             // list of buckets coming from different shards that have the same key
-            List<Bucket> currentBuckets = new ArrayList<>();
+            final List<Bucket> currentBuckets = new ArrayList<>();
             do {
                 IteratorAndCurrent<Bucket> top = pq.top();
 
@@ -530,16 +509,24 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final List<InternalVariableWidthHistogram> aggregations = new ArrayList<>(size);
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+                @Override
+                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                    return Double.compare(a.current().centroid, b.current().centroid) < 0;
+                }
+            };
 
             @Override
             public void accept(InternalAggregation aggregation) {
-                aggregations.add((InternalVariableWidthHistogram) aggregation);
+                final InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
+                if (histogram.buckets.isEmpty() == false) {
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                }
             }
 
             @Override
             public InternalAggregation get() {
-                final List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+                final List<Bucket> reducedBuckets = reduceBuckets(pq, reduceContext);
                 if (reduceContext.isFinalReduce()) {
                     buckets.sort(Comparator.comparing(Bucket::min));
                     mergeBucketsWithSameMin(reducedBuckets, reduceContext);
@@ -552,21 +539,18 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalVariableWidthHistogram(
-            getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            emptyBucketInfo,
-            targetNumBuckets,
-            format,
-            getMetadata()
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalVariableWidthHistogram(getName(), buckets, emptyBucketInfo, targetNumBuckets, format, getMetadata());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

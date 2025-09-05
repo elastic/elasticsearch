@@ -46,7 +46,7 @@ public class HttpUtils {
     }
 
     public static void checkForEmptyBody(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) {
-        if (result.isBodyEmpty()) {
+        if (result.isBodyEmpty() && (request.isStreaming() == false)) {
             String message = format("Response body was empty for request from inference entity id [%s]", request.getInferenceEntityId());
             throttlerManager.warn(logger, message);
             throw new IllegalStateException(message);

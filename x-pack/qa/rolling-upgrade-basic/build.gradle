@@ -1,4 +1,10 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -9,7 +15,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [bwcVersion.toString(), project.version]
@@ -27,7 +33,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
@@ -36,9 +42,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oldClusterTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
@@ -49,9 +55,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
@@ -62,9 +68,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -78,5 +84,5 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  enabled = BuildParams.inFipsJvm == false
+  enabled = buildParams.inFipsJvm == false
 }

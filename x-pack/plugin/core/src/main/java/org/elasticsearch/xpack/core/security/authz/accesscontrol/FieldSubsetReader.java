@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -155,17 +156,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields f = super.getTermVectors(docID);
-        if (f == null) {
-            return null;
-        }
-        f = new FieldFilterFields(f);
-        // we need to check for emptyness, so we can return null:
-        return f.iterator().hasNext() ? f : null;
-    }
-
-    @Override
     public TermVectors termVectors() throws IOException {
         TermVectors termVectors = super.termVectors();
         return new TermVectors() {
@@ -261,11 +251,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             state = automaton.step(state, key.charAt(i));
         }
         return state;
-    }
-
-    @Override
-    public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-        super.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
     }
 
     @Override
@@ -399,6 +384,49 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
+            } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
+                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
+                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                if (transformedField.isEmpty() == false) {
+                    // The unfiltered map contains at least one element, the field name with its value. If the field contains
+                    // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
+                    // it's a single leaf value, e.g. a string or a number.
+                    var topValue = mappedNameValue.map().values().iterator().next();
+                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                        // The field contains an object or an array, reconstruct it from the transformed map in case
+                        // any subfield has been filtered out.
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue.withMap(transformedField)));
+                    } else {
+                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
+                        visitor.binaryField(fieldInfo, value);
+                    }
+                }
+            } else if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.decodeAsMapMultipleFieldValues(
+                    value
+                );
+                List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
+                boolean didFilter = false;
+                for (var mappedNameValue : mappedNameValues) {
+                    Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                    if (transformedField.isEmpty()) {
+                        didFilter = true;
+                        continue;
+                    }
+                    var topValue = mappedNameValue.map().values().iterator().next();
+                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                        didFilter = true;
+                    }
+                    filteredNameValues.add(mappedNameValue.withMap(transformedField));
+                }
+                if (didFilter) {
+                    if (filteredNameValues.isEmpty() == false) {
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMultipleFieldValues(filteredNameValues));
+                    }
+                } else {
+                    visitor.binaryField(fieldInfo, value);
+                }
             } else {
                 visitor.binaryField(fieldInfo, value);
             }

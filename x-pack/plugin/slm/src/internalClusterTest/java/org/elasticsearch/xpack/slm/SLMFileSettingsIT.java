@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
@@ -149,10 +148,6 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder().put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED, false).build();
     }
 
-    private void assertMasterNode(Client client, String node) {
-        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
@@ -161,7 +156,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, Strings.format(json, version));
         Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
@@ -191,8 +186,9 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
+        awaitMasterNode();
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).get();
 
         var reservedState = clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
@@ -205,7 +201,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
             equalTo("50mb")
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
         );
         assertEquals(
@@ -234,8 +230,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         writeJSONFile(dataNode, testJSON);
 
         logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        internalCluster().startMasterOnlyNode();
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 
@@ -247,7 +242,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         }
 
         logger.info("--> create snapshot manually");
-        var request = new CreateSnapshotRequest("repo", "file-snap").waitForCompletion(true);
+        var request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "file-snap").waitForCompletion(true);
         var response = clusterAdmin().createSnapshot(request).get();
         RestStatus status = response.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
@@ -259,7 +254,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             GetSnapshotLifecycleAction.Response getResp = client().execute(
                 GetSnapshotLifecycleAction.INSTANCE,
-                new GetSnapshotLifecycleAction.Request(policyName)
+                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
             ).get();
             logger.info("--> checking for snapshot complete...");
 
@@ -273,7 +268,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            clusterAdmin().prepareDeleteSnapshot(REPO, snapshotName).get();
+            clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPO, snapshotName).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }
@@ -306,7 +301,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         assertTrue(awaitSuccessful);
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
@@ -349,7 +344,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getMasterName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         writeJSONFile(masterNode, testErrorJSON);
@@ -357,7 +352,11 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private String executePolicy(String policyId) {
-        ExecuteSnapshotLifecycleAction.Request executeReq = new ExecuteSnapshotLifecycleAction.Request(policyId);
+        ExecuteSnapshotLifecycleAction.Request executeReq = new ExecuteSnapshotLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            policyId
+        );
         ExecuteSnapshotLifecycleAction.Response resp = null;
         try {
             resp = client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, executeReq).get();
@@ -392,7 +391,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
             var policy = SnapshotLifecyclePolicy.parse(parser, name);
-            return new PutSnapshotLifecycleAction.Request(name, policy);
+            return new PutSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name, policy);
         }
     }
 }

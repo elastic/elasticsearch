@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.compress;
@@ -134,7 +135,7 @@ public final class CompressedXContent implements Writeable {
      * that may already be compressed.
      */
     public CompressedXContent(BytesReference data) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
@@ -147,7 +148,7 @@ public final class CompressedXContent implements Writeable {
     }
 
     private void assertConsistent() {
-        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert CompressorFactory.compressorForUnknownXContentType(new BytesArray(bytes)) != null;
         assert this.sha256.equals(sha256(uncompressed()));
         assert this.sha256.equals(sha256FromCompressed(bytes));
     }

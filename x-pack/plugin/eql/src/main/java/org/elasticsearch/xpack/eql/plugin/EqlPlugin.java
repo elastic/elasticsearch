@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.eql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -60,6 +58,20 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         Setting.Property.DeprecatedWarning
     );
 
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+        "xpack.eql.default_allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS = Setting.boolSetting(
+        "xpack.eql.default_allow_partial_sequence_results",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public EqlPlugin() {}
 
     @Override
@@ -86,18 +98,18 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(EQL_ENABLED_SETTING);
+        return List.of(EQL_ENABLED_SETTING, DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
-            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+            new ActionHandler(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
+            new ActionHandler(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
     }
 

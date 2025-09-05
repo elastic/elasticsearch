@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
@@ -19,7 +20,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.transport.TransportSettings;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +44,12 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutEntitlements // Entitlement logging interferes
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testResetSetting() {
@@ -536,6 +544,29 @@ public class ScopedSettingsTests extends ESTestCase {
         results.clear();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106283")
+    public void testAffixUpdateConsumerWithAlias() {
+        Setting.AffixSetting<String> prefixSetting = Setting.prefixKeySetting(
+            "prefix.",
+            "fallback.",
+            (ns, k) -> Setting.simpleString(k, "default", Property.Dynamic, Property.NodeScope)
+        );
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting)));
+        BiConsumer<String, String> affixUpdateConsumer = Mockito.mock("affixUpdateConsumer");
+        service.addAffixUpdateConsumer(prefixSetting, affixUpdateConsumer, (s, v) -> {});
+
+        service.applySettings(Settings.builder().put("prefix.key", "value").build());
+        verify(affixUpdateConsumer).accept("key", "value");
+        verifyNoMoreInteractions(affixUpdateConsumer);
+        clearInvocations((Object) affixUpdateConsumer);
+
+        service.applySettings(Settings.builder().put("fallback.key", "othervalue").build());
+        verify(affixUpdateConsumer, never()).accept("key", "default"); // unexpected invocation using the default value
+        verify(affixUpdateConsumer).accept("key", "othervalue");
+        verifyNoMoreInteractions(affixUpdateConsumer);
+        clearInvocations((Object) affixUpdateConsumer);
+    }
+
     public void testAddConsumerAffix() {
         Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting(
             "foo.",
@@ -896,6 +927,26 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
     }
 
+    public void testDiffWithFallbackDefaultSetting() {
+        final String fallbackSettingName = "fallback";
+        final Setting<Integer> fallbackSetting = Setting.intSetting(fallbackSettingName, 1, Property.Dynamic, Property.NodeScope);
+
+        final String settingName = "setting.with.fallback";
+        final Setting<Integer> dependentSetting = new Setting<>(
+            settingName,
+            fallbackSetting,
+            (s) -> Setting.parseInt(s, 1, settingName),
+            value -> {},
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fallbackSetting, dependentSetting)));
+
+        final Settings diff = settings.diff(Settings.EMPTY, Settings.builder().put(fallbackSettingName, 2).build());
+        assertThat(diff.getAsInt(settingName, null), equalTo(2));
+    }
+
     public void testDiffWithDependentSettings() {
         final String dependedSettingName = "this.setting.is.depended.on";
         Setting<Integer> dependedSetting = Setting.intSetting(dependedSettingName, 1, Property.Dynamic, Property.NodeScope);
@@ -1087,6 +1138,42 @@ public class ScopedSettingsTests extends ESTestCase {
 
         Settings diffed = clusterSettings.diff(Settings.EMPTY, settings);
         assertTrue(diffed.isEmpty());
+    }
+
+    public void testValidateSecureSettingInsecureOverride() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        String settingName = "something.secure";
+        secureSettings.setString(settingName, "secure");
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").setSecureSettings(secureSettings).build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
+    }
+
+    public void testValidateSecureSettingInInsecureSettings() {
+        String settingName = "something.secure";
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

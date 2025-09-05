@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -217,13 +219,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     // 1. submit the task to the master service
     // 2. state publisher task on master
     // 3. master sends out PublishRequests to nodes
-    // 4. master receives PublishResponses from nodes
-    // 5. master sends ApplyCommitRequests to nodes
-    // 6. nodes apply committed cluster state
-    // 7. master receives ApplyCommitResponses
-    // 8. apply committed state on master (last one to apply cluster state)
-    // 9. complete the publication listener back on the master service thread
-    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 9;
+    // 4. nodes deserialize received cluster state
+    // 5. master receives PublishResponses from nodes
+    // 6. master sends ApplyCommitRequests to nodes
+    // 7. nodes apply committed cluster state
+    // 8. master receives ApplyCommitResponses
+    // 9. apply committed state on master (last one to apply cluster state)
+    // 10. complete the publication listener back on the master service thread
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 10;
     public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
@@ -240,6 +243,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             // Then a commit of the new leader's first cluster state
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
+    /**
+     * An estimate for the max time needed to stabilize a cluster. Takes into account delays for various communications involved in
+     * leader elections.
+     * */
     public static final long DEFAULT_STABILISATION_TIME =
         // If leader just blackholed, need to wait for this to be detected
         (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)) * defaultInt(
@@ -284,7 +291,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         @Nullable // null means construct a list from all the current nodes
         private List<TransportAddress> seedHostsList;
 
-        Cluster(int initialNodeCount) {
+        public Cluster(int initialNodeCount) {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
@@ -360,7 +367,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return addedNodes;
         }
 
-        int size() {
+        public static void becomeCandidate(ClusterNode node, String reason) {
+            synchronized (node.coordinator.mutex) {
+                node.coordinator.becomeCandidate(reason);
+            }
+        }
+
+        public int size() {
             return clusterNodes.size();
         }
 
@@ -549,6 +562,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
+        /**
+         * Uses a default period of time in which to wait for cluster stabilisation, and then verifies that a master has been elected.
+         */
         public void stabilise() {
             stabilise(DEFAULT_STABILISATION_TIME, true);
         }
@@ -753,7 +769,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void bootstrapIfNecessary() {
+        public void bootstrapIfNecessary() {
             if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
@@ -766,7 +782,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void runFor(long runDurationMillis, String description) {
+        public void runFor(long runDurationMillis, String description) {
             final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + runDurationMillis;
             logger.info("--> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
 
@@ -849,7 +865,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return getAnyNodeExcept();
         }
 
-        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
+        public ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
             List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodesToExclude);
             assert filteredNodes.isEmpty() == false;
             return randomFrom(filteredNodes);
@@ -942,20 +958,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return 0;
         }
 
+        /**
+         * Mimics a cluster node for testing.
+         */
         public final class ClusterNode {
             private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
-            Coordinator coordinator;
+            public Coordinator coordinator;
             private final DiscoveryNode localNode;
             final CoordinationState.PersistedState persistedState;
             final Settings nodeSettings;
             private AckedFakeThreadPoolMasterService masterService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
-            private FeatureService featureService;
             TransportService transportService;
-            private MasterHistoryService masterHistoryService;
             CoordinationDiagnosticsService coordinationDiagnosticsService;
             StableMasterHealthIndicatorService stableMasterHealthIndicatorService;
             private DisruptableMockTransport mockTransport;
@@ -1116,8 +1133,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
-                featureService = new FeatureService(List.of());
-                masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+                MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );
@@ -1125,7 +1141,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
                 final var coordinationServices = coordinatorStrategy.getCoordinationServices(
                     threadPool,
                     settings,
@@ -1155,7 +1171,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     coordinationServices.getLeaderHeartbeatService(),
                     coordinationServices.getPreVoteCollectorFactory(),
                     CompatibilityVersionsUtils.staticCurrent(),
-                    featureService
+                    new FeatureService(List.of())
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1232,7 +1248,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
                     .build();
                 try {
-                    return new ClusterNode(
+                    final var restartedNode = new ClusterNode(
                         nodeIndex,
                         newLocalNode,
                         (node, threadPool) -> createPersistedStateFromExistingState(
@@ -1245,6 +1261,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         settings,
                         nodeHealthService
                     );
+                    restartedNode.blackholedRegisterOperations.addAll(blackholedRegisterOperations);
+                    return restartedNode;
                 } finally {
                     clearableRecycler.clear();
                 }
@@ -1378,7 +1396,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 });
             }
 
-            AckCollector submitUpdateTask(
+            public AckCollector submitUpdateTask(
                 String source,
                 UnaryOperator<ClusterState> clusterStateUpdate,
                 CoordinatorTestClusterStateUpdateTask taskListener
@@ -1450,7 +1468,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 transportService.disconnectFromNode(clusterNode.localNode);
             }
 
-            ClusterState getLastAppliedClusterState() {
+            public ClusterState getLastAppliedClusterState() {
                 return clusterApplierService.state();
             }
 
@@ -2033,6 +2051,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return trackedRef;
         }
 
+        @Override
+        public int pageSize() {
+            return delegate.pageSize();
+        }
+
         /**
          * Release all tracked refs as if the node rebooted.
          */
@@ -2110,7 +2133,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 nodeEnvironment,
                                 xContentRegistry(),
                                 new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                                currentTimeInMillisSupplier
+                                currentTimeInMillisSupplier,
+                                ESTestCase::randomBoolean
                             ).createWriter()
                         ) {
                             writer.writeFullStateAndCommit(

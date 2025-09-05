@@ -13,12 +13,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -44,7 +47,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
-    private volatile WatcherService watcherService;
+    private final WatcherService watcherService;
     private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
 
     WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
@@ -123,7 +126,6 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                         } else {
                             logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
                         }
-
                     });
                 }
             }
@@ -154,8 +156,11 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         // also check if non local shards have changed, as loosing a shard on a
         // remote node or adding a replica on a remote node needs to trigger a reload too
         Set<ShardId> localShardIds = localShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet());
-        List<ShardRouting> allShards = event.state().routingTable().index(watchIndex).shardsWithState(STARTED);
-        allShards.addAll(event.state().routingTable().index(watchIndex).shardsWithState(RELOCATING));
+
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        IndexRoutingTable routingTable = event.state().routingTable(ProjectId.DEFAULT).index(watchIndex);
+        List<ShardRouting> allShards = routingTable.shardsWithState(STARTED);
+        allShards.addAll(routingTable.shardsWithState(RELOCATING));
         List<ShardRouting> localAffectedShardRoutings = allShards.stream()
             .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
             // shardrouting is not comparable, so we need some order mechanism
@@ -166,7 +171,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
-                    watcherService.reload(event.state(), "new local watcher shard allocation ids");
+                    watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                        clearAllocationIds(); // will cause reload again
+                    });
                 } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
@@ -191,8 +198,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     /**
      * check if watcher has been stopped manually via the stop API
      */
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     private static boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+        WatcherMetadata watcherMetadata = state.getMetadata().getProject(ProjectId.DEFAULT).custom(WatcherMetadata.TYPE);
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 

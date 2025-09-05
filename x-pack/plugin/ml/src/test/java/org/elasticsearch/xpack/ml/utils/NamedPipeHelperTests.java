@@ -67,7 +67,7 @@ public class NamedPipeHelperTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(
             Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
         );
-        Path tempFile = Files.createTempFile(env.tmpFile(), "not a named pipe", null);
+        Path tempFile = Files.createTempFile(env.tmpDir(), "not a named pipe", null);
 
         IOException ioe = ESTestCase.expectThrows(
             IOException.class,
@@ -83,7 +83,7 @@ public class NamedPipeHelperTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(
             Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
         );
-        Path tempFile = Files.createTempFile(env.tmpFile(), "not a named pipe", null);
+        Path tempFile = Files.createTempFile(env.tmpDir(), "not a named pipe", null);
 
         IOException ioe = ESTestCase.expectThrows(
             IOException.class,

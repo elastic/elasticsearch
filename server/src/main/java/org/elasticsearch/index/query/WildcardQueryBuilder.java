@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -55,6 +57,13 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
     /**
+     * Force string matching instead of the field-type-aware wildcard matching.
+     * When this is true the {@link org.elasticsearch.index.mapper.IndexFieldMapper} will always match of the
+     * {@code cluster_name:index_name} instead of emulating the glob pattern on the URL.
+     */
+    private boolean forceStringMatch = false;
+
+    /**
      * Implements the wildcard search query. Supported wildcards are {@code *}, which
      * matches any character sequence (including the empty one), and {@code ?},
      * which matches any single character. Note this query can be slow, as it
@@ -77,6 +86,16 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     /**
+     * @param forceStringMatch Force string matching instead of the field-type-aware wildcard matching.
+     * When this is true the {@link org.elasticsearch.index.mapper.IndexFieldMapper} will always match of the
+     * {@code cluster_name:index_name} instead of emulating the glob pattern on the URL.
+     */
+    public WildcardQueryBuilder(String fieldName, String value, boolean forceStringMatch) {
+        this(fieldName, value);
+        this.forceStringMatch = forceStringMatch;
+    }
+
+    /**
      * Read from a stream.
      */
     public WildcardQueryBuilder(StreamInput in) throws IOException {
@@ -84,8 +103,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         fieldName = in.readString();
         value = in.readString();
         rewrite = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            caseInsensitive = in.readBoolean();
+        caseInsensitive = in.readBoolean();
+        if (expressionTransportSupported(in.getTransportVersion())) {
+            forceStringMatch = in.readBoolean();
+        } else {
+            forceStringMatch = false;
         }
     }
 
@@ -94,9 +116,19 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(fieldName);
         out.writeString(value);
         out.writeOptionalString(rewrite);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(caseInsensitive);
+        out.writeBoolean(caseInsensitive);
+        if (expressionTransportSupported(out.getTransportVersion())) {
+            out.writeBoolean(forceStringMatch);
         }
+    }
+
+    /**
+     * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
+     */
+    public static boolean expressionTransportSupported(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
+            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
+            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
     }
 
     @Override
@@ -199,15 +231,33 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
-            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query  is against a field that does not exist");
-        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        }
+        return maybeRewriteBasedOnConstantFields(fieldType, context);
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(this.fieldName);
+        // we don't rewrite a null field type to `match_none` on the coordinator because the coordinator has access
+        // to only a subset of fields see {@link CoordinatorRewriteContext#getFieldType}
+        return maybeRewriteBasedOnConstantFields(fieldType, coordinatorRewriteContext);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important
             // since rewrites might happen on a network thread.
-            Query query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            Query query;
+            if (forceStringMatch) {
+                query = constantFieldType.wildcardLikeQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            } else {
+                query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            }
             if (query instanceof MatchAllDocsQuery) {
                 return new MatchAllQueryBuilder();
             } else if (query instanceof MatchNoDocsQuery) {
@@ -233,7 +283,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, rewrite, caseInsensitive);
+        return Objects.hash(fieldName, value, rewrite, caseInsensitive, forceStringMatch);
     }
 
     @Override
@@ -241,11 +291,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(forceStringMatch, other.forceStringMatch);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

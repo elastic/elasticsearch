@@ -10,6 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectDeletedListener;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -33,6 +38,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetB
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -63,7 +70,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -89,25 +97,34 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
+    /**
+     * See {@link #shouldForkRoleBuilding(Set)}
+     */
+    private static final int ROLE_DESCRIPTOR_FORK_THRESHOLD = 100;
+    private static final int INDEX_PRIVILEGE_FORK_THRESHOLD = 1000;
 
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
+    private final ProjectResolver projectResolver;
     private final FieldPermissionsCache fieldPermissionsCache;
-    private final Cache<RoleKey, Role> roleCache;
-    private final CacheIteratorHelper<RoleKey, Role> roleCacheHelper;
-    private final Cache<String, Boolean> negativeLookupCache;
+    private final Cache<ProjectScoped<RoleKey>, Role> roleCache;
+    private final CacheIteratorHelper<ProjectScoped<RoleKey>, Role> roleCacheHelper;
+    private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
+    private final CacheIteratorHelper<ProjectScoped<String>, Boolean> negativeLookupCacheHelper;
     private final DocumentSubsetBitsetCache dlsBitsetCache;
     private final AnonymousUser anonymousUser;
-    private final AtomicLong numInvalidation = new AtomicLong();
+
+    private final Map<ProjectId, Long> numInvalidation = new ConcurrentHashMap<>();
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
-    private final WorkflowService workflowService;
     private final ThreadContext threadContext;
+    private final Executor roleBuildingExecutor;
 
     public CompositeRolesStore(
         Settings settings,
+        ClusterService clusterService,
         RoleProviders roleProviders,
         NativePrivilegeStore privilegeStore,
         ThreadContext threadContext,
@@ -115,16 +132,19 @@ public class CompositeRolesStore {
         FieldPermissionsCache fieldPermissionsCache,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
+        ProjectResolver projectResolver,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
-        WorkflowService workflowService
+        Executor roleBuildingExecutor,
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
+        new ProjectDeletedListener(this::removeProject).attach(clusterService);
+
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
             @Override
-            public void rolesChanged(Set<String> roles) {
-                CompositeRolesStore.this.invalidate(roles);
+            public void clusterScopedRolesChanged(Set<String> roles) {
+                CompositeRolesStore.this.invalidateClusterScopedRoles(roles);
             }
 
             @Override
@@ -134,21 +154,23 @@ public class CompositeRolesStore {
         });
 
         this.privilegeStore = Objects.requireNonNull(privilegeStore);
+        this.projectResolver = projectResolver;
         this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
         this.fieldPermissionsCache = Objects.requireNonNull(fieldPermissionsCache);
-        CacheBuilder<RoleKey, Role> builder = CacheBuilder.builder();
+        CacheBuilder<ProjectScoped<RoleKey>, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
             builder.setMaximumWeight(cacheSize);
         }
         this.roleCache = builder.build();
         this.roleCacheHelper = new CacheIteratorHelper<>(roleCache);
-        CacheBuilder<String, Boolean> nlcBuilder = CacheBuilder.builder();
+        CacheBuilder<ProjectScoped<String>, Boolean> nlcBuilder = CacheBuilder.builder();
         final int nlcCacheSize = NEGATIVE_LOOKUP_CACHE_SIZE_SETTING.get(settings);
         if (nlcCacheSize >= 0) {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
+        this.negativeLookupCacheHelper = new CacheIteratorHelper<>(negativeLookupCache);
         this.restrictedIndices = restrictedIndices;
         this.superuserRole = Role.buildFromRoleDescriptor(
             ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
@@ -172,14 +194,15 @@ public class CompositeRolesStore {
             roleProviders,
             apiKeyService,
             serviceAccountService,
+            projectResolver,
             negativeLookupCache,
             licenseState,
             threadContext,
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
-        this.workflowService = workflowService;
         this.threadContext = threadContext;
+        this.roleBuildingExecutor = roleBuildingExecutor;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -206,8 +229,9 @@ public class CompositeRolesStore {
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
         final String workflow = WorkflowService.readWorkflowFromThreadContext(threadContext);
+        final ProjectId projectId = projectResolver.getProjectId();
         roleReferenceIntersection.buildRole(
-            this::buildRoleFromRoleReference,
+            (roleReference, listener) -> buildRoleFromRoleReference(roleReference, projectId, listener),
             roleActionListener.delegateFailureAndWrap((l, role) -> l.onResponse(role.forWorkflow(workflow)))
         );
     }
@@ -237,7 +261,7 @@ public class CompositeRolesStore {
         return role;
     }
 
-    public void buildRoleFromRoleReference(RoleReference roleReference, ActionListener<Role> roleActionListener) {
+    public void buildRoleFromRoleReference(RoleReference roleReference, ProjectId projectId, ActionListener<Role> roleActionListener) {
         final RoleKey roleKey = roleReference.id();
         if (roleKey == RoleKey.ROLE_KEY_SUPERUSER) {
             roleActionListener.onResponse(superuserRole);
@@ -248,9 +272,10 @@ public class CompositeRolesStore {
             return;
         }
 
-        final Role existing = roleCache.get(roleKey);
+        final var cacheKey = new ProjectScoped<>(projectId, roleKey);
+        final Role existing = roleCache.get(cacheKey);
         if (existing == null) {
-            final long invalidationCounter = numInvalidation.get();
+            final long invalidationCounter = numInvalidation.getOrDefault(projectId, 0L);
             final Consumer<Exception> failureHandler = e -> {
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
@@ -277,19 +302,68 @@ public class CompositeRolesStore {
                 } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
                     roleActionListener.onResponse(superuserRole);
                 } else {
-                    buildThenMaybeCacheRole(
-                        roleKey,
-                        rolesRetrievalResult.getRoleDescriptors(),
-                        rolesRetrievalResult.getMissingRoles(),
-                        rolesRetrievalResult.isSuccess(),
-                        invalidationCounter,
-                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
-                    );
+                    final ActionListener<Role> wrapped = ActionListener.wrap(roleActionListener::onResponse, failureHandler);
+                    if (shouldForkRoleBuilding(rolesRetrievalResult.getRoleDescriptors())) {
+                        roleBuildingExecutor.execute(
+                            ActionRunnable.wrap(
+                                wrapped,
+                                l -> buildThenMaybeCacheRole(
+                                    cacheKey,
+                                    rolesRetrievalResult.getRoleDescriptors(),
+                                    rolesRetrievalResult.getMissingRoles(),
+                                    rolesRetrievalResult.isSuccess(),
+                                    invalidationCounter,
+                                    l
+                                )
+                            )
+                        );
+                    } else {
+                        buildThenMaybeCacheRole(
+                            cacheKey,
+                            rolesRetrievalResult.getRoleDescriptors(),
+                            rolesRetrievalResult.getMissingRoles(),
+                            rolesRetrievalResult.isSuccess(),
+                            invalidationCounter,
+                            wrapped
+                        );
+                    }
                 }
             }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
+    }
+
+    /**
+     * Uses heuristics such as presence of application privileges to determine if role building will be expensive
+     * and therefore warrants forking.
+     * Package-private for testing.
+     */
+    boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
+        // A role with many role descriptors is likely expensive to build
+        if (roleDescriptors.size() > ROLE_DESCRIPTOR_FORK_THRESHOLD) {
+            return true;
+        }
+        int totalIndexPrivileges = 0;
+        int totalRemoteIndexPrivileges = 0;
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            // Application privileges can also result in big automata; it's difficult to determine how big application privileges
+            // are so err on the side of caution
+            if (roleDescriptor.hasApplicationPrivileges()) {
+                return true;
+            }
+            // Index privilege names or remote index privilege names can result in big and complex automata
+            totalIndexPrivileges += roleDescriptor.getIndicesPrivileges().length;
+            totalRemoteIndexPrivileges += roleDescriptor.getRemoteIndicesPrivileges().length;
+            if (totalIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD || totalRemoteIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD) {
+                return true;
+            }
+            // Likewise for FLS/DLS
+            if (roleDescriptor.isUsingDocumentOrFieldLevelSecurity()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean includesSuperuserRole(RoleReference roleReference) {
@@ -306,7 +380,7 @@ public class CompositeRolesStore {
     }
 
     private void buildThenMaybeCacheRole(
-        RoleKey roleKey,
+        ProjectScoped<RoleKey> cacheKey,
         Collection<RoleDescriptor> roleDescriptors,
         Set<String> missing,
         boolean tryCache,
@@ -314,10 +388,12 @@ public class CompositeRolesStore {
         ActionListener<Role> listener
     ) {
         logger.trace(
-            "Building role from descriptors [{}] for names [{}] from source [{}]",
+            "Building role from descriptors [{}] for names [{}] from source [{}] in project [{}] on [{}]",
             roleDescriptors,
-            roleKey.getNames(),
-            roleKey.getSource()
+            cacheKey.value().getNames(),
+            cacheKey.value().getSource(),
+            cacheKey.projectId(),
+            Thread.currentThread().getName()
         );
         buildRoleFromDescriptors(
             roleDescriptors,
@@ -334,13 +410,13 @@ public class CompositeRolesStore {
                          * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
                          * be on the safe side and don't cache potentially stale results
                          */
-                        if (invalidationCounter == numInvalidation.get()) {
-                            roleCache.computeIfAbsent(roleKey, (s) -> role);
+                        if (invalidationCounter == numInvalidation.getOrDefault(cacheKey.projectId(), 0L)) {
+                            roleCache.computeIfAbsent(cacheKey, (s) -> role);
                         }
                     }
 
                     for (String missingRole : missing) {
-                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+                        negativeLookupCache.computeIfAbsent(new ProjectScoped<>(cacheKey.projectId(), missingRole), s -> Boolean.TRUE);
                     }
                 }
                 delegate.onResponse(role);
@@ -432,6 +508,7 @@ public class CompositeRolesStore {
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
         final Set<String> workflows = new HashSet<>();
         final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
+        final RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
@@ -449,6 +526,12 @@ public class CompositeRolesStore {
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
+            }
+
+            if (descriptor.hasRemoteClusterPermissions()) {
+                for (RemoteClusterPermissionGroup groups : descriptor.getRemoteClusterPermissions().groups()) {
+                    remoteClusterPermissions.addGroup(groups);
+                }
             }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -472,11 +555,12 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
+
         indicesPrivilegesMap.forEach(
             (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
-                IndexPrivilege.get(privilege.privileges),
+                IndexPrivilege.resolveBySelectorAccess(privilege.privileges),
                 false,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             )
@@ -485,7 +569,7 @@ public class CompositeRolesStore {
             (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
-                IndexPrivilege.get(privilege.privileges),
+                IndexPrivilege.resolveBySelectorAccess(privilege.privileges),
                 true,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             )
@@ -493,18 +577,25 @@ public class CompositeRolesStore {
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach(
-                (privilege) -> builder.addRemoteGroup(
+                (privilege) -> builder.addRemoteIndicesGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
                     ),
                     privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
-                    IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
+                    IndexPrivilege.resolveBySelectorAccess(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
                     privilege.allowRestrictedIndices(),
                     newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
                 )
             );
         });
+
+        if (remoteClusterPermissions.hasAnyPrivileges()) {
+            builder.addRemoteClusterPermissions(remoteClusterPermissions);
+        } else {
+            builder.addRemoteClusterPermissions(RemoteClusterPermissions.NONE);
+        }
+
         if (false == workflows.isEmpty()) {
             builder.workflows(workflows);
         }
@@ -519,6 +610,7 @@ public class CompositeRolesStore {
             privilegeStore.getPrivileges(
                 applicationNames,
                 applicationPrivilegeNames,
+                false, // TODO revisit if we should also wait for an available security index here
                 listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
                     applicationPrivilegesMap.forEach(
                         (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
@@ -530,8 +622,28 @@ public class CompositeRolesStore {
         }
     }
 
+    public void invalidateProject() {
+        invalidateProject(projectResolver.getProjectId());
+    }
+
+    public void invalidateProject(ProjectId projectId) {
+        if (projectResolver.supportsMultipleProjects()) {
+            numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1);
+            negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+            roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+        } else {
+            invalidateAll();
+        }
+    }
+
+    final void removeProject(ProjectId projectId) {
+        numInvalidation.remove(projectId);
+        negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+        roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+    }
+
     public void invalidateAll() {
-        numInvalidation.incrementAndGet();
+        numInvalidation.replaceAll((p, num) -> num + 1);
         negativeLookupCache.invalidateAll();
         try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
             roleCache.invalidateAll();
@@ -540,16 +652,21 @@ public class CompositeRolesStore {
     }
 
     public void invalidate(String role) {
-        numInvalidation.incrementAndGet();
-
-        roleCacheHelper.removeKeysIf(key -> key.getNames().contains(role));
-        negativeLookupCache.invalidate(role);
+        final ProjectId projectId = Objects.requireNonNull(projectResolver.getProjectId());
+        numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1);
+        roleCacheHelper.removeKeysIf(key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role));
+        negativeLookupCache.invalidate(new ProjectScoped<>(projectId, role));
     }
 
-    public void invalidate(Set<String> roles) {
-        numInvalidation.incrementAndGet();
-        roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.getNames(), roles) == false);
-        roles.forEach(negativeLookupCache::invalidate);
+    public void invalidateClusterScopedRoles(Set<String> roles) {
+        numInvalidation.replaceAll((p, num) -> num + 1);
+        roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false);
+        negativeLookupCacheHelper.removeKeysIf(key -> roles.contains(key.value()));
+    }
+
+    // for testing
+    Iterable<ProjectScoped<RoleKey>> cachedRoles() {
+        return this.roleCache.keys();
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
@@ -561,18 +678,22 @@ public class CompositeRolesStore {
         }));
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    public void onSecurityIndexStateChange(
+        ProjectId projectId,
+        SecurityIndexManager.IndexState previousState,
+        SecurityIndexManager.IndexState currentState
+    ) {
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            invalidateAll();
+            invalidateProject(projectId);
         }
     }
 
     // pkg - private for testing
-    boolean isValueInNegativeLookupCache(String key) {
-        return negativeLookupCache.get(key) != null;
+    boolean isValueInNegativeLookupCache(String key, ProjectId projectId) {
+        return negativeLookupCache.get(new ProjectScoped<>(projectId, key)) != null;
     }
 
     private static void groupIndexPrivilegesByCluster(
@@ -678,5 +799,20 @@ public class CompositeRolesStore {
 
     public static List<Setting<?>> getSettings() {
         return Arrays.asList(CACHE_SIZE_SETTING, NEGATIVE_LOOKUP_CACHE_SIZE_SETTING);
+    }
+
+    /**
+     * A wrapper class to apply a project-id to another object.
+     */
+    protected record ProjectScoped<T>(ProjectId projectId, T value) {
+
+        protected ProjectScoped {
+            Objects.requireNonNull(projectId);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + '<' + projectId + ">{" + value + "}";
+        }
     }
 }

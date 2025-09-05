@@ -58,13 +58,11 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
             MlConfigIndex.indexName()
         );
         for (String index : indices) {
-            if (latestState.metadata().hasIndex(index) == false) {
+            if (latestState.metadata().getProject().hasIndex(index) == false) {
                 continue;
             }
             IndexRoutingTable routingTable = latestState.getRoutingTable().index(index);
-            if (routingTable == null
-                || routingTable.allPrimaryShardsActive() == false
-                || routingTable.readyForSearch(latestState) == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 return false;
             }
         }
@@ -77,7 +75,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
     }
 
     @Override
-    public void runUpdate() {
+    public void runUpdate(ClusterState latestState) {
         PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = new PlainActionFuture<>();
         provider.expandDatafeedConfigs("_all", true, null, getdatafeeds);
         List<DatafeedConfig.Builder> datafeedConfigBuilders = getdatafeeds.actionGet();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -27,7 +28,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -38,6 +38,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
@@ -53,6 +54,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
@@ -82,8 +84,7 @@ public class RestShardsAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
-        final var clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        final var clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {
@@ -117,17 +118,14 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("state", "default:true;alias:st;desc:shard state")
             .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
             .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
-            .addCell(
-                "dataset",
-                request.getRestApiVersion() == RestApiVersion.V_7
-                    ? "default:false;text-align:right;desc:total size of dataset"
-                    : "text-align:right;desc:total size of dataset"
-            )
+            .addCell("dataset", "text-align:right;desc:total size of dataset")
             .addCell("ip", "default:true;desc:ip of node where it lives")
             .addCell("id", "default:false;desc:unique id of node where it lives")
             .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
-        table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
+        if (request.getRestApiVersion() == RestApiVersion.V_8) {
+            table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
+        }
 
         table.addCell("unassigned.reason", "alias:ur;default:false;desc:reason shard became unassigned");
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
@@ -170,6 +168,11 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell(
             "indexing.index_failed",
             "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
+        );
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
         );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
@@ -252,7 +255,11 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell(
             "dense_vector.value_count",
-            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:number of indexed dense vectors in shard"
+        );
+        table.addCell(
+            "sparse_vector.value_count",
+            "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
 
         table.endHeaders();
@@ -320,14 +327,18 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
-            table.addCell(commitStats == null ? null : commitStats.getUserData().get(Engine.SYNC_COMMIT_ID));
+            if (request.getRestApiVersion() == RestApiVersion.V_8) {
+                table.addCell(null);
+            }
 
             if (shard.unassignedInfo() != null) {
-                table.addCell(shard.unassignedInfo().getReason());
-                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
+                table.addCell(shard.unassignedInfo().reason());
+                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().unassignedTimeMillis());
                 table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
-                table.addCell(shard.unassignedInfo().getDetails());
+                table.addCell(
+                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().unassignedTimeMillis()))
+                );
+                table.addCell(shard.unassignedInfo().details());
             } else {
                 table.addCell(null);
                 table.addCell(null);
@@ -367,6 +378,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedDueToVersionConflictCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrent));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrentNumDocs));
@@ -417,6 +429,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
 
             table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
             table.endRow();
         }

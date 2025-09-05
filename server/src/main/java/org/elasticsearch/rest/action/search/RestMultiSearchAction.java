@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.search;
@@ -16,10 +17,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,25 +43,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestMultiSearchAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
-        + " Specifying types in multi search template requests is deprecated.";
-
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestMultiSearchAction(
-        Settings settings,
-        SearchUsageHolder searchUsageHolder,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
+    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
@@ -72,9 +61,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch"),
-            Route.builder(GET, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_msearch")
         );
     }
 
@@ -85,13 +72,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final MultiSearchRequest multiSearchRequest = parseRequest(
-            request,
-            namedWriteableRegistry,
-            allowExplicitIndex,
-            searchUsageHolder,
-            clusterSupportsFeature
-        );
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
+        final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(
@@ -107,19 +91,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
      */
     public static MultiSearchRequest parseRequest(
         RestRequest restRequest,
-        NamedWriteableRegistry namedWriteableRegistry,
         boolean allowExplicitIndex,
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseRequest(
-            restRequest,
-            namedWriteableRegistry,
-            allowExplicitIndex,
-            searchUsageHolder,
-            clusterSupportsFeature,
-            (k, v, r) -> false
-        );
+        return parseRequest(restRequest, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature, (k, v, r) -> false);
     }
 
     /**
@@ -128,16 +104,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
      */
     public static MultiSearchRequest parseRequest(
         RestRequest restRequest,
-        NamedWriteableRegistry namedWriteableRegistry,
         boolean allowExplicitIndex,
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature,
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
     ) throws IOException {
-        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
-            restRequest.param("type");
-        }
-
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -213,9 +184,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
 
-        final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
+        final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
-        final BytesReference data = sourceTuple.v2();
+        final ReleasableBytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(
             xContent,
             request.contentParserConfig(),
@@ -232,7 +203,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 

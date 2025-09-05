@@ -1,9 +1,10 @@
 #
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
 # This file contains a whitelist for functions to be used in Score context
@@ -11,6 +12,23 @@
 class org.elasticsearch.script.ScoreScript @no_import {
 }
 class org.elasticsearch.script.ScoreScript$Factory @no_import {
+}
+
+class org.elasticsearch.script.StatsSummary {
+    double getMin()
+    double getMax()
+    double getAverage()
+    double getSum()
+    long getCount()
+}
+
+class org.elasticsearch.script.ScriptTermStats {
+    int uniqueTermsCount()
+    int matchedTermsCount()
+    StatsSummary docFreq()
+    StatsSummary totalTermFreq()
+    StatsSummary termFreq()
+    StatsSummary termPositions()
 }
 
 static_import {
@@ -27,9 +45,10 @@ static_import {
     double decayDateLinear(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateLinear
     double decayDateExp(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateExp
     double decayDateGauss(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateGauss
-    double l1norm(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$L1Norm
-    double l2norm(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$L2Norm
-    double cosineSimilarity(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$CosineSimilarity
-    double dotProduct(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$DotProduct
+    double l1norm(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$L1Norm
+    double l2norm(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$L2Norm
+    double cosineSimilarity(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$CosineSimilarity
+    double dotProduct(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$DotProduct
+    double hamming(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.script.VectorScoreScriptUtils$Hamming
 }
 

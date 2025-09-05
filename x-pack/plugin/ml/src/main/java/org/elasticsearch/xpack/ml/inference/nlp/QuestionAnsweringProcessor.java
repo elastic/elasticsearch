@@ -76,6 +76,9 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do question answering on more than one text input at a time");
             }
+            if (question == null) {
+                throw ExceptionsHelper.badRequestException("Question is required for question answering");
+            }
             String context = inputs.get(0);
             List<TokenizationResult.Tokens> tokenizations = tokenizer.tokenize(question, context, truncate, span, 0);
             TokenizationResult result = tokenizer.buildTokenizationResult(tokenizations);
@@ -122,7 +125,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             if (pyTorchResult.getInferenceResult().length % 2 != 0) {
                 throw new ElasticsearchStatusException(
                     "question answering result has invalid dimension, number of dimensions must be a multiple of 2 found [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     pyTorchResult.getInferenceResult().length
                 );
             }
@@ -135,7 +138,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             if (numberOfSpans != tokensList.size()) {
                 throw new ElasticsearchStatusException(
                     "question answering result has invalid dimensions; the number of spans [{}] does not match batched token size [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     numberOfSpans,
                     tokensList.size()
                 );
@@ -150,7 +153,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
                 if (starts.length != ends.length) {
                     throw new ElasticsearchStatusException(
                         "question answering result has invalid dimensions; start positions [{}] must equal potential end [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
+                        RestStatus.CONFLICT,
                         starts.length,
                         ends.length
                     );
@@ -219,7 +222,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
         if (start.length != end.length) {
             throw new ElasticsearchStatusException(
                 "question answering result has invalid dimensions; possible start tokens [{}] must equal possible end tokens [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
+                RestStatus.CONFLICT,
                 start.length,
                 end.length
             );

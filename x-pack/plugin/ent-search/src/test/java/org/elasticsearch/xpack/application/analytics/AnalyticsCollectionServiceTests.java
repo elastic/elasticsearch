@@ -400,7 +400,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String... collectionName
     ) throws Exception {
-        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(collectionName);
+        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::getAnalyticsCollection).execute(request).getAnalyticsCollections();
     }
 
@@ -409,7 +409,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String collectionName
     ) throws Exception {
-        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(collectionName);
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::putAnalyticsCollection).execute(request);
     }
 
@@ -418,7 +418,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String collectionName
     ) throws Exception {
-        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(collectionName);
+        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::deleteAnalyticsCollection).execute(request);
     }
 

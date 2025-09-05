@@ -1203,8 +1203,8 @@ public final class OptimizerRules {
      * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
      * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
      *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
+     * By default (see {@link #shouldValidateIn()}), this rule does NOT check for type compatibility as that phase has
+     * already been verified in the analyzer, but this behavior can be changed by subclasses.
      */
     public static class CombineDisjunctionsToIn extends OptimizerExpressionRule<Or> {
         public CombineDisjunctionsToIn() {
@@ -1214,18 +1214,24 @@ public final class OptimizerRules {
         @Override
         protected Expression rule(Or or) {
             Expression e = or;
-            // look only at equals and In
+            // look only at Equals and In
             List<Expression> exps = splitOr(e);
 
             Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
+            Map<Expression, List<Expression>> originalOrs = new LinkedHashMap<>();
             ZoneId zoneId = null;
             List<Expression> ors = new LinkedList<>();
 
             for (Expression exp : exps) {
                 if (exp instanceof Equals eq) {
-                    // consider only equals against foldables
+                    // consider only Equals against foldables
                     if (eq.right().foldable()) {
                         found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
+                        if (shouldValidateIn()) {
+                            // in case there is an optimized In being built and its validation fails, rebuild the original ORs
+                            // so, keep around the original Expressions
+                            originalOrs.computeIfAbsent(eq.left(), k -> new ArrayList<>()).add(eq);
+                        }
                     } else {
                         ors.add(exp);
                     }
@@ -1234,6 +1240,11 @@ public final class OptimizerRules {
                     }
                 } else if (exp instanceof In in) {
                     found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                    if (shouldValidateIn()) {
+                        // in case there is an optimized In being built and its validation fails, rebuild the original ORs
+                        // so, keep around the original Expressions
+                        originalOrs.computeIfAbsent(in.value(), k -> new ArrayList<>()).add(in);
+                    }
                     if (zoneId == null) {
                         zoneId = in.zoneId();
                     }
@@ -1243,11 +1254,31 @@ public final class OptimizerRules {
             }
 
             if (found.isEmpty() == false) {
-                // combine equals alongside the existing ors
+                // combine Equals alongside the existing ORs
                 final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
-                );
+                found.forEach((k, v) -> {
+                    if (v.size() == 1) {
+                        ors.add(createEquals(k, v.iterator().next(), finalZoneId));
+                    } else {
+                        In in = createIn(k, new ArrayList<>(v), finalZoneId);
+                        // IN has its own particularities when it comes to type resolution and not all implementations
+                        // double check the validity of an internally created IN (like the one created here). EQL is one where the IN
+                        // implementation is like this mechanism here has been specifically created for it
+                        if (shouldValidateIn()) {
+                            Expression.TypeResolution resolution = in.validateInTypes();
+                            if (resolution.unresolved()) {
+                                // if the internally created In is not valid, fall back to the original ORs
+                                assert originalOrs.containsKey(k);
+                                assert originalOrs.get(k).isEmpty() == false;
+                                ors.add(combineOr(originalOrs.get(k)));
+                            } else {
+                                ors.add(in);
+                            }
+                        } else {
+                            ors.add(in);
+                        }
+                    }
+                });
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order
@@ -1261,12 +1292,16 @@ public final class OptimizerRules {
             return e;
         }
 
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values, zoneId);
+        }
+
+        protected boolean shouldValidateIn() {
+            return false;
+        }
+
+        private Equals createEquals(Expression key, Expression value, ZoneId finalZoneId) {
+            return new Equals(key.source(), key, value, finalZoneId);
         }
     }
 
@@ -1678,14 +1713,9 @@ public final class OptimizerRules {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof IsNotNull isnn) {
-                if (isnn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-            } else if (e instanceof IsNull isn) {
-                if (isn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                }
+            Expression result = tryReplaceIsNullIsNotNull(e);
+            if (result != e) {
+                return result;
             } else if (e instanceof In in) {
                 if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
@@ -1695,6 +1725,19 @@ public final class OptimizerRules {
                 && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                     return Literal.of(e, null);
                 }
+            return e;
+        }
+
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+            if (e instanceof IsNotNull isnn) {
+                if (isnn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof IsNull isn) {
+                if (isn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            }
             return e;
         }
     }
@@ -1851,7 +1894,7 @@ public final class OptimizerRules {
         private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
             boolean changed = false;
             // check if the expression can be skipped or is not nullabe
-            if (skipExpression(exp) || exp.nullable() == Nullability.FALSE) {
+            if (skipExpression(exp)) {
                 resolvedExpressions.add(exp);
             } else {
                 for (Expression e : exp.references()) {
@@ -1871,7 +1914,7 @@ public final class OptimizerRules {
         }
 
         protected boolean skipExpression(Expression e) {
-            return false;
+            return e.nullable() == Nullability.FALSE;
         }
     }
 

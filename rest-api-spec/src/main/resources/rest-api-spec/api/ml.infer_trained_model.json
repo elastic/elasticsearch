@@ -1,8 +1,8 @@
 {
   "ml.infer_trained_model":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/infer-trained-model.html",
-      "description":"Evaluate a trained model."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-infer-trained-model",
+      "description":"Evaluate a trained model"
     },
     "stability":"stable",
     "visibility":"public",
@@ -23,23 +23,6 @@
               "description":"The unique identifier of the trained model.",
               "required":true
             }
-          }
-        },
-        {
-          "path":"/_ml/trained_models/{model_id}/deployment/_infer",
-          "methods":[
-            "POST"
-          ],
-          "parts":{
-            "model_id":{
-              "type":"string",
-              "description":"The unique identifier of the trained model.",
-              "required":true
-            }
-          },
-          "deprecated": {
-            "version":"8.3.0",
-            "description": "/_ml/trained_models/{model_id}/deployment/_infer is deprecated. Use /_ml/trained_models/{model_id}/_infer instead"
           }
         }
       ]

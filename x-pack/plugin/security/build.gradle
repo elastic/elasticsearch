@@ -4,10 +4,10 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'x-pack-security'
-  description 'Elasticsearch Expanded Pack Plugin - Security'
-  classname 'org.elasticsearch.xpack.security.Security'
-  requiresKeystore true
+  name = 'x-pack-security'
+  description = 'Elasticsearch Expanded Pack Plugin - Security'
+  classname = 'org.elasticsearch.xpack.security.Security'
+  requiresKeystore =true
   extendedPlugins = ['x-pack-core']
 }
 
@@ -66,7 +66,7 @@ dependencies {
   }
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}" // workaround for https://github.com/elastic/elasticsearch/issues/93714
- // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
+  // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -79,14 +79,15 @@ dependencies {
   runtimeOnly "joda-time:joda-time:2.10.10"
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:9.37"
-  api "com.nimbusds:nimbus-jose-jwt:9.23"
-  api "com.nimbusds:lang-tag:1.4.4"
-  api "com.sun.mail:jakarta.mail:1.6.3"
+  api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
+  runtimeOnly "com.nimbusds:content-type:2.3"
+  api "com.nimbusds:nimbus-jose-jwt:10.0.2"
+  api "com.nimbusds:lang-tag:1.7"
+  api "com.sun.mail:jakarta.mail:1.6.8"
   api "net.jcip:jcip-annotations:1.0"
-  api "net.minidev:json-smart:2.4.10"
-  api "net.minidev:accessors-smart:2.4.2"
-  api "org.ow2.asm:asm:8.0.1"
+  api "net.minidev:json-smart:2.5.2"
+  api "net.minidev:accessors-smart:2.5.2"
+  api "org.ow2.asm:asm:9.8"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -103,7 +104,6 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.23')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -122,7 +122,7 @@ dependencies {
   testImplementation('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
   testImplementation('commons-pool:commons-pool:1.6')
   testImplementation('commons-collections:commons-collections:3.2.2')
-  testImplementation('org.apache.mina:mina-core:2.0.17')
+  testImplementation("org.apache.mina:mina-core:${versions.apache_mina}")
   testImplementation('org.apache.directory.api:api-util:1.0.1')
   testImplementation('org.apache.directory.api:api-i18n:1.0.1')
   testImplementation('org.apache.directory.api:api-ldap-model:1.0.1')
@@ -167,9 +167,10 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-artifacts {
+
+tasks.named('assemble').configure {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
+  dependsOn tasks.named('jar')
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -177,6 +178,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /failureaccess.*/, to: 'guava'
+  mapping from: 'content-type', to: 'nimbus'
+  mapping from: /nimbus.*/, to: 'nimbus'
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -187,7 +190,11 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('forbiddenApisMain').configure {
-  signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
+  signaturesFiles += files(
+    'forbidden/ldap-signatures.txt',
+    'forbidden/oidc-signatures.txt',
+    project(':modules:transport-netty4').file('forbidden/netty-signatures.txt')
+  )
 }
 
 tasks.named('forbiddenApisTest').configure {
@@ -225,6 +232,9 @@ tasks.named("thirdPartyAudit").configure {
     'javax.servlet.http.HttpSession',
     'javax.servlet.http.HttpUpgradeHandler',
     'javax.servlet.http.Part',
+    'jakarta.servlet.ServletRequest',
+    'jakarta.servlet.http.HttpServletRequest',
+    'jakarta.servlet.http.HttpServletResponse',
     // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
     'org.apache.velocity.VelocityContext',
     'org.apache.velocity.app.VelocityEngine',
@@ -274,112 +284,113 @@ tasks.named("thirdPartyAudit").configure {
     // [missing classes] Http Client cache has optional ehcache support
     'net.sf.ehcache.Ehcache',
     'net.sf.ehcache.Element',
-        // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
-        // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
-        'org.bouncycastle.asn1.ASN1Encodable',
-        'org.bouncycastle.asn1.ASN1InputStream',
-        'org.bouncycastle.asn1.ASN1Integer',
-        'org.bouncycastle.asn1.ASN1ObjectIdentifier',
-        'org.bouncycastle.asn1.ASN1OctetString',
-        'org.bouncycastle.asn1.ASN1Primitive',
-        'org.bouncycastle.asn1.ASN1Sequence',
-        'org.bouncycastle.asn1.ASN1TaggedObject',
-        // 'org.bouncycastle.asn1.DEROctetString',
-        'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
-        'org.bouncycastle.asn1.pkcs.EncryptionScheme',
-        'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
-        'org.bouncycastle.asn1.pkcs.PBEParameter',
-        'org.bouncycastle.asn1.pkcs.PBES2Parameters',
-        'org.bouncycastle.asn1.pkcs.PBKDF2Params',
-        'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
-        'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
-        'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
-        'org.bouncycastle.asn1.x500.RDN',
-        'org.bouncycastle.asn1.x500.X500Name',
-        'org.bouncycastle.asn1.x509.AccessDescription',
-        'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
-        'org.bouncycastle.asn1.x509.AuthorityKeyIdentifier',
-        'org.bouncycastle.asn1.x509.BasicConstraints',
-        'org.bouncycastle.asn1.x509.DistributionPoint',
-        'org.bouncycastle.asn1.x509.Extension',
-        'org.bouncycastle.asn1.x509.GeneralName',
-        'org.bouncycastle.asn1.x509.GeneralNames',
-        'org.bouncycastle.asn1.x509.GeneralNamesBuilder',
-        'org.bouncycastle.asn1.x509.KeyPurposeId',
-        'org.bouncycastle.asn1.x509.KeyUsage',
-        'org.bouncycastle.asn1.x509.PolicyInformation',
-        'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
-        'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-        // 'org.bouncycastle.asn1.x9.DomainParameters',
-        // 'org.bouncycastle.asn1.x9.ECNamedCurveTable',
-        'org.bouncycastle.asn1.x9.X9ECParameters',
-        'org.bouncycastle.cert.X509v3CertificateBuilder',
-        'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-        'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
-        'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-        'org.bouncycastle.crypto.BlockCipher',
-        'org.bouncycastle.crypto.BufferedBlockCipher',
-        'org.bouncycastle.crypto.CipherParameters',
-        'org.bouncycastle.crypto.Digest',
-        'org.bouncycastle.crypto.PBEParametersGenerator',
-        'org.bouncycastle.crypto.StreamCipher',
-        'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
-        // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
-        'org.bouncycastle.crypto.engines.AESEngine',
-        'org.bouncycastle.crypto.generators.BCrypt',
-        'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
-        'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
-        'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
-        'org.bouncycastle.crypto.macs.HMac',
-        'org.bouncycastle.crypto.modes.AEADBlockCipher',
-        'org.bouncycastle.crypto.modes.GCMBlockCipher',
-        'org.bouncycastle.crypto.paddings.BlockCipherPadding',
-        'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
-        'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
-        'org.bouncycastle.crypto.params.DSAKeyParameters',
-        'org.bouncycastle.crypto.params.DSAParameters',
-        'org.bouncycastle.crypto.params.DSAPrivateKeyParameters',
-        'org.bouncycastle.crypto.params.DSAPublicKeyParameters',
-        'org.bouncycastle.crypto.params.ECDomainParameters',
-        'org.bouncycastle.crypto.params.ECKeyParameters',
-        'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
-        'org.bouncycastle.crypto.params.ECPublicKeyParameters',
-        // 'org.bouncycastle.crypto.params.KDFParameters',
-        'org.bouncycastle.crypto.params.KeyParameter',
-        'org.bouncycastle.crypto.params.RSAKeyParameters',
-        'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
-        'org.bouncycastle.crypto.prng.EntropySource',
-        'org.bouncycastle.crypto.prng.SP800SecureRandom',
-        'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
-        'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
-        'org.bouncycastle.crypto.signers.DSASigner',
-        'org.bouncycastle.crypto.signers.ECDSASigner',
-        'org.bouncycastle.crypto.signers.RSADigestSigner',
-        'org.bouncycastle.crypto.util.PrivateKeyFactory',
-        'org.bouncycastle.crypto.util.PrivateKeyInfoFactory',
-        'org.bouncycastle.crypto.util.PublicKeyFactory',
-        'org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory',
-        'org.bouncycastle.jcajce.provider.asymmetric.dsa.KeyPairGeneratorSpi',
-        'org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC',
-        'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
-        'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
-        'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
-        // 'org.bouncycastle.jce.ECNamedCurveTable',
-        // 'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
-        'org.bouncycastle.math.ec.ECFieldElement',
-        'org.bouncycastle.math.ec.ECPoint',
-        'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
-        'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-        'org.bouncycastle.util.Arrays',
-        'org.bouncycastle.util.io.Streams',
-        'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-        'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-        'org.bouncycastle.cert.X509CertificateHolder',
-        'org.bouncycastle.openssl.PEMKeyPair',
-        'org.bouncycastle.openssl.PEMParser',
-        'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
-        'org.bouncycastle.crypto.InvalidCipherTextException',
-        'org.bouncycastle.jce.provider.BouncyCastleProvider',
+    // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
+    // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
+    'org.bouncycastle.asn1.ASN1Encodable',
+    'org.bouncycastle.asn1.ASN1InputStream',
+    'org.bouncycastle.asn1.ASN1Integer',
+    'org.bouncycastle.asn1.ASN1ObjectIdentifier',
+    'org.bouncycastle.asn1.ASN1OctetString',
+    'org.bouncycastle.asn1.ASN1Primitive',
+    'org.bouncycastle.asn1.ASN1Sequence',
+    'org.bouncycastle.asn1.ASN1TaggedObject',
+    // 'org.bouncycastle.asn1.DEROctetString',
+    'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
+    'org.bouncycastle.asn1.pkcs.EncryptionScheme',
+    'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
+    'org.bouncycastle.asn1.pkcs.PBEParameter',
+    'org.bouncycastle.asn1.pkcs.PBES2Parameters',
+    'org.bouncycastle.asn1.pkcs.PBKDF2Params',
+    'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
+    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+    'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
+    'org.bouncycastle.asn1.x500.RDN',
+    'org.bouncycastle.asn1.x500.X500Name',
+    'org.bouncycastle.asn1.x509.AccessDescription',
+    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+    'org.bouncycastle.asn1.x509.AuthorityKeyIdentifier',
+    'org.bouncycastle.asn1.x509.BasicConstraints',
+    'org.bouncycastle.asn1.x509.DistributionPoint',
+    'org.bouncycastle.asn1.x509.Extension',
+    'org.bouncycastle.asn1.x509.GeneralName',
+    'org.bouncycastle.asn1.x509.GeneralNames',
+    'org.bouncycastle.asn1.x509.GeneralNamesBuilder',
+    'org.bouncycastle.asn1.x509.KeyPurposeId',
+    'org.bouncycastle.asn1.x509.KeyUsage',
+    'org.bouncycastle.asn1.x509.PolicyInformation',
+    'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
+    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+    // 'org.bouncycastle.asn1.x9.DomainParameters',
+    // 'org.bouncycastle.asn1.x9.ECNamedCurveTable',
+    'org.bouncycastle.asn1.x9.X9ECParameters',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.crypto.BlockCipher',
+    'org.bouncycastle.crypto.BufferedBlockCipher',
+    'org.bouncycastle.crypto.CipherParameters',
+    'org.bouncycastle.crypto.Digest',
+    'org.bouncycastle.crypto.PBEParametersGenerator',
+    'org.bouncycastle.crypto.StreamCipher',
+    'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
+    // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
+    'org.bouncycastle.crypto.generators.BCrypt',
+    'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
+    'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
+    'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
+    'org.bouncycastle.crypto.macs.HMac',
+    'org.bouncycastle.crypto.modes.AEADBlockCipher',
+    'org.bouncycastle.crypto.paddings.BlockCipherPadding',
+    'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
+    'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
+    'org.bouncycastle.crypto.params.DSAKeyParameters',
+    'org.bouncycastle.crypto.params.DSAParameters',
+    'org.bouncycastle.crypto.params.DSAPrivateKeyParameters',
+    'org.bouncycastle.crypto.params.DSAPublicKeyParameters',
+    'org.bouncycastle.crypto.params.ECDomainParameters',
+    'org.bouncycastle.crypto.params.ECKeyParameters',
+    'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
+    'org.bouncycastle.crypto.params.ECPublicKeyParameters',
+    // 'org.bouncycastle.crypto.params.KDFParameters',
+    'org.bouncycastle.crypto.params.KeyParameter',
+    'org.bouncycastle.crypto.params.RSAKeyParameters',
+    'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
+    'org.bouncycastle.crypto.prng.EntropySource',
+    'org.bouncycastle.crypto.prng.SP800SecureRandom',
+    'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
+    'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
+    'org.bouncycastle.crypto.signers.DSASigner',
+    'org.bouncycastle.crypto.signers.ECDSASigner',
+    'org.bouncycastle.crypto.signers.RSADigestSigner',
+    'org.bouncycastle.crypto.util.PrivateKeyFactory',
+    'org.bouncycastle.crypto.util.PrivateKeyInfoFactory',
+    'org.bouncycastle.crypto.util.PublicKeyFactory',
+    'org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory',
+    'org.bouncycastle.jcajce.provider.asymmetric.dsa.KeyPairGeneratorSpi',
+    'org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC',
+    'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
+    'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
+    'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
+    // 'org.bouncycastle.jce.ECNamedCurveTable',
+    // 'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
+    'org.bouncycastle.math.ec.ECFieldElement',
+    'org.bouncycastle.math.ec.ECPoint',
+    'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.util.Arrays',
+    'org.bouncycastle.util.io.Streams',
+    'org.bouncycastle.cert.X509CertificateHolder',
+    // missing classes linked by nimbus
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.openssl.PEMKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
   )
 
   ignoreViolations(
@@ -402,26 +413,19 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          'javax.xml.bind.JAXBContext',
-          'javax.xml.bind.JAXBElement',
-          'javax.xml.bind.JAXBException',
-          'javax.xml.bind.Unmarshaller',
-          'javax.xml.bind.UnmarshallerHandler',
-          // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
-          'org.cryptomator.siv.SivMode',
-          // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-          'com.google.crypto.tink.subtle.Ed25519Sign',
-          'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-          'com.google.crypto.tink.subtle.Ed25519Verify',
-          'com.google.crypto.tink.subtle.X25519',
-          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
-          'com.nimbusds.common.contenttype.ContentType',
-          'javax.activation.ActivationDataFlavor',
-          'javax.activation.DataContentHandler',
-          'javax.activation.DataHandler',
-          'javax.activation.DataSource',
-          'javax.activation.FileDataSource',
-          'javax.activation.FileTypeMap'
+    'javax.xml.bind.JAXBContext',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.JAXBException',
+    'javax.xml.bind.Unmarshaller',
+    'javax.xml.bind.UnmarshallerHandler',
+    // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
+    'org.cryptomator.siv.SivMode',
+    'javax.activation.ActivationDataFlavor',
+    'javax.activation.DataContentHandler',
+    'javax.activation.DataHandler',
+    'javax.activation.DataSource',
+    'javax.activation.FileDataSource',
+    'javax.activation.FileTypeMap'
   )
 }
 

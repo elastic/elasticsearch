@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
@@ -28,9 +28,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -67,7 +65,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject();
         try (var parser = createParser(builder)) {
-            request.fromXContent(false, parser);
+            request.fromXContent(parser);
         }
         Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(10));
@@ -121,7 +119,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject();
         try (var parser = createParser(builder)) {
-            request.fromXContent(false, parser);
+            request.fromXContent(parser);
         }
         Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(3));
@@ -144,7 +142,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject();
 
         try (var parser = createParser(builder)) {
-            request.fromXContent(false, parser);
+            request.fromXContent(parser);
         }
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings();
@@ -175,6 +173,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .build()
         );
         originalRequest.lazy(randomBoolean());
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -207,7 +206,7 @@ public class RolloverRequestTests extends ESTestCase {
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
         expectThrows(XContentParseException.class, () -> {
             try (var parser = createParser(xContentType.xContent(), mutated)) {
-                request.fromXContent(false, parser);
+                request.fromXContent(parser);
             }
         });
     }
@@ -247,73 +246,16 @@ public class RolloverRequestTests extends ESTestCase {
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNull(validationException);
         }
-    }
 
-    public void testParsingWithType() throws Exception {
-        final XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("conditions")
-            .field("max_age", "10d")
-            .field("max_docs", 100)
-            .endObject()
-            .startObject("mappings")
-            .startObject("type1")
-            .startObject("properties")
-            .startObject("field1")
-            .field("type", "string")
-            .field("index", "not_analyzed")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("settings")
-            .field("number_of_shards", 10)
-            .endObject()
-            .startObject("aliases")
-            .startObject("alias1")
-            .endObject()
-            .endObject()
-            .endObject();
-
-        try (
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                BytesReference.bytes(builder).utf8ToString(),
-                RestApiVersion.V_7
-            )
-        ) {
-            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            request.fromXContent(true, parser);
-            Map<String, Condition<?>> conditions = request.getConditions().getConditions();
-            assertThat(conditions.size(), equalTo(2));
-            assertThat(request.getCreateIndexRequest().mappings(), equalTo("""
-                {"_doc":{"properties":{"field1":{"index":"not_analyzed","type":"string"}}}}"""));
-        }
-    }
-
-    public void testTypedRequestWithoutIncludeTypeName() throws IOException {
-        final XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("mappings")
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("field1")
-            .field("type", "string")
-            .field("index", "not_analyzed")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        try (
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                BytesReference.bytes(builder).utf8ToString(),
-                RestApiVersion.V_7
-            )
-        ) {
-            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            expectThrows(IllegalArgumentException.class, () -> request.fromXContent(false, parser));
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("alias-index::*", "new-index-name");
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNotNull(validationException);
+            assertEquals(1, validationException.validationErrors().size());
+            assertEquals(
+                "Invalid index name [alias-index::*], invalid usage of :: separator, [*] is not a recognized selector",
+                validationException.validationErrors().get(0)
+            );
         }
     }
 }

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -18,6 +20,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
+
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
  * Processor that appends value or values to existing lists. If the field is not present a new list holding the
@@ -30,6 +34,7 @@ public final class AppendProcessor extends AbstractProcessor {
 
     private final TemplateScript.Factory field;
     private final ValueSource value;
+    private final String copyFrom;
     private final boolean allowDuplicates;
     private final boolean ignoreEmptyValues;
 
@@ -38,12 +43,14 @@ public final class AppendProcessor extends AbstractProcessor {
         String description,
         TemplateScript.Factory field,
         ValueSource value,
+        String copyFrom,
         boolean allowDuplicates,
         boolean ignoreEmptyValues
     ) {
         super(tag, description);
         this.field = field;
         this.value = value;
+        this.copyFrom = copyFrom;
         this.allowDuplicates = allowDuplicates;
         this.ignoreEmptyValues = ignoreEmptyValues;
     }
@@ -56,10 +63,19 @@ public final class AppendProcessor extends AbstractProcessor {
         return value;
     }
 
+    public String getCopyFrom() {
+        return copyFrom;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         String path = document.renderTemplate(field);
-        document.appendFieldValue(path, value, allowDuplicates, ignoreEmptyValues);
+        if (copyFrom != null) {
+            Object fieldValue = document.getFieldValue(copyFrom, Object.class);
+            document.appendFieldValue(path, IngestDocument.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
+        } else {
+            document.appendFieldValue(path, value, allowDuplicates, ignoreEmptyValues);
+        }
         return document;
     }
 
@@ -81,19 +97,36 @@ public final class AppendProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
+            String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");
+            String mediaType = ConfigurationUtils.readMediaTypeProperty(TYPE, processorTag, config, "media_type", "application/json");
+            ValueSource valueSource = null;
+            if (copyFrom == null) {
+                Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
+                valueSource = ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mediaType));
+            } else {
+                Object value = config.remove("value");
+                if (value != null) {
+                    throw newConfigurationException(
+                        TYPE,
+                        processorTag,
+                        "copy_from",
+                        "cannot set both `copy_from` and `value` in the same processor"
+                    );
+                }
+            }
             boolean allowDuplicates = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicates", true);
             boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_values", false);
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
-            String mediaType = ConfigurationUtils.readMediaTypeProperty(TYPE, processorTag, config, "media_type", "application/json");
             return new AppendProcessor(
                 processorTag,
                 description,
                 compiledTemplate,
-                ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mediaType)),
+                valueSource,
+                copyFrom,
                 allowDuplicates,
                 ignoreEmptyValues
             );

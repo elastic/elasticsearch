@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
@@ -24,7 +26,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,9 +43,10 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -59,7 +61,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
     TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
     TransportNodesListShardStoreMetadata.NodeRequest,
-    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
+    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
 
@@ -140,7 +143,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         );
                         exists = true;
                         return storeFilesMetadata;
-                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                    } catch (IndexNotFoundException e) {
                         logger.trace(() -> "[" + shardId + "] node is missing index, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
@@ -157,7 +160,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexService != null) {
                     customDataPath = indexService.getIndexSettings().customDataPath();
                 } else {
-                    IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+                    IndexMetadata metadata = clusterService.state().metadata().findIndex(shardId.getIndex()).orElse(null);
                     if (metadata != null) {
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {
@@ -219,9 +222,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
                 // no compatible version cares about the shard ID, we can just make one up
                 FAKE_SHARD_ID.writeTo(out);
-
-                // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
-                assert out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
             out.writeCollection(peerRecoveryRetentionLeases);
@@ -257,26 +257,13 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 .orElse(-1L);
         }
 
-        /**
-         * @return commit sync id if exists, else null
-         */
-        public String syncId() {
-            return metadataSnapshot.getSyncId();
-        }
-
         @Override
         public String toString() {
-            return "StoreFilesMetadata{"
-                + ", metadataSnapshot{size="
-                + metadataSnapshot.size()
-                + ", syncId="
-                + metadataSnapshot.getSyncId()
-                + "}"
-                + '}';
+            return "StoreFilesMetadata{" + ", metadataSnapshot{size=" + metadataSnapshot.size() + "}" + '}';
         }
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -301,11 +288,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public String getCustomDataPath() {
             return customDataPath;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodesStoreFilesMetadata extends BaseNodesResponse<NodeStoreFilesMetadata> {
@@ -325,7 +307,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -381,10 +363,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         public StoreFilesMetadata storeFilesMetadata() {
             return storeFilesMetadata;
-        }
-
-        public static NodeStoreFilesMetadata readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
-            return new NodeStoreFilesMetadata(in, null);
         }
 
         @Override

@@ -7,59 +7,120 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::readFrom);
+    private final Expression summationMode;
 
-    @FunctionInfo(returnType = "double", description = "The average of a numeric field.", isAggregation = true)
-    public Avg(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+    @FunctionInfo(
+        returnType = "double",
+        description = "The average of a numeric field.",
+        type = FunctionType.AGGREGATE,
+        examples = {
+            @Example(file = "stats", tag = "avg"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate the average "
+                    + "over a multivalued column, first use `MV_AVG` to average the multiple values per row, "
+                    + "and use the result with the `AVG` function",
+                file = "stats",
+                tag = "docsStatsAvgNestedExpression"
+            ) }
+    )
+    public Avg(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "aggregate_metric_double", "double", "integer", "long" },
+            description = "Expression that outputs values to average."
+        ) Expression field
+    ) {
+        this(source, field, Literal.TRUE, SummationMode.COMPENSATED_LITERAL);
+    }
+
+    public Avg(Source source, Expression field, Expression filter, Expression summationMode) {
+        super(source, field, filter, List.of(summationMode));
+        this.summationMode = summationMode;
+    }
+
+    public Expression summationMode() {
+        return summationMode;
     }
 
     @Override
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long"
+            "aggregate_metric_double or numeric except unsigned_long or counter types"
         );
+    }
+
+    private static Avg readFrom(StreamInput in) throws IOException {
+        // For BWC and to ensure parameters always include the summation mode, first read a generic AggregateFunction, then convert to AVG.
+        var fn = readGenericAggregateFunction(in);
+        var parameters = fn.parameters();
+        var summationMode = parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
+        return new Avg(fn.source(), fn.field(), fn.filter(), summationMode);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override
     protected NodeInfo<Avg> info() {
-        return NodeInfo.create(this, Avg::new, field());
+        return NodeInfo.create(this, Avg::new, field(), filter(), summationMode);
     }
 
     @Override
     public Avg replaceChildren(List<Expression> newChildren) {
-        return new Avg(source(), newChildren.get(0));
+        return new Avg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    }
+
+    @Override
+    public Avg withFilter(Expression filter) {
+        return new Avg(source(), field(), filter, summationMode);
     }
 
     @Override
     public Expression surrogate() {
         var s = source();
         var field = field();
-        return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+        if (field.foldable()) {
+            return new MvAvg(s, field);
+        }
+        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+            return new Div(s, new Sum(s, field, filter(), summationMode).surrogate(), new Count(s, field, filter()).surrogate());
+        }
+        return new Div(s, new Sum(s, field, filter(), summationMode), new Count(s, field, filter()), dataType());
     }
 }

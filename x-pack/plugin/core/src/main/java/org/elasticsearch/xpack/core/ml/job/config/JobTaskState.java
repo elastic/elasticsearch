@@ -150,7 +150,7 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
             builder.field(REASON.getPreferredName(), reason);
         }
         if (lastStateChangeTime != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LAST_STATE_CHANGE_TIME.getPreferredName(),
                 LAST_STATE_CHANGE_TIME.getPreferredName() + "_string",
                 lastStateChangeTime.toEpochMilli()

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -83,13 +85,14 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
                 .fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
                 .fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(
+                context
+            ).fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
                 .fieldType()
         )) {
             ifdService.clear();
@@ -104,6 +107,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             false,
             true,
             IndexVersion.current(),
+            null,
             null
         ).build(context).fieldType();
         ifdService.clear();
@@ -117,6 +121,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             false,
             true,
             IndexVersion.current(),
+            null,
             null
         ).build(context).fieldType();
         ifdService.clear();
@@ -141,7 +146,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
-        ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
+        ifdService.getForField(
+            ft,
+            new FieldDataContext("qualified", null, () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH)
+        );
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
 
@@ -156,12 +164,16 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .fieldType();
-        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder(
+            "field_1",
+            createDefaultIndexAnalyzers(),
+            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
+        ).fielddata(true).build(context).fieldType();
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder(
+            "field_2",
+            createDefaultIndexAnalyzers(),
+            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
+        ).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
@@ -223,9 +235,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder(
+            "s",
+            createDefaultIndexAnalyzers(),
+            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
+        ).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -322,7 +336,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }
@@ -342,14 +357,17 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
+        doTestRequireDocValues(
+            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false, false)
+        );
     }
 
     public void testFieldDataCacheExpire() {

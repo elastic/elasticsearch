@@ -1,0 +1,22 @@
+{
+    "properties" : {
+        "emp_no" : {
+            "type" : "long"
+        },
+        "first_name" : {
+            "type" : "text"
+        },
+        "gender" : {
+            "type" : "text"
+        },
+        "languages" : {
+            "type" : "byte"
+        },
+        "last_name" : {
+            "type" : "text"
+        },
+        "salary" : {
+            "type" : "integer"
+        }
+    }
+}

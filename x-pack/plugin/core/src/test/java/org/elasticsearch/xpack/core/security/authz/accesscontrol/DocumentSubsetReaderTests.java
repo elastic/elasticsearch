@@ -31,14 +31,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class DocumentSubsetReaderTests extends ESTestCase {
@@ -54,7 +54,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         // this test and garbage not cleaned up by other tests.
         assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(), DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory = newDirectory();
-        bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
     }
 
     @After
@@ -96,25 +96,25 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         );
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         TopDocs result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits.value, equalTo(1L));
+        assertThat(result.totalHits.value(), equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
         indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value2"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits.value, equalTo(1L));
+        assertThat(result.totalHits.value(), equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(1));
 
         // this doc has been marked as deleted:
         indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value3"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits.value, equalTo(0L));
+        assertThat(result.totalHits.value(), equalTo(0L));
 
         indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value4"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
-        assertThat(result.totalHits.value, equalTo(1L));
+        assertThat(result.totalHits.value(), equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(3));
     }
 
@@ -242,9 +242,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertEquals(2, reader.leaves().size());
 
         TestUtil.checkReader(reader);
-        assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+        assertThat(reader.leaves().size(), greaterThanOrEqualTo(1));
         for (LeafReaderContext context : reader.leaves()) {
-            assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+            assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
             SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
             assertNotNull(lf.getSequentialStoredFieldsReader());
         }

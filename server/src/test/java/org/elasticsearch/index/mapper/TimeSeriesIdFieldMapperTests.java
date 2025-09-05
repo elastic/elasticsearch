@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -27,10 +28,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -62,13 +66,19 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private DocumentMapper createDocumentMapper(String routingPath, XContentBuilder mappings) throws IOException {
+        return createDocumentMapper(getVersion(), routingPath, mappings);
+    }
+
+    private DocumentMapper createDocumentMapper(IndexVersion version, String routingPath, XContentBuilder mappings) throws IOException {
         return createMapperService(
+            version,
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                 .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Allow tests that use many dimensions
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
                 .build(),
+            () -> true,
             mappings
         ).documentMapper();
     }
@@ -643,6 +653,44 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, not(doc2.rootDoc().getBinaryValue("_tsid").bytes));
     }
 
+    public void testMultiValueDimensionsNotSupportedBeforeTsidHashing() throws IOException {
+        IndexVersion priorToTsidHashing = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_HASHING);
+        DocumentMapper docMapper = createDocumentMapper(
+            priorToTsidHashing,
+            "a",
+            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
+        );
+
+        String a1 = randomAlphaOfLength(10);
+        String a2 = randomAlphaOfLength(10);
+        CheckedConsumer<XContentBuilder, IOException> fields = d -> d.field("a", new String[] { a1, a2 });
+        DocumentParsingException exception = assertThrows(DocumentParsingException.class, () -> parseDocument(docMapper, fields));
+        assertThat(exception.getMessage(), containsString("Dimension field [a] cannot be a multi-valued field"));
+    }
+
+    public void testMultiValueDimensions() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper(
+            IndexVersions.TIME_SERIES_ID_HASHING,
+            "a",
+            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
+        );
+
+        String a1 = randomAlphaOfLength(10);
+        String a2 = randomAlphaOfLength(10);
+        List<ParsedDocument> docs = List.of(
+            parseDocument(docMapper, d -> d.field("a", new String[] { a1 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a1, a2 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a2, a1 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a1, a2, a1 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a2, a1, a2 }))
+        );
+        List<String> tsids = docs.stream()
+            .map(doc -> doc.rootDoc().getBinaryValue("_tsid").toString())
+            .distinct()
+            .collect(Collectors.toList());
+        assertThat(tsids, hasSize(docs.size()));
+    }
+
     /**
      * Documents with fewer dimensions have a different value.
      */
@@ -666,16 +714,44 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .build();
-        // without _id
-        {
-            MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-            SourceToParse source = new SourceToParse(null, new BytesArray("""
-                {
-                    "@timestamp": 1609459200000,
-                    "dim": "6a841a21",
-                    "value": 100
-                }"""), XContentType.JSON);
-            Engine.Index index = IndexShard.prepareIndex(
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+        SourceToParse source = new SourceToParse(null, new BytesArray("""
+            {
+                "@timestamp": 1609459200000,
+                "dim": "6a841a21",
+                "value": 100
+            }"""), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
+        Engine.Index index = IndexShard.prepareIndex(
+            mapper,
+            source,
+            UNASSIGNED_SEQ_NO,
+            randomNonNegativeLong(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            -1,
+            false,
+            UNASSIGNED_SEQ_NO,
+            0,
+            System.nanoTime()
+        );
+        assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
+    }
+
+    public void testParseWithDynamicMappingInvalidRoutingHash() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+        SourceToParse source = new SourceToParse(null, new BytesArray("""
+            {
+                "@timestamp": 1609459200000,
+                "dim": "6a841a21",
+                "value": 100
+            }"""), XContentType.JSON, "no such routing hash");
+        var failure = expectThrows(DocumentParsingException.class, () -> {
+            IndexShard.prepareIndex(
                 mapper,
                 source,
                 UNASSIGNED_SEQ_NO,
@@ -689,40 +765,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 0,
                 System.nanoTime()
             );
-            assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
-        }
-        // with _id
-        {
-            MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-            SourceToParse source = new SourceToParse("no-such-tsid", new BytesArray("""
-                {
-                    "@timestamp": 1609459200000,
-                    "dim": "6a841a21",
-                    "value": 100
-                }"""), XContentType.JSON);
-            var failure = expectThrows(DocumentParsingException.class, () -> {
-                IndexShard.prepareIndex(
-                    mapper,
-                    source,
-                    UNASSIGNED_SEQ_NO,
-                    randomNonNegativeLong(),
-                    Versions.MATCH_ANY,
-                    VersionType.INTERNAL,
-                    Engine.Operation.Origin.PRIMARY,
-                    -1,
-                    false,
-                    UNASSIGNED_SEQ_NO,
-                    0,
-                    System.nanoTime()
-                );
-            });
-            assertThat(
-                failure.getMessage(),
-                equalTo(
-                    "[5:1] failed to parse: _id must be unset or set to [AAAAAMpxfIC8Wpr0AAABdrs-cAA]"
-                        + " but was [no-such-tsid] because [index] is in time_series mode"
-                )
-            );
-        }
+        });
+        assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Illegal base64 character 20"));
     }
 }

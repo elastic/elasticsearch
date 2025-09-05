@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -35,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -44,7 +46,10 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -57,6 +62,7 @@ import org.mockito.verification.VerificationMode;
 
 import java.time.Clock;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -73,6 +79,9 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -103,6 +112,7 @@ public class TransformTaskTests extends ESTestCase {
     public void testStopOnFailedTaskWithStoppedIndexer() {
         Clock clock = Clock.systemUTC();
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
@@ -130,7 +140,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mockTransformNode()
         );
 
         TaskManager taskManager = mock(TaskManager.class);
@@ -151,7 +162,7 @@ public class TransformTaskTests extends ESTestCase {
             equalTo(
                 "Unable to stop transform ["
                     + transformConfig.getId()
-                    + "] as it is in a failed state with reason [because]. Use force stop to stop the transform."
+                    + "] as it is in a failed state. Use force stop to stop the transform. More details: [because]"
             )
         );
 
@@ -174,6 +185,12 @@ public class TransformTaskTests extends ESTestCase {
         assertEquals(state.getReason(), null);
     }
 
+    private TransformNode mockTransformNode() {
+        var transformNode = mock(TransformNode.class);
+        when(transformNode.isShuttingDown()).thenReturn(randomBoolean() ? Optional.of(false) : Optional.<Boolean>empty());
+        return transformNode;
+    }
+
     private TransformServices transformServices(Clock clock, TransformAuditor auditor, ThreadPool threadPool) {
         var transformsConfigManager = new InMemoryTransformConfigManager();
         var transformsCheckpointService = new TransformCheckpointService(
@@ -182,8 +199,8 @@ public class TransformTaskTests extends ESTestCase {
             new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                (TaskManager) null
+                threadPool,
+                null
             ),
             transformsConfigManager,
             auditor
@@ -192,7 +209,8 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO)
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
+            mock(TransformNode.class)
         );
     }
 
@@ -234,7 +252,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mockTransformNode()
         );
 
         TaskManager taskManager = mock(TaskManager.class);
@@ -256,7 +275,7 @@ public class TransformTaskTests extends ESTestCase {
             equalTo(
                 "Unable to stop transform ["
                     + transformConfig.getId()
-                    + "] as it is in a failed state with reason [because]. Use force stop to stop the transform."
+                    + "] as it is in a failed state. Use force stop to stop the transform. More details: [because]"
             )
         );
 
@@ -277,6 +296,66 @@ public class TransformTaskTests extends ESTestCase {
         assertEquals(TransformTaskState.STARTED, state.getTaskState());
         assertEquals(IndexerState.STOPPED, state.getIndexerState());
         assertEquals(state.getReason(), null);
+    }
+
+    public void testFailWhenNodeIsShuttingDown() {
+        var threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        var transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
+        var auditor = MockTransformAuditor.createMockAuditor();
+
+        var transformState = new TransformState(
+            TransformTaskState.STARTED,
+            IndexerState.INDEXING,
+            null,
+            0L,
+            "because",
+            null,
+            null,
+            false,
+            null
+        );
+
+        var node = mock(TransformNode.class);
+        when(node.isShuttingDown()).thenReturn(Optional.of(true));
+        when(node.nodeId()).thenReturn("node");
+
+        var transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            transformState,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor,
+            threadPool,
+            Collections.emptyMap(),
+            node
+        );
+
+        var taskManager = mock(TaskManager.class);
+        var persistentTasksService = mock(PersistentTasksService.class);
+        transformTask.init(persistentTasksService, taskManager, "task-id", 42);
+        var listenerCalled = new AtomicBoolean(false);
+        transformTask.fail(null, "because", ActionTestUtils.assertNoFailureListener(r -> { listenerCalled.compareAndSet(false, true); }));
+
+        var state = transformTask.getState();
+        assertEquals(TransformTaskState.STARTED, state.getTaskState());
+        assertEquals(IndexerState.STARTED, state.getIndexerState());
+
+        assertTrue(listenerCalled.get());
+        // verify shutdown has been called
+        verify(taskManager, times(1)).unregister(any());
+        verify(persistentTasksService, times(1)).sendCompletionRequest(
+            eq("task-id"),
+            eq(42L),
+            isNull(),
+            eq("Node is shutting down."),
+            isNotNull(),
+            any()
+        );
     }
 
     public void testGetTransformTask() {
@@ -453,7 +532,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mockTransformNode()
         );
         assertThat(transformTask.getContext().getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
 
@@ -475,6 +555,75 @@ public class TransformTaskTests extends ESTestCase {
         );
         var checkpointingInfo = transformTask.deriveBasicCheckpointingInfo();
         assertThat(checkpointingInfo, sameInstance(TransformCheckpointingInfo.EMPTY));
+    }
+
+    public void testCheckAndResetDestinationIndexBlock() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(currentConfig);
+
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.initializeIndexer(indexer);
+
+        transformTask.getContext().setIsWaitingForIndexToUnblock(true);
+        var updatedConfig = randomConfigForDestIndex("newDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    public void testCheckAndResetDestinationIndexBlock_NoChangeToDest() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(currentConfig);
+
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.initializeIndexer(indexer);
+
+        transformTask.getContext().setIsWaitingForIndexToUnblock(true);
+        var updatedConfig = randomConfigForDestIndex("oldDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertTrue(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    public void testCheckAndResetDestinationIndexBlock_NotBlocked() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(currentConfig);
+
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.initializeIndexer(indexer);
+
+        var updatedConfig = randomConfigForDestIndex("newDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    public void testCheckAndResetDestinationIndexBlock_NullIndexer() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.getContext().setIsWaitingForIndexToUnblock(true);
+
+        var updatedConfig = randomConfigForDestIndex("oldDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    private TransformConfig randomConfigForDestIndex(String indexName) {
+        var pivotOrLatest = randomBoolean();
+        return TransformConfigTests.randomTransformConfigWithoutHeaders(
+            randomAlphaOfLengthBetween(1, 10),
+            pivotOrLatest ? null : PivotConfigTests.randomPivotConfig(),
+            pivotOrLatest ? LatestConfigTests.randomLatestConfig() : null,
+            new DestConfig(indexName, null, null)
+        );
     }
 
     private TransformTask createTransformTask(TransformConfig transformConfig, MockTransformAuditor auditor) {
@@ -502,7 +651,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mockTransformNode()
         );
     }
 
@@ -603,7 +753,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(mock(Clock.class), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mockTransformNode()
         );
 
         ClientTransformIndexer indexer = mock(ClientTransformIndexer.class);

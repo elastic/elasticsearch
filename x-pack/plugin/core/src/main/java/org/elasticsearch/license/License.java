@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -137,12 +136,6 @@ public class License implements ToXContentObject {
      * to a specific license version
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
-    /**
-     * Set for {@link RestApiVersion#V_7} requests only
-     * XContent param name to map the "enterprise" license type to "platinum"
-     * for backwards compatibility with older clients
-     */
-    public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
 
     public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();
 
@@ -496,8 +489,6 @@ public class License implements ToXContentObject {
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         boolean licenseSpecMode = params.paramAsBoolean(LICENSE_SPEC_VIEW_MODE, false);
         boolean restViewMode = params.paramAsBoolean(REST_VIEW_MODE, false);
-        boolean hideEnterprise = params.paramAsBoolean(XCONTENT_HIDE_ENTERPRISE, false);
-
         boolean previouslyHumanReadable = builder.humanReadable();
         if (licenseSpecMode && restViewMode) {
             throw new IllegalArgumentException("can have either " + REST_VIEW_MODE + " or " + LICENSE_SPEC_VIEW_MODE);
@@ -516,25 +507,22 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, LicenseUtils.status(this).label());
         }
         builder.field(Fields.UID, uid);
-        final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
-        builder.field(Fields.TYPE, bwcType);
+        builder.field(Fields.TYPE, type);
         if (licenseVersion == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
-        builder.timeField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
         if (licenseVersion == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
 
         if (expiryDate != LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
-            builder.timeField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+            builder.timestampFieldsFromUnixEpochMillis(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         }
 
         if (licenseVersion >= VERSION_ENTERPRISE) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);
-        } else if (hideEnterprise && maxNodes == -1) {
-            builder.field(Fields.MAX_NODES, maxResourceUnits);
         } else {
             builder.field(Fields.MAX_NODES, maxNodes);
         }
@@ -548,7 +536,7 @@ public class License implements ToXContentObject {
             builder.humanReadable(previouslyHumanReadable);
         }
         if (licenseVersion >= VERSION_START_DATE) {
-            builder.timeField(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
+            builder.timestampFieldsFromUnixEpochMillis(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
         }
         return builder;
     }

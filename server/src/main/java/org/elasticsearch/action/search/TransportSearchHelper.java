@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -109,15 +110,9 @@ public final class TransportSearchHelper {
 
     private static SearchContextIdForNode innerReadSearchContextIdForNode(String contextUUID, StreamInput in) throws IOException {
         long id = in.readLong();
-        String target = in.readString();
-        String clusterAlias;
-        final int index = target.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-        if (index == -1) {
-            clusterAlias = null;
-        } else {
-            clusterAlias = target.substring(0, index);
-            target = target.substring(index + 1);
-        }
+        String[] split = RemoteClusterAware.splitIndexName(in.readString());
+        String clusterAlias = split[0];
+        String target = split[1];
         return new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
     }
 
@@ -132,14 +127,14 @@ public final class TransportSearchHelper {
     */
     public static void checkCCSVersionCompatibility(Writeable writeableRequest) {
         try {
-            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersions.MINIMUM_CCS_VERSION));
+            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersion.minimumCCSVersion()));
         } catch (Exception e) {
             // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
             throw new IllegalArgumentException(
                 "["
                     + writeableRequest.getClass()
                     + "] is not compatible with version "
-                    + TransportVersions.MINIMUM_CCS_VERSION
+                    + TransportVersion.minimumCCSVersion().toReleaseVersion()
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
                     + "' setting is enabled.",

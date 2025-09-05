@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -351,27 +350,25 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 )
             );
 
+            AtomicReference<SnapshotLifecycleStats> slmStats = new AtomicReference<>(new SnapshotLifecycleStats());
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-            task.deleteSnapshot(
-                "policy",
-                "foo",
-                new SnapshotId("name", "uuid"),
-                new SnapshotLifecycleStats(0, 0, 0, 0, new HashMap<>()),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        logger.info("--> forcing failure");
-                        throw new ElasticsearchException("forced failure");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onFailureCalled.set(true);
-                    }
+            task.deleteSnapshot("policy", "foo", new SnapshotId("name", "uuid"), slmStats, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    logger.info("--> forcing failure");
+                    throw new ElasticsearchException("forced failure");
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    onFailureCalled.set(true);
+                }
+            });
 
             assertThat(onFailureCalled.get(), equalTo(true));
+
+            var expectedPolicyStats = Map.of(policyId, new SnapshotLifecycleStats.SnapshotPolicyStats(policyId, 0, 0, 1, 1));
+            assertThat(slmStats.get(), equalTo(new SnapshotLifecycleStats(0, 0, 0, 0, expectedPolicyStats)));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -544,7 +541,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             String policyId,
             String repo,
             SnapshotId snapshot,
-            SnapshotLifecycleStats slmStats,
+            AtomicReference<SnapshotLifecycleStats> slmStats,
             ActionListener<AcknowledgedResponse> listener
         ) {
             deleteRunner.apply(policyId, repo, snapshot, slmStats, listener);
@@ -557,7 +554,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             String policyId,
             String repo,
             SnapshotId snapshot,
-            SnapshotLifecycleStats slmStats,
+            AtomicReference<SnapshotLifecycleStats> slmStats,
             ActionListener<AcknowledgedResponse> listener
         );
     }

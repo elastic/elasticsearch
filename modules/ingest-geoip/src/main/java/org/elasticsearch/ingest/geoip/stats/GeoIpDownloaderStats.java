@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip.stats;
@@ -13,10 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,26 +24,12 @@ public class GeoIpDownloaderStats implements Task.Status {
 
     public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0);
 
-    public static final ConstructingObjectParser<GeoIpDownloaderStats, Void> PARSER = new ConstructingObjectParser<>(
-        "geoip_downloader_stats",
-        a -> new GeoIpDownloaderStats((int) a[0], (int) a[1], (long) a[2], (int) a[3], (int) a[4], a[5] == null ? 0 : (int) a[5])
-    );
-
-    private static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
-    private static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
-    private static final ParseField TOTAL_DOWNLOAD_TIME = new ParseField("total_download_time");
-    private static final ParseField DATABASES_COUNT = new ParseField("databases_count");
-    private static final ParseField SKIPPED_DOWNLOADS = new ParseField("skipped_updates");
-    private static final ParseField EXPIRED_DATABASES = new ParseField("expired_databases");
-
-    static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SUCCESSFUL_DOWNLOADS);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), FAILED_DOWNLOADS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_DOWNLOAD_TIME);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), DATABASES_COUNT);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SKIPPED_DOWNLOADS);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), EXPIRED_DATABASES);
-    }
+    static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
+    static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
+    static final ParseField TOTAL_DOWNLOAD_TIME = new ParseField("total_download_time");
+    static final ParseField DATABASES_COUNT = new ParseField("databases_count");
+    static final ParseField SKIPPED_DOWNLOADS = new ParseField("skipped_updates");
+    static final ParseField EXPIRED_DATABASES = new ParseField("expired_databases");
 
     private final int successfulDownloads;
     private final int failedDownloads;
@@ -62,7 +47,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         expiredDatabases = in.readVInt();
     }
 
-    private GeoIpDownloaderStats(
+    GeoIpDownloaderStats(
         int successfulDownloads,
         int failedDownloads,
         long totalDownloadTime,
@@ -168,10 +153,6 @@ public class GeoIpDownloaderStats implements Task.Status {
         builder.field(EXPIRED_DATABASES.getPreferredName(), expiredDatabases);
         builder.endObject();
         return builder;
-    }
-
-    public static GeoIpDownloaderStats fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override

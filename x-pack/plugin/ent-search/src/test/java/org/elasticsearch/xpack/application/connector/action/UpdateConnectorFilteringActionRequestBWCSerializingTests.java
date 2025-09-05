@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +31,9 @@ public class UpdateConnectorFilteringActionRequestBWCSerializingTests extends Ab
         this.connectorId = randomUUID();
         return new UpdateConnectorFilteringAction.Request(
             connectorId,
-            List.of(ConnectorTestUtils.getRandomConnectorFiltering(), ConnectorTestUtils.getRandomConnectorFiltering())
+            List.of(ConnectorTestUtils.getRandomConnectorFiltering(), ConnectorTestUtils.getRandomConnectorFiltering()),
+            ConnectorTestUtils.getRandomConnectorFiltering().getActive().getAdvancedSnippet(),
+            ConnectorTestUtils.getRandomConnectorFiltering().getActive().getRules()
         );
     }
 

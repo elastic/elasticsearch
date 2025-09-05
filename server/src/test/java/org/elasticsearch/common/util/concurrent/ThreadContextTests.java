@@ -1,18 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,11 +34,14 @@ import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -462,14 +471,25 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.putHeader("foo", "bar");
         }
 
+        final Matcher<? super String> matchesProjectId;
+        if (randomBoolean()) {
+            final String projectId = randomUUID();
+            matchesProjectId = equalTo(projectId);
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        } else {
+            matchesProjectId = nullValue();
+        }
+
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
         try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
             assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getTransient("foo"));
             assertNull(threadContext.getTransient("bar"));
+            assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), matchesProjectId);
         }
 
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+        assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), matchesProjectId);
 
         if (setOtherValues) {
             assertEquals("bar", threadContext.getTransient("foo"));
@@ -631,6 +651,52 @@ public class ThreadContextTests extends ESTestCase {
         if (expectThird) {
             assertThat(warnings, hasItem(equalTo("No is the saddest experience")));
         }
+    }
+
+    public void testDropWarningsExceedingMaxSettings() {
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey(), 1)
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey(), "50b")
+            .build();
+
+        try (var mockLog = MockLog.capture(ThreadContext.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "too many warnings",
+                    ThreadContext.class.getCanonicalName(),
+                    Level.WARN,
+                    "Dropping a warning header,* count reached the maximum allowed of [1] set in [http.max_warning_header_count]!"
+                        + ("* X-Opaque-Id header*, see " + ReferenceDocs.X_OPAQUE_ID + "*")
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warnings too long",
+                    ThreadContext.class.getCanonicalName(),
+                    Level.WARN,
+                    "Dropping a warning header for request [{X-Opaque-Id=abc, X-elastic-product-origin=product}], "
+                        + "* size reached the maximum allowed of [50] bytes set in [http.max_warning_header_size]!"
+                )
+            );
+
+            final ThreadContext threadContext = new ThreadContext(settings);
+
+            threadContext.addResponseHeader("Warning", "warning");
+            threadContext.addResponseHeader("Warning", "dropped, too many");
+
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "abc");
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "product");
+            threadContext.putHeader("other", "filtered out");
+
+            threadContext.addResponseHeader("Warning", "dropped, size exceeded " + randomAlphaOfLength(50));
+
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+            final List<String> warnings = responseHeaders.get("Warning");
+
+            assertThat(warnings, contains("warning"));
+            mockLog.assertAllExpectationsMatched();
+        }
+
     }
 
     public void testCopyHeaders() {
@@ -1038,7 +1104,8 @@ public class ThreadContextTests extends ESTestCase {
             final String authorizationHeader = randomCase("authorization");
             final String authorizationHeader2 = randomCase("es-secondary-authorization");
             final String authorizationHeader3 = randomCase("ES-Client-Authentication");
-            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3);
+            final String authorizationHeader4 = randomCase("X-Client-Authentication");
+            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3, authorizationHeader4);
             Set<String> headers = randomizeHeaders
                 ? randomSet(0, possibleHeaders.size(), () -> randomFrom(possibleHeaders))
                 : possibleHeaders;
@@ -1066,6 +1133,126 @@ public class ThreadContextTests extends ESTestCase {
             assertThat(requestHeaders, containsInAnyOrder(additionalHeaders.stream().map(Tuple::v1).toArray()));
             assertThat(threadContext.getTransient("authorization"), instanceOf(String.class)); // we don't sanitize transients
             assertThat(threadContext.getResponseHeaders().keySet(), containsInAnyOrder("authorization")); // we don't sanitize responses
+        }
+    }
+
+    public void testNewEmptyContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var header = randomBoolean() ? randomIdentifier() : randomFrom(HEADERS_TO_COPY);
+        threadContext.putHeader(header, randomIdentifier());
+
+        try (var ignored = threadContext.newEmptyContext()) {
+            assertTrue(threadContext.isDefaultContext());
+            assertNull(threadContext.getHeader(header));
+            assertTrue(threadContext.getHeaders().isEmpty());
+        }
+
+        assertNotNull(threadContext.getHeader(header));
+    }
+
+    public void testNewEmptySystemContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var header = randomBoolean() ? randomIdentifier() : randomFrom(HEADERS_TO_COPY);
+        threadContext.putHeader(header, randomIdentifier());
+
+        try (var ignored = threadContext.newEmptySystemContext()) {
+            assertTrue(threadContext.isSystemContext());
+            assertNull(threadContext.getHeader(header));
+            assertTrue(threadContext.getHeaders().isEmpty());
+        }
+
+        assertNotNull(threadContext.getHeader(header));
+    }
+
+    public void testNewTraceContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        var rootTraceContext = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
+        var apmTraceContext = new Object();
+        var responseKey = randomIdentifier();
+        var responseValue = randomAlphaOfLength(10);
+
+        threadContext.putHeader(rootTraceContext);
+        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
+
+        assertThat(threadContext.hasTraceContext(), equalTo(true));
+        assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+
+        try (var ignored = threadContext.newTraceContext()) {
+            assertThat(threadContext.hasTraceContext(), equalTo(false)); // no trace started yet
+            assertThat(threadContext.hasParentTraceContext(), equalTo(true));
+
+            assertThat(threadContext.getHeaders(), is(anEmptyMap()));
+            assertThat(
+                threadContext.getTransientHeaders(),
+                equalTo(
+                    Map.of(
+                        Task.PARENT_TRACE_PARENT_HEADER,
+                        rootTraceContext.get(Task.TRACE_PARENT_HTTP_HEADER),
+                        Task.PARENT_TRACE_STATE,
+                        rootTraceContext.get(Task.TRACE_STATE),
+                        Task.PARENT_APM_TRACE_CONTEXT,
+                        apmTraceContext
+                    )
+                )
+            );
+            // response headers shall be propagated
+            threadContext.addResponseHeader(responseKey, responseValue);
+        }
+
+        assertThat(threadContext.hasTraceContext(), equalTo(true));
+        assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+
+        assertThat(threadContext.getHeaders(), equalTo(rootTraceContext));
+        assertThat(threadContext.getTransientHeaders(), equalTo(Map.of(Task.APM_TRACE_CONTEXT, apmTraceContext)));
+        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+    }
+
+    public void testNewTraceContextWithoutParentTrace() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        var responseKey = randomIdentifier();
+        var responseValue = randomAlphaOfLength(10);
+
+        assertThat(threadContext.hasTraceContext(), equalTo(false));
+        assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+
+        try (var ignored = threadContext.newTraceContext()) {
+            assertTrue(threadContext.isDefaultContext());
+            assertThat(threadContext.hasTraceContext(), equalTo(false));
+            assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+
+            // discared, just making sure the context is isolated
+            threadContext.putTransient(randomIdentifier(), randomAlphaOfLength(10));
+            // response headers shall be propagated
+            threadContext.addResponseHeader(responseKey, responseValue);
+        }
+
+        assertThat(threadContext.getHeaders(), is(anEmptyMap()));
+        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
+        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+    }
+
+    public void testRestoreExistingContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var header = randomIdentifier();
+        final var originalValue = randomIdentifier();
+        threadContext.putHeader(header, originalValue);
+        try (var originalContext = threadContext.newStoredContext()) {
+            assertEquals(originalValue, threadContext.getHeader(header));
+
+            try (var ignored1 = threadContext.newEmptyContext()) {
+                final var updatedValue = randomIdentifier();
+                threadContext.putHeader(header, updatedValue);
+
+                try (var ignored2 = threadContext.restoreExistingContext(originalContext)) {
+                    assertEquals(originalValue, threadContext.getHeader(header));
+                }
+
+                assertEquals(updatedValue, threadContext.getHeader(header));
+            }
+
+            assertEquals(originalValue, threadContext.getHeader(header));
         }
     }
 

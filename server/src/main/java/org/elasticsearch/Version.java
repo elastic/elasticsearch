@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -119,6 +120,12 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_7_17_17 = new Version(7_17_17_99);
     public static final Version V_7_17_18 = new Version(7_17_18_99);
     public static final Version V_7_17_19 = new Version(7_17_19_99);
+    public static final Version V_7_17_20 = new Version(7_17_20_99);
+    public static final Version V_7_17_21 = new Version(7_17_21_99);
+    public static final Version V_7_17_22 = new Version(7_17_22_99);
+    public static final Version V_7_17_23 = new Version(7_17_23_99);
+    public static final Version V_7_17_24 = new Version(7_17_24_99);
+    public static final Version V_7_17_25 = new Version(7_17_25_99);
 
     public static final Version V_8_0_0 = new Version(8_00_00_99);
     public static final Version V_8_0_1 = new Version(8_00_01_99);
@@ -167,8 +174,66 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_12_1 = new Version(8_12_01_99);
     public static final Version V_8_12_2 = new Version(8_12_02_99);
     public static final Version V_8_13_0 = new Version(8_13_00_99);
+    public static final Version V_8_13_1 = new Version(8_13_01_99);
+    public static final Version V_8_13_2 = new Version(8_13_02_99);
+    public static final Version V_8_13_3 = new Version(8_13_03_99);
+    public static final Version V_8_13_4 = new Version(8_13_04_99);
     public static final Version V_8_14_0 = new Version(8_14_00_99);
-    public static final Version CURRENT = V_8_14_0;
+    public static final Version V_8_14_1 = new Version(8_14_01_99);
+    public static final Version V_8_14_2 = new Version(8_14_02_99);
+    public static final Version V_8_14_3 = new Version(8_14_03_99);
+    public static final Version V_8_15_0 = new Version(8_15_00_99);
+    public static final Version V_8_15_1 = new Version(8_15_01_99);
+    public static final Version V_8_15_2 = new Version(8_15_02_99);
+    public static final Version V_8_15_3 = new Version(8_15_03_99);
+    public static final Version V_8_15_4 = new Version(8_15_04_99);
+    public static final Version V_8_15_5 = new Version(8_15_05_99);
+    public static final Version V_8_16_0 = new Version(8_16_00_99);
+    public static final Version V_8_16_1 = new Version(8_16_01_99);
+    public static final Version V_8_16_2 = new Version(8_16_02_99);
+    public static final Version V_8_16_3 = new Version(8_16_03_99);
+    public static final Version V_8_16_4 = new Version(8_16_04_99);
+    public static final Version V_8_16_5 = new Version(8_16_05_99);
+    public static final Version V_8_16_6 = new Version(8_16_06_99);
+    public static final Version V_8_17_0 = new Version(8_17_00_99);
+    public static final Version V_8_17_1 = new Version(8_17_01_99);
+    public static final Version V_8_17_2 = new Version(8_17_02_99);
+    public static final Version V_8_17_3 = new Version(8_17_03_99);
+    public static final Version V_8_17_4 = new Version(8_17_04_99);
+    public static final Version V_8_17_5 = new Version(8_17_05_99);
+    public static final Version V_8_17_6 = new Version(8_17_06_99);
+    public static final Version V_8_17_7 = new Version(8_17_07_99);
+    public static final Version V_8_17_8 = new Version(8_17_08_99);
+    public static final Version V_8_17_9 = new Version(8_17_09_99);
+    public static final Version V_8_17_10 = new Version(8_17_10_99);
+    public static final Version V_8_18_0 = new Version(8_18_00_99);
+    public static final Version V_8_18_1 = new Version(8_18_01_99);
+    public static final Version V_8_18_2 = new Version(8_18_02_99);
+    public static final Version V_8_18_3 = new Version(8_18_03_99);
+    public static final Version V_8_18_4 = new Version(8_18_04_99);
+    public static final Version V_8_18_5 = new Version(8_18_05_99);
+    public static final Version V_8_18_6 = new Version(8_18_06_99);
+    public static final Version V_8_18_7 = new Version(8_18_07_99);
+    public static final Version V_8_19_0 = new Version(8_19_00_99);
+    public static final Version V_8_19_1 = new Version(8_19_01_99);
+    public static final Version V_8_19_2 = new Version(8_19_02_99);
+    public static final Version V_8_19_3 = new Version(8_19_03_99);
+    public static final Version V_8_19_4 = new Version(8_19_04_99);
+    public static final Version V_9_0_0 = new Version(9_00_00_99);
+    public static final Version V_9_0_1 = new Version(9_00_01_99);
+    public static final Version V_9_0_2 = new Version(9_00_02_99);
+    public static final Version V_9_0_3 = new Version(9_00_03_99);
+    public static final Version V_9_0_4 = new Version(9_00_04_99);
+    public static final Version V_9_0_5 = new Version(9_00_05_99);
+    public static final Version V_9_0_6 = new Version(9_00_06_99);
+    public static final Version V_9_0_7 = new Version(9_00_07_99);
+    public static final Version V_9_1_0 = new Version(9_01_00_99);
+    public static final Version V_9_1_1 = new Version(9_01_01_99);
+    public static final Version V_9_1_2 = new Version(9_01_02_99);
+    public static final Version V_9_1_3 = new Version(9_01_03_99);
+    public static final Version V_9_1_4 = new Version(9_01_04_99);
+    public static final Version V_9_2_0 = new Version(9_02_00_99);
+    public static final Version CURRENT = V_9_2_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -204,6 +269,15 @@ public class Version implements VersionId<Version>, ToXContentFragment {
                 }
             }
         }
+        assertRestApiVersion();
+        builder.put(V_EMPTY_ID, V_EMPTY);
+        builderByString.put(V_EMPTY.toString(), V_EMPTY);
+
+        VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
+        VERSION_STRINGS = Map.copyOf(builderByString);
+    }
+
+    private static void assertRestApiVersion() {
         assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
             : "RestApiVersion must be upgraded "
                 + "to reflect major from Version.CURRENT ["
@@ -212,11 +286,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
                 + " but is still set to ["
                 + RestApiVersion.current().major
                 + "]";
-        builder.put(V_EMPTY_ID, V_EMPTY);
-        builderByString.put(V_EMPTY.toString(), V_EMPTY);
-
-        VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
-        VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -255,7 +324,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
+     * @deprecated Use of semantic release versions should be minimized; please avoid use of this method if possible.
      */
+    @Deprecated
     public static Version fromString(String version) {
         if (Strings.hasLength(version) == false) {
             return Version.CURRENT;

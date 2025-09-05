@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -20,13 +20,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForMetrics;
@@ -51,7 +54,7 @@ class S3RetryingInputStream extends InputStream {
     private final long end;
     private final List<Exception> failures;
 
-    private S3ObjectInputStream currentStream;
+    private ResponseInputStream<GetObjectResponse> currentStream;
     private long currentStreamFirstOffset;
     private long currentStreamLastOffset;
     private int attempt = 1;
@@ -59,6 +62,7 @@ class S3RetryingInputStream extends InputStream {
     private long currentOffset;
     private boolean closed;
     private boolean eof;
+    private boolean aborted = false;
 
     S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey) throws IOException {
         this(purpose, blobStore, blobKey, 0, Long.MAX_VALUE - 1);
@@ -80,54 +84,99 @@ class S3RetryingInputStream extends InputStream {
         this.end = end;
         final int initialAttempt = attempt;
         openStreamWithRetry();
-        maybeLogForSuccessAfterRetries(initialAttempt, "opened");
+        maybeLogAndRecordMetricsForSuccess(initialAttempt, "open");
     }
 
     private void openStreamWithRetry() throws IOException {
         while (true) {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-                configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
+                final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
+                configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
-                    getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
+                    getObjectRequestBuilder.range("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
                 }
-                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
-                this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
-                this.currentStream = s3Object.getObjectContent();
+                final var getObjectRequest = getObjectRequestBuilder.build();
+                final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
+                this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(getObjectResponse.response()));
+                this.currentStream = getObjectResponse;
                 return;
-            } catch (AmazonClientException e) {
-                if (e instanceof AmazonS3Exception amazonS3Exception && 404 == amazonS3Exception.getStatusCode()) {
-                    throw addSuppressedExceptions(
-                        new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
-                    );
+            } catch (SdkException e) {
+                if (e instanceof SdkServiceException sdkServiceException) {
+                    if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new NoSuchFileException("Blob object [" + blobKey + "] not found: " + sdkServiceException.getMessage())
+                        );
+                    }
+                    if (sdkServiceException.statusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new RequestedRangeNotSatisfiedException(
+                                blobKey,
+                                currentStreamFirstOffset,
+                                (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset + 1 : end,
+                                sdkServiceException
+                            )
+                        );
+                    }
                 }
 
+                if (attempt == 1) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("open"));
+                }
                 final long delayInMillis = maybeLogAndComputeRetryDelay("opening", e);
                 delayBeforeRetry(delayInMillis);
             }
         }
     }
 
-    private long getStreamLength(final S3Object object) {
-        final ObjectMetadata metadata = object.getObjectMetadata();
+    private long getStreamLength(final GetObjectResponse getObjectResponse) {
         try {
-            // Returns the content range of the object if response contains the Content-Range header.
-            final Long[] range = metadata.getContentRange();
-            if (range != null) {
-                assert range[1] >= range[0] : range[1] + " vs " + range[0];
-                assert range[0] == start + currentOffset
-                    : "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
-                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
-                return range[1] - range[0] + 1L;
-            }
-            return metadata.getContentLength();
+            return tryGetStreamLength(getObjectResponse);
         } catch (Exception e) {
             assert false : e;
             return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
         }
+    }
+
+    // exposed for testing
+    long tryGetStreamLength(GetObjectResponse getObjectResponse) {
+        // Returns the content range of the object if response contains the Content-Range header.
+        final var rangeString = getObjectResponse.contentRange();
+        if (rangeString != null) {
+            if (rangeString.startsWith("bytes ") == false) {
+                throw new IllegalArgumentException(
+                    "unexpected Content-range header [" + rangeString + "], should have started with [bytes ]"
+                );
+            }
+            final var hyphenPos = rangeString.indexOf('-');
+            if (hyphenPos == -1) {
+                throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing hyphen");
+            }
+            final var slashPos = rangeString.indexOf('/');
+            if (slashPos == -1) {
+                throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "], missing slash");
+            }
+
+            final var rangeStart = Long.parseLong(rangeString, "bytes ".length(), hyphenPos, 10);
+            final var rangeEnd = Long.parseLong(rangeString, hyphenPos + 1, slashPos, 10);
+            if (rangeEnd < rangeStart) {
+                throw new IllegalArgumentException("invalid Content-range header [" + rangeString + "]");
+            }
+            if (rangeStart != start + currentOffset) {
+                throw new IllegalArgumentException(
+                    "unexpected Content-range header [" + rangeString + "], should have started at " + (start + currentOffset)
+                );
+            }
+            if (rangeEnd > end) {
+                throw new IllegalArgumentException(
+                    "unexpected Content-range header [" + rangeString + "], should have ended no later than " + end
+                );
+            }
+            return rangeEnd - rangeStart + 1L;
+        }
+        return getObjectResponse.contentLength();
     }
 
     @Override
@@ -142,9 +191,12 @@ class S3RetryingInputStream extends InputStream {
                 } else {
                     currentOffset += 1;
                 }
-                maybeLogForSuccessAfterRetries(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return result;
             } catch (IOException e) {
+                if (attempt == initialAttempt) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("read"));
+                }
                 reopenStreamOrFail(e);
             }
         }
@@ -162,9 +214,12 @@ class S3RetryingInputStream extends InputStream {
                 } else {
                     currentOffset += bytesRead;
                 }
-                maybeLogForSuccessAfterRetries(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return bytesRead;
             } catch (IOException e) {
+                if (attempt == initialAttempt) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("read"));
+                }
                 reopenStreamOrFail(e);
             }
         }
@@ -246,16 +301,20 @@ class S3RetryingInputStream extends InputStream {
         );
     }
 
-    private void maybeLogForSuccessAfterRetries(int initialAttempt, String action) {
+    private void maybeLogAndRecordMetricsForSuccess(int initialAttempt, String action) {
         if (attempt > initialAttempt) {
+            final int numberOfRetries = attempt - initialAttempt;
             logger.info(
                 "successfully {} input stream for [{}/{}] with purpose [{}] after [{}] retries",
                 action,
                 blobStore.bucket(),
                 blobKey,
                 purpose.getKey(),
-                attempt - initialAttempt
+                numberOfRetries
             );
+            final Map<String, Object> attributes = metricAttributes(action);
+            blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
+            blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
         }
     }
 
@@ -294,6 +353,21 @@ class S3RetryingInputStream extends InputStream {
         return 10L << (Math.min(attempt - 1, 10));
     }
 
+    private Map<String, Object> metricAttributes(String action) {
+        return Map.of(
+            "repo_type",
+            S3Repository.TYPE,
+            "repo_name",
+            blobStore.getRepositoryMetadata().name(),
+            "operation",
+            Operation.GET_OBJECT.getKey(),
+            "purpose",
+            purpose.getKey(),
+            "action",
+            action
+        );
+    }
+
     @Override
     public void close() throws IOException {
         maybeAbort(currentStream);
@@ -305,16 +379,17 @@ class S3RetryingInputStream extends InputStream {
     }
 
     /**
-     * Abort the {@link S3ObjectInputStream} if it wasn't read completely at the time this method is called,
+     * Abort the {@link ResponseInputStream} if it wasn't read completely at the time this method is called,
      * suppressing all thrown exceptions.
      */
-    private void maybeAbort(S3ObjectInputStream stream) {
+    private void maybeAbort(ResponseInputStream<?> stream) {
         if (isEof()) {
             return;
         }
         try {
             if (start + currentOffset < currentStreamLastOffset) {
                 stream.abort();
+                aborted = true;
             }
         } catch (Exception e) {
             logger.warn("Failed to abort stream before closing", e);
@@ -347,9 +422,7 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isAborted() {
-        if (currentStream == null || currentStream.getHttpRequest() == null) {
-            return false;
-        }
-        return currentStream.getHttpRequest().isAborted();
+        // just expose whether abort() was called, we cannot tell if the stream is really aborted
+        return aborted;
     }
 }

@@ -1,26 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-    ClusterStateRequest,
-    ClusterStateResponse,
-    ClusterStateRequestBuilder> {
+public class ClusterStateRequestBuilder extends ActionRequestBuilder<ClusterStateRequest, ClusterStateResponse> {
 
-    public ClusterStateRequestBuilder(ElasticsearchClient client) {
-        super(client, ClusterStateAction.INSTANCE, new ClusterStateRequest());
+    public ClusterStateRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout) {
+        super(client, ClusterStateAction.INSTANCE, new ClusterStateRequest(masterNodeTimeout));
     }
 
     /**

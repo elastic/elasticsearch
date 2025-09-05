@@ -10,45 +10,62 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest {
-    private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
+
+final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+    private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
+
     private final String sessionId;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final String clusterAlias;
-    private final List<ShardId> shardIds;
     private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
-
-    private String[] indices; // lazily computed
+    private List<ShardId> shardIds;
+    private String[] indices;
+    private final IndicesOptions indicesOptions;
+    private final boolean runNodeLevelReduction;
 
     DataNodeRequest(
         String sessionId,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         String clusterAlias,
         List<ShardId> shardIds,
         Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -56,20 +73,38 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         this.shardIds = shardIds;
         this.aliasFilters = aliasFilters;
         this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
         super(in);
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+        this.configuration = new Configuration(
+            // TODO make EsqlConfiguration Releasable
+            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+        );
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.clusterAlias = in.readString();
         } else {
             this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
+        this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            this.indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
+            this.indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+            this.runNodeLevelReduction = in.readBoolean();
+        } else {
+            this.runNodeLevelReduction = false;
+        }
     }
 
     @Override
@@ -77,25 +112,44 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         super.writeTo(out);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeString(clusterAlias);
         }
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
-        new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+            out.writeBoolean(runNodeLevelReduction);
+        }
     }
 
     @Override
     public String[] indices() {
-        if (indices == null) {
-            indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
-        }
         return indices;
     }
 
     @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        if (Arrays.equals(NO_INDICES_OR_ALIASES_ARRAY, indices) || Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
+            logger.trace(() -> format("Indices empty after index resolution, also clearing shardIds %s", shardIds));
+            this.shardIds = Collections.emptyList();
+        }
+        return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
     }
 
     @Override
@@ -116,7 +170,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return sessionId;
     }
 
-    EsqlConfiguration configuration() {
+    Configuration configuration() {
         return configuration;
     }
 
@@ -143,6 +197,10 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return plan;
     }
 
+    boolean runNodeLevelReduction() {
+        return runNodeLevelReduction;
+    }
+
     @Override
     public String getDescription() {
         return "shards=" + shardIds + " plan=" + plan;
@@ -164,11 +222,24 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
             && shardIds.equals(request.shardIds)
             && aliasFilters.equals(request.aliasFilters)
             && plan.equals(request.plan)
-            && getParentTask().equals(request.getParentTask());
+            && getParentTask().equals(request.getParentTask())
+            && Arrays.equals(indices, request.indices)
+            && indicesOptions.equals(request.indicesOptions)
+            && runNodeLevelReduction == request.runNodeLevelReduction;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan);
+        return Objects.hash(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shardIds,
+            aliasFilters,
+            plan,
+            Arrays.hashCode(indices),
+            indicesOptions,
+            runNodeLevelReduction
+        );
     }
 }

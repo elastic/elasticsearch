@@ -57,6 +57,7 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
         }
 
         public Request(DataFrameAnalyticsConfigUpdate update) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.update = update;
         }
 

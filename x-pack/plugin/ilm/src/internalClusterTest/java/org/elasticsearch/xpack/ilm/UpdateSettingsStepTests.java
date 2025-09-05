@@ -10,12 +10,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -107,7 +108,8 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         ClusterState state = clusterService.state();
-        IndexMetadata indexMetadata = state.metadata().index("test");
+        final var projectId = ProjectId.DEFAULT;
+        IndexMetadata indexMetadata = state.metadata().getProject(projectId).index("test");
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
 
@@ -122,7 +124,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             invalidValueSetting
         );
 
-        step.performAction(indexMetadata, state, observer, new ActionListener<>() {
+        step.performAction(indexMetadata, state.projectState(projectId), observer, new ActionListener<>() {
             @Override
             public void onResponse(Void complete) {
                 latch.countDown();
@@ -142,7 +144,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                     validIndexSetting
                 );
 
-                step.performAction(indexMetadata, state, observer, new ActionListener<>() {
+                step.performAction(indexMetadata, state.projectState(projectId), observer, new ActionListener<>() {
                     @Override
                     public void onResponse(Void complete) {
                         latch.countDown();

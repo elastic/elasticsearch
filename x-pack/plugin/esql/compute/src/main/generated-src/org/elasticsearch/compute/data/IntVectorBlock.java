@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
 
@@ -21,7 +25,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +39,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +51,27 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public IntBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public IntBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public IntBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

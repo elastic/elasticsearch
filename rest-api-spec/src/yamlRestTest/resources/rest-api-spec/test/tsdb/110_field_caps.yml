@@ -1,8 +1,13 @@
 ---
 setup:
+  - requires:
+      cluster_features: "gte_v8.5.0"
+      reason: "metric params only on time series indexes introduced in 8.5.0"
   - skip:
-      version: " - 8.4.99,8.7.00 - 8.9.99"
-      reason: "metric params only on time series indexes introduced in 8.5.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -83,8 +88,8 @@ setup:
 
 ---
 field caps on time_series indices:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
@@ -145,8 +150,8 @@ field caps on time_series indices:
 
 ---
 field caps on standard indices:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
@@ -188,8 +193,8 @@ field caps on standard indices:
 
 ---
 field caps on mixed indices:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:

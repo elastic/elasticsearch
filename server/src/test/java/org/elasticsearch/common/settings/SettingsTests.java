@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -472,13 +474,6 @@ public class SettingsTests extends ESTestCase {
         }
     }
 
-    public void testSecureSettingConflict() {
-        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
-        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
-    }
-
     public void testSecureSettingIllegalName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureString("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
@@ -625,7 +620,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_7_0_0));
+        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_8_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
@@ -646,11 +641,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testFractionalTimeValue() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -669,7 +660,7 @@ public class SettingsTests extends ESTestCase {
             "key",
             ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key")
         );
-        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final ByteSizeValue expected = ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES);
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
          * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units
@@ -683,11 +674,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testSetByTimeUnit() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
         final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
         /*
@@ -715,6 +702,79 @@ public class SettingsTests extends ESTestCase {
         builder.endObject();
         assertEquals("""
             {"ant.bee":{"cat.dog":{"ewe":"value3"},"cat":"value2"},"ant":"value1"}""", Strings.toString(builder));
+    }
+
+    public void testGlobValues() throws IOException {
+        Settings test = Settings.builder().put("foo.x.bar", "1").build();
+
+        // no values
+        assertThat(test.getValues("foo.*.baz").toList(), empty());
+        assertThat(test.getValues("fuz.*.bar").toList(), empty());
+
+        var values = test.getValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1"));
+
+        test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
+        values = test.getValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1", "2"));
+
+        values = test.getValues("foo.x.bar").toList();
+        assertThat(values, contains("1"));
+    }
+
+    public void testMergeNullOrEmptySettingsIntoEmptySettings() {
+        expectThrows(NullPointerException.class, () -> Settings.EMPTY.merge(null));
+        assertThat(Settings.EMPTY.merge(Settings.EMPTY), equalTo(Settings.EMPTY));
+    }
+
+    public void testMergeEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings settings = builder.build();
+        assertThat(settings.merge(Settings.EMPTY), equalTo(settings));
+    }
+
+    public void testMergeNonEmptySettingsIntoEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings newSettings = builder.build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(newSettings));
+    }
+
+    public void testMergeNonEmptySettingsIntoNonEmptySettings() {
+        Settings settings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        assertThat(settings.merge(newSettings), equalTo(mergedSettings));
+    }
+
+    public void testMergeNonEmptySettingsWithNullIntoEmptySettings() {
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(mergedSettings));
     }
 
 }

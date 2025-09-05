@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -14,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -23,16 +23,14 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
-public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
+public class TsdbIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     public TsdbIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
-    private static final String TEMPLATE = """
+    static final String TEMPLATE = """
         {
             "settings":{
                 "index": {
@@ -130,7 +128,6 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
-        assumeTrue("TSDB was GA-ed in 8.7.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE));
         String dataStreamName = "k8s";
         if (isOldCluster()) {
             final String INDEX_TEMPLATE = """
@@ -151,70 +148,6 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
             performMixedClusterOperations(dataStreamName);
         } else if (isUpgradedCluster()) {
             performUpgradedClusterOperations(dataStreamName);
-        }
-    }
-
-    public void testTsdbDataStreamWithComponentTemplate() throws Exception {
-        assumeTrue(
-            "TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
-            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE)
-                && (oldClusterHasFeature(RestTestLegacyFeatures.TSDB_EMPTY_TEMPLATE_FIXED) == false)
-        );
-        String dataStreamName = "template-with-component-template";
-        if (isOldCluster()) {
-            final String COMPONENT_TEMPLATE = """
-                    {
-                        "template": $TEMPLATE
-                    }
-                """;
-            var putComponentTemplate = new Request("POST", "/_component_template/1");
-            String template = TEMPLATE.replace("\"time_series\"", "\"time_series\", \"routing_path\": [\"k8s.pod.uid\"]");
-            putComponentTemplate.setJsonEntity(COMPONENT_TEMPLATE.replace("$TEMPLATE", template));
-            assertOK(client().performRequest(putComponentTemplate));
-            final String INDEX_TEMPLATE = """
-                {
-                    "index_patterns": ["$PATTERN"],
-                    "composed_of": ["1"],
-                    "data_stream": {
-                    }
-                }""";
-            // Add composable index template
-            String templateName = "2";
-            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
-            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$PATTERN", dataStreamName));
-            assertOK(client().performRequest(putIndexTemplateRequest));
-
-            performOldClustertOperations(templateName, dataStreamName);
-        } else if (isMixedCluster()) {
-            performMixedClusterOperations(dataStreamName);
-        } else if (isUpgradedCluster()) {
-            performUpgradedClusterOperations(dataStreamName);
-
-            var dataStreams = getDataStream(dataStreamName);
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
-            String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-            {
-                var indices = getIndex(firstBackingIndex);
-                var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo(dataStreamName));
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), nullValue());
-                String startTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-                assertThat(startTime, nullValue());
-                String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-                assertThat(endTime, nullValue());
-            }
-            String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
-            {
-                var indices = getIndex(secondBackingIndex);
-                var escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo(dataStreamName));
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
-                String startTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-                assertThat(startTime, notNullValue());
-                String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-                assertThat(endTime, notNullValue());
-            }
         }
     }
 
@@ -288,7 +221,7 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
         assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(expectedHitCount));
     }
 
-    private static String formatInstant(Instant instant) {
+    static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 

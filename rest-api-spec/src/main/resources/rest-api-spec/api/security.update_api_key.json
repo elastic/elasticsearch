@@ -1,8 +1,8 @@
 {
   "security.update_api_key": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-api-key.html",
-      "description": "Updates attributes of an existing API key."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-api-key",
+      "description": "Update an API key"
     },
     "stability": "stable",
     "visibility": "public",

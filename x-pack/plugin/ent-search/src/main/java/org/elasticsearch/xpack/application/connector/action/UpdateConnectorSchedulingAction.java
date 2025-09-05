@@ -32,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorSchedulingAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_scheduling";
+    public static final String NAME = "cluster:admin/xpack/connector/update_scheduling";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorSchedulingAction() {/* no instances */}
@@ -71,6 +71,15 @@ public class UpdateConnectorSchedulingAction {
 
             if (Objects.isNull(scheduling)) {
                 validationException = addValidationError("[scheduling] cannot be [null].", validationException);
+            }
+
+            if (Objects.isNull(scheduling.getFull())
+                && Objects.isNull(scheduling.getIncremental())
+                && Objects.isNull(scheduling.getIncremental())) {
+                validationException = addValidationError(
+                    "[scheduling] object needs to define at least one schedule type: [full | incremental | access_control]",
+                    validationException
+                );
             }
 
             return validationException;

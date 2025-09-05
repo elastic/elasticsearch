@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class TransformUpdateIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
     private static final String TEST_ADMIN_USER_NAME_1 = "transform_admin_1";
     private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1 = basicAuthHeaderValue(
         TEST_ADMIN_USER_NAME_1,
@@ -99,69 +98,6 @@ public class TransformUpdateIT extends TransformRestTestCase {
         if (threadPool != null) {
             threadPool.shutdown();
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testUpdateDeprecatedSettings() throws Exception {
-        String transformId = "old_transform";
-        String transformDest = transformId + "_idx";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
-
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        String config = Strings.format("""
-            {
-              "dest": {
-                "index": "%s"
-              },
-              "source": {
-                "index": "%s"
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                },
-                "max_page_search_size": 555
-              }
-            }""", transformDest, REVIEWS_INDEX_NAME);
-
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-        Map<String, Object> transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
-        assertThat(XContentMapValues.extractValue("pivot.max_page_search_size", transform), equalTo(555));
-
-        final Request updateRequest = createRequestWithAuth(
-            "POST",
-            getTransformEndpoint() + transformId + "/_update",
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        updateRequest.setJsonEntity("{}");
-
-        Map<String, Object> updateResponse = entityAsMap(client().performRequest(updateRequest));
-
-        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", updateResponse));
-        assertThat(XContentMapValues.extractValue("settings.max_page_search_size", updateResponse), equalTo(555));
-
-        transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
-
-        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", transform));
-        assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(555));
     }
 
     public void testUpdateTransferRights() throws Exception {

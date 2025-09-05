@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -16,21 +15,19 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -60,6 +57,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.SearchHit;
@@ -69,7 +67,8 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -150,15 +149,40 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 FAULTY_TYPE,
-                metadata -> new FaultyRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings),
+                (projectId, metadata) -> new FaultyRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                ),
                 INSTRUMENTED_TYPE,
-                metadata -> new InstrumentedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings),
+                (projectId, metadata) -> new InstrumentedRepo(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                ),
                 FILTER_TYPE,
-                metadata -> new FilterFsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new FilterFsRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }
@@ -167,6 +191,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         AtomicLong totalBytesRead = new AtomicLong();
 
         public InstrumentedRepo(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -174,7 +199,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         @Override
@@ -209,6 +234,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     public static class FaultyRepository extends FsRepository {
         public FaultyRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -216,7 +242,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         @Override
@@ -264,6 +290,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         static final AtomicReference<BiFunction<String, InputStream, InputStream>> delegateSupplierRef = new AtomicReference<>(IDENTITY);
 
         public FilterFsRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -271,7 +298,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         static void wrapReadBlobMethod(BiFunction<String, InputStream, InputStream> delegate) {
@@ -377,13 +404,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
         String targetNode;
-        final var recoverySourceHandlerLogger = LogManager.getLogger(RecoverySourceHandler.class);
-        final var mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-        try {
-            Loggers.addAppender(recoverySourceHandlerLogger, mockLogAppender);
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RecoverySourceHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warn log about restore failure",
                     RecoverySourceHandler.class.getName(),
                     Level.WARN,
@@ -396,10 +419,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             ensureGreen();
 
-            mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(recoverySourceHandlerLogger, mockLogAppender);
-            mockLogAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
 
         RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
@@ -475,7 +495,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
-        forceMerge();
+        forceMerge(false);
 
         String repoName = "repo";
         createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
@@ -576,7 +596,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             final String targetNode;
             if (seqNoRecovery) {
-                ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
                 String primaryNodeName = clusterState.nodes().resolveNode(shardRoutingTable.primaryShard().currentNodeId()).getName();
                 String replicaNodeName = clusterState.nodes()
@@ -607,7 +627,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 );
 
             if (seqNoRecovery) {
-                ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
                 String primaryNodeName = clusterState.nodes().resolveNode(shardRoutingTable.primaryShard().currentNodeId()).getName();
 
@@ -618,34 +638,22 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             recoverSnapshotFileRequestReceived.await();
 
-            final var recoverySourceHandlerLogger = LogManager.getLogger(RecoverySourceHandler.class);
-            final var mockLogAppender = new MockLogAppender();
-            mockLogAppender.start();
-            try {
-                Loggers.addAppender(recoverySourceHandlerLogger, mockLogAppender);
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+            try (var mockLog = MockLog.capture(RecoverySourceHandler.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "expected debug log about restore cancellation",
                         RecoverySourceHandler.class.getName(),
                         Level.DEBUG,
                         "cancelled while recovering file [*] from snapshot"
                     )
                 );
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
-                        "expected no WARN logs",
-                        RecoverySourceHandler.class.getName(),
-                        Level.WARN,
-                        "*"
-                    )
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation("expected no WARN logs", RecoverySourceHandler.class.getName(), Level.WARN, "*")
                 );
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
-                assertBusy(mockLogAppender::assertAllExpectationsMatched);
-            } finally {
-                Loggers.removeAppender(recoverySourceHandlerLogger, mockLogAppender);
-                mockLogAppender.stop();
+                mockLog.awaitAllExpectationsMatched();
             }
 
             respondToRecoverSnapshotFile.countDown();
@@ -791,7 +799,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         List<String> restoredIndexDataNodes = internalCluster().startDataOnlyNodes(2);
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, "snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap")
             .setIndices(indexName)
             .setIndexSettings(
                 Settings.builder()
@@ -936,6 +944,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/87568",
+        value = "org.elasticsearch.indices.recovery:DEBUG"
+    )
     public void testRecoveryConcurrentlyWithIndexing() throws Exception {
         internalCluster().startDataOnlyNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -981,7 +993,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         if (waitForSnapshotDownloadToStart) {
             // must complete using snapshots alone.
             RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
-            assertThat(recoveryState.getIndex().recoveredFromSnapshotBytes(), equalTo(snapshotSizeForIndex));
+            assertThat(
+                "Index " + recoveryState.getIndex() + " should be completely recovered from the snapshot",
+                recoveryState.getIndex().recoveredFromSnapshotBytes(),
+                equalTo(snapshotSizeForIndex)
+            );
         }
 
         assertDocumentsAreEqual(indexName, numDocs.get());
@@ -1010,7 +1026,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createRepo(repoName, repoType);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
         String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
 
@@ -1020,7 +1036,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         ensureGreen(indexName);
 
-        ClusterState clusterStateAfterPrimaryFailOver = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterStateAfterPrimaryFailOver = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         IndexShardRoutingTable shardRoutingTableAfterFailOver = clusterStateAfterPrimaryFailOver.routingTable().index(indexName).shard(0);
 
         String primaryNodeIdAfterFailOver = shardRoutingTableAfterFailOver.primaryShard().currentNodeId();
@@ -1330,7 +1346,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createRepo(repoName, TestRepositoryPlugin.FILTER_TYPE);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
         String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
         String replicaNodeId = clusterState.routingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
@@ -1541,9 +1557,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private Store.MetadataSnapshot getMetadataSnapshot(String nodeName, String indexName) throws IOException {
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-        IndexService indexService = indicesService.indexService(clusterState.metadata().index(indexName).getIndex());
+        IndexService indexService = indicesService.indexService(clusterState.metadata().getProject().index(indexName).getIndex());
         IndexShard shard = indexService.getShard(0);
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
             IndexCommit safeCommit = indexCommitRef.getIndexCommit();
@@ -1553,7 +1569,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
-        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(repository).addSnapshots(snapshot).get();
+        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
+            .addSnapshots(snapshot)
+            .get();
         for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
             SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(index);
             assertThat(indexSnapshotDetails, is(notNullValue()));
@@ -1573,26 +1591,23 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
-            ShardStats stats = indicesAdmin().prepareStats(indexName)
-                .clear()
-                .get()
-                .asMap()
-                .entrySet()
-                .stream()
-                .filter(e -> e.getKey().shardId().getId() == 0)
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse(null);
-            assertThat(stats, is(notNullValue()));
-            assertThat(stats.getSeqNoStats(), is(notNullValue()));
+            ClusterState clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var indexShardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
+            assertThat(indexShardRoutingTable, is(notNullValue()));
 
-            assertThat(stats.getSeqNoStats().getMaxSeqNo(), is(greaterThan(-1L)));
-            assertThat(stats.getSeqNoStats().getGlobalCheckpoint(), is(greaterThan(-1L)));
-            assertThat(
-                Strings.toString(stats.getSeqNoStats()),
-                stats.getSeqNoStats().getMaxSeqNo(),
-                equalTo(stats.getSeqNoStats().getGlobalCheckpoint())
-            );
+            var assignedNodeId = indexShardRoutingTable.primaryShard().currentNodeId();
+            var assignedNodeName = clusterState.nodes().resolveNode(assignedNodeId).getName();
+
+            var indexShard = internalCluster().getInstance(IndicesService.class, assignedNodeName)
+                .indexService(resolveIndex(indexName))
+                .getShard(0);
+            assertThat(indexShard, is(notNullValue()));
+
+            // The safe commit is determined using the last synced global checkpoint, hence we should wait until the translog is synced
+            // to cover cases where the translog is synced asynchronously
+            var lastSyncedGlobalCheckpoint = indexShard.getLastSyncedGlobalCheckpoint();
+            var maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
+            assertThat(lastSyncedGlobalCheckpoint, equalTo(maxSeqNo));
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -1610,7 +1625,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     int docIdToMatch = randomIntBetween(0, docCount - 1);
                     assertResponse(searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)), searchResponse -> {
                         assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
                         SearchHit searchHit = searchResponse.getHits().getAt(0);
                         Map<String, Object> source = searchHit.getSourceAsMap();
                         assertThat(source, is(notNullValue()));
@@ -1628,7 +1643,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     private void assertSearchResponseContainsAllIndexedDocs(SearchResponse searchResponse, long docCount) {
         assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(docCount));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docCount));
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             SearchHit searchHit = searchResponse.getHits().getAt(i);
             Map<String, Object> source = searchHit.getSourceAsMap();

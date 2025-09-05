@@ -1,8 +1,8 @@
 {
   "search":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
-      "description":"Returns results matching a query."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search",
+      "description":"Run a search"
     },
     "stability":"stable",
     "visibility":"public",
@@ -155,6 +155,10 @@
         "type":"list",
         "description":"A list of fields to extract and return from the _source field"
       },
+      "_source_exclude_vectors":{
+        "type":"boolean",
+        "description":"Whether vectors should be excluded from _source"
+      },
       "terminate_after":{
         "type":"number",
         "description":"The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
@@ -236,10 +240,6 @@
         "type":"boolean",
         "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
         "default":false
-      },
-      "min_compatible_shard_node":{
-        "type":"string",
-        "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
       },
       "include_named_queries_score":{
           "type": "boolean",

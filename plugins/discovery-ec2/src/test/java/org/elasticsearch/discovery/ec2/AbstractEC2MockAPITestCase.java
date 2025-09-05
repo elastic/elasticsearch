@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.Tag;
+import software.amazon.awssdk.services.ec2.model.Instance;
+import software.amazon.awssdk.services.ec2.model.Tag;
+
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.network.InetAddresses;
@@ -114,11 +116,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                 sw.writeStartElement("item");
                                 {
                                     sw.writeStartElement("instanceId");
-                                    sw.writeCharacters(instance.getInstanceId());
+                                    sw.writeCharacters(instance.instanceId());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("imageId");
-                                    sw.writeCharacters(instance.getImageId());
+                                    sw.writeCharacters(instance.imageId());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("instanceState");
@@ -134,11 +136,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("privateDnsName");
-                                    sw.writeCharacters(instance.getPrivateDnsName());
+                                    sw.writeCharacters(instance.privateDnsName());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("dnsName");
-                                    sw.writeCharacters(instance.getPublicDnsName());
+                                    sw.writeCharacters(instance.publicDnsName());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("instanceType");
@@ -160,23 +162,23 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("privateIpAddress");
-                                    sw.writeCharacters(instance.getPrivateIpAddress());
+                                    sw.writeCharacters(instance.privateIpAddress());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("ipAddress");
-                                    sw.writeCharacters(instance.getPublicIpAddress());
+                                    sw.writeCharacters(instance.publicIpAddress());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("tagSet");
-                                    for (Tag tag : instance.getTags()) {
+                                    for (Tag tag : instance.tags()) {
                                         sw.writeStartElement("item");
                                         {
                                             sw.writeStartElement("key");
-                                            sw.writeCharacters(tag.getKey());
+                                            sw.writeCharacters(tag.key());
                                             sw.writeEndElement();
 
                                             sw.writeStartElement("value");
-                                            sw.writeCharacters(tag.getValue());
+                                            sw.writeCharacters(tag.value());
                                             sw.writeEndElement();
                                         }
                                         sw.writeEndElement();

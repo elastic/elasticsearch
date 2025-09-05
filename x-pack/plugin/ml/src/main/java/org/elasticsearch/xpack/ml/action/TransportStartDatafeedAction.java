@@ -21,15 +21,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -103,6 +105,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final AnomalyDetectionAuditor auditor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -113,12 +116,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         XPackLicenseState licenseState,
         PersistentTasksService persistentTasksService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         AnomalyDetectionAuditor auditor,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDatafeedAction.NAME,
@@ -127,7 +130,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             threadPool,
             actionFilters,
             StartDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -139,6 +141,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.auditor = auditor;
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.projectResolver = projectResolver;
     }
 
     static void validate(
@@ -199,7 +202,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         );
 
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
             new ActionListener<>() {
@@ -225,6 +228,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Consumer<Job> createDataExtractor = job -> {
             final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
             if (remoteIndices.isEmpty() == false) {
+                if (remoteClusterClient == false) {
+                    responseHeaderPreservingListener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            Messages.getMessage(
+                                Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                datafeedConfigHolder.get().getId(),
+                                RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                clusterService.getNodeName()
+                            )
+                        )
+                    );
+                    return;
+                }
+
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
                     client,
                     MachineLearningField.ML_API_FEATURE
@@ -237,17 +254,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     ActionListener.wrap(response -> {
                         if (response.isSuccess() == false) {
                             responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                        } else if (remoteClusterClient == false) {
-                            responseHeaderPreservingListener.onFailure(
-                                ExceptionsHelper.badRequestException(
-                                    Messages.getMessage(
-                                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                                        datafeedConfigHolder.get().getId(),
-                                        RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
-                                        clusterService.getNodeName()
-                                    )
-                                )
-                            );
                         } else {
                             final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
                             List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
@@ -318,7 +324,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
                 REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
-                minVersion.toString(),
+                minVersion.toReleaseVersion(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)
             )
@@ -345,6 +351,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     listener
                 ),
                 listener::onFailure
@@ -357,7 +364,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delagating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void waitForDatafeedStarted(
@@ -407,28 +414,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                // We succeeded in cancelling the persistent task, but the
-                // problem that caused us to cancel it is the overall result
-                listener.onFailure(exception);
-            }
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                    // We succeeded in cancelling the persistent task, but the
+                    // problem that caused us to cancel it is the overall result
+                    listener.onFailure(exception);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(
-                    "["
-                        + persistentTask.getParams().getDatafeedId()
-                        + "] Failed to cancel persistent task that could "
-                        + "not be assigned due to ["
-                        + exception.getMessage()
-                        + "]",
-                    e
-                );
-                listener.onFailure(exception);
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        "["
+                            + persistentTask.getParams().getDatafeedId()
+                            + "] Failed to cancel persistent task that could "
+                            + "not be assigned due to ["
+                            + exception.getMessage()
+                            + "]",
+                        e
+                    );
+                    listener.onFailure(exception);
+                }
             }
-        });
+        );
     }
 
     private static ElasticsearchStatusException createUnlicensedError(
@@ -484,10 +495,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             StartDatafeedAction.DatafeedParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            @Nullable ProjectId projectId
         ) {
             return new DatafeedNodeSelector(
                 clusterState,
@@ -500,7 +512,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
+        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
             new DatafeedNodeSelector(
                 clusterState,
                 resolver,

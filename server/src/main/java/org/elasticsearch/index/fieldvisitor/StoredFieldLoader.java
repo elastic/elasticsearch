@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -46,30 +50,7 @@ public abstract class StoredFieldLoader {
      * Creates a new StoredFieldLoader using a StoredFieldsSpec
      */
     public static StoredFieldLoader fromSpec(StoredFieldsSpec spec) {
-        if (spec.noRequirements()) {
-            return StoredFieldLoader.empty();
-        }
-        return create(spec.requiresSource(), spec.requiredStoredFields());
-    }
-
-    /**
-     * Creates a new StoredFieldLoader
-     * @param loadSource should this loader load the _source field
-     * @param fields     a set of additional fields the loader should load
-     */
-    public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
-        List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
-        return new StoredFieldLoader() {
-            @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(reader(ctx, docs), loadSource, fields);
-            }
-
-            @Override
-            public List<String> fieldsToLoad() {
-                return fieldsToLoad;
-            }
-        };
+        return fromSpec(spec, false);
     }
 
     /**
@@ -77,14 +58,41 @@ public abstract class StoredFieldLoader {
      * for loading documents in order.
      */
     public static StoredFieldLoader fromSpecSequential(StoredFieldsSpec spec) {
+        return fromSpec(spec, true);
+    }
+
+    private static StoredFieldLoader fromSpec(StoredFieldsSpec spec, boolean forceSequentialReader) {
         if (spec.noRequirements()) {
             return StoredFieldLoader.empty();
         }
-        List<String> fieldsToLoad = fieldsToLoad(spec.requiresSource(), spec.requiredStoredFields());
+
+        if (IgnoredSourceFieldLoader.supports(spec)) {
+            return new IgnoredSourceFieldLoader(spec, forceSequentialReader);
+        }
+        return create(spec.requiresSource(), spec.requiredStoredFields(), forceSequentialReader);
+    }
+
+    public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
+        return create(loadSource, fields, false);
+    }
+
+    /**
+     * Creates a new StoredFieldLoader
+     *
+     * @param loadSource           indicates whether this loader should load the {@code _source} field.
+     * @param fields               a set of additional fields that the loader should load.
+     * @param forceSequentialReader if {@code true}, forces the use of a sequential leaf reader;
+     *                              otherwise, uses the heuristic defined in {@link StoredFieldLoader#reader(LeafReaderContext, int[])}.
+     */
+    public static StoredFieldLoader create(boolean loadSource, Set<String> fields, boolean forceSequentialReader) {
+        if (loadSource == false && fields.isEmpty()) {
+            return StoredFieldLoader.empty();
+        }
+        List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(sequentialReader(ctx), spec.requiresSource(), spec.requiredStoredFields());
+                return new ReaderStoredFieldLoader(forceSequentialReader ? sequentialReader(ctx) : reader(ctx, docs), loadSource, fields);
             }
 
             @Override
@@ -128,7 +136,8 @@ public abstract class StoredFieldLoader {
         };
     }
 
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader(LeafReaderContext ctx, int[] docs) throws IOException {
+    protected static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader(LeafReaderContext ctx, int[] docs)
+        throws IOException {
         LeafReader leafReader = ctx.reader();
         if (docs != null && docs.length > 10 && hasSequentialDocs(docs)) {
             return sequentialReader(ctx);
@@ -137,7 +146,8 @@ public abstract class StoredFieldLoader {
         return storedFields::document;
     }
 
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> sequentialReader(LeafReaderContext ctx) throws IOException {
+    protected static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> sequentialReader(LeafReaderContext ctx)
+        throws IOException {
         LeafReader leafReader = ctx.reader();
         if (leafReader instanceof SequentialStoredFieldsLeafReader lf) {
             return lf.getSequentialStoredFieldsReader()::document;
@@ -188,13 +198,33 @@ public abstract class StoredFieldLoader {
 
     private static class ReaderStoredFieldLoader implements LeafStoredFieldLoader {
 
-        private final CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader;
+        private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
         private final CustomFieldsVisitor visitor;
         private int doc = -1;
 
-        ReaderStoredFieldLoader(CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader, boolean loadSource, Set<String> fields) {
+        private static CustomFieldsVisitor getFieldsVisitor(Set<String> fields, boolean loadSource) {
+            if (fields.contains(IgnoredSourceFieldMapper.NAME)) {
+                return new CustomFieldsVisitor(fields, loadSource) {
+                    @Override
+                    public Status needsField(FieldInfo fieldInfo) {
+                        if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                            return Status.YES;
+                        }
+                        return super.needsField(fieldInfo);
+                    }
+                };
+            }
+
+            return new CustomFieldsVisitor(fields, loadSource);
+        }
+
+        ReaderStoredFieldLoader(
+            CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader,
+            boolean loadSource,
+            Set<String> fields
+        ) {
             this.reader = reader;
-            this.visitor = new CustomFieldsVisitor(fields, loadSource);
+            this.visitor = getFieldsVisitor(fields, loadSource);
         }
 
         @Override

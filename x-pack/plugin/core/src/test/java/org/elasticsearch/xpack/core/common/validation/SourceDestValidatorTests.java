@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -164,7 +165,11 @@ public class SourceDestValidatorTests extends ESTestCase {
         }
 
         @Override
-        public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+        public RemoteClusterClient getRemoteClusterClient(
+            String clusterAlias,
+            Executor responseExecutor,
+            RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+        ) {
             return new RedirectToLocalClusterRemoteClusterClient(this);
         }
 
@@ -595,7 +600,15 @@ public class SourceDestValidatorTests extends ESTestCase {
             Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1))
         );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
-        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null);
+        var projectId = randomProjectIdOrDefault();
+        Pipeline pipeline = Pipeline.create(
+            "missing-pipeline",
+            pipelineConfig,
+            processorRegistry,
+            null,
+            projectId,
+            nodeFeature -> DataStream.LOGS_STREAM_FEATURE_FLAG
+        );
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
 
         assertValidation(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -106,8 +107,12 @@ public final class KeyStoreUtil {
      * @param certificates The root certificates to trust
      */
     public static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
+        return buildTrustStore(certificates, KeyStore.getDefaultType());
+    }
+
+    public static KeyStore buildTrustStore(Iterable<Certificate> certificates, String type) throws GeneralSecurityException {
         assert certificates != null : "Cannot create keystore with null certificates";
-        KeyStore store = buildNewKeyStore();
+        KeyStore store = buildNewKeyStore(type);
         int counter = 0;
         for (Certificate certificate : certificates) {
             store.setCertificateEntry("cert-" + counter, certificate);
@@ -117,7 +122,11 @@ public final class KeyStoreUtil {
     }
 
     private static KeyStore buildNewKeyStore() throws GeneralSecurityException {
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        return buildNewKeyStore(KeyStore.getDefaultType());
+    }
+
+    private static KeyStore buildNewKeyStore(String type) throws GeneralSecurityException {
+        KeyStore keyStore = KeyStore.getInstance(type);
         try {
             keyStore.load(null, null);
         } catch (IOException e) {

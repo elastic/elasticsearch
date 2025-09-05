@@ -139,7 +139,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         params.maxReadRequestOperationCount = 64;
         params.maxOutstandingReadRequests = 1;
         params.maxOutstandingWriteRequests = 0; // need to set outstandingWrites to 0, other the write buffer gets flushed immediately
-        params.maxWriteBufferSize = new ByteSizeValue(1, ByteSizeUnit.KB);
+        params.maxWriteBufferSize = ByteSizeValue.of(1, ByteSizeUnit.KB);
         ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 

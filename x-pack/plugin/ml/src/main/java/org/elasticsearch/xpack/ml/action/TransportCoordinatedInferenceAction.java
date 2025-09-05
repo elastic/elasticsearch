@@ -16,12 +16,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -48,9 +48,9 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
 
     private static final Map<TrainedModelPrefixStrings.PrefixType, InputType> PREFIX_TYPE_INPUT_TYPE_MAP = Map.of(
         TrainedModelPrefixStrings.PrefixType.INGEST,
-        InputType.INGEST,
+        InputType.INTERNAL_INGEST,
         TrainedModelPrefixStrings.PrefixType.SEARCH,
-        InputType.SEARCH
+        InputType.INTERNAL_SEARCH
     );
 
     private final Client client;
@@ -119,7 +119,18 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
             client,
             INFERENCE_ORIGIN,
             InferenceAction.INSTANCE,
-            new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings(), inputType),
+            new InferenceAction.Request(
+                TaskType.ANY,
+                request.getModelId(),
+                null,
+                null,
+                null,
+                request.getInputs(),
+                request.getTaskSettings(),
+                inputType,
+                request.getInferenceTimeout(),
+                false
+            ),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(translateInferenceServiceResponse(r.getResults())))
         );
     }
@@ -129,7 +140,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         var inputType = PREFIX_TYPE_INPUT_TYPE_MAP.get(prefixType);
 
         if (inputType == null) {
-            return InputType.INGEST;
+            return InputType.INTERNAL_INGEST;
         }
 
         return inputType;
@@ -179,7 +190,11 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                     ActionListener.wrap(
                         model -> listener.onFailure(
                             new ElasticsearchStatusException(
-                                "[" + modelId + "] is configured for the _inference API and does not accept documents as input",
+                                "["
+                                    + modelId
+                                    + "] is configured for the _inference API and does not accept documents as input. "
+                                    + "If using an inference ingest processor configure it with the [input_output] option instead of "
+                                    + "[field_map].",
                                 RestStatus.BAD_REQUEST
                             )
                         ),

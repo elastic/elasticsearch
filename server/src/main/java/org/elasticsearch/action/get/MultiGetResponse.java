@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -89,9 +89,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-            }
             builder.field(ID.getPreferredName(), id);
             ElasticsearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
@@ -107,11 +104,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     public MultiGetResponse(MultiGetItemResponse[] responses) {
         this.responses = responses;
-    }
-
-    MultiGetResponse(StreamInput in) throws IOException {
-        super(in);
-        responses = in.readArray(MultiGetItemResponse::new, MultiGetItemResponse[]::new);
     }
 
     public MultiGetItemResponse[] getResponses() {

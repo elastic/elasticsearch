@@ -29,7 +29,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
                 () -> indicesAdmin().prepareDelete("*").get()
             );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
-            String[] indices = indicesAdmin().prepareGetIndex().setIndices("index1").get().getIndices();
+            String[] indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
@@ -39,7 +39,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
                 () -> indicesAdmin().prepareDelete("*", "-index1").get()
             );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
-            String[] indices = indicesAdmin().prepareGetIndex().setIndices("index1").get().getIndices();
+            String[] indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
@@ -49,7 +49,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
                 () -> indicesAdmin().prepareDelete("_all").get()
             );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
-            String[] indices = indicesAdmin().prepareGetIndex().setIndices("index1").get().getIndices();
+            String[] indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }

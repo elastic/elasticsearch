@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -12,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
@@ -26,9 +29,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 
 public class RemoteConnectionManager implements ConnectionManager {
+
+    private static final Logger logger = LogManager.getLogger(RemoteConnectionManager.class);
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteConnectionManager.class);
 
     private final String clusterAlias;
     private final RemoteClusterCredentialsManager credentialsManager;
@@ -44,10 +52,16 @@ public class RemoteConnectionManager implements ConnectionManager {
             @Override
             public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 addConnectedNode(node);
+                try {
+                    // called when a node is successfully connected through a proxy connection
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager));
+                } catch (Exception e) {
+                    logger.warn("Failed to log deprecation warning.", e);
+                }
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 removeConnectedNode(node);
             }
         });
@@ -101,9 +115,26 @@ public class RemoteConnectionManager implements ConnectionManager {
             node,
             profile,
             listener.delegateFailureAndWrap(
-                (l, connection) -> l.onResponse(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
+                (l, connection) -> l.onResponse(
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
+                )
             )
         );
+    }
+
+    private InternalRemoteConnection maybeLogDeprecationWarning(InternalRemoteConnection connection) {
+        if (connection.getClusterCredentials() == null
+            && (false == REMOTE_CLUSTER_PROFILE.equals(this.getConnectionProfile().getTransportProfile()))) {
+            deprecationLogger.warn(
+                DeprecationCategory.SECURITY,
+                "remote_cluster_certificate_access-" + connection.getClusterAlias(),
+                "The remote cluster connection to [{}] is using the certificate-based security model. "
+                    + "The certificate-based security model is deprecated and will be removed in a future major version. "
+                    + "Migrate the remote cluster from the certificate-based to the API key-based security model.",
+                connection.getClusterAlias()
+            );
+        }
+        return connection;
     }
 
     @Override
@@ -151,7 +182,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 // Ignore. We will try the next one until all are exhausted.
             }
         }
-        throw new NoSuchRemoteClusterException(clusterAlias);
+        throw new ConnectTransportException(null, "Unable to connect to [" + clusterAlias + "]");
     }
 
     @Override

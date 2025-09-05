@@ -1,0 +1,188 @@
+  setup:
+    - do:
+        indices.create:
+          index: index_long
+          body:
+            mappings:
+              properties:
+                field1:
+                  type: long
+                field2:
+                  type: long
+
+    - do:
+        indices.create:
+          index: index_int
+          body:
+            mappings:
+              properties:
+                field1:
+                  type: integer
+                field2:
+                  type: integer
+
+    - do:
+        indices.create:
+          index: index_short
+          body:
+            mappings:
+              properties:
+                field1:
+                  type: short
+                field2:
+                  type: short
+
+    - do:
+        indices.create:
+          index: index_byte
+          body:
+            mappings:
+              properties:
+                field1:
+                  type: byte
+                field2:
+                  type: byte
+
+    - do:
+        bulk:
+          refresh: true
+          index: index_long
+          body:
+            - '{ "index" : { "_id" : "long1" } }'
+            - '{"field1" : 10}'
+            - '{ "index" : { "_id" : "long2" } }'
+            - '{"field1" : 20, "field2": 20}'
+            - '{ "index" : { "_id" : "long3" } }'
+            - '{"field1" : 30}'
+            - '{ "index" : { "_id" : "long4" } }'
+            - '{"field1" : 40, "field2": 40}'
+            - '{ "index" : { "_id" : "long5" } }'
+            - '{"field1" : 50}'
+
+    - do:
+        bulk:
+          refresh: true
+          index: index_int
+          body:
+            - '{ "index" : { "_id" : "int1" } }'
+            - '{"field1" : 11, "field2": 11}'
+            - '{ "index" : { "_id" : "int2" } }'
+            - '{"field1" : 21}'
+            - '{ "index" : { "_id" : "int3" } }'
+            - '{"field1" : 31, "field2": 31}'
+            - '{ "index" : { "_id" : "int4" } }'
+            - '{"field1" : 41}'
+            - '{ "index" : { "_id" : "int5" } }'
+            - '{"field1" : 51, "field2": 51}'
+
+    - do:
+        bulk:
+          refresh: true
+          index: index_short
+          body:
+            - '{ "index" : { "_id" : "short1" } }'
+            - '{"field1" : 12}'
+            - '{ "index" : { "_id" : "short2" } }'
+            - '{"field1" : 22, "field2": 22}'
+            - '{ "index" : { "_id" : "short3" } }'
+            - '{"field1" : 32}'
+            - '{ "index" : { "_id" : "short4" } }'
+            - '{"field1" : 42, "field2": 42}'
+            - '{ "index" : { "_id" : "short5" } }'
+            - '{"field1" : 52}'
+
+    - do:
+        bulk:
+          refresh: true
+          index: index_byte
+          body:
+            - '{ "index" : { "_id" : "byte1" } }'
+            - '{"field1" : 13, "field2": 13}'
+            - '{ "index" : { "_id" : "byte2" } }'
+            - '{"field1" : 23}'
+            - '{ "index" : { "_id" : "byte3" } }'
+            - '{"field1" : 33, "field2": 33}'
+            - '{ "index" : { "_id" : "byte4" } }'
+            - '{"field1" : 43}'
+            - '{ "index" : { "_id" : "byte5" } }'
+            - '{"field1" : 53, "field2": 53}'
+
+
+---
+  "Simple sort":
+    - do:
+        search:
+          index: index_long,index_int,index_short,index_byte
+          body:
+            sort: [ { field1: { "order": "asc"} } ]
+    - match: { hits.hits.0.sort.0: 10 }
+    - match: { hits.hits.1.sort.0: 11 }
+    - match: { hits.hits.2.sort.0: 12 }
+    - match: { hits.hits.3.sort.0: 13 }
+    - match: { hits.hits.4.sort.0: 20 }
+    - match: { hits.hits.5.sort.0: 21 }
+    - match: { hits.hits.6.sort.0: 22 }
+    - match: { hits.hits.7.sort.0: 23 }
+    - match: { hits.hits.8.sort.0: 30 }
+    - match: { hits.hits.9.sort.0: 31 }
+
+    - do:
+        search:
+          index: index_long,index_int,index_short,index_byte
+          body:
+            sort: [ { field1: { "order": "asc"} } ]
+            search_after: [31]
+    - match: { hits.hits.0.sort.0: 32 }
+    - match: { hits.hits.1.sort.0: 33 }
+    - match: { hits.hits.2.sort.0: 40 }
+    - match: { hits.hits.3.sort.0: 41 }
+    - match: { hits.hits.4.sort.0: 42 }
+    - match: { hits.hits.5.sort.0: 43 }
+    - match: { hits.hits.6.sort.0: 50 }
+    - match: { hits.hits.7.sort.0: 51 }
+    - match: { hits.hits.8.sort.0: 52 }
+    - match: { hits.hits.9.sort.0: 53 }
+
+---
+  "Sort missing values sort last":
+    - requires:
+        cluster_features: [ "search.sort.int_sort_for_int_short_byte_fields" ]
+        reason: "Integer Sort is used on integer, short, byte field types"
+    - do:
+        search:
+          index: index_long,index_int,index_short,index_byte
+          body:
+            sort: [ { field2: { "order": "asc" } } ]
+
+    - match: { hits.hits.0.sort.0: 11 }
+    - match: { hits.hits.1.sort.0: 13 }
+    - match: { hits.hits.2.sort.0: 20 }
+    - match: { hits.hits.3.sort.0: 22 }
+    - match: { hits.hits.4.sort.0: 31 }
+    - match: { hits.hits.5.sort.0: 33 }
+    - match: { hits.hits.6.sort.0: 40 }
+    - match: { hits.hits.7.sort.0: 42 }
+    - match: { hits.hits.8.sort.0: 51 }
+    - match: { hits.hits.9.sort.0: 53 }
+
+    - do:
+        search:
+          index: index_long,index_int,index_short,index_byte
+          body:
+            sort: [ { field2: { "order": "asc" } } ]
+            search_after: [ 53 ]
+
+    # Then all documents with missing field2
+    # missing values on fields with integer type return Integer.MAX_VALUE
+    # missing values on fields with long type return Long.MAX_VALUE
+    - match: { hits.hits.0.sort.0: 2147483647 }
+    - match: { hits.hits.1.sort.0: 2147483647 }
+    - match: { hits.hits.2.sort.0: 2147483647 }
+    - match: { hits.hits.3.sort.0: 2147483647 }
+    - match: { hits.hits.4.sort.0: 2147483647 }
+    - match: { hits.hits.5.sort.0: 2147483647 }
+    - match: { hits.hits.6.sort.0: 2147483647 }
+    - match: { hits.hits.7.sort.0: 9223372036854775807 }
+    - match: { hits.hits.8.sort.0: 9223372036854775807 }
+    - match: { hits.hits.9.sort.0: 9223372036854775807 }
+

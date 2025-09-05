@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,6 +31,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class IndexResponseTests extends ESTestCase {
@@ -111,7 +114,7 @@ public class IndexResponseTests extends ESTestCase {
         }
         IndexResponse parsedIndexResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedIndexResponse = IndexResponse.fromXContent(parser);
+            parsedIndexResponse = parseInstanceFromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -119,6 +122,15 @@ public class IndexResponseTests extends ESTestCase {
         // because the random index response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
         assertDocWriteResponse(expectedIndexResponse, parsedIndexResponse);
+    }
+
+    private static IndexResponse parseInstanceFromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        IndexResponse.Builder context = new IndexResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
+        }
+        return context.build();
     }
 
     public static void assertDocWriteResponse(DocWriteResponse expected, DocWriteResponse actual) {

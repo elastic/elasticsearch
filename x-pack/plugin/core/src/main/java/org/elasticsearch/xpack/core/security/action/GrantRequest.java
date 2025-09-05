@@ -7,23 +7,18 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public abstract class GrantRequest extends ActionRequest {
+public abstract class GrantRequest extends LegacyActionRequest {
     protected final Grant grant;
 
     public GrantRequest() {
         this.grant = new Grant();
-    }
-
-    public GrantRequest(StreamInput in) throws IOException {
-        super(in);
-        this.grant = new Grant(in);
     }
 
     public Grant getGrant() {
@@ -31,13 +26,12 @@ public abstract class GrantRequest extends ActionRequest {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        grant.writeTo(out);
+    public ActionRequestValidationException validate() {
+        return grant.validate(null);
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return grant.validate(null);
+    public final void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

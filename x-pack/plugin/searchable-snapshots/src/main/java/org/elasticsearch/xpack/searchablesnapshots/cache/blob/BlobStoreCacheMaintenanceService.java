@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -36,8 +36,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -46,7 +46,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -56,6 +55,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -144,6 +145,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     private final Client clientWithOrigin;
     private final String systemIndexName;
     private final ThreadPool threadPool;
+    private final SystemIndexDescriptor systemIndexDescriptor;
 
     private volatile Scheduler.Cancellable periodicTask;
     private volatile TimeValue periodicTaskInterval;
@@ -157,10 +159,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
+        SystemIndices systemIndices,
         String systemIndexName
     ) {
         this.clientWithOrigin = new OriginSettingClient(Objects.requireNonNull(client), SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.systemIndexName = Objects.requireNonNull(systemIndexName);
+        this.systemIndexDescriptor = Objects.requireNonNull(systemIndices.findMatchingDescriptor(systemIndexName));
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.periodicTaskInterval = SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.get(settings);
@@ -180,10 +184,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             return; // state not fully recovered
         }
-        final ShardRouting primary = systemIndexPrimaryShard(state);
-        if (primary == null
-            || primary.active() == false
-            || Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId()) == false) {
+        if (systemIndexPrimaryShardActiveAndAssignedToLocalNode(state) == false) {
             // system index primary shard does not exist or is not assigned to this data node
             stopPeriodicTask();
             return;
@@ -241,20 +242,24 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
     }
 
-    @Nullable
-    private ShardRouting systemIndexPrimaryShard(final ClusterState state) {
-        final IndexMetadata indexMetadata = state.metadata().index(systemIndexName);
-        if (indexMetadata != null) {
-            final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
-            if (indexRoutingTable != null) {
-                return indexRoutingTable.shard(0).primaryShard();
+    private boolean systemIndexPrimaryShardActiveAndAssignedToLocalNode(final ClusterState state) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
+            if (indexMetadata.isSystem() && systemIndexDescriptor.matchesIndexPattern(indexMetadata.getIndex().getName())) {
+                final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
+                if (indexRoutingTable == null || indexRoutingTable.shard(0) == null) {
+                    continue;
+                }
+                final var primary = indexRoutingTable.shard(0).primaryShard();
+                if (primary != null && primary.active() && Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId())) {
+                    return true;
+                }
             }
         }
-        return null;
+        return false;
     }
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
@@ -272,7 +277,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
         Map<String, Set<String>> snapshots = null;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (snapshots == null) {
@@ -311,12 +316,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             final ClusterState state = event.state();
 
             for (Index deletedIndex : event.indicesDeleted()) {
-                final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
+                final IndexMetadata indexMetadata = event.previousState().metadata().getProject().index(deletedIndex);
+                assert indexMetadata != null || state.metadata().getProject().indexGraveyard().containsIndex(deletedIndex)
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     if (indexMetadata.isSearchableSnapshot()) {
-                        assert state.metadata().hasIndex(deletedIndex) == false;
+                        assert state.metadata().getProject().hasIndex(deletedIndex) == false;
 
                         final Settings indexSetting = indexMetadata.getSettings();
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);
@@ -484,7 +489,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             });
         }
 
-        private static ActionListener<Void> closingPitBefore(Client client, String pointInTimeId, ActionListener<Void> listener) {
+        private static ActionListener<Void> closingPitBefore(Client client, BytesReference pointInTimeId, ActionListener<Void> listener) {
             return new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -498,7 +503,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             };
         }
 
-        private static void closePit(Client client, String pointInTimeId, Runnable onCompletion) {
+        private static void closePit(Client client, BytesReference pointInTimeId, Runnable onCompletion) {
             client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId), new ActionListener<>() {
                 @Override
                 public void onResponse(ClosePointInTimeResponse response) {
@@ -522,14 +527,14 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
          * The maintenance task, once it has opened its PIT and started running so that it has all the state it needs to do its job.
          */
         private class RunningPeriodicMaintenanceTask implements Runnable {
-            private final String pointInTimeId;
+            private final BytesReference pointInTimeId;
             private final RefCountingListener listeners;
             private final Instant expirationTime;
             private final Map<String, Set<String>> existingSnapshots;
             private final Set<String> existingRepositories;
 
             RunningPeriodicMaintenanceTask(
-                String pointInTimeId,
+                BytesReference pointInTimeId,
                 ActionListener<Void> listener,
                 Instant expirationTime,
                 Map<String, Set<String>> existingSnapshots,
@@ -548,7 +553,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 try (listeners) {
                     executeSearch(new SearchRequest().source(getSearchSourceBuilder().trackTotalHits(true)), (searchResponse, refs) -> {
                         assert total.get() == 0L;
-                        total.set(searchResponse.getHits().getTotalHits().value);
+                        total.set(searchResponse.getHits().getTotalHits().value());
                         handleSearchResponse(searchResponse, refs);
                     });
                 }
@@ -636,7 +641,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 if (bulkRequest.numberOfActions() > 0) {
                     refs.mustIncRef();
                     clientWithOrigin.execute(
-                        BulkAction.INSTANCE,
+                        TransportBulkAction.TYPE,
                         bulkRequest,
                         ActionListener.releaseAfter(listeners.acquire(bulkResponse -> {
                             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {

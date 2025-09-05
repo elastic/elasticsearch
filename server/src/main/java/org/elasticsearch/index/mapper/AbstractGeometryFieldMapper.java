@@ -1,19 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
@@ -32,6 +37,12 @@ import java.util.function.Function;
  * Base field mapper class for all spatial field types
  */
 public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
+
+    // The GeoShapeFieldMapper class does not exist in server any more.
+    // For backwards compatibility we add the name of the class manually.
+    protected static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(
+        "org.elasticsearch.index.mapper.GeoShapeFieldMapper"
+    );
 
     public static Parameter<Explicit<Boolean>> ignoreMalformedParam(
         Function<FieldMapper, Explicit<Boolean>> initializer,
@@ -52,15 +63,19 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
          * Parse the given xContent value to one or more objects of type {@link T}. The value can be
          * in any supported format.
          */
-        public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
+        public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, MalformedValueHandler malformedHandler)
             throws IOException;
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(normalizeFromSource(v)), e -> {}); /* ignore malformed */
+                parseFromSource(parser, consumer);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        private void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
+            parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
         }
 
         /**
@@ -81,6 +96,36 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             parser.nextToken(); // field name
             parser.nextToken(); // field value
             return parser;
+        }
+    }
+
+    public interface MalformedValueHandler {
+        void notify(Exception parsingException) throws IOException;
+
+        void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) throws IOException;
+    }
+
+    public record NoopMalformedValueHandler() implements MalformedValueHandler {
+        public static final NoopMalformedValueHandler INSTANCE = new NoopMalformedValueHandler();
+
+        @Override
+        public void notify(Exception parsingException) {}
+
+        @Override
+        public void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) {}
+    }
+
+    public record DefaultMalformedValueHandler(CheckedBiConsumer<Exception, XContentBuilder, IOException> consumer)
+        implements
+            MalformedValueHandler {
+        @Override
+        public void notify(Exception parsingException) throws IOException {
+            consumer.accept(parsingException, null);
+        }
+
+        @Override
+        public void notify(Exception parsingException, XContentBuilder malformedDataForSyntheticSource) throws IOException {
+            consumer.accept(parsingException, malformedDataForSyntheticSource);
         }
     }
 
@@ -140,12 +185,6 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Currently we can only load from source in ESQL
-            return blockLoaderFromSource(blContext);
-        }
-
         protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
             ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
@@ -153,6 +192,84 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         protected abstract Object nullValueAsSource(T nullValue);
+
+        protected BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
+            return new FallbackSyntheticSourceBlockLoader(
+                new GeometriesFallbackSyntheticSourceReader(),
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
+        }
+
+        private class GeometriesFallbackSyntheticSourceReader implements FallbackSyntheticSourceBlockLoader.Reader<BytesRef> {
+            private final Function<List<T>, List<Object>> formatter;
+
+            private GeometriesFallbackSyntheticSourceReader() {
+                this.formatter = getFormatter(GeometryFormatterFactory.WKB);
+            }
+
+            @Override
+            public void convertValue(Object value, List<BytesRef> accumulator) {
+                final List<T> values = new ArrayList<>();
+
+                geometryParser.fetchFromSource(value, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
+                var formatted = formatter.apply(values);
+
+                for (var formattedValue : formatted) {
+                    if (formattedValue instanceof byte[] wkb) {
+                        accumulator.add(new BytesRef(wkb));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unsupported source type for spatial geometry: " + formattedValue.getClass().getSimpleName()
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                final List<T> values = new ArrayList<>();
+
+                geometryParser.parseFromSource(parser, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
+                var formatted = formatter.apply(values);
+
+                for (var formattedValue : formatted) {
+                    if (formattedValue instanceof byte[] wkb) {
+                        accumulator.add(new BytesRef(wkb));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unsupported source type for spatial geometry: " + formattedValue.getClass().getSimpleName()
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                for (var value : values) {
+                    bytesRefBuilder.appendBytesRef(value);
+                }
+            }
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;
@@ -162,29 +279,14 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
-        MultiFields multiFields,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
-        this.parser = parser;
-    }
-
-    protected AbstractGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, true, onScriptError);
-        this.ignoreMalformed = Explicit.EXPLICIT_FALSE;
-        this.ignoreZValue = Explicit.EXPLICIT_FALSE;
         this.parser = parser;
     }
 
@@ -213,24 +315,27 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     @Override
     public final void parse(DocumentParserContext context) throws IOException {
-        if (hasScript) {
+        if (builderParams.hasScript()) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
                 "failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
-        parser.parse(context.parser(), v -> index(context, v), e -> {
-            if (ignoreMalformed()) {
-                context.addIgnoredField(fieldType().name());
-            } else {
-                throw new DocumentParsingException(
-                    context.parser().getTokenLocation(),
-                    "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
-                    e
-                );
-            }
-        });
+        parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
+    }
+
+    protected void onMalformedValue(DocumentParserContext context, XContentBuilder malformedDataForSyntheticSource, Exception cause)
+        throws IOException {
+        if (ignoreMalformed()) {
+            context.addIgnoredField(fieldType().name());
+        } else {
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
+                "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
+                cause
+            );
+        }
     }
 
     @Override

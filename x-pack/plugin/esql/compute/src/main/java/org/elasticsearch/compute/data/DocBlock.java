@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -15,18 +19,12 @@ import java.io.IOException;
 /**
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
-public class DocBlock extends AbstractVectorBlock implements Block {
+public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -46,7 +44,28 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
     @Override
     public Block filter(int... positions) {
-        return new DocBlock(asVector().filter(positions));
+        return new DocBlock(vector.filter(positions));
+    }
+
+    @Override
+    public Block deepCopy(BlockFactory blockFactory) {
+        return new DocBlock(vector.deepCopy(blockFactory));
+    }
+
+    @Override
+    public Block keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("can't lookup values from DocBlock");
+    }
+
+    @Override
+    public DocBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
@@ -84,6 +103,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
+        private ShardRefCounted shardRefCounters = ShardRefCounted.ALWAYS_REFERENCED;
+
+        public Builder setShardRefCounted(ShardRefCounted shardRefCounters) {
+            this.shardRefCounters = shardRefCounters;
+            return this;
+        }
 
         private Builder(BlockFactory blockFactory, int estimatedSize) {
             IntVector.Builder shards = null;
@@ -145,11 +170,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do
@@ -158,6 +178,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
              * only reference one doc.
              */
             return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return DocVector.BASE_RAM_BYTES_USED + shards.estimatedBytes() + segments.estimatedBytes() + docs.estimatedBytes();
         }
 
         @Override
@@ -171,7 +196,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shards, segments, docs, null);
+                result = new DocVector(shardRefCounters, shards, segments, docs, null);
                 return result.asBlock();
             } finally {
                 if (result == null) {
@@ -189,5 +214,15 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public int getPositionCount() {
+        return vector.getPositionCount();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

@@ -1,0 +1,32 @@
+{
+    "properties" : {
+        "test" : {
+            "properties" : {
+                "test" : {
+                    "type" : "text",
+                    "fields" : {
+                        "keyword" : {
+                            "type" : "keyword"
+                        }
+                    }
+                },
+                "bar" : {
+                    "type" : "text",
+                    "fields" : {
+                        "keyword" : {
+                            "type" : "keyword"
+                        }
+                    }
+                }
+            }
+        },
+        "bar" : {
+            "type" : "text",
+            "fields" : {
+                "keyword" : {
+                    "type" : "keyword"
+                }
+            }
+        }
+    }
+}

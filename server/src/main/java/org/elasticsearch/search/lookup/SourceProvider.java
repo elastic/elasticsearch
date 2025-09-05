@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 
 import java.io.IOException;
 
@@ -25,27 +26,27 @@ public interface SourceProvider {
     Source getSource(LeafReaderContext ctx, int doc) throws IOException;
 
     /**
-     * A SourceProvider that loads source from stored fields
+     * A SourceProvider that delegate loading source to the provided {@link MappingLookup}.
      *
      * The returned SourceProvider is thread-safe across segments, in that it may be
      * safely used by a searcher that searches different segments on different threads,
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromStoredFields() {
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.sequentialSource();
-        return new StoredFieldSourceProvider(storedFieldLoader);
+    static SourceProvider fromLookup(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
+        return new ConcurrentSegmentSourceProvider(lookup, filter, metrics);
     }
 
     /**
-     * A SourceProvider that loads source from synthetic source
+     * Optionally returns a new {@link SourceProvider} that is more optimized to load source with the provided source filter in mind.
+     * <p>
+     * Currently this is only the case if source mode is synthetic, and only a subset of fields is requested,
+     * then only loading source for requested fields is much more efficient.
      *
-     * The returned SourceProvider is thread-safe across segments, in that it may be
-     * safely used by a searcher that searches different segments on different threads,
-     * but it is not safe to use this to access documents from the same segment across
-     * multiple threads.
+     * @param sourceFilter The part of the source the caller is actually interested in.
+     * @return a new instance if source can be loaded in a more optimal way, otherwise returns this instance.
      */
-    static SourceProvider fromSyntheticSource(Mapping mapping) {
-        return new SyntheticSourceProvider(mapping);
+    default SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
+        return this;
     }
 }

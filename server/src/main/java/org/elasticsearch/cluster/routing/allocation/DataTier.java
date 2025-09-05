@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -11,7 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -30,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -63,14 +67,8 @@ public class DataTier {
 
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
-    private static final Settings DATA_CONTENT_TIER_PREFERENCE_SETTINGS = Settings.builder().put(TIER_PREFERENCE, DATA_CONTENT).build();
-
-    private static final Settings DATA_HOT_TIER_PREFERENCE_SETTINGS = Settings.builder().put(TIER_PREFERENCE, DATA_HOT).build();
-
-    private static final Settings NULL_TIER_PREFERENCE_SETTINGS = Settings.builder().putNull(TIER_PREFERENCE).build();
-
     public static final Setting<String> TIER_PREFERENCE_SETTING = new Setting<>(
-        new Setting.SimpleKey(TIER_PREFERENCE),
+        TIER_PREFERENCE,
         DataTierSettingValidator::getDefaultTierPreference,
         Function.identity(),
         new DataTierSettingValidator(),
@@ -221,33 +219,34 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalMetadata(
             String indexName,
-            String dataStreamName,
-            boolean timeSeries,
-            Metadata metadata,
+            @Nullable String dataStreamName,
+            IndexMode templateIndexMode,
+            ProjectMetadata projectMetadata,
             Instant resolvedAt,
-            Settings allSettings,
-            List<CompressedXContent> combinedTemplateMappings
+            Settings indexTemplateAndCreateRequestSettings,
+            List<CompressedXContent> combinedTemplateMappings,
+            Settings.Builder additionalSettings,
+            BiConsumer<String, Map<String, String>> additionalCustomMetadata
         ) {
-            Set<String> settings = allSettings.keySet();
+            Set<String> settings = indexTemplateAndCreateRequestSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
-                return NULL_TIER_PREFERENCE_SETTINGS;
+                additionalSettings.putNull(TIER_PREFERENCE);
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "."))
                 || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "."))
                 || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
                     // A different index level require, include, or exclude has been specified, so don't put the setting
                     logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
-                    return Settings.EMPTY;
                 } else {
                     // Otherwise, put the setting in place by default, the "hot"
                     // tier if the index is part of a data stream, the "content"
                     // tier if it is not.
                     if (dataStreamName != null) {
-                        return DATA_HOT_TIER_PREFERENCE_SETTINGS;
+                        additionalSettings.put(TIER_PREFERENCE, DATA_HOT);
                     } else {
-                        return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;
+                        additionalSettings.put(TIER_PREFERENCE, DATA_CONTENT);
                     }
                 }
         }

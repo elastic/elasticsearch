@@ -46,7 +46,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
 
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
         assertBusy(() -> {
-            GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings()
+            GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT)
                 .setIndicesOptions(IndicesOptions.strictExpandHidden())
                 .get();
             assertThat(mappingsResponse, notNullValue());

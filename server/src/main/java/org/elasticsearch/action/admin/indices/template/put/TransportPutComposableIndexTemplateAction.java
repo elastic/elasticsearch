@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
@@ -23,23 +24,26 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -54,6 +58,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/index_template/put");
     private final MetadataIndexTemplateService indexTemplateService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComposableIndexTemplateAction(
@@ -62,24 +67,16 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
-        super(
-            TYPE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            Request::new,
-            indexNameExpressionResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, clusterService, threadPool, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.indexTemplateService = indexTemplateService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -89,7 +86,12 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        verifyIfUsingReservedComponentTemplates(request, state);
+        ProjectId projectId = projectResolver.getProjectId();
+        verifyIfUsingReservedComponentTemplates(request, state.metadata().reservedStateMetadata().values());
+        verifyIfUsingReservedComponentTemplates(
+            request,
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values()
+        );
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
@@ -97,20 +99,21 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             request.name(),
             request.masterNodeTimeout(),
             indexTemplate,
+            projectId,
             listener
         );
     }
 
-    public static void verifyIfUsingReservedComponentTemplates(final Request request, final ClusterState state) {
+    public static void verifyIfUsingReservedComponentTemplates(Request request, Collection<ReservedStateMetadata> reservedStateMetadata) {
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         Set<String> composedOfKeys = indexTemplate.composedOf()
             .stream()
-            .map(c -> ReservedComposableIndexTemplateAction.reservedComponentName(c))
+            .map(ReservedComposableIndexTemplateAction::reservedComponentName)
             .collect(Collectors.toSet());
 
         List<String> errors = new ArrayList<>();
 
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+        for (ReservedStateMetadata metadata : reservedStateMetadata) {
             Set<String> conflicts = metadata.conflicts(ReservedComposableIndexTemplateAction.NAME, composedOfKeys);
             if (conflicts.isEmpty() == false) {
                 errors.add(format("[%s] is reserved by [%s]", String.join(", ", conflicts), metadata.namespace()));
@@ -132,6 +135,18 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     @Override
     public Set<String> modifiedKeys(Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComposableIndexName(request.name()));
+    }
+
+    @Override
+    protected void validateForReservedState(Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     /**
@@ -156,6 +171,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
          * Constructs a new put index template request with the provided name.
          */
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
         }
 

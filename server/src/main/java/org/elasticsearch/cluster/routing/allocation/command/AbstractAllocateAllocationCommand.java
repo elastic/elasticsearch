@@ -1,13 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -24,7 +28,6 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,8 +41,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     private static final String SHARD_FIELD = "shard";
     private static final String NODE_FIELD = "node";
 
-    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocateParser(String command) {
-        ObjectParser<T, Void> parser = new ObjectParser<>(command);
+    protected static <T extends Builder<?>> ObjectParser<T, ProjectId> createAllocateParser(String command) {
+        ObjectParser<T, ProjectId> parser = new ObjectParser<>(command);
         parser.declareString(Builder::setIndex, new ParseField(INDEX_FIELD));
         parser.declareInt(Builder::setShard, new ParseField(SHARD_FIELD));
         parser.declareString(Builder::setNode, new ParseField(NODE_FIELD));
@@ -53,6 +56,11 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         protected String index;
         protected int shard = -1;
         protected String node;
+        protected final ProjectId projectId;
+
+        Builder(ProjectId projectId) {
+            this.projectId = projectId;
+        }
 
         public void setIndex(String index) {
             this.index = index;
@@ -65,8 +73,6 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         public void setNode(String node) {
             this.node = node;
         }
-
-        public abstract Builder<T> parse(XContentParser parser) throws IOException;
 
         public abstract T build();
 
@@ -86,11 +92,13 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     protected final String index;
     protected final int shardId;
     protected final String node;
+    protected final ProjectId projectId;
 
-    protected AbstractAllocateAllocationCommand(String index, int shardId, String node) {
+    protected AbstractAllocateAllocationCommand(String index, int shardId, String node, ProjectId projectId) {
         this.index = index;
         this.shardId = shardId;
         this.node = node;
+        this.projectId = projectId;
     }
 
     /**
@@ -100,6 +108,11 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         index = in.readString();
         shardId = in.readVInt();
         node = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            projectId = ProjectId.readFrom(in);
+        } else {
+            projectId = Metadata.DEFAULT_PROJECT_ID;
+        }
     }
 
     @Override
@@ -107,6 +120,19 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         out.writeString(index);
         out.writeVInt(shardId);
         out.writeString(node);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            projectId.writeTo(out);
+        } else {
+            assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : projectId;
+            if (Metadata.DEFAULT_PROJECT_ID.equals(projectId) == false) {
+                throw new IllegalArgumentException("expected default project, but got " + projectId);
+            }
+        }
+    }
+
+    @Override
+    public ProjectId projectId() {
+        return projectId;
     }
 
     /**
@@ -244,12 +270,15 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         }
         AbstractAllocateAllocationCommand other = (AbstractAllocateAllocationCommand) obj;
         // Override equals and hashCode for testing
-        return Objects.equals(index, other.index) && Objects.equals(shardId, other.shardId) && Objects.equals(node, other.node);
+        return Objects.equals(index, other.index)
+            && Objects.equals(shardId, other.shardId)
+            && Objects.equals(node, other.node)
+            && Objects.equals(projectId, other.projectId);
     }
 
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(index, shardId, node);
+        return Objects.hash(index, shardId, node, projectId);
     }
 }

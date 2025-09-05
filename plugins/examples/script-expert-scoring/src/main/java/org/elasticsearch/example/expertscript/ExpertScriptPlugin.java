@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.example.expertscript;
@@ -35,10 +36,7 @@ import java.util.Set;
 public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngine getScriptEngine(
-        Settings settings,
-        Collection<ScriptContext<?>> contexts
-    ) {
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new MyExpertScriptEngine();
     }
 
@@ -128,6 +126,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
 
             @Override
+            public boolean needs_termStats() {
+                return false; // Return true if the script needs term statistics via get_termStats()
+            }
+
+            @Override
             public ScoreScript newInstance(DocReader docReader)
                     throws IOException {
                 DocValuesDocReader dvReader = ((DocValuesDocReader) docReader);
@@ -143,6 +146,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         public double execute(
                             ExplanationHolder explanation
                         ) {
+                            if(explanation != null) {
+                                explanation.set("An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out.");
+                            }
                             return 0.0d;
                         }
                     };
@@ -166,6 +172,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     }
                     @Override
                     public double execute(ExplanationHolder explanation) {
+                        if(explanation != null) {
+                            explanation.set("An example optional custom description to explain details for this script's execution; we'll provide a default one if you leave this out.");
+                        }
                         if (postings.docID() != currentDocid) {
                             /*
                              * advance moved past the current doc, so this

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.state;
@@ -11,20 +12,21 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
+/**
+ * A local-only request for obtaining (parts of) the cluster state. {@link RemoteClusterStateRequest} can be used for obtaining cluster
+ * states from remote clusters.
+ */
+public class ClusterStateRequest extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
 
@@ -38,33 +40,8 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {}
-
-    public ClusterStateRequest(StreamInput in) throws IOException {
-        super(in);
-        routingTable = in.readBoolean();
-        nodes = in.readBoolean();
-        metadata = in.readBoolean();
-        blocks = in.readBoolean();
-        customs = in.readBoolean();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        waitForTimeout = in.readTimeValue();
-        waitForMetadataVersion = in.readOptionalLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(routingTable);
-        out.writeBoolean(nodes);
-        out.writeBoolean(metadata);
-        out.writeBoolean(blocks);
-        out.writeBoolean(customs);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeTimeValue(waitForTimeout);
-        out.writeOptionalLong(waitForMetadataVersion);
+    public ClusterStateRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     @Override
@@ -209,9 +186,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (customs) {
             stringBuilder.append("customs, ");
         }
-        if (local) {
-            stringBuilder.append("local, ");
-        }
+        stringBuilder.append("local, ");
         if (waitForMetadataVersion != null) {
             stringBuilder.append("wait for metadata version [")
                 .append(waitForMetadataVersion)
@@ -222,7 +197,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (indices.length > 0) {
             stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
         }
-        stringBuilder.append("master timeout [").append(masterNodeTimeout).append("]]");
+        stringBuilder.append("master timeout [").append(masterTimeout()).append("]]");
         return stringBuilder.toString();
     }
 

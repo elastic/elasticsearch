@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.store;
@@ -86,5 +87,16 @@ public class InputStreamIndexInput extends InputStream {
     public synchronized void reset() throws IOException {
         indexInput.seek(markPointer);
         counter = markCounter;
+    }
+
+    @Override
+    public long skip(long n) throws IOException {
+        long skipBytes = Math.min(n, Math.min(indexInput.length() - indexInput.getFilePointer(), limit - counter));
+        if (skipBytes <= 0) {
+            return 0;
+        }
+        indexInput.skipBytes(skipBytes);
+        counter += skipBytes;
+        return skipBytes;
     }
 }

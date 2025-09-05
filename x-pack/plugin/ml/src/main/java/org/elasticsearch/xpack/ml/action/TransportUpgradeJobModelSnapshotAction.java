@@ -18,11 +18,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
@@ -75,7 +75,6 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         JobConfigProvider jobConfigProvider,
         MlMemoryTracker memoryTracker,
         JobResultsProvider jobResultsProvider,
@@ -88,7 +87,6 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -123,7 +121,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        PersistentTasksCustomMetadata customMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata customMetadata = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (customMetadata != null
             && (customMetadata.findTasks(
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
@@ -164,6 +162,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
                 params,
+                request.masterNodeTimeout(),
                 waitForJobToStart
             );
         }, listener::onFailure);
@@ -212,7 +211,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 && (JobState.CLOSED.equals(MlTasks.getJobState(request.getJobId(), customMetadata)) == false)) {
                 listener.onFailure(
                     ExceptionsHelper.conflictStatusException(
-                        "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]",
+                        "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]. "
+                            + "Please close the job before upgrading the snapshot.",
                         request.getSnapshotId(),
                         request.getJobId(),
                         MlTasks.getJobState(request.getJobId(), customMetadata)
@@ -290,18 +290,22 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         Exception exception,
         ActionListener<Response> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
-            logger.error(
-                () -> format(
-                    "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
-                    persistentTask.getParams().getJobId(),
-                    persistentTask.getParams().getSnapshotId(),
-                    exception.getMessage()
-                ),
-                e
-            );
-            listener.onFailure(exception);
-        }));
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(t -> listener.onFailure(exception), e -> {
+                logger.error(
+                    () -> format(
+                        "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
+                        persistentTask.getParams().getJobId(),
+                        persistentTask.getParams().getSnapshotId(),
+                        exception.getMessage()
+                    ),
+                    e
+                );
+                listener.onFailure(exception);
+            })
+        );
     }
 
 }

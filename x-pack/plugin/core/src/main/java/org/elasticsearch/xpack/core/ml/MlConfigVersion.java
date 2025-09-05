@@ -25,6 +25,7 @@ import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -280,17 +281,24 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static Tuple<MlConfigVersion, MlConfigVersion> getMinMaxMlConfigVersion(DiscoveryNodes nodes) {
         MlConfigVersion minMlConfigVersion = MlConfigVersion.CURRENT;
         MlConfigVersion maxMlConfigVersion = MlConfigVersion.FIRST_ML_VERSION;
+
+        // many nodes will have the same versions, so de-duplicate versions first so that we only have to parse unique versions
+        final Set<String> versions = new HashSet<>();
         for (DiscoveryNode node : nodes) {
-            try {
-                MlConfigVersion mlConfigVersion = getMlConfigVersionForNode(node);
-                if (mlConfigVersion.before(minMlConfigVersion)) {
-                    minMlConfigVersion = mlConfigVersion;
-                }
-                if (mlConfigVersion.after(maxMlConfigVersion)) {
-                    maxMlConfigVersion = mlConfigVersion;
-                }
-            } catch (IllegalStateException e) {
-                // This means we encountered a node that is after 8.10.0 but has the ML plugin disabled - ignore it
+            String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
+            if (mlConfigVerStr != null) { // ignore nodes that don't have an ML config version
+                versions.add(mlConfigVerStr);
+            }
+        }
+
+        // of the unique versions, find the min and max
+        for (String version : versions) {
+            MlConfigVersion mlConfigVersion = fromString(version);
+            if (mlConfigVersion.before(minMlConfigVersion)) {
+                minMlConfigVersion = mlConfigVersion;
+            }
+            if (mlConfigVersion.after(maxMlConfigVersion)) {
+                maxMlConfigVersion = mlConfigVersion;
             }
         }
         return new Tuple<>(minMlConfigVersion, maxMlConfigVersion);
@@ -298,11 +306,12 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
 
     public static MlConfigVersion getMlConfigVersionForNode(DiscoveryNode node) {
         String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
-        if (mlConfigVerStr != null) {
-            return fromString(mlConfigVerStr);
-        }
-        return fromId(node.getPre811VersionId().orElseThrow(() -> new IllegalStateException("getting legacy version id not possible")));
+        if (mlConfigVerStr == null) throw new IllegalStateException(ML_CONFIG_VERSION_NODE_ATTR + " not present on node");
+        return fromString(mlConfigVerStr);
     }
+
+    // supports fromString below
+    private static final Pattern ML_VERSION_PATTERN = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-\\w+)?$");
 
     // Parse an MlConfigVersion from a string.
     // Note that version "8.10.x" and "8.11.0" are silently converted to "10.0.0".
@@ -319,7 +328,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         if (str.startsWith("8.10.") || str.equals("8.11.0")) {
             return V_10;
         }
-        Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-\\w+)?$").matcher(str);
+        Matcher matcher = ML_VERSION_PATTERN.matcher(str);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException("ML config version [" + str + "] not valid");
         }

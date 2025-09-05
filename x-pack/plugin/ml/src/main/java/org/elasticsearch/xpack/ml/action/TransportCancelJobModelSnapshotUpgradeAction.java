@@ -15,9 +15,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeActio
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.util.List;
@@ -70,7 +71,9 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         ActionListener<List<Job.Builder>> expandIdsListener = listener.delegateFailureAndWrap((delegate, jobs) -> {
             SimpleIdsMatcher matcher = new SimpleIdsMatcher(request.getSnapshotId());
             Set<String> jobIds = jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet());
-            PersistentTasksCustomMetadata tasksInProgress = clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasksInProgress = PersistentTasksCustomMetadata.get(
+                clusterService.state().metadata().getDefaultProject()
+            );
             // allow_no_match plays no part here. The reason is that we have a principle that stopping
             // a stopped entity is a no-op, and upgrades that have already completed won't have a task.
             // This is a bit different to jobs and datafeeds, where the entity continues to exist even
@@ -103,47 +106,51 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfTasks);
 
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : upgradeTasksToCancel) {
-            persistentTasksService.sendRemoveRequest(task.getId(), new ActionListener<>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                    if (counter.incrementAndGet() == numberOfTasks) {
-                        sendResponseOrFailure(listener, failures);
+            persistentTasksService.sendRemoveRequest(
+                task.getId(),
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                        if (counter.incrementAndGet() == numberOfTasks) {
+                            sendResponseOrFailure(listener, failures);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final int slot = counter.incrementAndGet();
+                        // Not found is not an error - it just means the upgrade completed before we could cancel it.
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                            failures.set(slot - 1, e);
+                        }
+                        if (slot == numberOfTasks) {
+                            sendResponseOrFailure(listener, failures);
+                        }
+                    }
+
+                    private void sendResponseOrFailure(ActionListener<Response> listener, AtomicArray<Exception> failures) {
+                        List<Exception> caughtExceptions = failures.asList();
+                        if (caughtExceptions.isEmpty()) {
+                            listener.onResponse(new Response(true));
+                            return;
+                        }
+
+                        String msg = "Failed to cancel model snapshot upgrade for ["
+                            + request.getSnapshotId()
+                            + "] on job ["
+                            + request.getJobId()
+                            + "]. Total failures ["
+                            + caughtExceptions.size()
+                            + "], rethrowing first. All Exceptions: ["
+                            + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
+                            + "]";
+
+                        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
+                        listener.onFailure(e);
                     }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    final int slot = counter.incrementAndGet();
-                    // Not found is not an error - it just means the upgrade completed before we could cancel it.
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                        failures.set(slot - 1, e);
-                    }
-                    if (slot == numberOfTasks) {
-                        sendResponseOrFailure(listener, failures);
-                    }
-                }
-
-                private void sendResponseOrFailure(ActionListener<Response> listener, AtomicArray<Exception> failures) {
-                    List<Exception> caughtExceptions = failures.asList();
-                    if (caughtExceptions.isEmpty()) {
-                        listener.onResponse(new Response(true));
-                        return;
-                    }
-
-                    String msg = "Failed to cancel model snapshot upgrade for ["
-                        + request.getSnapshotId()
-                        + "] on job ["
-                        + request.getJobId()
-                        + "]. Total failures ["
-                        + caughtExceptions.size()
-                        + "], rethrowing first. All Exceptions: ["
-                        + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
-                        + "]";
-
-                    ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
-                    listener.onFailure(e);
-                }
-            });
+            );
         }
     }
 }

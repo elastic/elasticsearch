@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -54,7 +55,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             result = testCase(query, topHits("_name"));
         }
         SearchHits searchHits = ((TopHits) result).getHits();
-        assertEquals(3L, searchHits.getTotalHits().value);
+        assertEquals(3L, searchHits.getTotalHits().value());
         assertEquals("3", searchHits.getAt(0).getId());
         assertEquals("2", searchHits.getAt(1).getId());
         assertEquals("1", searchHits.getAt(2).getId());
@@ -64,7 +65,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
         SearchHits searchHits = result.getHits();
-        assertEquals(0L, searchHits.getTotalHits().value);
+        assertEquals(0L, searchHits.getTotalHits().value());
         assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
     }
 
@@ -88,27 +89,27 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         // The "a" bucket
         TopHits hits = (TopHits) terms.getBucketByKey("a").getAggregations().get("top");
         SearchHits searchHits = (hits).getHits();
-        assertEquals(2L, searchHits.getTotalHits().value);
+        assertEquals(2L, searchHits.getTotalHits().value());
         assertEquals("2", searchHits.getAt(0).getId());
         assertEquals("1", searchHits.getAt(1).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("a").getAggregations().get("top"))));
 
         // The "b" bucket
         searchHits = ((TopHits) terms.getBucketByKey("b").getAggregations().get("top")).getHits();
-        assertEquals(2L, searchHits.getTotalHits().value);
+        assertEquals(2L, searchHits.getTotalHits().value());
         assertEquals("3", searchHits.getAt(0).getId());
         assertEquals("1", searchHits.getAt(1).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("b").getAggregations().get("top"))));
 
         // The "c" bucket
         searchHits = ((TopHits) terms.getBucketByKey("c").getAggregations().get("top")).getHits();
-        assertEquals(1L, searchHits.getTotalHits().value);
+        assertEquals(1L, searchHits.getTotalHits().value());
         assertEquals("2", searchHits.getAt(0).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("c").getAggregations().get("top"))));
 
         // The "d" bucket
         searchHits = ((TopHits) terms.getBucketByKey("d").getAggregations().get("top")).getHits();
-        assertEquals(1L, searchHits.getTotalHits().value);
+        assertEquals(1L, searchHits.getTotalHits().value());
         assertEquals("3", searchHits.getAt(0).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
@@ -178,7 +179,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
         TopHits result = searchAndReduce(reader, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
-        assertEquals(3, result.getHits().getTotalHits().value);
+        assertEquals(3, result.getHits().getTotalHits().value());
         reader.close();
         directory.close();
     }

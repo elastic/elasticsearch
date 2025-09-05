@@ -1,8 +1,8 @@
 {
   "open_point_in_time":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html",
-      "description":"Open a point in time that can be used in subsequent searches"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time",
+      "description":"Open a point in time"
     },
     "stability":"stable",
     "visibility":"public",
@@ -55,6 +55,15 @@
         "type": "string",
         "description": "Specific the time to live for the point in time",
         "required": true
+      },
+      "allow_partial_search_results": {
+        "type": "boolean",
+        "description": "Specify whether to tolerate shards missing when creating the point-in-time, or otherwise throw an exception. (default: false)"
+      },
+      "max_concurrent_shard_requests": {
+        "type": "number",
+        "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
+        "default": 5
       }
     },
     "body":{

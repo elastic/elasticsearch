@@ -187,8 +187,8 @@ setup:
 
 ---
 "Sorting terms":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: fixed in 7.7.0
 
   - do:

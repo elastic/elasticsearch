@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.slm.history;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -137,7 +138,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
+                if (action == TransportCreateIndexAction.TYPE && request instanceof CreateIndexRequest) {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();
@@ -194,10 +195,14 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
             }
         }
-        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), randomSchedule(), randomAlphaOfLength(4), config, null);
-    }
 
-    private static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
+        return new SnapshotLifecyclePolicy(
+            id,
+            randomAlphaOfLength(4),
+            SnapshotLifecyclePolicyMetadataTests.randomSchedule(),
+            randomAlphaOfLength(4),
+            config,
+            null
+        );
     }
 }

@@ -7,34 +7,40 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.PhysicalPlanDependencyCheck;
+import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.Set;
-
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /** Physical plan verifier. */
-public final class PhysicalVerifier {
+public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
-    private static final PhysicalPlanDependencyCheck DEPENDENCY_CHECK = new PhysicalPlanDependencyCheck();
 
     private PhysicalVerifier() {}
 
-    /** Verifies the physical plan. */
-    public Collection<Failure> verify(PhysicalPlan plan) {
-        Set<Failure> failures = new LinkedHashSet<>();
+    @Override
+    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
+        if (skipRemoteEnrichVerification) {
+            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+            var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
+            if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-        plan.forEachDown(p -> {
-            // FIXME: re-enable
-            // DEPENDENCY_CHECK.checkPlan(p, failures);
+    @Override
+    void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+        optimizedPlan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {
@@ -48,8 +54,18 @@ public final class PhysicalVerifier {
                     );
                 }
             }
-        });
+            PlanConsistencyChecker.checkPlan(p, depFailures);
 
-        return failures;
+            if (failures.hasFailures() == false) {
+                if (p instanceof PostPhysicalOptimizationVerificationAware va) {
+                    va.postPhysicalOptimizationVerification(failures);
+                }
+                p.forEachExpression(ex -> {
+                    if (ex instanceof PostPhysicalOptimizationVerificationAware va) {
+                        va.postPhysicalOptimizationVerification(failures);
+                    }
+                });
+            }
+        });
     }
 }

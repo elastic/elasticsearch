@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util;
@@ -207,7 +208,7 @@ public class FileUtils {
     public static String slurpAllLogs(Path logPath, String activeLogFile, String rotatedLogFilesGlob) {
         StringJoiner logFileJoiner = new StringJoiner("\n");
         try {
-            logFileJoiner.add(new String(Files.readAllBytes(logPath.resolve(activeLogFile)), StandardCharsets.UTF_8));
+            logFileJoiner.add(Files.readString(logPath.resolve(activeLogFile)));
 
             for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
                 logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));
@@ -372,7 +373,7 @@ public class FileUtils {
     }
 
     /**
-     * Recursively copy the the source directory to the target directory, preserving permissions.
+     * Recursively copy the source directory to the target directory, preserving permissions.
      */
     public static void copyDirectory(Path source, Path target) throws IOException {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {

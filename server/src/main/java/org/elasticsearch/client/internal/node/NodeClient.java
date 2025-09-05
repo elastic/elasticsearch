@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal.node;
@@ -17,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -35,7 +37,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    private Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions;
+    private Map<ActionType<?>, TransportAction<?, ?>> actions;
 
     private TaskManager taskManager;
 
@@ -47,12 +49,12 @@ public class NodeClient extends AbstractClient {
     private Transport.Connection localConnection;
     private RemoteClusterService remoteClusterService;
 
-    public NodeClient(Settings settings, ThreadPool threadPool) {
-        super(settings, threadPool);
+    public NodeClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
+        super(settings, threadPool, projectResolver);
     }
 
     public void initialize(
-        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        Map<ActionType<?>, TransportAction<?, ?>> actions,
         TaskManager taskManager,
         Supplier<String> localNodeId,
         Transport.Connection localConnection,
@@ -137,7 +139,11 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        return remoteClusterService.getRemoteClusterClient(clusterAlias, responseExecutor, true);
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        return remoteClusterService.getRemoteClusterClient(clusterAlias, responseExecutor, disconnectedStrategy);
     }
 }

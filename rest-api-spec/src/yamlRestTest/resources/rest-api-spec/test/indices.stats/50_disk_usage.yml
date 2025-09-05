@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: analyze index disk usage API is introduced in 7.15
 
   - do:
@@ -110,8 +110,8 @@ setup:
 
 ---
 "Star":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: star is resolved in 8.2+
 
   - do:
@@ -130,8 +130,8 @@ setup:
 
 ---
 "Dense vectors":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: dense vector support was added in 8.4
 
   - do:

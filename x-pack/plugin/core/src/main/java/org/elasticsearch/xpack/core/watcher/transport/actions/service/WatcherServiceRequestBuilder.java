@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.service;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
 public class WatcherServiceRequestBuilder extends MasterNodeOperationRequestBuilder<
     WatcherServiceRequest,
     AcknowledgedResponse,
     WatcherServiceRequestBuilder> {
 
-    public WatcherServiceRequestBuilder(ElasticsearchClient client) {
-        super(client, WatcherServiceAction.INSTANCE, new WatcherServiceRequest());
+    public WatcherServiceRequestBuilder(TimeValue masterNodeTimeout, ElasticsearchClient client) {
+        super(client, WatcherServiceAction.INSTANCE, new WatcherServiceRequest(masterNodeTimeout));
     }
 
     /**

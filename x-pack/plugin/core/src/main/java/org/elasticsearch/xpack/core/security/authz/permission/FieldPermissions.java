@@ -12,13 +12,14 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -32,8 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.apache.lucene.util.automaton.Operations.subsetOf;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -67,6 +66,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
     private final CharacterRunAutomaton permittedFieldsAutomaton;
     private final boolean permittedFieldsAutomatonIsTotal;
     private final Automaton originalAutomaton;
+    private final FieldPredicate fieldPredicate;
 
     private final long ramBytesUsed;
 
@@ -106,6 +106,9 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
+        this.fieldPredicate = permittedFieldsAutomatonIsTotal
+            ? FieldPredicate.ACCEPT_ALL
+            : new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton);
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
         ramBytesUsed += this.fieldPermissionsDefinitions.stream()
@@ -113,6 +116,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             .sum();
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
         ramBytesUsed += runAutomatonRamBytesUsed(permittedFieldsAutomaton);
+        ramBytesUsed += fieldPredicate.ramBytesUsed();
         this.ramBytesUsed = ramBytesUsed;
     }
 
@@ -172,7 +176,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
+        if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException(
                 "Exceptions for field permissions must be a subset of the "
                     + "granted fields but "
@@ -218,6 +222,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
      */
     public boolean grantsAccessTo(String fieldName) {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
+    }
+
+    public FieldPredicate fieldPredicate() {
+        return fieldPredicate;
     }
 
     public List<FieldPermissionsDefinition> getFieldPermissionsDefinitions() {

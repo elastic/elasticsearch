@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -15,6 +16,7 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,20 +35,10 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     private Map<String, Object> buildEvent(String source, String destination) {
-        return new HashMap<>() {
-            {
-                put("source", new HashMap<String, Object>() {
-                    {
-                        put("ip", source);
-                    }
-                });
-                put("destination", new HashMap<String, Object>() {
-                    {
-                        put("ip", destination);
-                    }
-                });
-            }
-        };
+        Map<String, Object> event = new HashMap<>();
+        event.put("source", Collections.singletonMap("ip", source));
+        event.put("destination", Collections.singletonMap("ip", destination));
+        return event;
     }
 
     public void testNoInternalNetworks() throws Exception {
@@ -147,7 +139,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             processorTag,
             null,
-            config
+            config,
+            null
         );
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
@@ -166,7 +159,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         config.put("internal_networks", networks);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config)
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config, null)
         );
         assertThat(
             e.getMessage(),
@@ -192,7 +185,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             processorTag,
             null,
-            config
+            config,
+            null
         );
 
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);

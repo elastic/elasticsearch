@@ -80,22 +80,22 @@ public class ZoneAwareAssignmentPlanner {
         // allocated on the first per zone assignment plans.
 
         int remainingZones = nodesByZone.size();
-        Map<String, Integer> modelIdToRemainingAllocations = deployments.stream()
-            .collect(Collectors.toMap(AssignmentPlan.Deployment::id, AssignmentPlan.Deployment::allocations));
+        Map<String, Integer> deploymentIdToRemainingAllocations = deployments.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Deployment::deploymentId, AssignmentPlan.Deployment::allocations));
         List<AssignmentPlan> plans = new ArrayList<>();
         for (var zoneToNodes : nodesByZone.entrySet()) {
             logger.debug(() -> format("computing plan for availability zone %s", zoneToNodes.getKey()));
             AssignmentPlan plan = computeZonePlan(
                 zoneToNodes.getValue(),
-                modelIdToRemainingAllocations,
+                deploymentIdToRemainingAllocations,
                 remainingZones,
                 tryAssigningPreviouslyAssignedModels
             );
-            plan.models()
+            plan.deployments()
                 .forEach(
-                    m -> modelIdToRemainingAllocations.computeIfPresent(
-                        m.id(),
-                        (modelId, remainingAllocations) -> remainingAllocations - plan.totalAllocations(m)
+                    d -> deploymentIdToRemainingAllocations.computeIfPresent(
+                        d.deploymentId(),
+                        (deploymentId, remainingAllocations) -> remainingAllocations - plan.totalAllocations(d)
                     )
                 );
             plans.add(plan);
@@ -108,34 +108,49 @@ public class ZoneAwareAssignmentPlanner {
 
     private AssignmentPlan computeZonePlan(
         List<Node> nodes,
-        Map<String, Integer> modelIdToRemainingAllocations,
+        Map<String, Integer> deploymentIdToRemainingAllocations,
         int remainingZones,
         boolean tryAssigningPreviouslyAssignedModels
     ) {
-        Map<String, Integer> modelIdToTargetAllocations = modelIdToRemainingAllocations.entrySet()
+        Map<String, Integer> deploymentIdToTargetAllocationsPerZone = deploymentIdToRemainingAllocations.entrySet()
             .stream()
             .filter(e -> e.getValue() > 0)
-            .collect(Collectors.toMap(e -> e.getKey(), e -> (e.getValue() - 1) / remainingZones + 1));
+            .collect(
+                Collectors.toMap(Map.Entry::getKey, e -> 1 + remainingAllocationsPerZoneAfterAssigningOne(remainingZones, e.getValue()))
+            );
+        // If there was at least one allocation for a deployment, we will apply it to each zone
 
         List<AssignmentPlan.Deployment> modifiedDeployments = deployments.stream()
-            .filter(m -> modelIdToTargetAllocations.getOrDefault(m.id(), 0) > 0)
+            .filter(d -> deploymentIdToTargetAllocationsPerZone.getOrDefault(d.deploymentId(), 0) > 0)
+            // filter out deployments with no allocations
             .map(
-                m -> new AssignmentPlan.Deployment(
-                    m.id(),
-                    m.memoryBytes(),
-                    modelIdToTargetAllocations.get(m.id()),
-                    m.threadsPerAllocation(),
-                    m.currentAllocationsByNodeId(),
-                    (tryAssigningPreviouslyAssignedModels && modelIdToRemainingAllocations.get(m.id()) == m.allocations())
-                        ? m.maxAssignedAllocations()
+                d -> new AssignmentPlan.Deployment(
+                    // replace each deployment with a new deployment
+                    d.deploymentId(),
+                    d.modelId(),
+                    d.memoryBytes(),
+                    deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()),
+                    d.threadsPerAllocation(),
+                    d.currentAllocationsByNodeId(),
+                    // (below) Only force assigning at least once previously assigned models that have not had any allocation yet
+                    (tryAssigningPreviouslyAssignedModels && deploymentIdToRemainingAllocations.get(d.deploymentId()) == d.allocations())
+                        ? d.maxAssignedAllocations()
                         : 0,
-                    // Only force assigning at least once previously assigned models that have not had any allocation yet
-                    m.perDeploymentMemoryBytes(),
-                    m.perAllocationMemoryBytes()
+                    d.getAdaptiveAllocationsSettings(),
+                    d.perDeploymentMemoryBytes(),
+                    d.perAllocationMemoryBytes()
                 )
             )
             .toList();
         return new AssignmentPlanner(nodes, modifiedDeployments).computePlan(tryAssigningPreviouslyAssignedModels);
+    }
+
+    private static int remainingAllocationsPerZoneAfterAssigningOne(int remainingZones, Integer remainingAllocations) {
+        if (remainingAllocations == null || remainingZones == 0) {
+            // should never happen
+            return 0;
+        }
+        return (remainingAllocations - 1) / remainingZones;
     }
 
     private AssignmentPlan computePlanAcrossAllNodes(List<AssignmentPlan> plans) {
@@ -143,19 +158,21 @@ public class ZoneAwareAssignmentPlanner {
         final List<Node> allNodes = new ArrayList<>();
         nodesByZone.values().forEach(allNodes::addAll);
 
-        Map<String, Map<String, Integer>> allocationsByNodeIdByModelId = mergeAllocationsByNodeIdByModelId(plans);
+        Map<String, Map<String, Integer>> allocationsByNodeIdByDeploymentId = mergeAllocationsByNodeIdByDeploymentId(plans);
 
         List<AssignmentPlan.Deployment> modelsAccountingPlans = deployments.stream()
             .map(
-                m -> new AssignmentPlan.Deployment(
-                    m.id(),
-                    m.memoryBytes(),
-                    m.allocations(),
-                    m.threadsPerAllocation(),
-                    allocationsByNodeIdByModelId.get(m.id()),
-                    m.maxAssignedAllocations(),
-                    m.perDeploymentMemoryBytes(),
-                    m.perAllocationMemoryBytes()
+                d -> new AssignmentPlan.Deployment(
+                    d.deploymentId(),
+                    d.modelId(),
+                    d.memoryBytes(),
+                    d.allocations(),
+                    d.threadsPerAllocation(),
+                    allocationsByNodeIdByDeploymentId.get(d.deploymentId()),
+                    d.maxAssignedAllocations(),
+                    d.getAdaptiveAllocationsSettings(),
+                    d.perDeploymentMemoryBytes(),
+                    d.perAllocationMemoryBytes()
                 )
             )
             .toList();
@@ -165,38 +182,47 @@ public class ZoneAwareAssignmentPlanner {
         List<AssignmentPlan.Deployment> planDeployments = preserveAllAllocations.modelsPreservingAllocations();
         AssignmentPlan plan = new LinearProgrammingPlanSolver(planNodes, planDeployments).solvePlan(false);
         plan = preserveAllAllocations.mergePreservedAllocations(plan);
-        return swapOriginalModelsInPlan(plan, allNodes, modelsAccountingPlans);
+        return swapOriginalDeploymentsInPlan(plan, allNodes, modelsAccountingPlans);
     }
 
-    private AssignmentPlan swapOriginalModelsInPlan(
+    /**
+     * The method is responsible for reconstructing an AssignmentPlan
+     * by replacing the deployments and nodes in the given plan with their original counterparts.
+     * This ensures that the final plan uses the original objects while preserving the assignments
+     * and memory accounting from the input plan.
+     *
+     * @param plan AssignmentPlan to reconstruct with original models and nodes
+     * @param allNodes List of all nodes in the system, used to find original nodes
+     * @param planDeployments List of deployments in the plan, not the original deployments
+     * @return final plan with original models and nodes swapped in
+     */
+    private AssignmentPlan swapOriginalDeploymentsInPlan(
         AssignmentPlan plan,
         List<Node> allNodes,
         List<AssignmentPlan.Deployment> planDeployments
     ) {
-        final Map<String, AssignmentPlan.Deployment> originalModelById = deployments.stream()
-            .collect(Collectors.toMap(AssignmentPlan.Deployment::id, Function.identity()));
+        final Map<String, AssignmentPlan.Deployment> originalDeploymentsById = deployments.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Deployment::deploymentId, Function.identity()));
         final Map<String, Node> originalNodeById = allNodes.stream().collect(Collectors.toMap(Node::id, Function.identity()));
-        AssignmentPlan.Builder planBuilder = AssignmentPlan.builder(allNodes, deployments);
-        for (AssignmentPlan.Deployment m : planDeployments) {
-            AssignmentPlan.Deployment originalDeployment = originalModelById.get(m.id());
-            Map<Node, Integer> nodeAssignments = plan.assignments(m).orElse(Map.of());
+        AssignmentPlan.Builder finalPlanBuilder = AssignmentPlan.builder(allNodes, deployments);
+
+        for (AssignmentPlan.Deployment planDeployment : planDeployments) {
+            AssignmentPlan.Deployment originalDeployment = originalDeploymentsById.get(planDeployment.deploymentId());
+            Map<Node, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
-                planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
-                // As the node has all its available memory we need to manually account memory of models with
-                // current allocations.
-                planBuilder.accountMemory(originalDeployment, originalNode);
+                finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
             }
         }
-        return planBuilder.build();
+        return finalPlanBuilder.build();
     }
 
-    private Map<String, Map<String, Integer>> mergeAllocationsByNodeIdByModelId(List<AssignmentPlan> plans) {
-        Map<String, Map<String, Integer>> allocationsByNodeIdByModelId = new HashMap<>();
-        deployments.forEach(m -> allocationsByNodeIdByModelId.put(m.id(), new HashMap<>()));
+    private Map<String, Map<String, Integer>> mergeAllocationsByNodeIdByDeploymentId(List<AssignmentPlan> plans) {
+        Map<String, Map<String, Integer>> allocationsByNodeIdByDeploymentId = new HashMap<>();
+        deployments.forEach(d -> allocationsByNodeIdByDeploymentId.put(d.deploymentId(), new HashMap<>()));
         for (AssignmentPlan plan : plans) {
-            for (AssignmentPlan.Deployment m : plan.models()) {
-                Map<String, Integer> nodeIdToAllocations = allocationsByNodeIdByModelId.get(m.id());
+            for (AssignmentPlan.Deployment m : plan.deployments()) {
+                Map<String, Integer> nodeIdToAllocations = allocationsByNodeIdByDeploymentId.get(m.deploymentId());
                 Optional<Map<Node, Integer>> assignments = plan.assignments(m);
                 if (assignments.isPresent()) {
                     for (Map.Entry<Node, Integer> nodeAssignments : assignments.get().entrySet()) {
@@ -210,6 +236,6 @@ public class ZoneAwareAssignmentPlanner {
                 }
             }
         }
-        return allocationsByNodeIdByModelId;
+        return allocationsByNodeIdByDeploymentId;
     }
 }

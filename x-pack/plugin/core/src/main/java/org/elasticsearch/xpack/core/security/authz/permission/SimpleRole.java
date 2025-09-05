@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -31,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -51,7 +51,8 @@ public class SimpleRole implements Role {
     private final IndicesPermission indices;
     private final ApplicationPermission application;
     private final RunAsPermission runAs;
-    private final RemoteIndicesPermission remoteIndices;
+    private final RemoteIndicesPermission remoteIndicesPermission;
+    private final RemoteClusterPermissions remoteClusterPermissions;
     private final WorkflowsRestriction workflowsRestriction;
 
     SimpleRole(
@@ -60,7 +61,8 @@ public class SimpleRole implements Role {
         IndicesPermission indices,
         ApplicationPermission application,
         RunAsPermission runAs,
-        RemoteIndicesPermission remoteIndices,
+        RemoteIndicesPermission remoteIndicesPermission,
+        RemoteClusterPermissions remoteClusterPermissions,
         WorkflowsRestriction workflowsRestriction
     ) {
         this.names = names;
@@ -68,7 +70,8 @@ public class SimpleRole implements Role {
         this.indices = Objects.requireNonNull(indices);
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
-        this.remoteIndices = Objects.requireNonNull(remoteIndices);
+        this.remoteIndicesPermission = Objects.requireNonNull(remoteIndicesPermission);
+        this.remoteClusterPermissions = Objects.requireNonNull(remoteClusterPermissions);
         this.workflowsRestriction = Objects.requireNonNull(workflowsRestriction);
     }
 
@@ -99,7 +102,12 @@ public class SimpleRole implements Role {
 
     @Override
     public RemoteIndicesPermission remoteIndices() {
-        return remoteIndices;
+        return remoteIndicesPermission;
+    }
+
+    @Override
+    public RemoteClusterPermissions remoteCluster() {
+        return remoteClusterPermissions;
     }
 
     @Override
@@ -187,18 +195,24 @@ public class SimpleRole implements Role {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
-        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
+        return indices.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);
     }
 
     @Override
-    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
-        final RemoteIndicesPermission remoteIndicesPermission = remoteIndices.forCluster(remoteClusterAlias);
-        if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(
+        final String remoteClusterAlias,
+        TransportVersion remoteClusterVersion
+    ) {
+        final RemoteIndicesPermission remoteIndicesPermission = this.remoteIndicesPermission.forCluster(remoteClusterAlias);
+
+        if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()
+            && remoteClusterPermissions.hasAnyPrivileges(remoteClusterAlias) == false) {
             return RoleDescriptorsIntersection.EMPTY;
         }
+
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
             for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
@@ -209,7 +223,7 @@ public class SimpleRole implements Role {
         return new RoleDescriptorsIntersection(
             new RoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
-                null,
+                remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges(remoteClusterAlias, remoteClusterVersion),
                 // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
                 // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
                 // equivalent role descriptors

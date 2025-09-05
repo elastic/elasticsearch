@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.dfs;
@@ -17,7 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -33,7 +34,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.ProfilingQuery;
+import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -52,7 +53,9 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
  */
 public class DfsPhase {
 
-    public void execute(SearchContext context) {
+    private DfsPhase() {}
+
+    public static void execute(SearchContext context) {
         try {
             collectStatistics(context);
             executeKnnVectorQuery(context);
@@ -65,7 +68,7 @@ public class DfsPhase {
         }
     }
 
-    private void collectStatistics(SearchContext context) throws IOException {
+    private static void collectStatistics(SearchContext context) throws IOException {
         final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
@@ -174,7 +177,7 @@ public class DfsPhase {
         return null;
     };
 
-    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
+    static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
@@ -192,18 +195,31 @@ public class DfsPhase {
             }
         }
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
-        for (int i = 0; i < knnSearch.size(); i++) {
-            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
-            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-            Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+        final long afterQueryTime;
+        final long beforeQueryTime = System.nanoTime();
+        var opsListener = context.indexShard().getSearchOperationListener();
+        opsListener.onPreQueryPhase(context);
+        try {
+            for (int i = 0; i < knnSearch.size(); i++) {
+                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+                String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
+                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+            }
+            afterQueryTime = System.nanoTime();
+            opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
+            opsListener = null;
+        } finally {
+            if (opsListener != null) {
+                opsListener.onFailedQueryPhase(context);
+            }
         }
         context.dfsResult().knnResults(knnResults);
     }
 
     static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
         throws IOException {
-        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             k,
             null,
             Integer.MAX_VALUE
@@ -221,8 +237,8 @@ public class DfsPhase {
             );
             topDocs = searcher.search(knnQuery, ipcm);
 
-            if (knnQuery instanceof ProfilingQuery profilingQuery) {
-                profilingQuery.profile(knnProfiler);
+            if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.profile(knnProfiler);
             }
 
             knnProfiler.setCollectorResult(ipcm.getCollectorTree());

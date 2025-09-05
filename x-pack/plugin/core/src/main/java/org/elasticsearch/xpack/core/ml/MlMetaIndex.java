@@ -17,7 +17,7 @@ public final class MlMetaIndex {
 
     private static final String INDEX_NAME = ".ml-meta";
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final int META_INDEX_MAPPINGS_VERSION = 1;
+    private static final int META_INDEX_MAPPINGS_VERSION = 2;
 
     /**
      * Where to store the ml info in Elasticsearch - must match what's

@@ -188,7 +188,7 @@ public class TransformChainIT extends TransformRestTestCase {
             assertFalse(aliasExists(destWriteAlias));
 
             String transformConfig = createTransformConfig(sourceIndex, destIndex, destReadAlias, destWriteAlias);
-            assertAcknowledged(putTransform(transformId, transformConfig, true, RequestOptions.DEFAULT));
+            putTransform(transformId, transformConfig, true, RequestOptions.DEFAULT);
         }
 
         List<String> transformIdsShuffled = new ArrayList<>(transformIds);

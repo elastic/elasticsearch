@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.hashing;
@@ -34,8 +35,12 @@ public class Murmur3HasherTests extends ESTestCase {
         expected.h2 = upper;
 
         byte[] bytes = inputString.getBytes(StandardCharsets.UTF_8);
+        int padding = randomInt(8);
+        int offset = randomInt(padding);
+        byte[] paddedBytes = new byte[bytes.length + padding];
+        System.arraycopy(bytes, 0, paddedBytes, offset, bytes.length);
         Murmur3Hasher mh = new Murmur3Hasher(seed);
-        mh.update(bytes);
+        mh.update(paddedBytes, offset, bytes.length);
         MurmurHash3.Hash128 actual = mh.digestHash();
         assertHash(expected, actual);
     }

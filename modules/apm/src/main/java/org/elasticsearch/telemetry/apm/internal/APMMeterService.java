@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal;
@@ -17,8 +18,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
 public class APMMeterService extends AbstractLifecycleComponent {
@@ -73,7 +72,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected Meter createOtelMeter() {
         assert this.enabled;
-        return AccessController.doPrivileged((PrivilegedAction<Meter>) otelMeterSupplier::get);
+        return otelMeterSupplier.get();
     }
 
     protected Meter createNoopMeter() {

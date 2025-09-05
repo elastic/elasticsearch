@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
@@ -70,5 +72,15 @@ public class GetIndexRequestTests extends ESTestCase {
         RestRequest request = RestRequestTests.contentRestRequest("", Map.of("features", String.join(",", invalidFeatures)));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GetIndexRequest.Feature.fromRequest(request));
         assertThat(e.getMessage(), containsString(Strings.format("Invalid features specified [%s]", String.join(",", invalidFeatures))));
+    }
+
+    public void testIndicesOptions() {
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
+        assertThat(
+            getIndexRequest.indicesOptions().concreteTargetOptions(),
+            equalTo(IndicesOptions.strictExpandOpen().concreteTargetOptions())
+        );
+        assertThat(getIndexRequest.indicesOptions().wildcardOptions(), equalTo(IndicesOptions.strictExpandOpen().wildcardOptions()));
+        assertThat(getIndexRequest.indicesOptions().gatekeeperOptions(), equalTo(IndicesOptions.strictExpandOpen().gatekeeperOptions()));
     }
 }

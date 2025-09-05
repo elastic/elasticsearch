@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -58,7 +56,7 @@ public class AggregationPhase {
     }
 
     private static void executeInSortOrder(SearchContext context, BucketCollector collector) {
-        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
+        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), context.getCancellationChecks());
         searcher.setMinimumScore(context.minimumScore());
         searcher.setProfiler(context);
         try {
@@ -69,23 +67,4 @@ public class AggregationPhase {
         }
     }
 
-    private static List<Runnable> getCancellationChecks(SearchContext context) {
-        List<Runnable> cancellationChecks = new ArrayList<>();
-        if (context.lowLevelCancellation()) {
-            // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
-            cancellationChecks.add(() -> {
-                final SearchShardTask task = context.getTask();
-                if (task != null) {
-                    task.ensureNotCancelled();
-                }
-            });
-        }
-
-        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
-        if (timeoutRunnable != null) {
-            cancellationChecks.add(timeoutRunnable);
-        }
-
-        return cancellationChecks;
-    }
 }

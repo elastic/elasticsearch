@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -14,8 +15,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
-
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
@@ -28,11 +27,11 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         extraRandomizationForSlice(original);
         original.setAbortOnVersionConflict(randomBoolean());
         original.setRefresh(randomBoolean());
-        original.setTimeout(parseTimeValue(randomPositiveTimeValue(), "timeout"));
+        original.setTimeout(randomPositiveTimeValue());
         original.setWaitForActiveShards(
             randomFrom(ActiveShardCount.ALL, ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.DEFAULT)
         );
-        original.setRetryBackoffInitialTime(parseTimeValue(randomPositiveTimeValue(), "retry_backoff_initial_time"));
+        original.setRetryBackoffInitialTime(randomPositiveTimeValue());
         original.setMaxRetries(between(0, 1000));
         original.setRequestsPerSecond(
             randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat)

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -159,9 +160,14 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     boolean isRequireDataStream();
 
     /**
-     * Finalize the request before executing or routing it.
+     * Finalize the request before routing it.
      */
-    void process(IndexRouting indexRouting);
+    default void preRoutingProcess(IndexRouting indexRouting) {}
+
+    /**
+     * Finalize the request after routing it.
+     */
+    default void postRoutingProcess(IndexRouting indexRouting) {}
 
     /**
      * Pick the appropriate shard id to receive this request.
@@ -173,10 +179,10 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * based on the provided index abstraction.
      *
      * @param ia        The provided index abstraction
-     * @param metadata  The metadata instance used to resolve the write index.
+     * @param project   The project metadata used to resolve the write index.
      * @return the write index that should receive this request
      */
-    default Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+    default Index getConcreteWriteIndex(IndexAbstraction ia, ProjectMetadata project) {
         return ia.getWriteIndex();
     }
 
@@ -185,7 +191,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      */
     enum OpType {
         /**
-         * Index the source. If there an existing document with the id, it will
+         * Index the source. If there is an existing document with the id, it will
          * be replaced.
          */
         INDEX(0),

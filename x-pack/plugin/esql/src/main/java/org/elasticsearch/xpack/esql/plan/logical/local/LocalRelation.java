@@ -6,15 +6,28 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class LocalRelation extends LeafPlan {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "LocalRelation",
+        LocalRelation::new
+    );
 
     private final List<Attribute> output;
     private final LocalSupplier supplier;
@@ -25,6 +38,36 @@ public class LocalRelation extends LeafPlan {
         this.supplier = supplier;
     }
 
+    public LocalRelation(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in));
+        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            this.supplier = in.readNamedWriteable(LocalSupplier.class);
+        } else {
+            this.supplier = LocalSourceExec.readLegacyLocalSupplierFrom((PlanStreamInput) in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteableCollection(output);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            out.writeNamedWriteable(supplier);
+        } else {
+            if (hasEmptySupplier()) {
+                out.writeVInt(0);
+            } else {// here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
+                ((ImmediateLocalSupplier) supplier).writeTo(out);
+            }
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     protected NodeInfo<LocalRelation> info() {
         return NodeInfo.create(this, LocalRelation::new, output, supplier);
@@ -32,6 +75,10 @@ public class LocalRelation extends LeafPlan {
 
     public LocalSupplier supplier() {
         return supplier;
+    }
+
+    public boolean hasEmptySupplier() {
+        return supplier == EmptyLocalSupplier.EMPTY;
     }
 
     @Override

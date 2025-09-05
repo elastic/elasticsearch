@@ -23,7 +23,6 @@ public class KDETests extends ESTestCase {
         assertThat(kde.data(), equalTo(new double[0]));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102876")
     public void testCdfAndSf() {
 
         double[] data = DoubleStream.generate(() -> randomDoubleBetween(0.0, 100.0, true)).limit(101).toArray();

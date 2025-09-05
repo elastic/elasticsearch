@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.injection.guice.CreationException;
+import org.elasticsearch.injection.guice.spi.Message;
 
 import java.io.PrintStream;
 import java.util.Objects;
@@ -25,7 +26,7 @@ public final class StartupException extends Exception {
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;
     /** all lines from this package are RLE-compressed */
-    static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
+    static final String GUICE_PACKAGE = "org.elasticsearch.injection.guice";
 
     public StartupException(Throwable cause) {
         super(Objects.requireNonNull(cause));

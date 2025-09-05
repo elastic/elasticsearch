@@ -11,6 +11,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -19,7 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBytesRefAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class CountDistinctBytesRefAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -56,33 +57,84 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
   }
 
   @Override
-  public void addRawInput(Page page) {
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      CountDistinctBytesRefAggregator.combine(state, vector.getBytesRef(i, scratch));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(BytesRefVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      CountDistinctBytesRefAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(BytesRefVector vVector, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        CountDistinctBytesRefAggregator.combine(state, block.getBytesRef(i, scratch));
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      CountDistinctBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawBlock(BytesRefBlock vBlock) {
+    BytesRef vScratch = new BytesRef();
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (vBlock.isNull(p)) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vBlock.getValueCount(p);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        CountDistinctBytesRefAggregator.combine(state, vValue);
+      }
+    }
+  }
+
+  private void addRawBlock(BytesRefBlock vBlock, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      if (vBlock.isNull(p)) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vBlock.getValueCount(p);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        CountDistinctBytesRefAggregator.combine(state, vValue);
       }
     }
   }

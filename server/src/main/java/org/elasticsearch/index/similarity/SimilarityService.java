@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.similarity;
@@ -19,8 +20,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -39,7 +38,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class SimilarityService {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final Map<String, Function<IndexVersion, Supplier<Similarity>>> DEFAULTS;
     public static final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> BUILT_IN;
@@ -114,13 +112,6 @@ public final class SimilarityService {
         defaultSimilarity = (providers.get("default") != null)
             ? providers.get("default").get()
             : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
-        if (providers.get("base") != null) {
-            deprecationLogger.warn(
-                DeprecationCategory.QUERIES,
-                "base_similarity_ignored",
-                "The [base] similarity is ignored since query normalization and coords have been removed"
-            );
-        }
     }
 
     /**

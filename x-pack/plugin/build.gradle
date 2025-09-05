@@ -1,6 +1,10 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -22,8 +26,7 @@ dependencies {
 
 // let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
-int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
-GradleUtils.extendSourceSet(project, "test", "yamlRestTestV${compatVersion}Compat")
+GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
 
 restResources {
   restApi {
@@ -38,7 +41,7 @@ artifacts {
 def restTestBlacklist = []
 // TODO: fix this rest test to not depend on a hardcoded port!
 restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   // these tests attempt to install basic/internal licenses signed against the dev/public.key
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
@@ -52,128 +55,11 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
-}
-
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'unsigned_long/50_script_values/Scripted sort values',
-    'unsigned_long/50_script_values/script_score query',
-    'unsigned_long/50_script_values/Script query',
-    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with time series mappings',
-    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
-    'analytics/histogram/histogram with wrong time series mappings',
-    'analytics/histogram/histogram with time series mappings',
-    'analytics/boxplot/Basic Search',
-    'analytics/boxplot/Search With Runtime Field',
-    'analytics/boxplot/Search With Missing',
-    'analytics/moving_percentile/Basic Search TDigest',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
-    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
-    'ml/evaluate_data_frame/Test classification auc_roc',
-    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
-  ].join(',')
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest(
-    "vectors/10_dense_vector_basic/Deprecated function signature",
-    "to support it, it would require to almost revert back the #48725 and complicate the code"
-  )
-  task.skipTest(
-    "vectors/20_dense_vector_special_cases/Indexing of Dense vectors should error when dims don't match defined in the mapping",
-    "Error message has changed"
-  )
-  task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
-  task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")
-  task.skipTest("vectors/30_sparse_vector_basic/Dot Product", "not supported for compatibility")
-  task.skipTest("vectors/35_sparse_vector_l1l2/L1 norm", "not supported for compatibility")
-  task.skipTest("vectors/35_sparse_vector_l1l2/L2 norm", "not supported for compatibility")
-  task.skipTest("vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently", "not supported for compatibility")
-  task.skipTest("vectors/40_sparse_vector_special_cases/Documents missing a vector field", "not supported for compatibility")
-  task.skipTest(
-    "vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents' vectors",
-    "not supported for compatibility"
-  )
-  task.skipTest("vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions", "not supported for compatibility")
-  task.skipTest("vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types", "not supported for compatibility")
-  task.skipTest("vectors/50_vector_stats/Usage stats on vector fields", "not supported for compatibility")
-  task.skipTest(
-    "roles/30_prohibited_role_query/Test use prohibited query inside role query",
-    "put role request with a term lookup (deprecated) and type. Requires validation in REST layer"
-  )
-  task.skipTest("ml/jobs_crud/Test update job", "Behaviour change #89824 - added limit filter to categorization analyzer")
-  task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
-  task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
-  task.skipTest(
-    "ml/datafeeds_crud/Test update datafeed to point to different job",
-    "behaviour change #44752 - not allowing to update datafeed job_id"
-  )
-  task.skipTest(
-    "ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed",
-    "behaviour change #44752 - not allowing to update datafeed job_id"
-  )
-  task.skipTest(
-    "ml/trained_model_cat_apis/Test cat trained models",
-    "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)"
-  )
-  task.skipTest(
-    "ml/categorization_agg/Test categorization agg simple",
-    "categorize_text was changed in 8.3, but experimental prior to the change"
-  )
-  task.skipTest(
-    "ml/categorization_agg/Test categorization aggregation against unsupported field",
-    "categorize_text was changed in 8.3, but experimental prior to the change"
-  )
-  task.skipTest(
-    "ml/categorization_agg/Test categorization aggregation with poor settings",
-    "categorize_text was changed in 8.3, but experimental prior to the change"
-  )
-  task.skipTest("rollup/delete_job/Test basic delete_job", "rollup was an experimental feature, also see #41227")
-  task.skipTest("rollup/delete_job/Test delete job twice", "rollup was an experimental feature, also see #41227")
-  task.skipTest("rollup/delete_job/Test delete running job", "rollup was an experimental feature, also see #41227")
-  task.skipTest("rollup/get_jobs/Test basic get_jobs", "rollup was an experimental feature, also see #41227")
-  task.skipTest("rollup/put_job/Test basic put_job", "rollup was an experimental feature, also see #41227")
-  task.skipTest("rollup/start_job/Test start job twice", "rollup was an experimental feature, also see #41227")
-  task.skipTest("indices.freeze/30_usage/Usage stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("sql/sql/Paging through results", "scrolling through search hit queries no longer produces empty last page in 8.2")
-  task.skipTest("sql/translate/Translate SQL", "query folding changed in v 8.5, added track_total_hits: -1")
-  task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
-  task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
-  task.skipTest("spatial/70_script_doc_values/geoshape value", "error message changed in 8.9.0")
-  task.skipTest("security/authz/14_cat_indices/Test empty request while single authorized index", "not supported for compatibility")
-
-  task.replaceValueInMatch("_type", "_doc")
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-  task.addAllowedWarningRegex("bucket_span .* is not an integral .* of the number of seconds in 1d.* This is now deprecated.*")
-
-  task.replaceValueTextByKeyValue(
-    "catch",
-    'bad_request',
-    '/It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/',
-    "Cannot freeze write index for data stream"
-  )
-
-  task.replaceValueInMatch(
-    "error.reason",
-    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
-    "Test invalidate api key by realm name"
-  )
-
-  task.replaceValueInMatch(
-    "error.reason",
-    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
-    "Test invalidate api key by username"
-  )
 }
 
 tasks.register('enforceApiSpecsConvention').configure {
@@ -198,3 +84,66 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
+  task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
+  task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
+  task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")
+  task.skipTest("esql/80_text/reverse text", "The output type changed from TEXT to KEYWORD.")
+  task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
+  task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"unnecessary to test compatibility")
+  task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
+  task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
+  task.skipTest("esql/180_match_operator/match with functions", "Error message changed")
+  task.skipTest("esql/180_match_operator/match within eval", "Error message changed")
+  task.skipTest("esql/40_unsupported_types/semantic_text declared in mapping", "The semantic text field format changed")
+  task.skipTest("esql/190_lookup_join/Alias as lookup index", "LOOKUP JOIN does not support index aliases for now")
+  task.skipTest("esql/190_lookup_join/alias-repeated-alias", "LOOKUP JOIN does not support index aliases for now")
+  task.skipTest("esql/190_lookup_join/alias-repeated-index", "LOOKUP JOIN does not support index aliases for now")
+  task.skipTest("esql/190_lookup_join/alias-pattern-multiple", "LOOKUP JOIN does not support index aliases for now")
+  task.skipTest("esql/190_lookup_join/alias-pattern-single", "LOOKUP JOIN does not support index aliases for now")
+  task.skipTest("esql/180_match_operator/match with disjunctions", "Disjunctions in full text functions work now")
+  task.skipTest("esql/130_spatial/values unsupported for geo_point", "Spatial types are now supported in VALUES aggregation")
+  task.skipTest("esql/130_spatial/values unsupported for geo_point status code", "Spatial types are now supported in VALUES aggregation")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex(
+    ".*rollup functionality will be removed in Elasticsearch.*",
+    // https://github.com/elastic/elasticsearch/issues/127911
+    "Index \\[\\.profiling-.*\\] name begins with a dot.* and will not be allowed in a future Elasticsearch version."
+  )
+  task.skipTest("esql/40_tsdb/from doc with aggregate_metric_double", "TODO: support for subset of metric fields")
+  task.skipTest("esql/40_tsdb/stats on aggregate_metric_double", "TODO: support for subset of metric fields")
+  task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
+  task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
+  task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+  task.skipTest("service_accounts/10_basic/Test get service accounts", "Enterprise Search service account removed, invalidating the current tests")
+  task.skipTest("service_accounts/10_basic/Test service account tokens", "Enterprise Search service account removed, invalidating the current tests")
+  task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")
+  task.skipTest("ml/3rd_party_deployment/Test update model alias on pytorch model to undeployed model", "Deprecated route removed")
+  task.skipTest("ml/job_cat_apis/Test cat anomaly detector jobs", "Flush API is deprecated")
+  task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "Flush API is deprecated")
+  task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
+  task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
+  task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
+  task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
+  task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
+  task.replaceValueInMatch("Size", 49, "Test flamegraph from profiling-events")
+  task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
+  task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
+  task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
+  task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
+  task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
+  task.skipTest("esql/190_lookup_join/fails with non-lookup index", "Error message changed")
+  task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")
+  task.skipTest("esql/192_lookup_join_on_aliases/fails when alias or pattern resolves to multiple", "Error message changed")
+  task.skipTest("esql/10_basic/Test wrong LIMIT parameter", "Error message changed")
+  task.skipTest("ml/sparse_vector_search/Search on a sparse_vector field with dots in the field names", "Vectors are no longer returned by default")
+  task.skipTest("ml/sparse_vector_search/Search on a nested sparse_vector field with dots in the field names and conflicting child fields", "Vectors are no longer returned by default")
+  task.skipTest("esql/190_lookup_join/lookup-no-key-only-key", "Requires the fix")
+})
+
+tasks.named('yamlRestCompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

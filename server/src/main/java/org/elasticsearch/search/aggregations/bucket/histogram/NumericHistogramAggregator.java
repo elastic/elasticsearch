@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -84,33 +87,50 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         }
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-
                     double previousKey = Double.NEGATIVE_INFINITY;
-                    for (int i = 0; i < valuesCount; ++i) {
-                        double value = values.nextValue();
-                        double key = Math.floor((value - offset) / interval);
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        final double key = Math.floor((values.nextValue() - offset) / interval);
                         assert key >= previousKey;
                         if (key == previousKey) {
                             continue;
                         }
-                        if (hardBounds == null || hardBounds.contain(key * interval)) {
-                            long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
-                            if (bucketOrd < 0) { // already seen
-                                bucketOrd = -1 - bucketOrd;
-                                collectExistingBucket(sub, doc, bucketOrd);
-                            } else {
-                                collectBucket(sub, doc, bucketOrd);
-                            }
-                        }
+                        addKey(key, doc, owningBucketOrd, sub);
                         previousKey = key;
                     }
                 }
             }
         };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    addKey(Math.floor((values.doubleValue() - offset) / interval), doc, owningBucketOrd, sub);
+                }
+            }
+        };
+    }
+
+    private void addKey(double key, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
+        if (hardBounds == null || hardBounds.contain(key * interval)) {
+            long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
+            if (bucketOrd < 0) { // already seen
+                bucketOrd = -1 - bucketOrd;
+                collectExistingBucket(sub, doc, bucketOrd);
+            } else {
+                collectBucket(sub, doc, bucketOrd);
+            }
+        }
     }
 }

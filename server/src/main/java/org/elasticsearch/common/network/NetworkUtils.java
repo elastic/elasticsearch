@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -42,7 +45,14 @@ public abstract class NetworkUtils {
      * @deprecated transition mechanism only
      */
     @Deprecated
-    static final boolean PREFER_V6 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+    static final boolean PREFER_V6 = preferIPv6Addresses();
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean preferIPv6Addresses() {
+        return Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+    }
 
     /**
      * True if we can bind to a v6 address. Its silly, but for *binding* we have a need to know
@@ -188,7 +198,7 @@ public abstract class NetworkUtils {
     /** Returns all addresses (any scope) for interfaces that are up.
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
     public static InetAddress[] getAllAddresses() throws IOException {
-        return filterAllAddresses(address -> true, "no up-and-running addresses found");
+        return filterAllAddresses(Predicates.always(), "no up-and-running addresses found");
     }
 
     static Optional<NetworkInterface> maybeGetInterfaceByName(List<NetworkInterface> networkInterfaces, String name) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -65,7 +67,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger logger = LogManager.getLogger(DiskHealthIndicatorService.class);
 
-    private static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
+    // VisibleForTesting
+    public static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
@@ -83,6 +86,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
+        ClusterState clusterState = clusterService.state();
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
             /*
@@ -98,7 +102,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 Collections.emptyList()
             );
         }
-        ClusterState clusterState = clusterService.state();
         logNodesMissingHealthInfo(diskHealthInfoMap, clusterState);
 
         DiskHealthAnalyzer diskHealthAnalyzer = new DiskHealthAnalyzer(diskHealthInfoMap, clusterState);
@@ -107,7 +110,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             diskHealthAnalyzer.getSymptom(),
             diskHealthAnalyzer.getDetails(verbose),
             diskHealthAnalyzer.getImpacts(),
-            diskHealthAnalyzer.getDiagnoses(maxAffectedResourcesCount)
+            diskHealthAnalyzer.getDiagnoses(verbose, maxAffectedResourcesCount)
         );
     }
 
@@ -153,14 +156,21 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final HealthStatus healthStatus;
         private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
+        @FixForMultiProject(description = "blockedIndices and indicesAtRisk should work correctly for indices across projects")
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
             this.clusterState = clusterState;
-            blockedIndices = clusterState.blocks()
-                .indices()
-                .entrySet()
+            blockedIndices = clusterState.metadata()
+                .projects()
+                .keySet()
                 .stream()
-                .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-                .map(Map.Entry::getKey)
+                .flatMap(
+                    projectId -> clusterState.blocks()
+                        .indices(projectId)
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+                        .map(Map.Entry::getKey)
+                )
                 .collect(Collectors.toSet());
             HealthStatus mostSevereStatusSoFar = blockedIndices.isEmpty() ? HealthStatus.GREEN : HealthStatus.RED;
             for (String nodeId : diskHealthByNode.keySet()) {
@@ -344,8 +354,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             return impacts;
         }
 
-        private List<Diagnosis> getDiagnoses(int size) {
-            if (healthStatus == HealthStatus.GREEN) {
+        private List<Diagnosis> getDiagnoses(boolean verbose, int size) {
+            if (verbose == false || healthStatus == HealthStatus.GREEN) {
                 return List.of();
             }
             List<Diagnosis> diagnosisList = new ArrayList<>();

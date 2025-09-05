@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCase<PutLifecycleRequest> {
@@ -48,7 +47,11 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected PutLifecycleRequest createTestInstance() {
-        return new PutLifecycleRequest(LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName));
+        return new PutLifecycleRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName)
+        );
     }
 
     @Override
@@ -58,13 +61,23 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected PutLifecycleRequest doParseInstance(XContentParser parser) {
-        return PutLifecycleRequest.parseRequest(lifecycleName, parser);
+        return PutLifecycleRequest.parseRequest(new PutLifecycleRequest.Factory() {
+            @Override
+            public PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy) {
+                return new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
+            }
+
+            @Override
+            public String getPolicyName() {
+                return lifecycleName;
+            }
+        }, parser);
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
                     TimeseriesLifecycleType.TYPE,
@@ -91,7 +104,7 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
-            Arrays.asList(
+            List.of(
                 new NamedXContentRegistry.Entry(
                     LifecycleType.class,
                     new ParseField(TimeseriesLifecycleType.TYPE),
@@ -130,7 +143,7 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
             request.getPolicy(),
             () -> LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(name)
         );
-        return new PutLifecycleRequest(policy);
+        return new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
     }
 
 }

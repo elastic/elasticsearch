@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
 
+import org.gradle.api.GradleException;
 import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayOutputStream;
@@ -85,5 +87,15 @@ public class GitWrapper {
      */
     public Stream<String> listFiles(String ref, String path) {
         return runCommand("git", "ls-tree", "--name-only", "-r", ref, path).lines();
+    }
+
+    public String getUpstream() {
+        String upstream = listRemotes().entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().contains("elastic/elasticsearch"))
+            .findFirst()
+            .map(Map.Entry::getKey)
+            .orElseThrow(() -> new GradleException("Couldn't find a git remote for [elastic/elasticsearch]"));
+        return upstream;
     }
 }

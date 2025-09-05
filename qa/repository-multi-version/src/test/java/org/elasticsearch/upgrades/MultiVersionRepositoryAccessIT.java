@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -17,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
@@ -182,7 +183,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
             final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
-                || SnapshotsService.includesUUIDs(minNodeVersion)
+                || SnapshotsServiceUtils.includesUUIDs(minNodeVersion)
                 || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(repoName, false, true));
@@ -207,7 +208,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards, index);
                 }
             } else {
-                if (SnapshotsService.includesUUIDs(minNodeVersion) == false) {
+                if (SnapshotsServiceUtils.includesUUIDs(minNodeVersion) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> listSnapshots(repoName));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(repoName, "snapshot-1"));
@@ -262,7 +263,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         Request repoReq = new Request("PUT", "/_snapshot/" + repoName);
         repoReq.setJsonEntity(
             Strings.toString(
-                new PutRepositoryRequest().type("fs")
+                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).type("fs")
                     .verify(verify)
                     .settings(Settings.builder().put("location", repoName).put("readonly", readOnly).build())
             )

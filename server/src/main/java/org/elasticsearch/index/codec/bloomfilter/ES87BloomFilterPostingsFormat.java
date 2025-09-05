@@ -38,7 +38,6 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
@@ -128,7 +127,6 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         private final List<FieldsGroup> fieldsGroups = new ArrayList<>();
         private final List<Closeable> toCloses = new ArrayList<>();
         private boolean closed;
-        private final int[] hashes = new int[NUM_HASH_FUNCTIONS];
 
         FieldsWriter(SegmentWriteState state) throws IOException {
             this.state = state;
@@ -180,23 +178,24 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         private void writeBloomFilters(Fields fields) throws IOException {
-            for (String field : fields) {
-                final Terms terms = fields.terms(field);
-                if (terms == null) {
-                    continue;
-                }
-                final int bloomFilterSize = bloomFilterSize(state.segmentInfo.maxDoc());
-                final int numBytes = numBytesForBloomFilter(bloomFilterSize);
-                try (ByteArray buffer = bigArrays.newByteArray(numBytes)) {
+            final int bloomFilterSize = bloomFilterSize(state.segmentInfo.maxDoc());
+            final int numBytes = numBytesForBloomFilter(bloomFilterSize);
+            final int[] hashes = new int[NUM_HASH_FUNCTIONS];
+            try (ByteArray buffer = bigArrays.newByteArray(numBytes, false)) {
+                long written = indexOut.getFilePointer();
+                for (String field : fields) {
+                    final Terms terms = fields.terms(field);
+                    if (terms == null) {
+                        continue;
+                    }
+                    buffer.fill(0, numBytes, (byte) 0);
                     final TermsEnum termsEnum = terms.iterator();
                     while (true) {
                         final BytesRef term = termsEnum.next();
                         if (term == null) {
                             break;
                         }
-
-                        hashTerm(term, hashes);
-                        for (int hash : hashes) {
+                        for (int hash : hashTerm(term, hashes)) {
                             hash = hash % bloomFilterSize;
                             final int pos = hash >> 3;
                             final int mask = 1 << (hash & 7);
@@ -204,9 +203,13 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                             buffer.set(pos, val);
                         }
                     }
-                    bloomFilters.add(new BloomFilter(field, indexOut.getFilePointer(), bloomFilterSize));
-                    final BytesReference bytes = BytesReference.fromByteArray(buffer, numBytes);
-                    bytes.writeTo(new IndexOutputOutputStream(indexOut));
+                    bloomFilters.add(new BloomFilter(field, written, bloomFilterSize));
+                    if (buffer.hasArray()) {
+                        indexOut.writeBytes(buffer.array(), 0, numBytes);
+                    } else {
+                        BytesReference.fromByteArray(buffer, numBytes).writeTo(new IndexOutputOutputStream(indexOut));
+                    }
+                    written += numBytes;
                 }
             }
         }
@@ -287,12 +290,7 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
 
         FieldsReader(SegmentReadState state) throws IOException {
             boolean success = false;
-            try (
-                ChecksumIndexInput metaIn = state.directory.openChecksumInput(
-                    metaFile(state.segmentInfo, state.segmentSuffix),
-                    IOContext.READONCE
-                )
-            ) {
+            try (ChecksumIndexInput metaIn = state.directory.openChecksumInput(metaFile(state.segmentInfo, state.segmentSuffix))) {
                 Map<String, BloomFilter> bloomFilters = null;
                 Throwable priorE = null;
                 long indexFileLength = 0;
@@ -636,35 +634,10 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
          * @param length The length of array
          * @return The sum of the two 64-bit hashes that make up the hash128
          */
-        public static long hash64(final byte[] data, final int offset, final int length) {
-            // We hope that the C2 escape analysis prevents ths allocation from creating GC pressure.
-            long[] hash128 = { 0, 0 };
-            hash128x64Internal(data, offset, length, DEFAULT_SEED, hash128);
-            return hash128[0];
-        }
-
-        /**
-         * Generates 128-bit hash from the byte array with the given offset, length and seed.
-         *
-         * <p>This is an implementation of the 128-bit hash function {@code MurmurHash3_x64_128}
-         * from Austin Appleby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-         *
-         * @param data The input byte array
-         * @param offset The first element of array
-         * @param length The length of array
-         * @param seed The initial seed value
-         * @return The 128-bit hash (2 longs)
-         */
         @SuppressWarnings("fallthrough")
-        private static long[] hash128x64Internal(
-            final byte[] data,
-            final int offset,
-            final int length,
-            final long seed,
-            final long[] result
-        ) {
-            long h1 = seed;
-            long h2 = seed;
+        public static long hash64(final byte[] data, final int offset, final int length) {
+            long h1 = MurmurHash3.DEFAULT_SEED;
+            long h2 = MurmurHash3.DEFAULT_SEED;
             final int nblocks = length >> 4;
 
             // body
@@ -749,11 +722,8 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             h2 = fmix64(h2);
 
             h1 += h2;
-            h2 += h1;
 
-            result[0] = h1;
-            result[1] = h2;
-            return result;
+            return h1;
         }
 
         /**

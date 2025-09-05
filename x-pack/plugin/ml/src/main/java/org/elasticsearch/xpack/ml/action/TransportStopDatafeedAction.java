@@ -19,15 +19,17 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -93,7 +95,6 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             transportService,
             actionFilters,
             StopDatafeedAction.Request::new,
-            StopDatafeedAction.Response::new,
             StopDatafeedAction.Response::new,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
@@ -190,7 +191,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 );
             }
         } else {
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             datafeedConfigProvider.expandDatafeedIds(
                 request.getDatafeedId(),
                 request.allowNoMatch(),
@@ -252,6 +253,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 // already waits for these persistent tasks to disappear.
                 persistentTasksService.sendRemoveRequest(
                     datafeedTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(
                         r -> auditDatafeedStopped(datafeedTask),
                         e -> logger.error("[" + datafeedId + "] failed to remove task to stop unassigned datafeed", e)
@@ -278,6 +280,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
                     persistentTasksService.sendRemoveRequest(
                         datafeedTask.getId(),
+                        MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                         ActionListener.wrap(r -> auditDatafeedStopped(datafeedTask), e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 logger.debug("[{}] relocated datafeed task already removed", datafeedId);
@@ -381,28 +384,32 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         for (String datafeedId : notStoppedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
-                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(persistentTask -> {
-                    // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
-                    // If the datafeed was active then it audits itself on being cancelled.
-                    if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
-                        auditDatafeedStopped(datafeedTask);
-                    }
-                    if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
-                        sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                    }
-                }, e -> {
-                    final int slot = counter.incrementAndGet();
-                    // We validated that the datafeed names supplied in the request existed when we started processing the action.
-                    // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop
-                    // request.
-                    // This is not an error.
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                        failures.set(slot - 1, e);
-                    }
-                    if (slot == notStoppedDatafeeds.size()) {
-                        sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                    }
-                }));
+                persistentTasksService.sendRemoveRequest(
+                    datafeedTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    ActionListener.wrap(persistentTask -> {
+                        // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
+                        // If the datafeed was active then it audits itself on being cancelled.
+                        if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
+                            auditDatafeedStopped(datafeedTask);
+                        }
+                        if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
+                            sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                        }
+                    }, e -> {
+                        final int slot = counter.incrementAndGet();
+                        // We validated that the datafeed names supplied in the request existed when we started processing the action.
+                        // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop
+                        // request.
+                        // This is not an error.
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                            failures.set(slot - 1, e);
+                        }
+                        if (slot == notStoppedDatafeeds.size()) {
+                            sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                        }
+                    })
+                );
             } else {
                 // This should not happen, because startedDatafeeds and stoppingDatafeeds
                 // were derived from the same tasks that were passed to this method
@@ -496,7 +503,12 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         ActionListener<StopDatafeedAction.Response> listener,
         Set<String> movedDatafeeds
     ) {
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
             for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : datafeedPersistentTasks) {
                 String originalPersistentTaskId = originalPersistentTask.getId();
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -59,7 +58,7 @@ public class CartesianBoundsTests extends BaseAggregationTestCase<CartesianBound
             """;
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Aggregator [viewport] of type [cartesian_bounds] cannot accept sub-aggregations"));
     }
 

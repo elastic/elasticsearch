@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url.http;
@@ -18,9 +19,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -220,44 +218,36 @@ class RetryingHttpInputStream extends InputStream {
 
     private HttpResponseInputStream openInputStream() throws IOException {
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {
-                final Map<String, String> headers = Maps.newMapWithExpectedSize(1);
+            final Map<String, String> headers = Maps.newMapWithExpectedSize(1);
 
-                if (isRangeRead()) {
-                    headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
-                }
-
-                try {
-                    final URLHttpClient.HttpResponse response = httpClient.get(blobURI, headers);
-                    final int statusCode = response.getStatusCode();
-
-                    if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
-                        String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
-                        IOUtils.closeWhileHandlingException(response);
-                        throw new IOException(
-                            getErrorMessage(
-                                "The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body
-                            )
-                        );
-                    }
-
-                    currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
-
-                    return response.getInputStream();
-                } catch (URLHttpClientException e) {
-                    if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                        throw new NoSuchFileException("blob object [" + blobName + "] not found");
-                    } else {
-                        throw e;
-                    }
-                }
-            });
-        } catch (PrivilegedActionException e) {
-            final Throwable cause = e.getCause();
-            if (cause instanceof IOException ioException) {
-                throw ioException;
+            if (isRangeRead()) {
+                headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
             }
-            throw new IOException(getErrorMessage(), e);
+
+            try {
+                final URLHttpClient.HttpResponse response = httpClient.get(blobURI, headers);
+                final int statusCode = response.getStatusCode();
+
+                if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
+                    String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
+                    IOUtils.closeWhileHandlingException(response);
+                    throw new IOException(
+                        getErrorMessage("The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body)
+                    );
+                }
+
+                currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
+
+                return response.getInputStream();
+            } catch (URLHttpClientException e) {
+                if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                    throw new NoSuchFileException("blob object [" + blobName + "] not found");
+                } else {
+                    throw e;
+                }
+            }
+        } catch (IOException e) {
+            throw e;
         } catch (Exception e) {
             throw new IOException(getErrorMessage(), e);
         }

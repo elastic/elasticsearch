@@ -107,11 +107,6 @@ public class RobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
-    int defaultSpanForChunking(int maxWindowSize) {
-        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
-
-    @Override
     int numExtraTokensForSingleSequence() {
         return 2;
     }
@@ -178,6 +173,10 @@ public class RobertaTokenizer extends NlpTokenizer {
         return new RobertaTokenizationResult.RobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();

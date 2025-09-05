@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -23,9 +23,9 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -171,22 +171,8 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            InternalAggregations.from(Arrays.asList(minTimestamp, maxTimestamp)),
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null
-        );
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+            .aggregations(InternalAggregations.from(List.of(minTimestamp, maxTimestamp)))
+            .build();
     }
-
 }

@@ -13,9 +13,12 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.rank.linear.LinearRankDoc;
+import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 
 import java.util.List;
 
@@ -24,7 +27,13 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,
         "rank-rrf",
-        License.OperationMode.PLATINUM
+        License.OperationMode.ENTERPRISE
+    );
+
+    public static final LicensedFeature.Momentary LINEAR_RETRIEVER_FEATURE = LicensedFeature.momentary(
+        null,
+        "linear-retriever",
+        License.OperationMode.ENTERPRISE
     );
 
     public static final String NAME = "rrf";
@@ -33,12 +42,22 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, RRFRankBuilder::new),
-            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new)
+            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new),
+            new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankDoc.NAME, RRFRankDoc::new),
+            new NamedWriteableRegistry.Entry(RankDoc.class, LinearRankDoc.NAME, LinearRankDoc::new)
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), RRFRankBuilder::fromXContent));
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(
+            new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(new ParseField(LinearRetrieverBuilder.NAME), LinearRetrieverBuilder::fromXContent)
+        );
     }
 }

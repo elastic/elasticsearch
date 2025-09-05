@@ -15,8 +15,8 @@ setup:
 ---
 "Segment Stats":
 
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: forbid_closed_indices is not supported in ealier version
 
   - do:
@@ -66,8 +66,8 @@ setup:
 ---
 "Indices Stats API with extended files stats":
 
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: segment files stats extended in 7.13.0
 
   - do:

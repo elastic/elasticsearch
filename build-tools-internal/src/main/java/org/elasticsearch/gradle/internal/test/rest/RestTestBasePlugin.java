@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest;
@@ -17,11 +18,10 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
@@ -43,6 +43,7 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
@@ -56,6 +57,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Base plugin used for wiring up build tasks to REST testing tasks using new JUnit rule-based test clusters framework.
@@ -78,6 +81,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
     private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
     private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
+    private static final String MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP = "tests.minimum.wire.compatible";
 
     private final ProviderFactory providerFactory;
 
@@ -88,8 +92,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+        var bwcVersions = loadBuildParams(project).get().getBwcVersions();
 
         // Register integ-test and default distributions
         ElasticsearchDistribution defaultDistro = createDistribution(
@@ -111,12 +116,12 @@ public class RestTestBasePlugin implements Plugin<Project> {
         extractedPluginsConfiguration.extendsFrom(pluginsConfiguration);
         configureArtifactTransforms(project);
 
-        // Create configuration for aggregating historical feature metadata
+        // Create configuration for aggregating feature metadata
         FileCollection featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
             c.setCanBeConsumed(false);
             c.setCanBeResolved(true);
             c.attributes(
-                a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+                a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
             );
             c.defaultDependencies(d -> d.add(project.getDependencies().project(Map.of("path", ":server"))));
             c.withDependencies(dependencies -> {
@@ -131,10 +136,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 c.setCanBeConsumed(false);
                 c.setCanBeResolved(true);
                 c.attributes(
-                    a -> a.attribute(
-                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
-                        HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE
-                    )
+                    a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
                 );
                 c.defaultDependencies(
                     d -> d.add(project.getDependencies().project(Map.of("path", ":distribution", "configuration", "featuresMetadata")))
@@ -163,15 +165,18 @@ public class RestTestBasePlugin implements Plugin<Project> {
             nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
 
             // Enable parallel execution for these tests since each test gets its own cluster
-            task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+            task.setMaxParallelForks(Math.max(1, task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2));
             nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
-            task.getExtensions().getExtraProperties().set(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
+            task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");
             task.systemProperty("tests.system_call_filter", "false");
+
+            // Pass minimum wire compatible version which is used by upgrade tests
+            task.systemProperty(MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP, bwcVersions.getMinimumWireCompatibleVersion());
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
             var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
@@ -193,6 +198,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
+                    if (reasonForUsageProvided(args) == false) {
+                        throw new IllegalArgumentException(
+                            "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
+                        );
+                    }
                     task.dependsOn(defaultDistro);
                     registerDistributionInputs(task, defaultDistro);
 
@@ -207,6 +217,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
                     return null;
                 }
+
+                private static boolean reasonForUsageProvided(Object[] args) {
+                    return args.length == 1 && args[0] instanceof String && ((String) args[0]).isBlank() == false;
+                }
             });
 
             // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
@@ -218,7 +232,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = BuildParams.getBwcVersions().unreleasedInfo(version) == null;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 
@@ -230,9 +244,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.getMajor() > 0 && version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
+                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
-                        this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
+                        this.call(bwcVersions.getMinimumWireCompatibleVersion());
                     }
                     return null;
                 }
@@ -244,7 +258,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         configuration.getDependencies()
             .stream()
             .filter(d -> d instanceof ProjectDependency)
-            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependency) d).getDependencyProject().getPath())))
+            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependencyInternal) d).getPath())))
             .forEach(dependencies::add);
     }
 
@@ -321,8 +335,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     Collection<Dependency> additionalDependencies = new LinkedHashSet<>();
                     for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                         Dependency dependency = iterator.next();
+                        // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = projectDependency.getDependencyProject();
+                            Project dependencyProject = project.project(projectDependency.getPath());
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();
@@ -332,8 +347,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
                                 iterator.remove();
                                 additionalDependencies.add(
                                     useExploded
-                                        ? getExplodedBundleDependency(project, dependencyProject.getPath())
-                                        : getBundleZipTaskDependency(project, dependencyProject.getPath())
+                                        ? getExplodedBundleDependency(project, projectDependency.getPath())
+                                        : getBundleZipTaskDependency(project, projectDependency.getPath())
                                 );
                             }
 

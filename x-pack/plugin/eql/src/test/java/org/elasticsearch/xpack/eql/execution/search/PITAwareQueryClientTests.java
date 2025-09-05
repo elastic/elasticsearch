@@ -21,6 +21,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -100,6 +102,8 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
+                randomBoolean(),
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -166,7 +170,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
             }
 
             SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, booleanArrayOf(stages, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(response -> {
                 // do nothing, we don't care about the query results
             }, ex -> { fail("Shouldn't have failed"); }));
@@ -179,7 +191,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
      */
     private class ESMockClient extends NoOpClient {
         private final QueryBuilder filter;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
         private boolean openedPIT = false;
         private int searchRequestsRemainingCount;
 
@@ -202,7 +214,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertArrayEquals(INDICES, openPIT.indices()); // indices for opening pit should be the same as for the eql query itself
 
                 openedPIT = true;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);

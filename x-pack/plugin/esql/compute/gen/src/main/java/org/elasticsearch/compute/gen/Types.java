@@ -15,8 +15,12 @@ import com.squareup.javapoet.TypeName;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 import javax.lang.model.type.TypeMirror;
+
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * Types used by the code generator.
@@ -27,6 +31,8 @@ public class Types {
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
+    static final TypeName STRING = ClassName.get("java.lang", "String");
+
     static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
 
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
@@ -34,56 +40,51 @@ public class Types {
     static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
+    static final ClassName CIRCUIT_BREAKER = ClassName.get("org.elasticsearch.common.breaker", "CircuitBreaker");
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
+    static final ClassName RAM_USAGE_ESIMATOR = ClassName.get("org.apache.lucene.util", "RamUsageEstimator");
 
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
     static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
     static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
+    static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
+    static final ClassName INT_BIG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntBigArrayBlock");
     static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
     static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
+    static final ClassName FLOAT_BLOCK = ClassName.get(DATA_PACKAGE, "FloatBlock");
 
     static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
     static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
     static final ClassName INT_BLOCK_BUILDER = INT_BLOCK.nestedClass("Builder");
     static final ClassName LONG_BLOCK_BUILDER = LONG_BLOCK.nestedClass("Builder");
     static final ClassName DOUBLE_BLOCK_BUILDER = DOUBLE_BLOCK.nestedClass("Builder");
+    static final ClassName FLOAT_BLOCK_BUILDER = FLOAT_BLOCK.nestedClass("Builder");
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
     static final ClassName BOOLEAN_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanVector");
     static final ClassName BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefVector");
+    static final ClassName ORDINALS_BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "OrdinalBytesRefVector");
     static final ClassName INT_VECTOR = ClassName.get(DATA_PACKAGE, "IntVector");
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
+    static final ClassName FLOAT_VECTOR = ClassName.get(DATA_PACKAGE, "FloatVector");
 
     static final ClassName BOOLEAN_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "Builder");
     static final ClassName BYTES_REF_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BytesRefVector", "Builder");
     static final ClassName INT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "Builder");
     static final ClassName LONG_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "Builder");
     static final ClassName DOUBLE_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "Builder");
+    static final ClassName FLOAT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "FloatVector", "Builder");
 
     static final ClassName BOOLEAN_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "FixedBuilder");
     static final ClassName INT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "FixedBuilder");
     static final ClassName LONG_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "FixedBuilder");
     static final ClassName DOUBLE_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "FixedBuilder");
+    static final ClassName FLOAT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "FloatVector", "FixedBuilder");
 
-    static final ClassName BOOLEAN_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanArrayVector");
-    static final ClassName BYTES_REF_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefArrayVector");
-    static final ClassName INT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "IntArrayVector");
-    static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
-    static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
-
-    static final ClassName BOOLEAN_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanArrayBlock");
-    static final ClassName BYTES_REF_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefArrayBlock");
-    static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
-    static final ClassName LONG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "LongArrayBlock");
-    static final ClassName DOUBLE_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleArrayBlock");
-
-    static final ClassName BOOLEAN_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBooleanVector");
-    static final ClassName BYTES_REF_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBytesRefVector");
-    static final ClassName INT_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantIntVector");
-    static final ClassName LONG_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantLongVector");
-    static final ClassName DOUBLE_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantDoubleVector");
+    static final ClassName AGGREGATOR_STATE = ClassName.get(AGGREGATION_PACKAGE, "AggregatorState");
+    static final ClassName GROUPING_AGGREGATOR_STATE = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorState");
 
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName AGGREGATOR_FUNCTION_SUPPLIER = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunctionSupplier");
@@ -99,6 +100,10 @@ public class Types {
     static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
 
     static final ClassName DRIVER_CONTEXT = ClassName.get(OPERATOR_PACKAGE, "DriverContext");
+    static final ClassName GROUPING_AGGREGATOR_EVALUATOR_CONTEXT = ClassName.get(
+        AGGREGATION_PACKAGE,
+        "GroupingAggregatorEvaluationContext"
+    );
 
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
     static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator", "Factory");
@@ -118,89 +123,59 @@ public class Types {
         "AbstractEvaluator"
     );
 
-    static final ClassName WARNINGS = ClassName.get("org.elasticsearch.xpack.esql.expression.function", "Warnings");
+    static final ClassName WARNINGS = ClassName.get("org.elasticsearch.compute.operator", "Warnings");
 
-    static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
+    static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
     static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
+    private record TypeDef(TypeName type, String alias, ClassName block, ClassName vector) {
+
+        public static TypeDef of(TypeName type, String alias, String block, String vector) {
+            return new TypeDef(type, alias, ClassName.get(DATA_PACKAGE, block), ClassName.get(DATA_PACKAGE, vector));
+        }
+    }
+
+    private static final Map<String, TypeDef> TYPES = Stream.of(
+        TypeDef.of(TypeName.BOOLEAN, "BOOLEAN", "BooleanBlock", "BooleanVector"),
+        TypeDef.of(TypeName.INT, "INT", "IntBlock", "IntVector"),
+        TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector"),
+        TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector"),
+        TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector"),
+        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector")
+    )
+        .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
+        .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    private static TypeDef findRequired(String name, String kind) {
+        TypeDef typeDef = TYPES.get(name);
+        if (typeDef == null) {
+            throw new IllegalArgumentException("unknown " + kind + " type [" + name + "]");
+        }
+        return typeDef;
+    }
+
+    static TypeName fromString(String type) {
+        return findRequired(type, "plain").type;
+    }
+
     static ClassName blockType(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
-            return BOOLEAN_BLOCK;
-        }
-        if (elementType.equals(BYTES_REF)) {
-            return BYTES_REF_BLOCK;
-        }
-        if (elementType.equals(TypeName.INT)) {
-            return INT_BLOCK;
-        }
-        if (elementType.equals(TypeName.LONG)) {
-            return LONG_BLOCK;
-        }
-        if (elementType.equals(TypeName.DOUBLE)) {
-            return DOUBLE_BLOCK;
-        }
-        throw new IllegalArgumentException("unknown block type for [" + elementType + "]");
+        return blockType(elementType.toString());
     }
 
     static ClassName blockType(String elementType) {
-        if (elementType.equalsIgnoreCase(TypeName.BOOLEAN.toString())) {
-            return BOOLEAN_BLOCK;
-        }
-        if (elementType.equalsIgnoreCase("BYTES_REF")) {
-            return BYTES_REF_BLOCK;
-        }
-        if (elementType.equalsIgnoreCase(TypeName.INT.toString())) {
-            return INT_BLOCK;
-        }
-        if (elementType.equalsIgnoreCase(TypeName.LONG.toString())) {
-            return LONG_BLOCK;
-        }
-        if (elementType.equalsIgnoreCase(TypeName.DOUBLE.toString())) {
-            return DOUBLE_BLOCK;
-        }
-        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+        return findRequired(elementType, "block").block;
     }
 
     static ClassName vectorType(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
-            return BOOLEAN_VECTOR;
-        }
-        if (elementType.equals(BYTES_REF)) {
-            return BYTES_REF_VECTOR;
-        }
-        if (elementType.equals(TypeName.INT)) {
-            return INT_VECTOR;
-        }
-        if (elementType.equals(TypeName.LONG)) {
-            return LONG_VECTOR;
-        }
-        if (elementType.equals(TypeName.DOUBLE)) {
-            return DOUBLE_VECTOR;
-        }
-        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+        return vectorType(elementType.toString());
     }
 
     static ClassName vectorType(String elementType) {
-        if (elementType.equalsIgnoreCase(TypeName.BOOLEAN.toString())) {
-            return BOOLEAN_VECTOR;
-        }
-        if (elementType.equalsIgnoreCase("BYTES_REF")) {
-            return BYTES_REF_VECTOR;
-        }
-        if (elementType.equalsIgnoreCase(TypeName.INT.toString())) {
-            return INT_VECTOR;
-        }
-        if (elementType.equalsIgnoreCase(TypeName.LONG.toString())) {
-            return LONG_VECTOR;
-        }
-        if (elementType.equalsIgnoreCase(TypeName.DOUBLE.toString())) {
-            return DOUBLE_VECTOR;
-        }
-        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+        return findRequired(elementType, "vector").vector;
     }
 
     static ClassName builderType(TypeName resultType) {
@@ -234,6 +209,12 @@ public class Types {
         if (resultType.equals(DOUBLE_VECTOR)) {
             return DOUBLE_VECTOR_BUILDER;
         }
+        if (resultType.equals(FLOAT_BLOCK)) {
+            return FLOAT_BLOCK_BUILDER;
+        }
+        if (resultType.equals(FLOAT_VECTOR)) {
+            return FLOAT_VECTOR_BUILDER;
+        }
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
 
@@ -250,64 +231,10 @@ public class Types {
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_VECTOR_FIXED_BUILDER;
         }
+        if (elementType.equals(TypeName.FLOAT)) {
+            return FLOAT_VECTOR_FIXED_BUILDER;
+        }
         throw new IllegalArgumentException("unknown vector fixed builder type for [" + elementType + "]");
-    }
-
-    static ClassName arrayVectorType(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
-            return BOOLEAN_ARRAY_VECTOR;
-        }
-        if (elementType.equals(BYTES_REF)) {
-            return BYTES_REF_ARRAY_VECTOR;
-        }
-        if (elementType.equals(TypeName.INT)) {
-            return INT_ARRAY_VECTOR;
-        }
-        if (elementType.equals(TypeName.LONG)) {
-            return LONG_ARRAY_VECTOR;
-        }
-        if (elementType.equals(TypeName.DOUBLE)) {
-            return DOUBLE_ARRAY_VECTOR;
-        }
-        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
-    }
-
-    static ClassName arrayBlockType(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
-            return BOOLEAN_ARRAY_BLOCK;
-        }
-        if (elementType.equals(BYTES_REF)) {
-            return BYTES_REF_ARRAY_BLOCK;
-        }
-        if (elementType.equals(TypeName.INT)) {
-            return INT_ARRAY_BLOCK;
-        }
-        if (elementType.equals(TypeName.LONG)) {
-            return LONG_ARRAY_BLOCK;
-        }
-        if (elementType.equals(TypeName.DOUBLE)) {
-            return DOUBLE_ARRAY_BLOCK;
-        }
-        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
-    }
-
-    static ClassName constantVectorType(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
-            return BOOLEAN_CONSTANT_VECTOR;
-        }
-        if (elementType.equals(BYTES_REF)) {
-            return BYTES_REF_CONSTANT_VECTOR;
-        }
-        if (elementType.equals(TypeName.INT)) {
-            return INT_CONSTANT_VECTOR;
-        }
-        if (elementType.equals(TypeName.LONG)) {
-            return LONG_CONSTANT_VECTOR;
-        }
-        if (elementType.equals(TypeName.DOUBLE)) {
-            return DOUBLE_CONSTANT_VECTOR;
-        }
-        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
 
     static TypeName elementType(TypeName t) {
@@ -325,6 +252,9 @@ public class Types {
         }
         if (t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR) || t.equals(DOUBLE_BLOCK_BUILDER)) {
             return TypeName.DOUBLE;
+        }
+        if (t.equals(FLOAT_BLOCK) || t.equals(FLOAT_VECTOR) || t.equals(FLOAT_BLOCK_BUILDER)) {
+            return TypeName.FLOAT;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }

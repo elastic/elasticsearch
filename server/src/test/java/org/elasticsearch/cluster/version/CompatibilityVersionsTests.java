@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -27,12 +27,12 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testEmptyVersionsList() {
         assertThat(
             CompatibilityVersions.minimumVersions(List.of()),
-            equalTo(new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()))
+            equalTo(new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()))
         );
     }
 
     public void testMinimumTransportVersions() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
+        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(version1, true),
@@ -79,7 +79,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
      * complaint.
      */
     public void testMinimumsAreMerged() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
+        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(version1, true),

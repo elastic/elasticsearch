@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -257,7 +258,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
     private void assertWatchesExist() {
         // Check if watches index exists
-        if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
+        if (client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".watches").get().getIndices().length == 0) {
             fail("Expected [.watches] index with cluster alerts present, but no [.watches] index was found");
         }
 
@@ -267,15 +268,16 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         Set<String> watchIds = new HashSet<>(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
         assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
             for (SearchHit hit : response.getHits().getHits()) {
-                String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
+                Map<String, Object> source = hit.getSourceAsMap();
+                String watchId = ObjectPath.eval("metadata.xpack.watch", source);
                 assertNotNull("Missing watch ID", watchId);
                 assertTrue("found unexpected watch id", watchIds.contains(watchId));
 
-                String version = ObjectPath.eval("metadata.xpack.version_created", hit.getSourceAsMap());
+                String version = ObjectPath.eval("metadata.xpack.version_created", source);
                 assertNotNull("Missing version from returned watch [" + watchId + "]", version);
                 assertTrue(Version.fromId(Integer.parseInt(version)).onOrAfter(Version.fromId(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
-                String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
+                String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", source);
                 assertNotNull("Missing cluster uuid", uuid);
                 assertEquals(clusterUUID, uuid);
             }
@@ -284,7 +286,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
     private void assertNoWatchesExist() {
         // Check if watches index exists
-        if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
+        if (client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".watches").get().getIndices().length == 0) {
             fail("Expected [.watches] index with cluster alerts present, but no [.watches] index was found");
         }
 
@@ -293,12 +295,14 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
 
         assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
-            if (response.getHits().getTotalHits().value > 0) {
+            if (response.getHits().getTotalHits().value() > 0) {
                 List<String> invalidWatches = new ArrayList<>();
                 for (SearchHit hit : response.getHits().getHits()) {
                     invalidWatches.add(ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap()));
                 }
-                fail("Found [" + response.getHits().getTotalHits().value + "] invalid watches when none were expected: " + invalidWatches);
+                fail(
+                    "Found [" + response.getHits().getTotalHits().value() + "] invalid watches when none were expected: " + invalidWatches
+                );
             }
         });
     }
@@ -317,7 +321,11 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     private void assertTemplateNotUpdated() {
         final String name = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(system).getTemplateName();
 
-        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin()
+            .indices()
+            .prepareGetTemplates(TEST_REQUEST_TIMEOUT, name)
+            .get()
+            .getIndexTemplates()) {
             final String docMapping = template.getMappings().toString();
 
             assertThat(docMapping, notNullValue());

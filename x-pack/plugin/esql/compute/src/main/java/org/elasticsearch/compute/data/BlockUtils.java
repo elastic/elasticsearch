@@ -9,17 +9,20 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
+import static org.elasticsearch.compute.data.ElementType.NULL;
 import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
@@ -87,6 +90,8 @@ public final class BlockUtils {
                             } else {
                                 wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
                             }
+                        } else if (isAscending(listVal) && random.nextBoolean()) {
+                            wrapper.builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
                         }
                         blocks[i] = wrapper.builder.build();
                     }
@@ -169,6 +174,7 @@ public final class BlockUtils {
 
     /** Returns a deep copy of the given block, using the blockFactory for creating the copy block. */
     public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
+        // TODO preserve constants here.
         try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
             builder.copyFrom(block, 0, block.getPositionCount());
             builder.mvOrdering(block.mvOrdering());
@@ -208,6 +214,7 @@ public final class BlockUtils {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
+            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
@@ -217,6 +224,13 @@ public final class BlockUtils {
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
         if (val == null) {
             return blockFactory.newConstantNullBlock(size);
+        }
+        if (val instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return constantBlock(blockFactory, NULL, val, size);
+            }
+            Object colVal = collection.iterator().next();
+            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
         }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
     }
@@ -230,6 +244,8 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
+            case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
+            case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -265,12 +281,23 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case FLOAT -> ((FloatBlock) block).getFloat(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);
             case NULL -> null;
             case DOC -> {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+            }
+            case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
+            case AGGREGATE_METRIC_DOUBLE -> {
+                AggregateMetricDoubleBlock aggBlock = (AggregateMetricDoubleBlock) block;
+                yield new AggregateMetricDoubleLiteral(
+                    aggBlock.minBlock().getDouble(offset),
+                    aggBlock.maxBlock().getDouble(offset),
+                    aggBlock.sumBlock().getDouble(offset),
+                    aggBlock.countBlock().getInt(offset)
+                );
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

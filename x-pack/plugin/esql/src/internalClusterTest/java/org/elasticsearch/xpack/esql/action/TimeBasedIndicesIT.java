@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.hasSize;
 
 public class TimeBasedIndicesIT extends AbstractEsqlIntegTestCase {
@@ -37,19 +38,17 @@ public class TimeBasedIndicesIT extends AbstractEsqlIntegTestCase {
         }
         bulk.get();
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("FROM test | limit 1000");
-            request.filter(new RangeQueryBuilder("@timestamp").from(epoch - TimeValue.timeValueHours(3).millis()).to("now"));
-            try (var resp = run(request)) {
+            String query = "FROM test | limit 1000";
+            var filter = new RangeQueryBuilder("@timestamp").from(epoch - TimeValue.timeValueHours(3).millis()).to("now");
+            try (var resp = run(syncEsqlQueryRequest().query(query).filter(filter))) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(oldDocs));
             }
         }
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("FROM test | limit 1000");
-            request.filter(new RangeQueryBuilder("@timestamp").from("now").to(epoch + TimeValue.timeValueHours(3).millis()));
-            try (var resp = run(request)) {
+            String query = "FROM test | limit 1000";
+            var filter = new RangeQueryBuilder("@timestamp").from("now").to(epoch + TimeValue.timeValueHours(3).millis());
+            try (var resp = run(syncEsqlQueryRequest().query(query).filter(filter))) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(newDocs));
             }

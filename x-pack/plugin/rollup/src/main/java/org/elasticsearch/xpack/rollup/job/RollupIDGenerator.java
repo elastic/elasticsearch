@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.rollup.job;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 /**
  * The ID Generator creates a deterministic document ID to be used for rollup docs.
@@ -101,7 +101,7 @@ public class RollupIDGenerator {
         byte[] hashedBytes = new byte[16];
         System.arraycopy(Numbers.longToBytes(hasher.h1), 0, hashedBytes, 0, 8);
         System.arraycopy(Numbers.longToBytes(hasher.h2), 0, hashedBytes, 8, 8);
-        return jobId + "$" + Base64.getUrlEncoder().withoutPadding().encodeToString(hashedBytes);
+        return jobId + "$" + Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashedBytes);
 
     }
 

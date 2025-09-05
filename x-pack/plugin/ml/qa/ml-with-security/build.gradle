@@ -8,7 +8,7 @@ dependencies {
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
+    include '_common', 'capabilities', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
   }
   restTests {
     includeXpack 'ml'
@@ -181,6 +181,7 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test put model model aliases with nlp model',
     'ml/inference_processor/Test create processor with missing mandatory fields',
     'ml/learning_to_rank_rescorer/Test rescore with missing model',
+    'ml/learning_to_rank_rescorer/Test model input validation',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
     'ml/jobs_crud/Test cannot create job with model snapshot id set',
@@ -257,4 +258,5 @@ testClusters.configureEach {
   user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

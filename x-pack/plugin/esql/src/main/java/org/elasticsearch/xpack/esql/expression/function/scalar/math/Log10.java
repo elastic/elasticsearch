@@ -7,46 +7,74 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class Log10 extends UnaryScalarFunction {
-    @FunctionInfo(returnType = "double", description = "Returns the log base 10.")
-    public Log10(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log10", Log10::new);
+
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the logarithm of a value to base 10. The input can "
+            + "be any numeric value, the return value is always a double.\n"
+            + "\n"
+            + "Logs of 0 and negative numbers return `null` as well as a warning.",
+        examples = @Example(file = "math", tag = "log10")
+    )
+    public Log10(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression n
+    ) {
         super(source, n);
     }
 
+    private Log10(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 
-        if (fieldType == DataTypes.DOUBLE) {
+        if (fieldType == DataType.DOUBLE) {
             return new Log10DoubleEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.INTEGER) {
+        if (fieldType == DataType.INTEGER) {
             return new Log10IntEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.LONG) {
+        if (fieldType == DataType.LONG) {
             return new Log10LongEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.UNSIGNED_LONG) {
+        if (fieldType == DataType.UNSIGNED_LONG) {
             return new Log10UnsignedLongEvaluator.Factory(source(), field);
         }
 
@@ -74,7 +102,7 @@ public class Log10 extends UnaryScalarFunction {
         if (val == NumericUtils.ZERO_AS_UNSIGNED_LONG) {
             throw new ArithmeticException("Log of non-positive number");
         }
-        return Math.log10(NumericUtils.unsignedLongToDouble(val));
+        return Math.log10(unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
@@ -97,7 +125,7 @@ public class Log10 extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override

@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,10 +26,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SearchScrollRequest extends ActionRequest implements ToXContentObject {
+public class SearchScrollRequest extends LegacyActionRequest implements ToXContentObject {
 
     private String scrollId;
-    private Scroll scroll;
+    private TimeValue scroll;
 
     public SearchScrollRequest() {}
 
@@ -40,14 +40,14 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
     public SearchScrollRequest(StreamInput in) throws IOException {
         super(in);
         scrollId = in.readString();
-        scroll = in.readOptionalWriteable(Scroll::new);
+        scroll = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(scrollId);
-        out.writeOptionalWriteable(scroll);
+        out.writeOptionalTimeValue(scroll);
     }
 
     @Override
@@ -78,30 +78,16 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
     /**
      * If set, will enable scrolling of the search request.
      */
-    public Scroll scroll() {
+    public TimeValue scroll() {
         return scroll;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request.
-     */
-    public SearchScrollRequest scroll(Scroll scroll) {
-        this.scroll = scroll;
-        return this;
     }
 
     /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequest scroll(TimeValue keepAlive) {
-        return scroll(new Scroll(keepAlive));
-    }
-
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchScrollRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".keepAlive")));
+        this.scroll = keepAlive;
+        return this;
     }
 
     @Override
@@ -141,7 +127,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         builder.startObject();
         builder.field("scroll_id", scrollId);
         if (scroll != null) {
-            builder.field("scroll", scroll.keepAlive().getStringRep());
+            builder.field("scroll", scroll.getStringRep());
         }
         builder.endObject();
         return builder;
@@ -163,7 +149,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
                 } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                     scrollId(parser.text());
                 } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
-                    scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll")));
+                    scroll(TimeValue.parseTimeValue(parser.text(), null, "scroll"));
                 } else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "

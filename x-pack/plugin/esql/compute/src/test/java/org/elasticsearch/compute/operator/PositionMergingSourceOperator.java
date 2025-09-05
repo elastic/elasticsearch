@@ -13,10 +13,36 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
+/**
+ * Merges adjacent pairs of positions together into one, block by block.
+ * <p>
+ *     For example:
+ * </p>
+ * <pre>{@code
+ *    a   |   b
+ *  ----- | -----
+ *    1   |   a
+ *    2   |   b
+ *   3, 4 | c, d
+ *   5, 6 | e, f
+ *    7   | null  <---- nulls count as empty lists
+ *   null |   g
+ *    4   |   d   <---- if the input is odd, trailing rows are dropped
+ * }</pre>
+ * becomes
+ * <pre>{@code
+ *       a     |     b
+ *  ---------- | ----------
+ *     1, 2    |   a, b
+ *  3, 4, 5, 6 | c, d, e, f
+ *       7     |     g
+ * }</pre>
+ */
 public class PositionMergingSourceOperator extends MappingSourceOperator {
     final BlockFactory blockFactory;
 
@@ -74,6 +100,7 @@ public class PositionMergingSourceOperator extends MappingSourceOperator {
             switch (in.elementType()) {
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(((BooleanBlock) in).getBoolean(i));
                 case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(((BytesRefBlock) in).getBytesRef(i, scratch));
+                case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((FloatBlock) in).getFloat(i));
                 case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((DoubleBlock) in).getDouble(i));
                 case INT -> ((IntBlock.Builder) builder).appendInt(((IntBlock) in).getInt(i));
                 case LONG -> ((LongBlock.Builder) builder).appendLong(((LongBlock) in).getLong(i));

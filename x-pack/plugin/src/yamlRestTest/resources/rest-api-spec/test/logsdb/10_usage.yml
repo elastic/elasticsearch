@@ -1,0 +1,70 @@
+---
+logsdb usage:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              mode: logsdb
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo" }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar" }
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb.available: true }
+  - match: { logsdb.indices_count: 1 }
+  - match: { logsdb.indices_with_synthetic_source: 1 }
+  - match: { logsdb.num_docs: 2 }
+  - gt:    { logsdb.size_in_bytes: 0}
+
+  - do:
+      indices.create:
+        index: test2
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo" }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz" }
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb.available: true }
+  - match: { logsdb.indices_count: 1 }
+  - match: { logsdb.indices_with_synthetic_source: 1 }
+  - match: { logsdb.num_docs: 2 }
+  - gt:    { logsdb.size_in_bytes: 0}
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping.source.mode: stored
+
+  - do:
+      bulk:
+        index: test3
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foobar"}
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb.available: true }
+  - match: { logsdb.indices_count: 2 }
+  - match: { logsdb.indices_with_synthetic_source: 1 }
+  - match: { logsdb.num_docs: 3 }
+  - gt:    { logsdb.size_in_bytes: 0}

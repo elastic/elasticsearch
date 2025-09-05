@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.scroll;
@@ -46,7 +47,7 @@ public class RestSearchScrollActionTests extends ESTestCase {
                 public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
                     scrollCalled.set(true);
                     assertThat(request.scrollId(), equalTo("BODY"));
-                    assertThat(request.scroll().keepAlive().getStringRep(), equalTo("1m"));
+                    assertThat(request.scroll().getStringRep(), equalTo("1m"));
                 }
             };
             RestSearchScrollAction action = new RestSearchScrollAction();
@@ -56,7 +57,7 @@ public class RestSearchScrollActionTests extends ESTestCase {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
                 .withContent(new BytesArray("{\"scroll_id\":\"BODY\", \"scroll\":\"1m\"}"), XContentType.JSON)
                 .build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+            FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 0);
             action.handleRequest(request, channel, nodeClient);
 
             assertThat(scrollCalled.get(), equalTo(true));

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.textstructure;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,10 +19,16 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.core.textstructure.action.FindFieldStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindMessageStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.TestGrokPatternAction;
+import org.elasticsearch.xpack.textstructure.rest.RestFindFieldStructureAction;
+import org.elasticsearch.xpack.textstructure.rest.RestFindMessageStructureAction;
 import org.elasticsearch.xpack.textstructure.rest.RestFindStructureAction;
 import org.elasticsearch.xpack.textstructure.rest.RestTestGrokPatternAction;
+import org.elasticsearch.xpack.textstructure.transport.TransportFindFieldStructureAction;
+import org.elasticsearch.xpack.textstructure.transport.TransportFindMessageStructureAction;
 import org.elasticsearch.xpack.textstructure.transport.TransportFindStructureAction;
 import org.elasticsearch.xpack.textstructure.transport.TransportTestGrokPatternAction;
 
@@ -53,14 +57,21 @@ public class TextStructurePlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Arrays.asList(new RestFindStructureAction(), new RestTestGrokPatternAction());
+        return Arrays.asList(
+            new RestFindFieldStructureAction(),
+            new RestFindMessageStructureAction(),
+            new RestFindStructureAction(),
+            new RestTestGrokPatternAction()
+        );
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
-            new ActionHandler<>(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
+            new ActionHandler(FindFieldStructureAction.INSTANCE, TransportFindFieldStructureAction.class),
+            new ActionHandler(FindMessageStructureAction.INSTANCE, TransportFindMessageStructureAction.class),
+            new ActionHandler(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
+            new ActionHandler(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
         );
     }
 }

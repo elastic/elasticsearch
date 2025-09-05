@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -23,6 +24,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -39,7 +41,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     public static final AtomicInteger NEXT_DEBUG_PORT = new AtomicInteger(5007);
 
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
-    private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
 
     public final ForkJoinPool executor = new ForkJoinPool(
         Math.max(Runtime.getRuntime().availableProcessors(), 4),
@@ -63,6 +65,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     public DefaultLocalClusterHandle(String name, List<Node> nodes) {
         this.name = name;
         this.nodes = nodes;
+    }
+
+    @Override
+    public int getNumNodes() {
+        return nodes.size();
     }
 
     @Override
@@ -127,6 +134,19 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     @Override
+    public List<String> getAvailableTransportEndpoints() {
+        final var results = new ArrayList<String>(nodes.size() * 2); // *2 because each node has both IPv4 and IPv6 addresses
+        for (final var node : nodes) {
+            try {
+                results.addAll(node.getAvailableTransportEndpoints());
+            } catch (Exception e) {
+                LOGGER.warn("failure reading available transport endpoints from [{}]", node.getName(), e);
+            }
+        }
+        return results;
+    }
+
+    @Override
     public String getTransportEndpoint(int index) {
         return getTransportEndpoints().split(",")[index];
     }
@@ -170,8 +190,9 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getPid();
     }
 
+    @Override
     public void stopNode(int index, boolean forcibly) {
-        nodes.get(index).stop(false);
+        nodes.get(index).stop(forcibly);
     }
 
     @Override
@@ -216,15 +237,15 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
         String caFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate_authorities", null);
         if (caFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(caFile).toFile());
+            wait.setCertificateAuthorities(node.getConfigDir().resolve(caFile).toFile());
         }
         String sslCertFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate", null);
         if (sslCertFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(sslCertFile).toFile());
+            wait.setCertificateAuthorities(node.getConfigDir().resolve(sslCertFile).toFile());
         }
         String sslKeystoreFile = node.getSpec().getSetting("xpack.security.http.ssl.keystore.path", null);
         if (sslKeystoreFile != null && caFile == null) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(node.getWorkingDir().resolve("config").resolve(sslKeystoreFile).toFile());
+            wait.setTrustStoreFile(node.getConfigDir().resolve(sslKeystoreFile).toFile());
         }
         String keystorePassword = node.getSpec().getSetting("xpack.security.http.ssl.keystore.secure_password", null);
         if (keystorePassword != null) {
@@ -233,7 +254,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     private boolean isSecurityAutoConfigured(Node node) {
-        Path configFile = node.getWorkingDir().resolve("config").resolve("elasticsearch.yml");
+        Path configFile = node.getConfigDir().resolve("elasticsearch.yml");
         try (Stream<String> lines = Files.lines(configFile)) {
             return lines.anyMatch(l -> l.contains("BEGIN SECURITY AUTO CONFIGURATION"));
         } catch (IOException e) {
@@ -245,10 +266,16 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         String transportUris = execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining("\n")));
         execute(() -> nodes.parallelStream().forEach(node -> {
             try {
-                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
-                if (Files.notExists(hostsFile)) {
-                    Files.writeString(hostsFile, transportUris);
+                if (node.getSpec().getPlugins().containsKey("discovery-ec2")) {
+                    // If we're using (i.e. testing) a discovery plugin then suppress the file-based discovery mechanism, to make sure the
+                    // test does not pass spuriously by using file-based discovery.
+                    // TODO find a way to do this without just hard-coding the plugin name here.
+                    LOGGER.info("Skipping writing unicast hosts file for node {}", node.getName());
+                    return;
                 }
+                Path hostsFile = node.getConfigDir().resolve("unicast_hosts.txt");
+                LOGGER.info("Writing unicast hosts file {} for node {}", hostsFile, node.getName());
+                Files.writeString(hostsFile, transportUris);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
             }

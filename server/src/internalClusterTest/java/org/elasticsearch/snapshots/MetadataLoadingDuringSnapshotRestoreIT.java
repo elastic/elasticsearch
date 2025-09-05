@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,6 +26,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -75,7 +78,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "others", 0);
 
         // Getting a snapshot does not load any metadata
-        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots("repository")
+        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "repository")
             .addSnapshots("snap")
             .setVerbose(randomBoolean())
             .get();
@@ -85,7 +88,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "others", 0);
 
         // Getting the status of a snapshot loads indices metadata but not global metadata
-        SnapshotsStatusResponse snapshotStatusResponse = clusterAdmin().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+        SnapshotsStatusResponse snapshotStatusResponse = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "repository")
+            .setSnapshots("snap")
+            .get();
         assertThat(snapshotStatusResponse.getSnapshots(), hasSize(1));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 1);
@@ -94,7 +99,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertAcked(indicesAdmin().prepareDelete("docs", "others"));
 
         // Restoring a snapshot loads indices metadata but not the global state
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repository", "snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snap")
             .setWaitForCompletion(true)
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
@@ -105,7 +110,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertAcked(indicesAdmin().prepareDelete("docs"));
 
         // Restoring a snapshot with selective indices loads only required index metadata
-        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repository", "snap")
+        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snap")
             .setIndices("docs")
             .setWaitForCompletion(true)
             .get();
@@ -117,7 +122,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertAcked(indicesAdmin().prepareDelete("docs", "others"));
 
         // Restoring a snapshot including the global state loads it with the index metadata
-        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repository", "snap")
+        restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snap")
             .setIndices("docs", "oth*")
             .setRestoreGlobalState(true)
             .setWaitForCompletion(true)
@@ -128,7 +133,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "others", 3);
 
         // Deleting a snapshot does not load the global metadata state but loads each index metadata
-        assertAcked(clusterAdmin().prepareDeleteSnapshot("repository", "snap").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snap").get());
         assertGlobalMetadataLoads("snap", 1);
         assertIndexMetadataLoads("snap", "docs", 4);
         assertIndexMetadataLoads("snap", "others", 3);
@@ -173,20 +178,22 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         final Map<String, AtomicInteger> indicesMetadata = new ConcurrentHashMap<>();
 
         public CountingMockRepository(
+            final ProjectId projectId,
             final RepositoryMetadata metadata,
             final Environment environment,
             final NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         @Override
-        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
             globalMetadata.computeIfAbsent(snapshotId.getName(), (s) -> new AtomicInteger(0)).incrementAndGet();
-            return super.getSnapshotGlobalMetadata(snapshotId);
+            return super.getSnapshotGlobalMetadata(snapshotId, fromProjectMetadata);
         }
 
         @Override
@@ -209,11 +216,21 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new CountingMockRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    snapshotMetrics
+                )
             );
         }
     }

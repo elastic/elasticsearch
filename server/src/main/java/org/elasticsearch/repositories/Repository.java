@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories;
 
@@ -11,19 +12,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -31,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -55,13 +59,40 @@ public interface Repository extends LifecycleComponent {
     interface Factory {
         /**
          * Constructs a repository.
-         * @param metadata    metadata for the repository including name and settings
+         *
+         * @param projectId the project-id for the repository or {@code null} if the repository is at the cluster level.
+         * @param metadata  metadata for the repository including name and settings
          */
-        Repository create(RepositoryMetadata metadata) throws Exception;
+        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception;
 
-        default Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
-            return create(metadata);
+        /**
+         * Constructs a repository.
+         * @param projectId   the project-id for the repository or {@code null} if the repository is at the cluster level.
+         * @param metadata    metadata for the repository including name and settings
+         * @param typeLookup  a function that returns the repository factory for the given repository type.
+         */
+        default Repository create(
+            @Nullable ProjectId projectId,
+            RepositoryMetadata metadata,
+            Function<String, Repository.Factory> typeLookup
+        ) throws Exception {
+            return create(projectId, metadata);
         }
+    }
+
+    /**
+     * Get the project-id for the repository.
+     *
+     * @return the project-id, or {@code null} if the repository is at the cluster level.
+     */
+    @Nullable
+    ProjectId getProjectId();
+
+    /**
+     * Get the project qualified repository
+     */
+    default ProjectRepo getProjectRepo() {
+        return new ProjectRepo(getProjectId(), getMetadata().name());
     }
 
     /**
@@ -70,11 +101,24 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot descriptions from the repository.
+     * Reads a collection of {@link SnapshotInfo} instances from the repository.
      *
-     * @param context get-snapshot-info-context
+     * @param snapshotIds    The IDs of the snapshots whose {@link SnapshotInfo} instances should be retrieved.
+     * @param abortOnFailure Whether to stop fetching further {@link SnapshotInfo} instances if a single fetch fails.
+     * @param isCancelled    Supplies whether the enclosing task is cancelled, which should stop fetching {@link SnapshotInfo} instances.
+     * @param consumer       A consumer for each {@link SnapshotInfo} retrieved. Called concurrently from multiple threads. If the consumer
+     *                       throws an exception and {@code abortOnFailure} is {@code true} then the fetching will stop.
+     * @param listener       If {@code abortOnFailure} is {@code true} and any operation fails then the failure is passed to this listener.
+     *                       Also completed exceptionally on cancellation. Otherwise, completed once all requested {@link SnapshotInfo}
+     *                       instances have been processed by the {@code consumer}.
      */
-    void getSnapshotInfo(GetSnapshotInfoContext context);
+    void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    );
 
     /**
      * Reads a single snapshot description from the repository
@@ -83,7 +127,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener   listener to resolve with snapshot description (is resolved on the {@link ThreadPool.Names#SNAPSHOT_META} pool)
      */
     default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
-        getSnapshotInfo(new GetSnapshotInfoContext(List.of(snapshotId), true, () -> false, (context, snapshotInfo) -> {
+        getSnapshotInfo(List.of(snapshotId), true, () -> false, snapshotInfo -> {
             assert Repository.assertSnapshotMetaThread();
             listener.onResponse(snapshotInfo);
         }, new ActionListener<>() {
@@ -96,16 +140,17 @@ public interface Repository extends LifecycleComponent {
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }));
+        });
     }
 
     /**
      * Returns global metadata associated with the snapshot.
      *
-     * @param snapshotId the snapshot id to load the global metadata from
+     * @param snapshotId                 the snapshot id to load the global metadata from
+     * @param fromProjectMetadata        The metadata may need to be constructed by first reading the project metadata
      * @return the global metadata about the snapshot
      */
-    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId);
+    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata);
 
     /**
      * Returns the index metadata associated with the snapshot.
@@ -118,8 +163,8 @@ public interface Repository extends LifecycleComponent {
     IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
-     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots and the indices across all snapshots
-     * found in the repository. Completes the listener with a {@link RepositoryException} if there was an error in reading the data.
+     * Fetches the {@link RepositoryData} and passes it into the listener. May completes the listener with a {@link RepositoryException} if
+     * there is an error in reading the repository data.
      *
      * @param responseExecutor Executor to use to complete the listener if not using the calling thread. Using {@link
      *                         org.elasticsearch.common.util.concurrent.EsExecutors#DIRECT_EXECUTOR_SERVICE} means to complete the listener
@@ -146,24 +191,20 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
      * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
      *                                     format must remain compatible
-     * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
+     * @param repositoryDataUpdateListener listener completed when the {@link RepositoryData} is updated, or when the process fails
+     *                                     without changing the repository contents - in either case, it is now safe for the next operation
+     *                                     on this repository to proceed.
+     * @param onCompletion                 action executed on completion of the cleanup actions that follow a successful
+     *                                     {@link RepositoryData} update; not called if {@code repositoryDataUpdateListener} completes
+     *                                     exceptionally.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     );
-
-    /**
-     * Returns snapshot throttle time in nanoseconds
-     */
-    long getSnapshotThrottleTimeInNanos();
-
-    /**
-     * Returns restore throttle time in nanoseconds
-     */
-    long getRestoreThrottleTimeInNanos();
 
     /**
      * Returns stats on the repository usage
@@ -292,7 +333,25 @@ public interface Repository extends LifecycleComponent {
      */
     void awaitIdle();
 
+    /**
+     * @return a set of the names of the features that this repository instance uses, for reporting in the cluster stats for telemetry
+     *         collection.
+     */
+    default Set<String> getUsageFeatures() {
+        return Set.of();
+    }
+
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
+
+    /**
+     * Get the current count of snapshots in progress
+     *
+     * @return The current number of shard snapshots in progress metric value, or null if this repository doesn't track that
+     */
+    @Nullable
+    LongWithAttributes getShardSnapshotsInProgress();
+
+    RepositoriesStats.SnapshotStats getSnapshotStats();
 }

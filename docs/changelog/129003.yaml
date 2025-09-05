@@ -1,0 +1,5 @@
+pr: 129003
+summary: Allow timeout during trained model download process
+area: Machine Learning
+type: bug
+issues: []

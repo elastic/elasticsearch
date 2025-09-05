@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.NodeStatsLevel;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -31,10 +34,10 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestNodesStatsAction();
+        action = new RestNodesStatsAction(() -> ProjectId.DEFAULT);
     }
 
-    public void testUnrecognizedMetric() throws IOException {
+    public void testUnrecognizedMetric() {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomAlphaOfLength(64);
         params.put("metric", metric);
@@ -46,7 +49,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("request [/_nodes/stats] contains unrecognized metric: [" + metric + "]")));
     }
 
-    public void testUnrecognizedMetricDidYouMean() throws IOException {
+    public void testUnrecognizedMetricDidYouMean() {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "os,transprot,unrecognized");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
@@ -64,9 +67,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
         );
     }
 
-    public void testAllRequestWithOtherMetrics() throws IOException {
+    public void testAllRequestWithOtherMetrics() {
         final HashMap<String, String> params = new HashMap<>();
-        final String metric = randomSubsetOf(1, RestNodesStatsAction.METRICS.keySet()).get(0);
+        final String metric = randomFrom(Metric.ALL_NAMES);
         params.put("metric", "_all," + metric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
@@ -108,9 +111,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
         );
     }
 
-    public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {
+    public void testIndexMetricsRequestWithoutIndicesMetric() {
         final HashMap<String, String> params = new HashMap<>();
-        final Set<String> metrics = new HashSet<>(RestNodesStatsAction.METRICS.keySet());
+        final Set<String> metrics = new HashSet<>(Metric.ALL_NAMES);
         metrics.remove("indices");
         params.put("metric", randomSubsetOf(1, metrics).get(0));
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);
@@ -128,7 +131,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         );
     }
 
-    public void testIndexMetricsRequestOnAllRequest() throws IOException {
+    public void testIndexMetricsRequestOnAllRequest() {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "_all");
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);

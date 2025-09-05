@@ -259,6 +259,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             null,
             null,
             null,
+            false,
             Collections.emptyMap()
         );
         testCase(

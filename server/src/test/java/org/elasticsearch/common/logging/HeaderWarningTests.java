@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.logging;
 
@@ -12,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
@@ -26,10 +26,10 @@ import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class HeaderWarningTests extends ESTestCase {
 
-    private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
+    private static final org.hamcrest.Matcher<String> warningValueMatcher = matchesRegex(WARNING_HEADER_PATTERN);
 
     private final HeaderWarning logger = new HeaderWarning();
 

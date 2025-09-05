@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryInfo;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -24,9 +27,9 @@ import java.util.Map;
 
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
-    protected final RepositoriesMetrics repositoriesMetrics;
 
     public MeteredBlobStoreRepository(
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
@@ -34,10 +37,9 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
         RecoverySettings recoverySettings,
         BlobPath basePath,
         Map<String, String> location,
-        RepositoriesMetrics repositoriesMetrics
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
-        this.repositoriesMetrics = repositoriesMetrics;
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
         this.repositoryInfo = new RepositoryInfo(
             UUIDs.randomBase64UUID(),

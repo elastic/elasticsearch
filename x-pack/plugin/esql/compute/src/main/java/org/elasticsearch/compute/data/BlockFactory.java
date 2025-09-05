@@ -19,10 +19,10 @@ import java.util.BitSet;
 
 public class BlockFactory {
     public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(4);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(8);
 
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(16);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(512);
 
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
@@ -81,7 +81,7 @@ public class BlockFactory {
      * be adjusted without tripping.
      * @throws CircuitBreakingException if the breaker was put above its limit
      */
-    void adjustBreaker(final long delta) throws CircuitBreakingException {
+    public void adjustBreaker(final long delta) throws CircuitBreakingException {
         // checking breaker means potentially tripping, but it doesn't
         // have to if the delta is negative
         if (delta > 0) {
@@ -235,6 +235,58 @@ public class BlockFactory {
         return v;
     }
 
+    public FloatBlock.Builder newFloatBlockBuilder(int estimatedSize) {
+        return new FloatBlockBuilder(estimatedSize, this);
+    }
+
+    public final FloatBlock newFloatArrayBlock(float[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        return newFloatArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
+    }
+
+    public FloatBlock newFloatArrayBlock(float[] values, int pc, int[] fvi, BitSet nulls, MvOrdering mvOrdering, long preAdjustedBytes) {
+        var b = new FloatArrayBlock(values, pc, fvi, nulls, mvOrdering, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    public FloatVector.Builder newFloatVectorBuilder(int estimatedSize) {
+        return new FloatVectorBuilder(estimatedSize, this);
+    }
+
+    /**
+     * Build a {@link FloatVector.FixedBuilder} that never grows.
+     */
+    public FloatVector.FixedBuilder newFloatVectorFixedBuilder(int size) {
+        return new FloatVectorFixedBuilder(size, this);
+    }
+
+    public final FloatVector newFloatArrayVector(float[] values, int positionCount) {
+        return newFloatArrayVector(values, positionCount, 0L);
+    }
+
+    public FloatVector newFloatArrayVector(float[] values, int positionCount, long preAdjustedBytes) {
+        var b = new FloatArrayVector(values, positionCount, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    public final FloatBlock newConstantFloatBlockWith(float value, int positions) {
+        return newConstantFloatBlockWith(value, positions, 0L);
+    }
+
+    public FloatBlock newConstantFloatBlockWith(float value, int positions, long preAdjustedBytes) {
+        var b = new ConstantFloatVector(value, positions, this).asBlock();
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    public FloatVector newConstantFloatVector(float value, int positions) {
+        adjustBreaker(ConstantFloatVector.RAM_BYTES_USED);
+        var v = new ConstantFloatVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantFloatVector.RAM_BYTES_USED;
+        return v;
+    }
+
     public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
         return new LongBlockBuilder(estimatedSize, this);
     }
@@ -378,6 +430,55 @@ public class BlockFactory {
         var b = new ConstantNullBlock(positions, this);
         adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
+        return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
+    }
+
+    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
+        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
+        int positions
+    ) {
+        try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.min() != null) {
+                    builder.min().appendDouble(value.min());
+                } else {
+                    builder.min().appendNull();
+                }
+                if (value.max() != null) {
+                    builder.max().appendDouble(value.max());
+                } else {
+                    builder.max().appendNull();
+                }
+                if (value.sum() != null) {
+                    builder.sum().appendDouble(value.sum());
+                } else {
+                    builder.sum().appendNull();
+                }
+                if (value.count() != null) {
+                    builder.count().appendInt(value.count());
+                } else {
+                    builder.count().appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        double[] minValues,
+        double[] maxValues,
+        double[] sumValues,
+        int[] countValues,
+        int positions
+    ) {
+        DoubleBlock min = newDoubleArrayVector(minValues, positions).asBlock();
+        DoubleBlock max = newDoubleArrayVector(maxValues, positions).asBlock();
+        DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
+        IntBlock count = newIntArrayVector(countValues, positions).asBlock();
+        return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
     /**

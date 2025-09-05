@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +30,7 @@ public record LifecycleExecutionState(
     Boolean isAutoRetryableError,
     Integer failedStepRetryCount,
     String stepInfo,
+    String previousStepInfo,
     String phaseDefinition,
     Long lifecycleDate,
     Long phaseTime,
@@ -36,10 +40,12 @@ public record LifecycleExecutionState(
     String snapshotName,
     String shrinkIndexName,
     String snapshotIndexName,
-    String downsampleIndexName
+    String downsampleIndexName,
+    String forceMergeCloneIndexName
 ) {
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
+    public static final int MAXIMUM_STEP_INFO_STRING_LENGTH = 1024;
 
     private static final String PHASE = "phase";
     private static final String ACTION = "action";
@@ -52,12 +58,14 @@ public record LifecycleExecutionState(
     private static final String IS_AUTO_RETRYABLE_ERROR = "is_auto_retryable_error";
     private static final String FAILED_STEP_RETRY_COUNT = "failed_step_retry_count";
     private static final String STEP_INFO = "step_info";
+    private static final String PREVIOUS_STEP_INFO = "previous_step_info";
     private static final String PHASE_DEFINITION = "phase_definition";
     private static final String SNAPSHOT_NAME = "snapshot_name";
     private static final String SNAPSHOT_REPOSITORY = "snapshot_repository";
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
+    private static final String FORCE_MERGE_CLONE_INDEX_NAME = "force_merge_clone_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
 
@@ -73,6 +81,7 @@ public record LifecycleExecutionState(
             .setIsAutoRetryableError(state.isAutoRetryableError)
             .setFailedStepRetryCount(state.failedStepRetryCount)
             .setStepInfo(state.stepInfo)
+            .setPreviousStepInfo(state.previousStepInfo)
             .setPhaseDefinition(state.phaseDefinition)
             .setIndexCreationDate(state.lifecycleDate)
             .setPhaseTime(state.phaseTime)
@@ -82,7 +91,8 @@ public record LifecycleExecutionState(
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
             .setDownsampleIndexName(state.downsampleIndexName)
-            .setStepTime(state.stepTime);
+            .setStepTime(state.stepTime)
+            .setForceMergeCloneIndexName(state.forceMergeCloneIndexName);
     }
 
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
@@ -105,7 +115,7 @@ public record LifecycleExecutionState(
         }
         String isAutoRetryableError = customData.get(IS_AUTO_RETRYABLE_ERROR);
         if (isAutoRetryableError != null) {
-            builder.setIsAutoRetryableError(Boolean.parseBoolean(isAutoRetryableError));
+            builder.setIsAutoRetryableError(parseIsAutoRetryableError(isAutoRetryableError));
         }
         String failedStepRetryCount = customData.get(FAILED_STEP_RETRY_COUNT);
         if (failedStepRetryCount != null) {
@@ -114,6 +124,10 @@ public record LifecycleExecutionState(
         String stepInfo = customData.get(STEP_INFO);
         if (stepInfo != null) {
             builder.setStepInfo(stepInfo);
+        }
+        String previousStepInfo = customData.get(PREVIOUS_STEP_INFO);
+        if (previousStepInfo != null) {
+            builder.setPreviousStepInfo(previousStepInfo);
         }
         String phaseDefinition = customData.get(PHASE_DEFINITION);
         if (phaseDefinition != null) {
@@ -191,7 +205,18 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             builder.setDownsampleIndexName(downsampleIndexName);
         }
+        String forceMergeCloneIndexName = customData.get(FORCE_MERGE_CLONE_INDEX_NAME);
+        if (forceMergeCloneIndexName != null) {
+            builder.setForceMergeCloneIndexName(forceMergeCloneIndexName);
+        }
         return builder.build();
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
+        return Boolean.parseBoolean(isAutoRetryableError);
     }
 
     /**
@@ -223,6 +248,9 @@ public record LifecycleExecutionState(
         if (stepInfo != null) {
             result.put(STEP_INFO, stepInfo);
         }
+        if (previousStepInfo != null) {
+            result.put(PREVIOUS_STEP_INFO, previousStepInfo);
+        }
         if (lifecycleDate != null) {
             result.put(INDEX_CREATION_DATE, String.valueOf(lifecycleDate));
         }
@@ -253,7 +281,21 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
         }
+        if (forceMergeCloneIndexName != null) {
+            result.put(FORCE_MERGE_CLONE_INDEX_NAME, forceMergeCloneIndexName);
+        }
         return Collections.unmodifiableMap(result);
+    }
+
+    public static String truncateWithExplanation(String input) {
+        if (input != null && input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
+            return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
+                + "... ("
+                + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)
+                + " chars truncated)";
+        } else {
+            return input;
+        }
     }
 
     public static class Builder {
@@ -262,6 +304,7 @@ public record LifecycleExecutionState(
         private String step;
         private String failedStep;
         private String stepInfo;
+        private String previousStepInfo;
         private String phaseDefinition;
         private Long indexCreationDate;
         private Long phaseTime;
@@ -274,6 +317,7 @@ public record LifecycleExecutionState(
         private String shrinkIndexName;
         private String snapshotIndexName;
         private String downsampleIndexName;
+        private String forceMergeCloneIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -296,7 +340,12 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = stepInfo;
+            this.stepInfo = truncateWithExplanation(stepInfo);
+            return this;
+        }
+
+        public Builder setPreviousStepInfo(String previousStepInfo) {
+            this.previousStepInfo = previousStepInfo;
             return this;
         }
 
@@ -360,6 +409,11 @@ public record LifecycleExecutionState(
             return this;
         }
 
+        public Builder setForceMergeCloneIndexName(String forceMergeCloneIndexName) {
+            this.forceMergeCloneIndexName = forceMergeCloneIndexName;
+            return this;
+        }
+
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(
                 phase,
@@ -369,6 +423,7 @@ public record LifecycleExecutionState(
                 isAutoRetryableError,
                 failedStepRetryCount,
                 stepInfo,
+                previousStepInfo,
                 phaseDefinition,
                 indexCreationDate,
                 phaseTime,
@@ -378,7 +433,8 @@ public record LifecycleExecutionState(
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                downsampleIndexName
+                downsampleIndexName,
+                forceMergeCloneIndexName
             );
         }
     }

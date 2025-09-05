@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle.health;
 
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -19,6 +21,7 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -53,6 +56,12 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         DSL_EXPLAIN_HELP_URL
     );
 
+    private final ProjectResolver projectResolver;
+
+    public DataStreamLifecycleHealthIndicatorService(ProjectResolver projectResolver) {
+        this.projectResolver = projectResolver;
+    }
+
     @Override
     public String name() {
         return NAME;
@@ -63,7 +72,7 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo = healthInfo.dslHealthInfo();
         if (dataStreamLifecycleHealthInfo == null) {
             // DSL reports health information on every run, so data will eventually arrive to the health node. In the meantime, let's
-            // report UNKNOWN health
+            // report GREEN health, as there are no errors to report before the first run anyway.
             return createIndicator(
                 HealthStatus.GREEN,
                 "No data stream lifecycle health data available yet. Health information will be reported after the first run.",
@@ -78,32 +87,38 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
             return createIndicator(
                 HealthStatus.GREEN,
                 "Data streams are executing their lifecycles without issues",
-                createDetails(verbose, dataStreamLifecycleHealthInfo),
+                createDetails(verbose, dataStreamLifecycleHealthInfo, projectResolver.supportsMultipleProjects()),
                 List.of(),
                 List.of()
             );
         } else {
             List<String> affectedIndices = stagnatingBackingIndices.stream()
-                .map(DslErrorInfo::indexName)
+                .map(dslErrorInfo -> indexDisplayName(dslErrorInfo, projectResolver.supportsMultipleProjects()))
                 .limit(Math.min(maxAffectedResourcesCount, stagnatingBackingIndices.size()))
                 .collect(toList());
             return createIndicator(
                 HealthStatus.YELLOW,
                 (stagnatingBackingIndices.size() > 1 ? stagnatingBackingIndices.size() + " backing indices have" : "A backing index has")
                     + " repeatedly encountered errors whilst trying to advance in its lifecycle",
-                createDetails(verbose, dataStreamLifecycleHealthInfo),
+                createDetails(verbose, dataStreamLifecycleHealthInfo, projectResolver.supportsMultipleProjects()),
                 STAGNATING_INDEX_IMPACT,
-                List.of(
-                    new Diagnosis(
-                        STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF,
-                        List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices))
+                verbose
+                    ? List.of(
+                        new Diagnosis(
+                            STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF,
+                            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices))
+                        )
                     )
-                )
+                    : List.of()
             );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean verbose, DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo) {
+    private static HealthIndicatorDetails createDetails(
+        boolean verbose,
+        DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo,
+        boolean supportsMultipleProjects
+    ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
         }
@@ -114,12 +129,16 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         if (dataStreamLifecycleHealthInfo.dslErrorsInfo().isEmpty() == false) {
             details.put("stagnating_backing_indices", dataStreamLifecycleHealthInfo.dslErrorsInfo().stream().map(dslError -> {
                 LinkedHashMap<String, Object> errorDetails = new LinkedHashMap<>(3, 1L);
-                errorDetails.put("index_name", dslError.indexName());
+                errorDetails.put("index_name", indexDisplayName(dslError, supportsMultipleProjects));
                 errorDetails.put("first_occurrence_timestamp", dslError.firstOccurrence());
                 errorDetails.put("retry_count", dslError.retryCount());
                 return errorDetails;
             }).toList());
         }
         return new SimpleHealthIndicatorDetails(details);
+    }
+
+    private static String indexDisplayName(DslErrorInfo dslErrorInfo, boolean supportsMultipleProjects) {
+        return new ProjectIndexName(dslErrorInfo.projectId(), dslErrorInfo.indexName()).toString(supportsMultipleProjects);
     }
 }

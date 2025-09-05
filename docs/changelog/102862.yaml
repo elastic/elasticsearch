@@ -1,5 +1,0 @@
-pr: 102862
-summary: Add optional pruning configuration (weighted terms scoring) to text expansion query
-area: "Machine Learning"
-type: enhancement
-issues: []

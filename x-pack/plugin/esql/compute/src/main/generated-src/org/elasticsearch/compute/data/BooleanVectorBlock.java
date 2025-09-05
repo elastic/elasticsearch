@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link BooleanVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
 
@@ -21,7 +25,6 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     BooleanVectorBlock(BooleanVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -31,12 +34,18 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+    @Override
     public boolean getBoolean(int valueIndex) {
         return vector.getBoolean(valueIndex);
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +57,27 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public BooleanBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public BooleanBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BooleanBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

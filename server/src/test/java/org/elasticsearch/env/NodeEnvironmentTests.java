@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -38,10 +39,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
@@ -132,28 +133,30 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             Index index = new Index("foo", "fooUUID");
 
-            var appender = new MockLogAppender();
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "hot threads logging",
-                    NODE_ENVIRONMENT_LOGGER_NAME,
-                    Level.DEBUG,
-                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
-                )
-            );
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "second attempt should be suppressed due to throttling",
-                    NODE_ENVIRONMENT_LOGGER_NAME,
-                    Level.DEBUG,
-                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
-                )
-            );
+            try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation("hot threads logging", NODE_ENVIRONMENT_LOGGER_NAME, Level.DEBUG, """
+                        hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after [*ms]; \
+                        this shard lock is still held by a different instance of the shard and has been in state [1] for [*/*ms]*""")
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "second attempt should be suppressed due to throttling",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "*obtaining shard lock for [3] timed out*"
+                    )
+                );
 
-            try (var ignored = appender.capturing(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 assertEquals(new ShardId(index, 0), lock.getShardId());
 
-                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+                assertThat(
+                    expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2")).getMessage(),
+                    matchesPattern("""
+                        \\[foo]\\[0]: obtaining shard lock for \\[2] timed out after \\[0ms]; \
+                        this shard lock is still held by a different instance of the shard \
+                        and has been in state \\[1] for \\[.*/[0-9]+ms]""")
+                );
 
                 for (Path path : env.indexPaths(index)) {
                     Files.createDirectories(path.resolve("0"));
@@ -164,7 +167,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     () -> env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10))
                 );
 
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             // can lock again?
@@ -358,46 +361,23 @@ public class NodeEnvironmentTests extends ESTestCase {
             flipFlop[i] = new AtomicInteger();
         }
 
-        Thread[] threads = new Thread[randomIntBetween(2, 5)];
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int threads = randomIntBetween(2, 5);
         final int iters = scaledRandomIntBetween(10000, 100000);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        fail(e.getMessage());
+        startInParallel(threads, tid -> {
+            for (int i = 0; i < iters; i++) {
+                int shard = randomIntBetween(0, counts.length - 1);
+                try {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1", scaledRandomIntBetween(0, 10))) {
+                        counts[shard].value++;
+                        countsAtomic[shard].incrementAndGet();
+                        assertEquals(flipFlop[shard].incrementAndGet(), 1);
+                        assertEquals(flipFlop[shard].decrementAndGet(), 0);
                     }
-                    for (int i = 0; i < iters; i++) {
-                        int shard = randomIntBetween(0, counts.length - 1);
-                        try {
-                            try (
-                                ShardLock autoCloses = env.shardLock(
-                                    new ShardId("foo", "fooUUID", shard),
-                                    "1",
-                                    scaledRandomIntBetween(0, 10)
-                                )
-                            ) {
-                                counts[shard].value++;
-                                countsAtomic[shard].incrementAndGet();
-                                assertEquals(flipFlop[shard].incrementAndGet(), 1);
-                                assertEquals(flipFlop[shard].decrementAndGet(), 0);
-                            }
-                        } catch (ShardLockObtainFailedException ex) {
-                            // ok
-                        }
-                    }
+                } catch (ShardLockObtainFailedException ex) {
+                    // ok
                 }
-            };
-            threads[i].start();
-        }
-        latch.countDown(); // fire the threads up
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
-        }
-
+            }
+        });
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         for (int i = 0; i < counts.length; i++) {
             assertTrue(counts[i].value > 0);
@@ -571,7 +551,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     env.nodeId(),
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -601,10 +582,12 @@ public class NodeEnvironmentTests extends ESTestCase {
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
-                    containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
+                    containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
+                            + (previousNodeVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                                ? previousNodeVersion
+                                : Version.CURRENT.minimumCompatibilityVersion())
                             + "]"
                     )
                 )
@@ -659,17 +642,38 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testGetBestDowngradeVersion() {
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.0"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5"), Matchers.equalTo("7.17.5"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.1234"), Matchers.equalTo("7.17.1234"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.18.0"), Matchers.equalTo("7.18.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.x"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5-SNAPSHOT"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.6b"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.16.0"), Matchers.equalTo("7.17.0"));
-        // when we get to version 7.2147483648.0 we will have to rethink our approach, but for now we return 7.17.0 with an integer overflow
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7." + Integer.MAX_VALUE + "0.0"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("foo"), Matchers.equalTo("7.17.0"));
+        int prev = Version.CURRENT.minimumCompatibilityVersion().major;
+        int last = Version.CURRENT.minimumCompatibilityVersion().minor;
+        int old = prev - 1;
+
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
+        assertEquals(Version.CURRENT.major - 1, prev);
+
+        assertEquals(
+            "From an old major, recommend prev.last",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(old + ".0.0")),
+            BuildVersion.fromString(prev + "." + last + ".0")
+        );
+
+        if (last >= 1) {
+            assertEquals(
+                "From an old minor of the previous major, recommend prev.last",
+                NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + (last - 1) + ".0")),
+                BuildVersion.fromString(prev + "." + last + ".0")
+            );
+        }
+
+        assertEquals(
+            "From an old patch of prev.last, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + last + ".1")),
+            BuildVersion.fromString(prev + "." + last + ".1")
+        );
+
+        assertEquals(
+            "From the first version of this major, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(Version.CURRENT.major + ".0.0")),
+            BuildVersion.fromString(Version.CURRENT.major + ".0.0")
+        );
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

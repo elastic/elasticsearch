@@ -8,3 +8,11 @@
   - gte: { stats.databases_count: 0 }
   - gte: { stats.total_download_time: 0 }
   - is_true: nodes
+  - set:
+      nodes._arbitrary_key_: node_id
+  - gte: { nodes.$node_id.cache_stats.count: 0 }
+  - gte: { nodes.$node_id.cache_stats.hits: 0 }
+  - gte: { nodes.$node_id.cache_stats.misses: 0 }
+  - gte: { nodes.$node_id.cache_stats.evictions: 0 }
+  - gte: { nodes.$node_id.cache_stats.hits_time_in_millis: 0 }
+  - gte: { nodes.$node_id.cache_stats.misses_time_in_millis: 0 }

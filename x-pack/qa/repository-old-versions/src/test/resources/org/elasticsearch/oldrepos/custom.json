@@ -1,4 +1,7 @@
 "_default_": {
+  "_field_names": {
+    "enabled": false
+  },
   "properties": {
     "apache2": {
       "properties": {

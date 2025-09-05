@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "name": {
+      "type": "keyword"
+    },
+    "shape": {
+      "type": "shape"
+    }
+  }
+}

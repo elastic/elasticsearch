@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -90,6 +93,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     public void setUpMocks() {
         ThreadPool tp = mock(ThreadPool.class);
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         Settings settings = Settings.builder().put("node.name", "OpenJobPersistentTasksExecutorTests").build();
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,
@@ -100,9 +104,10 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                    MachineLearning.MAX_LAZY_ML_NODES,
+                    MachineLearningField.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                     MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT
@@ -152,7 +157,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     // An index being unavailable should take precedence over waiting for a lazy node
     public void testGetAssignment_GivenUnavailableIndicesWithLazyNode() {
-        Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 1).build();
+        Settings settings = Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1).build();
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
@@ -169,12 +174,12 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation()
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build(), ProjectId.DEFAULT).getExplanation()
         );
     }
 
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
-        Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 0).build();
+        Settings settings = Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 0).build();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -191,7 +196,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build()
+            csBuilder.build(),
+            ProjectId.DEFAULT
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -212,7 +218,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build()
+            csBuilder.build(),
+            ProjectId.DEFAULT
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -306,7 +313,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             client,
             TestIndexNameExpressionResolver.newInstance(),
             licenseState,
-            true
+            mock(AnomalyDetectionAuditor.class)
         );
     }
 }

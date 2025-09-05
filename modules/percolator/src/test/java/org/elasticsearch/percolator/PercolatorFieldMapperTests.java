@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -22,6 +23,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -30,7 +32,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
@@ -206,7 +208,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("doc", new CompressedXContent(mapper), MergeReason.MAPPING_UPDATE);
     }
 
     private void addQueryFieldMappings() throws Exception {
@@ -223,7 +225,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
         fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
     }
 
@@ -415,10 +417,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateCandidateQuery() throws Exception {
-        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
+        int origMaxClauseCount = IndexSearcher.getMaxClauseCount();
         try {
             final int maxClauseCount = 100;
-            BooleanQuery.setMaxClauseCount(maxClauseCount);
+            IndexSearcher.setMaxClauseCount(maxClauseCount);
             addQueryFieldMappings();
 
             MemoryIndex memoryIndex = new MemoryIndex(false);
@@ -433,8 +435,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader);
             assertTrue(t.v2());
             assertEquals(2, t.v1().clauses().size());
-            assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
-            assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
+            assertThat(t.v1().clauses().get(0).query(), instanceOf(CoveringQuery.class));
+            assertThat(t.v1().clauses().get(1).query(), instanceOf(TermQuery.class));
 
             // Now push it over the edge, so that it falls back using TermInSetQuery
             memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
@@ -442,12 +444,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             t = fieldType.createCandidateQuery(indexReader);
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
-            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
-            assertEquals(maxClauseCount - 1, terms.getTermData().size());
-            assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
-            assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
+            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();
+            assertEquals(maxClauseCount - 1, terms.getTermsCount());
+            assertThat(t.v1().clauses().get(1).query().toString(), containsString(fieldName + ".range_field:<ranges:"));
+            assertThat(t.v1().clauses().get(2).query().toString(), containsString(fieldName + ".extraction_result:failed"));
         } finally {
-            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
+            IndexSearcher.setMaxClauseCount(origMaxClauseCount);
         }
     }
 
@@ -699,7 +701,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> indexServiceWithoutSettings.mapperService()
-                .merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE)
+                .merge("doc", new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE)
         );
         assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
@@ -722,7 +724,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper()
@@ -763,7 +765,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper()
@@ -912,7 +914,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapperService.parseMapping("type1", new CompressedXContent(mapping))
+            () -> mapperService.parseMapping("type1", MergeReason.MAPPING_UPDATE, new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
     }
@@ -1209,7 +1211,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

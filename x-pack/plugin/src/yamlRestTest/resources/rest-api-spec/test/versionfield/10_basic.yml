@@ -3,9 +3,9 @@
 ---
 setup:
 
-  - skip:
-      features: headers
-      version: " - 7.10.0"
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v7.10.1"]
       reason: "version field is added to 7.10"
 
   - do:

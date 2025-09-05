@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -51,8 +54,9 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             );
         }
         return new FetchSubPhaseProcessor() {
+            record ScorerAndIterator(Scorer scorer, DocIdSetIterator approximation, TwoPhaseIterator twoPhase) {}
 
-            final Map<String, Scorer> matchingIterators = new HashMap<>();
+            final Map<String, ScorerAndIterator> matchingIterators = new HashMap<>();
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
@@ -62,7 +66,14 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                     if (ss != null) {
                         Scorer scorer = ss.get(0L);
                         if (scorer != null) {
-                            matchingIterators.put(entry.getKey(), scorer);
+                            final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
+                            final DocIdSetIterator iterator;
+                            if (twoPhase == null) {
+                                iterator = scorer.iterator();
+                            } else {
+                                iterator = twoPhase.approximation();
+                            }
+                            matchingIterators.put(entry.getKey(), new ScorerAndIterator(scorer, iterator, twoPhase));
                         }
                     }
                 }
@@ -72,13 +83,13 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             public void process(HitContext hitContext) throws IOException {
                 Map<String, Float> matches = new LinkedHashMap<>();
                 int doc = hitContext.docId();
-                for (Map.Entry<String, Scorer> entry : matchingIterators.entrySet()) {
-                    Scorer scorer = entry.getValue();
-                    if (scorer.iterator().docID() < doc) {
-                        scorer.iterator().advance(doc);
+                for (Map.Entry<String, ScorerAndIterator> entry : matchingIterators.entrySet()) {
+                    ScorerAndIterator query = entry.getValue();
+                    if (query.approximation.docID() < doc) {
+                        query.approximation.advance(doc);
                     }
-                    if (scorer.iterator().docID() == doc) {
-                        matches.put(entry.getKey(), scorer.score());
+                    if (query.approximation.docID() == doc && (query.twoPhase == null || query.twoPhase.matches())) {
+                        matches.put(entry.getKey(), query.scorer.score());
                     }
                 }
                 hitContext.hit().matchedQueries(matches);

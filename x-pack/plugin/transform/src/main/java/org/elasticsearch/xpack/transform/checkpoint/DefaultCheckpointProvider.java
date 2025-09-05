@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.RemoteClusterResolver.ResolvedIndices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -116,6 +117,12 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
             ActionListener<Map<String, long[]>> groupedListener = listener;
 
+            if (resolvedIndexes.numClusters() == 0) {
+                var indices = String.join(",", transformConfig.getSource().getIndex());
+                listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
+                return;
+            }
+
             if (resolvedIndexes.numClusters() > 1) {
                 ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
                     listener.onResponse(
@@ -147,7 +154,13 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 String cluster = remoteIndex.getKey();
                 getCheckpointsFromOneCluster(
                     threadContext,
-                    CheckpointClient.remote(client.getRemoteClusterClient(cluster, EsExecutors.DIRECT_EXECUTOR_SERVICE)),
+                    CheckpointClient.remote(
+                        client.getRemoteClusterClient(
+                            cluster,
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                        )
+                    ),
                     timeout,
                     transformConfig.getHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),
@@ -228,10 +241,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         );
         ActionListener<GetCheckpointAction.Response> checkpointListener;
         if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
-            checkpointListener = ActionListener.wrap(
-                checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()),
-                listener::onFailure
-            );
+            checkpointListener = listener.safeMap(GetCheckpointAction.Response::getCheckpoints);
         } else {
             checkpointListener = ActionListener.wrap(
                 checkpointResponse -> listener.onResponse(
@@ -272,7 +282,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         ActionListener<Map<String, long[]>> listener
     ) {
         // 1st get index to see the indexes the user has access to
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(indices)
+        GetIndexRequest getIndexRequest = new GetIndexRequest(Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT).indices(indices)
             .features(new GetIndexRequest.Feature[0])
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
@@ -395,12 +405,12 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
         long timestamp = clock.millis();
 
-        getIndexCheckpoints(timeout, ActionListener.wrap(checkpointsByIndex -> {
+        getIndexCheckpoints(timeout, listener.delegateFailure((l, checkpointsByIndex) -> {
             TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
             checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
             checkpointingInfoBuilder.setOperationsBehind(TransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
-            listener.onResponse(checkpointingInfoBuilder);
-        }, listener::onFailure));
+            l.onResponse(checkpointingInfoBuilder);
+        }));
     }
 
     @Override

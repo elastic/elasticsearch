@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
@@ -16,9 +17,13 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -85,7 +90,9 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
 
     public void testDiversifiedSampler() throws Exception {
         Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+        iwc.setMergePolicy(new LogDocMergePolicy());
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, iwc);
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
         writeBooks(indexWriter);
         indexWriter.close();
@@ -163,7 +170,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             "price",
             IndexNumericFieldData.NumericType.DOUBLE,
             CoreValuesSourceType.NUMERIC,
-            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n),
+            false
         );
         FunctionScoreQuery query = new FunctionScoreQuery(
             new MatchAllDocsQuery(),

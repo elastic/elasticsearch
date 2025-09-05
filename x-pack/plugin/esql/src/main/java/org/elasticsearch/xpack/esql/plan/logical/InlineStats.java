@@ -7,61 +7,131 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class InlineStats extends UnaryPlan {
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-    private final List<Expression> groupings;
-    private final List<? extends NamedExpression> aggregates;
+/**
+ * Enriches the stream of data with the results of running a {@link Aggregate STATS}.
+ * <p>
+ *     Maps to a dedicated Join implementation, InlineJoin, which is a left join between the main relation and the
+ *     underlying aggregate.
+ * </p>
+ */
+public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "InlineStats",
+        InlineStats::new
+    );
 
-    public InlineStats(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
-        super(source, child);
-        this.groupings = groupings;
-        this.aggregates = aggregates;
+    private final Aggregate aggregate;
+    private List<Attribute> lazyOutput;
+
+    public InlineStats(Source source, Aggregate aggregate) {
+        super(source, aggregate);
+        this.aggregate = aggregate;
+    }
+
+    public InlineStats(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), (Aggregate) in.readNamedWriteable(LogicalPlan.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(aggregate);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     protected NodeInfo<InlineStats> info() {
-        return NodeInfo.create(this, InlineStats::new, child(), groupings, aggregates);
+        return NodeInfo.create(this, InlineStats::new, aggregate);
     }
 
     @Override
     public InlineStats replaceChild(LogicalPlan newChild) {
-        return new InlineStats(source(), newChild, groupings, aggregates);
+        return new InlineStats(source(), (Aggregate) newChild);
     }
 
-    public List<Expression> groupings() {
-        return groupings;
-    }
-
-    public List<? extends NamedExpression> aggregates() {
-        return aggregates;
+    public Aggregate aggregate() {
+        return aggregate;
     }
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(groupings) && Resolvables.resolved(aggregates);
+        return aggregate.expressionsResolved();
     }
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        if (this.lazyOutput == null) {
+            this.lazyOutput = mergeOutputAttributes(aggregate.output(), aggregate.child().output());
+        }
+        return lazyOutput;
+    }
+
+    // TODO: in case of inlinestats, the join key is always the grouping
+    private JoinConfig joinConfig() {
+        List<Expression> groupings = aggregate.groupings();
+        List<Attribute> namedGroupings = new ArrayList<>(groupings.size());
+        for (Expression g : groupings) {
+            namedGroupings.add(Expressions.attribute(g));
+        }
+        // last named grouping wins, just like it happens for regular STATS
+        // ie BY x = field_1, x = field_2, the grouping is actually performed on second x (field_2)
+        namedGroupings = mergeOutputAttributes(namedGroupings, emptyList());
+
+        List<Attribute> leftFields = new ArrayList<>(groupings.size());
+        List<Attribute> rightFields = new ArrayList<>(groupings.size());
+        List<Attribute> rhsOutput = Join.makeReference(aggregate.output());
+        for (Attribute lhs : namedGroupings) {
+            for (Attribute rhs : rhsOutput) {
+                if (lhs.name().equals(rhs.name())) {
+                    leftFields.add(lhs);
+                    rightFields.add(rhs);
+                    break;
+                }
+            }
+        }
+        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields);
+    }
+
+    @Override
+    public LogicalPlan surrogate() {
+        // left join between the main relation and the local, lookup relation
+        Source source = source();
+        LogicalPlan left = aggregate.child();
+        return new InlineJoin(source, left, InlineJoin.stubSource(aggregate, left), joinConfig());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child());
+        return Objects.hash(aggregate, child());
     }
 
     @Override
@@ -75,8 +145,6 @@ public class InlineStats extends UnaryPlan {
         }
 
         InlineStats other = (InlineStats) obj;
-        return Objects.equals(groupings, other.groupings)
-            && Objects.equals(aggregates, other.aggregates)
-            && Objects.equals(child(), other.child());
+        return Objects.equals(aggregate, other.aggregate);
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
@@ -70,9 +69,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, "/_security/oauth2/token").replaces(DELETE, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(DELETE, "/_security/oauth2/token"));
     }
 
     @Override

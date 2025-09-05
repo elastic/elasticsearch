@@ -11,8 +11,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -68,14 +66,7 @@ public class EqlSearchIT extends ESRestTestCase {
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
 
         String mappings = readResource(EqlSearchIT.class.getResourceAsStream("/eql_mapping.json"));
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build(),
-            mappings
-        );
+        createIndex(index, indexSettings(numShards, numReplicas).build(), mappings);
     }
 
     @After
@@ -416,7 +407,16 @@ public class EqlSearchIT extends ESRestTestCase {
         for (int id : ids) {
             eventIds.add(String.valueOf(id));
         }
-        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+
+        StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\"");
+        if (randomBoolean()) {
+            payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+        }
+        if (randomBoolean()) {
+            payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+        }
+        payload.append("}");
+        request.setJsonEntity(payload.toString());
         assertResponse(query, eventIds, runEql(client, request));
         testedFunctions.add(functionName);
     }

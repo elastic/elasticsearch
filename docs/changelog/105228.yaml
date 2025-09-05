@@ -1,6 +1,0 @@
-pr: 105228
-summary: Downsampling better handle if source index isn't allocated and fix bug in
-  retrieving last processed tsid
-area: Downsampling
-type: bug
-issues: []

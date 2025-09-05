@@ -28,19 +28,16 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public class LearningToRankRescorer implements Rescorer {
 
+    private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
     public static final LearningToRankRescorer INSTANCE = new LearningToRankRescorer();
     private static final Logger logger = LogManager.getLogger(LearningToRankRescorer.class);
-
-    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
-        int cmp = Float.compare(o2.score, o1.score);
-        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
-    };
 
     private LearningToRankRescorer() {
 
@@ -56,22 +53,16 @@ public class LearningToRankRescorer implements Rescorer {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
 
-        if (rescoreContext.getWindowSize() < topDocs.scoreDocs.length) {
-            throw new IllegalArgumentException(
-                "Rescore window is too small and should be at least the value of from + size but was ["
-                    + rescoreContext.getWindowSize()
-                    + "]"
-            );
-        }
-
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
-        // First take top slice of incoming docs, to be rescored:
-        TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
+        // Because scores of the first-pass query and the LTR model are not comparable, there is no way to combine the results.
+        // We will truncate the {@link TopDocs} to the window size so rescoring will be done on the full topDocs.
+        topDocs = Rescorer.topN(topDocs, rescoreContext.getWindowSize());
+
         // Save doc IDs for which rescoring was applied to be used in score explanation
-        Set<Integer> topNDocIDs = Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
-        rescoreContext.setRescoredDocs(topNDocIDs);
-        ScoreDoc[] hitsToRescore = topNFirstPass.scoreDocs;
+        Set<Integer> topDocIDs = Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
+        rescoreContext.setRescoredDocs(topDocIDs);
+        ScoreDoc[] hitsToRescore = topDocs.scoreDocs;
         Arrays.sort(hitsToRescore, Comparator.comparingInt(a -> a.doc));
         int hitUpto = 0;
         int readerUpto = -1;
@@ -81,9 +72,14 @@ public class LearningToRankRescorer implements Rescorer {
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
         List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
-        List<Map<String, Object>> docFeatures = new ArrayList<>(topNDocIDs.size());
+        List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
+        int count = 0;
         while (hitUpto < hitsToRescore.length) {
+            if (count % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
+            count++;
             final ScoreDoc hit = hitsToRescore[hitUpto];
             final int docID = hit.doc;
             while (docID >= endDoc) {
@@ -111,6 +107,9 @@ public class LearningToRankRescorer implements Rescorer {
             hitUpto++;
         }
         for (int i = 0; i < hitsToRescore.length; i++) {
+            if (i % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
             Map<String, Object> features = docFeatures.get(i);
             try {
                 InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learningToRankConfig);
@@ -135,20 +134,57 @@ public class LearningToRankRescorer implements Rescorer {
     @Override
     public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext, Explanation sourceExplanation)
         throws IOException {
-        // TODO: Call infer again but with individual feature importance values and explaining the model (which features are used, etc.)
-        return null;
-    }
-
-    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
-     *  topN. */
-    private static TopDocs topN(TopDocs in, int topN) {
-        if (in.scoreDocs.length < topN) {
-            return in;
+        if (sourceExplanation == null) {
+            return Explanation.noMatch("no match found");
         }
 
-        ScoreDoc[] subset = new ScoreDoc[topN];
-        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+        LearningToRankRescorerContext ltrContext = (LearningToRankRescorerContext) rescoreContext;
+        LocalModel localModelDefinition = ltrContext.regressionModelDefinition;
 
-        return new TopDocs(in.totalHits, subset);
+        if (localModelDefinition == null) {
+            throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
+        }
+
+        List<LeafReaderContext> leaves = ltrContext.executionContext.searcher().getIndexReader().leaves();
+
+        int endDoc = 0;
+        int readerUpto = -1;
+        LeafReaderContext currentSegment = null;
+
+        while (topLevelDocId >= endDoc) {
+            readerUpto++;
+            currentSegment = leaves.get(readerUpto);
+            endDoc = currentSegment.docBase + currentSegment.reader().maxDoc();
+        }
+
+        assert currentSegment != null : "Unexpected null segment";
+
+        int targetDoc = topLevelDocId - currentSegment.docBase;
+
+        List<FeatureExtractor> featureExtractors = ltrContext.buildFeatureExtractors(searcher);
+        int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
+
+        Map<String, Object> features = Maps.newMapWithExpectedSize(featureSize);
+
+        for (FeatureExtractor featureExtractor : featureExtractors) {
+            featureExtractor.setNextReader(currentSegment);
+            featureExtractor.addFeatures(features, targetDoc);
+        }
+
+        // Predicting the value
+        var ltrScore = ((Number) localModelDefinition.inferLtr(features, ltrContext.learningToRankConfig).predictedValue()).floatValue();
+
+        List<Explanation> featureExplanations = new ArrayList<>();
+        for (String featureName : features.keySet()) {
+            Number featureValue = Objects.requireNonNullElse((Number) features.get(featureName), 0);
+            featureExplanations.add(Explanation.match(featureValue, "feature value for [" + featureName + "]"));
+        }
+
+        return Explanation.match(
+            ltrScore,
+            "rescored using LTR model " + ltrContext.regressionModelDefinition.getModelId(),
+            Explanation.match(sourceExplanation.getValue(), "first pass query score", sourceExplanation),
+            Explanation.match(0f, "extracted features", featureExplanations)
+        );
     }
 }

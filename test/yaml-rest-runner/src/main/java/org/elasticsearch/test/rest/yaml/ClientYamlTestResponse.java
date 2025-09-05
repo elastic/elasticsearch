@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -49,6 +50,9 @@ public class ClientYamlTestResponse {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 // skip parsing if we got text back (e.g. if we called _cat apis)
                 if (bodyContentType != null) {
+                    if (bytes.length == 0) {
+                        throw new IllegalArgumentException("Empty body is invalid for content-type [" + contentType + "]");
+                    }
                     this.parsedResponse = ObjectPath.createFromXContent(bodyContentType.xContent(), new BytesArray(bytes));
                 }
                 this.body = bytes;
@@ -149,8 +153,9 @@ public class ClientYamlTestResponse {
     /**
      * Parses the response body and extracts a specific value from it (identified by the provided path)
      */
-    public Object evaluate(String path) throws IOException {
-        return evaluate(path, Stash.EMPTY);
+    @SuppressWarnings("unchecked")
+    public <T> T evaluate(String path) throws IOException {
+        return (T) evaluate(path, Stash.EMPTY);
     }
 
     /**

@@ -59,7 +59,7 @@ public record RealmDomain(String name, Set<RealmConfig.RealmIdentifier> realms) 
     }
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<RealmDomain, Void> REALM_DOMAIN_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RealmDomain, Void> REALM_DOMAIN_PARSER = new ConstructingObjectParser<>(
         "realm_domain",
         false,
         (args, v) -> new RealmDomain((String) args[0], Set.copyOf((List<RealmConfig.RealmIdentifier>) args[1]))

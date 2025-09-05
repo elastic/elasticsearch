@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
@@ -15,7 +16,6 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -119,7 +119,7 @@ public final class OrdinalsBuilder implements Closeable {
         }
 
         // Current position
-        private PagedGrowableWriter positions;
+        private final PagedGrowableWriter positions;
         // First level (0) of ordinals and pointers to the next level
         private final GrowableWriter firstOrdinals;
         private PagedGrowableWriter firstNextLevelSlices;
@@ -368,7 +368,7 @@ public final class OrdinalsBuilder implements Closeable {
      * Closes this builder and release all resources.
      */
     @Override
-    public void close() throws IOException {
+    public void close() {
         ordinals = null;
     }
 }

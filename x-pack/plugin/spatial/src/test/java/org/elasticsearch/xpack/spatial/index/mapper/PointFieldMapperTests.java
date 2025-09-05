@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.document.XYDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -22,7 +25,9 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -43,7 +48,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected void assertXYPointField(IndexableField field, float x, float y) {
         // Unfortunately XYPointField and parent classes like IndexableField do not define equals, so we use toString
-        assertThat(field.toString(), is(new XYPointField(FIELD_NAME, 2000.1f, 305.6f).toString()));
+        assertThat(field.toString(), is(new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 2000.1f, 305.6f).toString()));
     }
 
     /** The GeoJSON parser used by 'point' and 'geo_point' mimic the required fields of the GeoJSON parser */
@@ -170,7 +175,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value(1.3).value(1.2).endArray());
         ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(3));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(2));
     }
 
     public void testArrayArrayStored() throws Exception {
@@ -357,7 +362,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [point] mappers has no effect");
     }
 
     @Override
@@ -419,7 +424,112 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
+        return new SyntheticSourceSupport() {
+            private final boolean ignoreZValue = usually();
+            private final CartesianPoint nullValue = usually() ? null : randomCartesianPoint();
+
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                if (randomBoolean()) {
+                    Value v = generateValue();
+                    return new SyntheticSourceExample(v.representation(), v.representation(), this::mapping);
+                }
+                List<Value> values = randomList(1, maxVals, this::generateValue);
+                var representations = values.stream().map(Value::representation).toList();
+
+                return new SyntheticSourceExample(representations, representations, this::mapping);
+            }
+
+            private record Value(CartesianPoint point, Object representation) {}
+
+            private Value generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return new Value(nullValue, null);
+                }
+
+                if (ignoreMalformed && randomBoolean()) {
+                    // #exampleMalformedValues() covers a lot of cases
+
+                    // nice complex object
+                    return new Value(null, Map.of("one", 1, "two", List.of(2, 22, 222), "three", Map.of("three", 33)));
+                }
+
+                CartesianPoint point = randomCartesianPoint();
+                return new Value(point, randomInputFormat(point));
+            }
+
+            private CartesianPoint randomCartesianPoint() {
+                Point point = GeometryTestUtils.randomPoint(false);
+                return decode(encode(new CartesianPoint(point.getLat(), point.getLon())));
+            }
+
+            private Object randomInputFormat(CartesianPoint point) {
+                return switch (randomInt(4)) {
+                    case 0 -> Map.of("x", point.getX(), "y", point.getY());
+                    case 1 -> new double[] { point.getX(), point.getY() };
+                    case 2 -> "POINT( " + point.getX() + " " + point.getY() + " )";
+                    case 3 -> point.toString();
+                    default -> {
+                        List<Double> coords = new ArrayList<>();
+                        coords.add(point.getX());
+                        coords.add(point.getY());
+                        if (ignoreZValue) {
+                            coords.add(randomDouble());
+                        }
+                        yield Map.of("coordinates", coords, "type", "point");
+                    }
+                };
+            }
+
+            private long encode(CartesianPoint point) {
+                return new XYDocValuesField("f", (float) point.getX(), (float) point.getY()).numericValue().longValue();
+            }
+
+            private CartesianPoint decode(long point) {
+                double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
+                double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
+                return new CartesianPoint(lat, lon);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "point");
+                if (ignoreZValue == false || rarely()) {
+                    b.field("ignore_z_value", ignoreZValue);
+                }
+                if (nullValue != null) {
+                    b.field("null_value", randomInputFormat(nullValue));
+                }
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
     @Override
@@ -427,11 +537,20 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         throw new AssumptionViolatedException("not supported");
     }
 
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "1,1", "1,2", "1,3" };
+    }
+
     @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        // TODO: Support testing both reading from source as well as reading from doc-values
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        PointFieldMapper.PointFieldType point = (PointFieldMapper.PointFieldType) ft;
-        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), false, mapper, loaderFieldName);
+    protected Object[] getThreeEncodedSampleValues() {
+        return new Object[] {
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 1f).numericValue(),
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 2f).numericValue(),
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 3f).numericValue() };
+    }
+
+    @Override
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
     }
 }

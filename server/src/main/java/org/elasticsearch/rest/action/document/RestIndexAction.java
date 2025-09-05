@@ -1,23 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.streams.StreamType;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
@@ -26,25 +34,29 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.action.document.RestBulkAction.FAILURE_STORE_STATUS_CAPABILITY;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
+    private final Set<String> capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY);
+    private final ClusterService clusterService;
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestIndexAction(ClusterService clusterService, ProjectIdResolver projectIdResolver) {
+        this.clusterService = clusterService;
+        this.projectIdResolver = projectIdResolver;
+    }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/{index}/_doc/{id}"),
-            new Route(PUT, "/{index}/_doc/{id}"),
-            Route.builder(POST, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/{index}/_doc/{id}"), new Route(PUT, "/{index}/_doc/{id}"));
     }
 
     @Override
@@ -55,6 +67,10 @@ public class RestIndexAction extends BaseRestHandler {
     @ServerlessScope(Scope.PUBLIC)
     public static final class CreateHandler extends RestIndexAction {
 
+        public CreateHandler(ClusterService clusterService, ProjectIdResolver projectIdResolver) {
+            super(clusterService, projectIdResolver);
+        }
+
         @Override
         public String getName() {
             return "document_create_action";
@@ -62,12 +78,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_create/{id}"),
-                new Route(PUT, "/{index}/_create/{id}"),
-                Route.builder(POST, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-                Route.builder(PUT, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-            );
+            return List.of(new Route(POST, "/{index}/_create/{id}"), new Route(PUT, "/{index}/_create/{id}"));
         }
 
         @Override
@@ -87,10 +98,8 @@ public class RestIndexAction extends BaseRestHandler {
     @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
-        private final Supplier<DiscoveryNodes> nodesInCluster;
-
-        public AutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
-            this.nodesInCluster = nodesInCluster;
+        public AutoIdHandler(ClusterService clusterService, ProjectIdResolver projectIdResolver) {
+            super(clusterService, projectIdResolver);
         }
 
         @Override
@@ -100,10 +109,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_doc"),
-                Route.builder(POST, "/{index}/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-            );
+            return List.of(new Route(POST, "/{index}/_doc"));
         }
 
         @Override
@@ -117,15 +123,16 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            request.param("type"); // consume and ignore the type
-        }
+        ReleasableBytesReference source = request.requiredContent();
+        String index = request.param("index");
 
-        IndexRequest indexRequest = new IndexRequest(request.param("index"));
+        validateStreamsParamRestrictions(request, index);
+
+        IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.requiredContent(), request.getXContentType());
+        indexRequest.source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -134,6 +141,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
         indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
         indexRequest.setRequireDataStream(request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, indexRequest.isRequireDataStream()));
+        indexRequest.setIncludeSourceOnError(RestUtils.getIncludeSourceOnError(request));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -143,10 +151,42 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(sOpType);
         }
 
-        return channel -> client.index(
-            indexRequest,
-            new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
-        );
+        return channel -> {
+            source.mustIncRef();
+            client.index(
+                indexRequest,
+                ActionListener.releaseAfter(
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                    source
+                )
+            );
+        };
     }
 
+    private void validateStreamsParamRestrictions(RestRequest request, String index) {
+        ProjectMetadata projectMetadata = null;
+
+        for (StreamType streamType : StreamType.values()) {
+            if (index.equals(streamType.getStreamName())) {
+                if (projectMetadata == null) {
+                    projectMetadata = clusterService.state().projectState(projectIdResolver.getProjectId()).metadata();
+                }
+
+                if (streamType.streamTypeIsEnabled(projectMetadata)
+                    && Sets.difference(request.params().keySet(), TransportAbstractBulkAction.STREAMS_ALLOWED_PARAMS).isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        "When writing to a stream, only the following parameters are allowed: ["
+                            + String.join(", ", TransportAbstractBulkAction.STREAMS_ALLOWED_PARAMS)
+                            + "] however the following were used: "
+                            + request.params().keySet()
+                    );
+                }
+            }
+        }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return capabilities;
+    }
 }

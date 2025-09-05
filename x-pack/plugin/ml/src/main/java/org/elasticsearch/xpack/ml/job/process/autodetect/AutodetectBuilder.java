@@ -209,9 +209,9 @@ public class AutodetectBuilder {
         // createTempFile has a race condition where it may return the same
         // temporary file name to different threads if called simultaneously
         // from multiple threads, hence add the thread ID to avoid this
-        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpDir());
         Path stateFile = Files.createTempFile(
-            env.tmpFile(),
+            env.tmpDir(),
             jobId + "_quantiles_" + Thread.currentThread().getId(),
             QUANTILES_FILE_EXTENSION
         );
@@ -227,8 +227,8 @@ public class AutodetectBuilder {
         if (scheduledEvents.isEmpty()) {
             return;
         }
-        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
-        Path eventsConfigFile = Files.createTempFile(env.tmpFile(), "eventsConfig", JSON_EXTENSION);
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpDir());
+        Path eventsConfigFile = Files.createTempFile(env.tmpDir(), "eventsConfig", JSON_EXTENSION);
         filesToDelete.add(eventsConfigFile);
 
         List<ScheduledEventToRuleWriter> scheduledEventToRuleWriters = scheduledEvents.stream()
@@ -252,8 +252,8 @@ public class AutodetectBuilder {
     }
 
     private void buildJobConfig(List<String> command) throws IOException {
-        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
-        Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpDir());
+        Path configFile = Files.createTempFile(env.tmpDir(), "config", JSON_EXTENSION);
         filesToDelete.add(configFile);
         try (
             OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile), StandardCharsets.UTF_8);
@@ -271,8 +271,8 @@ public class AutodetectBuilder {
         if (referencedFilters.isEmpty()) {
             return;
         }
-        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
-        Path filtersConfigFile = Files.createTempFile(env.tmpFile(), "filtersConfig", JSON_EXTENSION);
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpDir());
+        Path filtersConfigFile = Files.createTempFile(env.tmpDir(), "filtersConfig", JSON_EXTENSION);
         filesToDelete.add(filtersConfigFile);
 
         try (

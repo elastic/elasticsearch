@@ -7,27 +7,49 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
  * Sine trigonometric function.
  */
 public class Sin extends AbstractTrigonometricFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sin", Sin::new);
 
-    @FunctionInfo(returnType = "double", description = "Returns the trigonometric sine of an angle")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Sine_and_cosine[sine] of an angle.",
+        examples = @Example(file = "floats", tag = "sin")
+    )
     public Sin(
         Source source,
-        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
+        @Param(
+            name = "angle",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
+    }
+
+    private Sin(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

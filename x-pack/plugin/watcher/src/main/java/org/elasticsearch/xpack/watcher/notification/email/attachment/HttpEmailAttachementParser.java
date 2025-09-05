@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -84,7 +85,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
 
         HttpResponse response = webhookService.modifyAndExecuteHttpRequest(httpRequest).v2();
         // check for status 200, only then append attachment
-        if (response.status() >= 200 && response.status() < 300) {
+        if (RestStatus.isSuccessful(response.status())) {
             if (response.hasContent()) {
                 String contentType = attachment.getContentType();
                 String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();

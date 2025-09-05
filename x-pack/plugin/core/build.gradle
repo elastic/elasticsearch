@@ -1,14 +1,20 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 base {
@@ -16,11 +22,11 @@ base {
 }
 
 esplugin {
-  name 'x-pack-core'
-  description 'Elasticsearch Expanded Pack Plugin - Core'
-  classname 'org.elasticsearch.xpack.core.XPackPlugin'
-  hasNativeController false
-  requiresKeystore false
+  name = 'x-pack-core'
+  description = 'Elasticsearch Expanded Pack Plugin - Core'
+  classname ='org.elasticsearch.xpack.core.XPackPlugin'
+  hasNativeController =false
+  requiresKeystore =false
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -35,8 +41,8 @@ configurations {
 
 dependencies {
   compileOnly project(":server")
-  api project(':libs:elasticsearch-grok')
-  api project(":libs:elasticsearch-ssl-config")
+  api project(':libs:grok')
+  api project(":libs:ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
@@ -46,15 +52,16 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:mapper-extras')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
-  api "com.nimbusds:nimbus-jose-jwt:9.23"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -63,7 +70,7 @@ dependencies {
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests
-  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.4')
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.6')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false
@@ -87,17 +94,17 @@ tasks.named("processResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     exclude '**/public.key'
     inputs.properties(expansions)
-    filter("tokens" : expansions, ReplaceTokens.class)
+    filter("tokens": expansions, ReplaceTokens.class)
   }
   String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
-  } else if (BuildParams.isSnapshotBuild()) {
+  } else if (buildParams.snapshotBuild) {
     licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
-  File licenseKeyFile = rootProject.file(licenseKey)
+  File licenseKeyFile = layout.settingsDirectory.file(licenseKey).asFile
   if (licenseKeyFile.exists() == false) {
     throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }
@@ -125,34 +132,14 @@ sourceSets.test.resources {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          //commons-logging optional dependencies
-          'org.apache.avalon.framework.logger.Logger',
-          'org.apache.log.Hierarchy',
-          'org.apache.log.Logger',
-          //commons-logging provided dependencies
-          'javax.servlet.ServletContextEvent',
-          'javax.servlet.ServletContextListener',
-          'javax.jms.Message',
-          // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-          'com.google.crypto.tink.subtle.Ed25519Sign',
-          'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-          'com.google.crypto.tink.subtle.Ed25519Verify',
-          'com.google.crypto.tink.subtle.X25519',
-          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
-          // optional dependencies for nimbus-jose-jwt
-          'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
-          'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
-          'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-          'org.bouncycastle.cert.X509CertificateHolder',
-          'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-          'org.bouncycastle.crypto.InvalidCipherTextException',
-          'org.bouncycastle.crypto.engines.AESEngine',
-          'org.bouncycastle.crypto.modes.GCMBlockCipher',
-          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-          'org.bouncycastle.jce.provider.BouncyCastleProvider',
-          'org.bouncycastle.openssl.PEMKeyPair',
-          'org.bouncycastle.openssl.PEMParser',
-          'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
+    //commons-logging optional dependencies
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    //commons-logging provided dependencies
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'javax.jms.Message'
   )
 }
 
@@ -162,17 +149,25 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'default'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  //disabling ILM history as it disturbs testDSXpackUsage test
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+tasks.named("javaRestTest") {
+  usesDefaultDistribution("uses the _xpack api")
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm) {
   // Test clusters run with security disabled
-  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("javaRestTest").configure { enabled = false }
 }
+
+//this specific test requires a test only system property to be set, so we run it in a different JVM via a separate task
+tasks.register('testAutomatonPatterns', Test) {
+  include '**/AutomatonPatternsTests.class'
+  systemProperty 'tests.automaton.record.patterns', 'true'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named('test').configure {
+  exclude '**/AutomatonPatternsTests.class'
+}
+
+tasks.named("check").configure { dependsOn "testAutomatonPatterns" }

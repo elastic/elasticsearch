@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -29,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesRequest {
+class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements IndicesRequest {
 
     private final List<ShardId> shardIds;
     private final String[] fields;
@@ -56,7 +57,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         } else {
             includeEmptyFields = true;
@@ -144,7 +145,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
     }
@@ -157,7 +158,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("shards[");
-        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", 1024, stringBuilder);
         return completeDescription(stringBuilder, fields, filters, allowedTypes, includeEmptyFields);
     }
 
@@ -169,11 +170,11 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         boolean includeEmptyFields
     ) {
         stringBuilder.append("], fields[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", 1024, stringBuilder);
         stringBuilder.append("], filters[");
-        Strings.collectionToDelimitedString(Arrays.asList(filters), ",", "", "", stringBuilder);
+        Strings.collectionToDelimitedString(Arrays.asList(filters), ",", stringBuilder);
         stringBuilder.append("], types[");
-        Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ",", "", "", stringBuilder);
+        Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ",", stringBuilder);
         stringBuilder.append("], includeEmptyFields[");
         stringBuilder.append(includeEmptyFields);
         stringBuilder.append("]");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -18,11 +19,13 @@ import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class LambdaMatchersTests extends ESTestCase {
@@ -55,11 +58,13 @@ public class LambdaMatchersTests extends ESTestCase {
         assertThat(new A("1"), transformedMatch(a -> a.str, equalTo("1")));
         assertThat(new B("1"), transformedMatch((A a) -> a.str, equalTo("1")));
 
+        assertMismatch((A) null, transformedMatch(A::toString, anything()), is("was null"));
         assertMismatch(new A("1"), transformedMatch(a -> a.str, emptyString()), equalTo("transformed value was \"1\""));
     }
 
     public void testTransformDescription() {
-        assertDescribeTo(transformedMatch((A a) -> a.str, emptyString()), equalTo("transformed to match an empty string"));
+        assertDescribeTo(transformedMatch((A a) -> a.str, emptyString()), equalTo("transformed value matches an empty string"));
+        assertDescribeTo(transformedMatch("str field", (A a) -> a.str, emptyString()), equalTo("str field matches an empty string"));
     }
 
     public void testListTransformMatcher() {
@@ -70,14 +75,23 @@ public class LambdaMatchersTests extends ESTestCase {
         assertMismatch(
             as,
             transformedItemsMatch(a -> a.str, containsInAnyOrder("1", "2", "4")),
-            equalTo("transformed item not matched: \"3\"")
+            equalTo("transformed items not matched: \"3\"")
+        );
+        assertMismatch(
+            as,
+            transformedItemsMatch("str field", a -> a.str, containsInAnyOrder("1", "2", "4")),
+            equalTo("str field not matched: \"3\"")
         );
     }
 
     public void testListTransformDescription() {
         assertDescribeTo(
             transformedItemsMatch((A a) -> a.str, containsInAnyOrder("1")),
-            equalTo("iterable with transformed items to match iterable with items [\"1\"] in any order")
+            equalTo("iterable with transformed items matching iterable with items [\"1\"] in any order")
+        );
+        assertDescribeTo(
+            transformedItemsMatch("str field", (A a) -> a.str, containsInAnyOrder("1")),
+            equalTo("iterable with str field matching iterable with items [\"1\"] in any order")
         );
     }
 
@@ -88,14 +102,23 @@ public class LambdaMatchersTests extends ESTestCase {
         assertMismatch(
             as,
             transformedArrayItemsMatch(a -> a.str, arrayContainingInAnyOrder("1", "2", "4")),
-            equalTo("transformed item not matched: \"3\"")
+            equalTo("transformed items not matched: \"3\"")
+        );
+        assertMismatch(
+            as,
+            transformedArrayItemsMatch("str field", a -> a.str, arrayContainingInAnyOrder("1", "2", "4")),
+            equalTo("str field not matched: \"3\"")
         );
     }
 
     public void testArrayTransformDescription() {
         assertDescribeTo(
             transformedArrayItemsMatch((A a) -> a.str, arrayContainingInAnyOrder("1")),
-            equalTo("array with transformed items to match [\"1\"] in any order")
+            equalTo("array with transformed items matching [\"1\"] in any order")
+        );
+        assertDescribeTo(
+            transformedArrayItemsMatch("str field", (A a) -> a.str, arrayContainingInAnyOrder("1")),
+            equalTo("array with str field matching [\"1\"] in any order")
         );
     }
 

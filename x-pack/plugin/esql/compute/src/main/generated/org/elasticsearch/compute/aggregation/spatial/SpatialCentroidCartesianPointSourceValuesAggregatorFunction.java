@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,7 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -63,33 +64,84 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
   }
 
   @Override
-  public void addRawInput(Page page) {
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
+    BytesRefVector wkbVector = wkbBlock.asVector();
+    if (wkbVector == null) {
+      addRawBlock(wkbBlock, mask);
+      return;
+    }
+    addRawVector(wkbVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
+    BytesRefVector wkbVector = wkbBlock.asVector();
+    if (wkbVector == null) {
+      addRawBlock(wkbBlock);
+      return;
+    }
+    addRawVector(wkbVector);
+  }
+
+  private void addRawVector(BytesRefVector wkbVector) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(BytesRefVector wkbVector, BooleanVector mask) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawBlock(BytesRefBlock wkbBlock) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int p = 0; p < wkbBlock.getPositionCount(); p++) {
+      if (wkbBlock.isNull(p)) {
+        continue;
+      }
+      int wkbStart = wkbBlock.getFirstValueIndex(p);
+      int wkbEnd = wkbStart + wkbBlock.getValueCount(p);
+      for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
+        BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
+        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
+      }
+    }
+  }
+
+  private void addRawBlock(BytesRefBlock wkbBlock, BooleanVector mask) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int p = 0; p < wkbBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      if (wkbBlock.isNull(p)) {
+        continue;
+      }
+      int wkbStart = wkbBlock.getFirstValueIndex(p);
+      int wkbEnd = wkbStart + wkbBlock.getValueCount(p);
+      for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
+        BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
+        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
       }
     }
   }

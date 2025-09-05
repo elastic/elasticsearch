@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
@@ -24,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
@@ -46,11 +52,72 @@ public abstract class RemoteClusterAware {
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
+    protected String getNodeName() {
+        return nodeName;
+    }
+
     /**
      * Returns remote clusters that are enabled in these settings
      */
     protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        return RemoteConnectionStrategy.getRemoteClusters(settings);
+        return RemoteClusterSettings.getRemoteClusters(settings);
+    }
+
+    /**
+     * Check whether the index expression represents remote index or not.
+     * The index name is assumed to be individual index (no commas) but can contain `-`, wildcards,
+     * datemath, remote cluster name and any other syntax permissible in index expression component.
+     */
+    public static boolean isRemoteIndexName(String indexExpression) {
+        if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
+            // This is date math, but even if it is not, the remote can't start with '<'.
+            // Thus, whatever it is, this is definitely not a remote index.
+            return false;
+        }
+        int idx = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        // Check to make sure the remote cluster separator ':' isn't actually a selector separator '::'
+        boolean isSelector = indexExpression.startsWith(SelectorResolver.SELECTOR_SEPARATOR, idx);
+        // Note remote index name also can not start with ':'
+        return idx > 0 && isSelector == false;
+    }
+
+    /**
+     * @param indexExpression expects a single index expression at a time (not a csv list of expression)
+     * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+     */
+    public static String parseClusterAlias(String indexExpression) {
+        assert indexExpression != null : "Must not pass null indexExpression";
+        String[] parts = splitIndexName(indexExpression.trim());
+        if (parts[0] == null) {
+            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        } else {
+            return parts[0];
+        }
+    }
+
+    /**
+     * Split the index name into remote cluster alias and index name.
+     * The index expression is assumed to be individual index (no commas) but can contain `-`, wildcards,
+     * datemath, remote cluster name and any other syntax permissible in index expression component.
+     * There's no guarantee the components actually represent existing remote cluster or index, only
+     * rudimentary checks are done on the syntax.
+     */
+    public static String[] splitIndexName(String indexExpression) {
+        if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
+            // This is date math, but even if it is not, the remote can't start with '<'.
+            // Thus, whatever it is, this is definitely not a remote index.
+            return new String[] { null, indexExpression };
+        }
+        int i = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        if (i == 0) {
+            throw new IllegalArgumentException("index name [" + indexExpression + "] is invalid because the remote part is empty");
+        }
+        if (i < 0 || indexExpression.startsWith(SelectorResolver.SELECTOR_SEPARATOR, i)) {
+            // Either no colon present, or the colon was a part of a selector separator (::)
+            return new String[] { null, indexExpression };
+        } else {
+            return new String[] { indexExpression.substring(0, i), indexExpression.substring(i + 1) };
+        }
     }
 
     /**
@@ -76,24 +143,37 @@ public abstract class RemoteClusterAware {
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
-            // since datemath expression after evaluation should not contain ':' symbol
-            String probe = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (i >= 0) {
+            // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
+            String[] split = splitIndexName(index);
+            if (split[0] != null) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
-                int startIdx = index.charAt(0) == '-' ? 1 : 0;
-                String remoteClusterName = index.substring(startIdx, i);
-                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
-                String indexName = index.substring(i + 1);
-                if (startIdx == 1) {
+                String remoteClusterName = split[0];
+                String indexName = split[1];
+                boolean isNegative = remoteClusterName.startsWith("-");
+                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(
+                    remoteClusterNames,
+                    isNegative ? remoteClusterName.substring(1) : remoteClusterName
+                );
+                if (isNegative) {
+                    Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+                    indexName = indexAndSelector.v1();
+                    String selectorString = indexAndSelector.v2();
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must specify the '*' wildcard for " + "the index expression, but found: [%s]",
+                                "To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [%s]",
                                 indexName
+                            )
+                        );
+                    }
+                    if (selectorString != null) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "To exclude a cluster you must not specify the a selector, but found selector: [%s]",
+                                selectorString
                             )
                         );
                     }
@@ -152,15 +232,15 @@ public abstract class RemoteClusterAware {
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
         List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
+            RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
+            RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+            SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
+            SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
+            ProxyConnectionStrategySettings.PROXY_ADDRESS,
+            ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategySettings.SERVER_NAME
         );
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }

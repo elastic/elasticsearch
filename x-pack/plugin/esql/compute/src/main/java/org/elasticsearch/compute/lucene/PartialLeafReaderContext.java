@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 
 /**
  * A subset of a {@link LeafReaderContext}.
@@ -16,6 +17,10 @@ import org.apache.lucene.index.LeafReaderContext;
  * @param maxDoc one more than the last document
  */
 public record PartialLeafReaderContext(LeafReaderContext leafReaderContext, int minDoc, int maxDoc) {
+    public PartialLeafReaderContext(IndexSearcher.LeafReaderContextPartition partition) {
+        this(partition.ctx, partition.minDocId, partition.maxDocId);
+    }
+
     public PartialLeafReaderContext(LeafReaderContext leafReaderContext) {
         this(leafReaderContext, 0, leafReaderContext.reader().maxDoc());
     }

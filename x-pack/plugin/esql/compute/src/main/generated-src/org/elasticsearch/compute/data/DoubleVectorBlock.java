@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link DoubleVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {
 
@@ -21,7 +25,6 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     DoubleVectorBlock(DoubleVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +39,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +51,27 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     @Override
     public DoubleBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public DoubleBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public DoubleBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

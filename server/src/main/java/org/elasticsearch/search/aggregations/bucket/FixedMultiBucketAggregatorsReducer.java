@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -23,15 +24,13 @@ import java.util.List;
 public abstract class FixedMultiBucketAggregatorsReducer<B extends MultiBucketsAggregation.Bucket> implements Releasable {
 
     // we could use an ObjectArray here but these arrays are in normally small, so it is not worthy
-    private final MultiBucketAggregatorsReducer[] bucketsReducer;
-    private final List<B> protoList;
+    private final List<BucketReducer<B>> bucketReducer;
 
     public FixedMultiBucketAggregatorsReducer(AggregationReduceContext reduceContext, int size, List<B> protoList) {
         reduceContext.consumeBucketsAndMaybeBreak(protoList.size());
-        this.protoList = protoList;
-        this.bucketsReducer = new MultiBucketAggregatorsReducer[protoList.size()];
+        this.bucketReducer = new ArrayList<>(protoList.size());
         for (int i = 0; i < protoList.size(); ++i) {
-            bucketsReducer[i] = new MultiBucketAggregatorsReducer(reduceContext, size);
+            bucketReducer.add(new BucketReducer<>(protoList.get(i), reduceContext, size));
         }
     }
 
@@ -40,10 +39,9 @@ public abstract class FixedMultiBucketAggregatorsReducer<B extends MultiBucketsA
      * of the list passed on the constructor
      */
     public final void accept(List<B> buckets) {
-        assert buckets.size() == protoList.size();
-        int i = 0;
-        for (B bucket : buckets) {
-            bucketsReducer[i++].accept(bucket);
+        assert buckets.size() == bucketReducer.size();
+        for (int i = 0; i < buckets.size(); i++) {
+            bucketReducer.get(i).accept(buckets.get(i));
         }
     }
 
@@ -51,19 +49,17 @@ public abstract class FixedMultiBucketAggregatorsReducer<B extends MultiBucketsA
      * returns the reduced buckets.
      */
     public final List<B> get() {
-        final List<B> reduceBuckets = new ArrayList<>(protoList.size());
-        for (int i = 0; i < protoList.size(); i++) {
-            final B proto = protoList.get(i);
-            final MultiBucketAggregatorsReducer reducer = bucketsReducer[i];
-            reduceBuckets.add(createBucket(proto, reducer.getDocCount(), reducer.get()));
+        final List<B> reduceBuckets = new ArrayList<>(bucketReducer.size());
+        for (final BucketReducer<B> reducer : bucketReducer) {
+            reduceBuckets.add(createBucket(reducer.getProto(), reducer.getDocCount(), reducer.getAggregations()));
         }
         return reduceBuckets;
     }
 
-    protected abstract B createBucket(B proto, long focCount, InternalAggregations aggregations);
+    protected abstract B createBucket(B proto, long docCount, InternalAggregations aggregations);
 
     @Override
     public final void close() {
-        Releasables.close(bucketsReducer);
+        Releasables.close(bucketReducer);
     }
 }

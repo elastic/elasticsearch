@@ -1,0 +1,8 @@
+{
+    "properties" : {
+        "full_name" : {
+            "type" : "constant_keyword",
+            "value" : "foo"
+        }
+    }
+}

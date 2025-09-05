@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PrefixCodedTerms;
-import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -21,14 +19,14 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,6 +34,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -44,17 +43,20 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -197,6 +199,22 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
+     *
+     * @return true if this field contains vector embeddings.
+     */
+    public boolean isVectorEmbedding() {
+        return false;
+    }
+
+    /**
+     * @return true if field has script values.
+     */
+    public boolean hasScriptValues() {
+        return false;
+    }
+
+    /**
      * @return a list of dimension fields. Expected to be used by fields that have
      * nested fields or that, in some way, identify a collection of fields by means
      * of a top level field (like flattened fields).
@@ -210,6 +228,13 @@ public abstract class MappedFieldType {
      */
     public TimeSeriesParams.MetricType getMetricType() {
         return null;
+    }
+
+    /**
+     * Returns the default highlighter type to use when highlighting the field.
+     */
+    public String getDefaultHighlighter() {
+        return DefaultHighlighter.NAME;
     }
 
     /** Generates a query that will only match documents that contain the given value.
@@ -235,8 +260,9 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (Object value : values) {
+        for (Object value : dedupe) {
             builder.add(termQuery(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
@@ -306,6 +332,19 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /**
+     * Similar to wildcardQuery, except that we change the behavior for ESQL
+     * to behave like a string LIKE query, where the value is matched as a string
+     */
+    public Query wildcardLikeQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitve,
+        SearchExecutionContext context
+    ) {
+        return wildcardQuery(value, method, caseInsensitve, context);
+    }
+
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -347,8 +386,25 @@ public abstract class MappedFieldType {
         );
     }
 
+    /**
+     * Returns a Lucene pushable Query for the current field
+     * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
+     */
+    public Query automatonQuery(
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        throw new QueryShardException(
+            context,
+            "Can only use automaton queries on keyword fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+        if (hasDocValues() || (isIndexed() && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
@@ -429,6 +485,30 @@ public abstract class MappedFieldType {
      * Create a wildcard {@link IntervalsSource} for the given pattern.
      */
     public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a regexp {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a range {@link IntervalsSource} for the given ranges
+     */
+    public IntervalsSource rangeIntervals(
+        BytesRef lowerTerm,
+        BytesRef upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(
             "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
@@ -552,29 +632,6 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Extract a {@link Term} from a query created with {@link #termQuery} by
-     * recursively removing {@link BoostQuery} wrappers.
-     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
-     */
-    public static Term extractTerm(Query termQuery) {
-        while (termQuery instanceof BoostQuery) {
-            termQuery = ((BoostQuery) termQuery).getQuery();
-        }
-        if (termQuery instanceof TermInSetQuery tisQuery) {
-            PrefixCodedTerms terms = tisQuery.getTermData();
-            if (terms.size() == 1) {
-                TermIterator it = terms.iterator();
-                BytesRef term = it.next();
-                return new Term(it.field(), term);
-            }
-        }
-        if (termQuery instanceof TermQuery == false) {
-            throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
-        }
-        return ((TermQuery) termQuery).getTerm();
-    }
-
-    /**
      * Get the metadata associated with this field.
      */
     public Map<String, String> meta() {
@@ -622,16 +679,26 @@ public abstract class MappedFieldType {
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
     public void validateMatchedRoutingPath(String routingPath) {
-        throw new IllegalArgumentException(
-            "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
-                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                + "without the [script] parameter. ["
-                + name()
-                + "] was ["
-                + typeName()
-                + "]."
-        );
+        if (hasScriptValues()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] has a [script] parameter."
+            );
+        }
+
+        if (isDimension() == false) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path "
+                    + "must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] was not a dimension."
+            );
+        }
     }
 
     /**
@@ -644,12 +711,7 @@ public abstract class MappedFieldType {
      * @return {@code true} if field is present in fieldInfos {@code false} otherwise
      */
     public boolean fieldHasValue(FieldInfos fieldInfos) {
-        for (FieldInfo fieldInfo : fieldInfos) {
-            if (fieldInfo.getName().equals(name())) {
-                return true;
-            }
-        }
-        return false;
+        return fieldInfos.fieldInfo(name()) != null;
     }
 
     /**
@@ -666,9 +728,19 @@ public abstract class MappedFieldType {
          */
         DOC_VALUES,
         /**
+         *  Loads the field by extracting the extent from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS,
+        /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE
+        NONE,
+        /**
+         * Prefer loading from stored fields like {@code _source} because we're
+         * loading many fields. The {@link MappedFieldType} can chose a different
+         * method to load the field if it needs to.
+         */
+        STORED;
     }
 
     /**
@@ -679,6 +751,11 @@ public abstract class MappedFieldType {
          * The name of the index.
          */
         String indexName();
+
+        /**
+         * The index settings of the index
+         */
+        IndexSettings indexSettings();
 
         /**
          * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means

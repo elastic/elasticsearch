@@ -210,8 +210,7 @@ setup:
 ---
 "Test geo_centroid aggregation on geo_shape shapes with grouping":
   - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/95147"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/95147"
   - do:
       search:
         rest_total_hits_as_int: true

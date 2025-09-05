@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -102,14 +103,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             subAggCollectMode,
             showTermDocCountError,
             cardinality,
-            metadata) -> {
+            metadata,
+            excludeDeletedDocs) -> {
             ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
             ExecutionMode execution = null;
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint);
+            } else {
+                if (matchNoDocs(context, parent) && bucketCountThresholds.getMinDocCount() > 0) {
+                    execution = ExecutionMode.MAP;
+                }
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource.hasOrdinals() == false || matchNoDocs(context, parent)) {
+            if (valuesSource.hasOrdinals() == false) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
@@ -145,7 +151,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 showTermDocCountError,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }
@@ -168,7 +175,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             subAggCollectMode,
             showTermDocCountError,
             cardinality,
-            metadata) -> {
+            metadata,
+            excludeDeletedDocs) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                 throw new IllegalArgumentException(
@@ -191,12 +199,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToDoubleFilter();
                 }
-                resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+                resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError, agg);
             } else {
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
                 }
-                resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+                resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError, agg);
             }
             return new NumericTermsAggregator(
                 name,
@@ -211,7 +219,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 longFilter,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }
@@ -223,6 +232,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
+    private final boolean excludeDeletedDocs;
 
     TermsAggregatorFactory(
         String name,
@@ -237,7 +247,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        TermsAggregatorSupplier aggregatorSupplier
+        TermsAggregatorSupplier aggregatorSupplier,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
@@ -247,6 +258,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;
         this.showTermDocCountError = showTermDocCountError;
+        this.excludeDeletedDocs = excludeDeletedDocs;
     }
 
     @Override
@@ -325,7 +337,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             collectMode,
             showTermDocCountError,
             cardinality,
-            metadata
+            metadata,
+            excludeDeletedDocs
         );
     }
 
@@ -384,7 +397,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
@@ -393,7 +407,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     name,
                     factories,
                     new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig),
-                    a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource()),
+                    a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource(), a),
                     order,
                     valuesSourceConfig.format(),
                     bucketCountThresholds,
@@ -403,7 +417,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         },
@@ -422,7 +437,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                boolean excludeDeletedDocs
             ) throws IOException {
 
                 assert valuesSourceConfig.getValuesSource() instanceof ValuesSource.Bytes.WithOrdinals;
@@ -433,7 +449,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (maxOrd > 0
                     && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
                     && context.enableRewriteToFilterByFilter()
-                    && false == context.isInSortOrderExecutionRequired()) {
+                    && false == context.isInSortOrderExecutionRequired()
+                    && false == excludeDeletedDocs) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -498,10 +515,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         bucketCountThresholds,
                         context,
                         parent,
-                        false,
                         subAggCollectMode,
                         showTermDocCountError,
-                        metadata
+                        metadata,
+                        excludeDeletedDocs
                     );
 
                 }
@@ -547,7 +564,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         };
@@ -580,7 +598,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             SubAggCollectionMode subAggCollectMode,
             boolean showTermDocCountError,
             CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            boolean excludeDeletedDocs
         ) throws IOException;
 
         @Override

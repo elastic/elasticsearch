@@ -58,6 +58,12 @@
             }
           }
         },
+        "last_known_status": {
+          "type": "keyword"
+        },
+        "unhealthy_reason": {
+          "type": "keyword"
+        },
         "components": {
           "type": "object",
           "enabled": false
@@ -93,7 +99,16 @@
                     "snapshot": {
                       "type": "boolean"
                     },
+                    "complete": {
+                      "type": "boolean"
+                    },
                     "upgradeable": {
+                      "type": "boolean"
+                    },
+                    "unprivileged": {
+                      "type": "boolean"
+                    },
+                    "fips": {
                       "type": "boolean"
                     },
                     "version": {
@@ -304,11 +319,23 @@
         "upgrade_status": {
           "type": "keyword"
         },
+        "upgrade_attempts": {
+          "type": "date"
+        },
         "user_provided_metadata": {
           "type": "object",
           "enabled": false
         },
         "tags": {
+          "type": "keyword"
+        },
+        "namespaces": {
+          "type": "keyword"
+        },
+        "audit_unenrolled_time": {
+          "type": "date"
+        },
+        "audit_unenrolled_reason": {
           "type": "keyword"
         }
       }

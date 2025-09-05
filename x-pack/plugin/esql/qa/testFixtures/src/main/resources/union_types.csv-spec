@@ -1415,62 +1415,6 @@ null           | aaaaa        | 1.2.3.4         | 210
 null           | bbbbb        | 2.1             | 210
 ;
 
-inlineStatsUnionGroup-Ignore
-required_capability: union_types
-required_capability: inlinestats
-
-FROM sample_data, sample_data_ts_long
-| INLINESTATS count = COUNT(*)
-           BY @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
-| SORT client_ip ASC, @timestamp ASC
-| LIMIT 4
-;
-
-client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
-  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
-  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
-;
-
-inlineStatsUnionGroupWithEval-Ignore
-required_capability: union_types
-required_capability: inlinestats
-
-FROM sample_data, sample_data_ts_long
-| EVAL @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
-| INLINESTATS count = COUNT(*) BY @timestamp
-| SORT client_ip ASC, @timestamp ASC
-| LIMIT 4
-;
-
-client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
-  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
-  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
-;
-
-inlineStatsUnionGroupTogether-Ignore
-required_capability: union_types
-required_capability: inlinestats
-
-FROM sample_data, sample_data_ts_long
-| INLINESTATS count = COUNT(*)
-           BY @timestamp = TO_STRING(TO_DATETIME(@timestamp))
-| SORT client_ip ASC, @timestamp ASC
-| LIMIT 4
-;
-
-client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keyword    | count:long
-  172.21.0.5 |             1232382 | Disconnected          | 2023-10-23T13:33:34.937Z | 2
-  172.21.0.5 |             1232382 | Disconnected          | 2023-10-23T13:33:34.937Z | 2
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 2023-10-23T12:27:28.948Z | 2
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 2023-10-23T12:27:28.948Z | 2
-;
-
-# Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
-
 multiIndexIndirectUseOfUnionTypesInSort
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
@@ -1645,18 +1589,6 @@ foo:long | client_ip:ip
  8268153 | 172.21.3.15
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlineStats-Ignore
-required_capability: union_types
-required_capability: inlinestats
-FROM sample_data, sample_data_ts_long
-| INLINESTATS foo = max(event_duration)
-| SORT client_ip ASC
-| LIMIT 1
-;
-
-@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:long
-           null        | 172.21.0.5   |             1232382 | Disconnected    |  8268153
-;
 
 multiIndexIndirectUseOfUnionTypesInLookup-Ignore
 required_capability: union_types

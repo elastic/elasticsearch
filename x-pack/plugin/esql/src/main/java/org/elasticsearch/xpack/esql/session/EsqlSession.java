@@ -377,7 +377,7 @@ public class EsqlSession {
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
         SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis, requestFilter, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))

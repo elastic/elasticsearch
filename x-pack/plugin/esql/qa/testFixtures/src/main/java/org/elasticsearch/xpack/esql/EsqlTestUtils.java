@@ -132,6 +132,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
@@ -548,23 +549,17 @@ public final class EsqlTestUtils {
     }
 
     public static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(values, row -> toList(row, Function.identity()));
     }
 
     public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.iterator().forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.iterator().forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(values.iterator(), row -> toList(row.iterator(), Function.identity()));
+    }
+
+    private static <E, T> List<T> toList(Iterator<E> iterable, Function<E, T> transformer) {
+        var list = new ArrayList<T>();
+        iterable.forEachRemaining(e -> list.add(transformer.apply(e)));
+        return list;
     }
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {

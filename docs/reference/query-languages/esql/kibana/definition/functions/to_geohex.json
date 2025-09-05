@@ -57,5 +57,5 @@
     "ROW string = \"841f059ffffffff\"\n| EVAL geohex = TO_GEOHEX(string)"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

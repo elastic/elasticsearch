@@ -158,7 +158,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
                         }
                         case EXPONENTIAL_HISTOGRAM -> {
-                            mvOrdering = Block.MvOrdering.UNORDERED; // histograms no not support ordering
+                            mvOrdering = Block.MvOrdering.UNORDERED; // histograms do not support ordering
                             ExponentialHistogramBlockBuilder b = (ExponentialHistogramBlockBuilder) builder;
                             ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
                             b.append(histogram);

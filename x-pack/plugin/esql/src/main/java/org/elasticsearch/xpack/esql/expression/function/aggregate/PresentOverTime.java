@@ -27,7 +27,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 /**
- * Similar to {@link Present}, but it is used to check the presence of values over a time series from the given field.
+ * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
 public class PresentOverTime extends TimeSeriesAggregateFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

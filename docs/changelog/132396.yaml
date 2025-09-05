@@ -1,5 +1,5 @@
 pr: 132396
-summary: DiskBBQ - Adapt `nProbe` based on query - segment affinity in multi segment
+summary: DiskBBQ - Adapt `visitRatio` based on query - segment affinity in multi segment
   scenario
 area: Vector Search
 type: enhancement

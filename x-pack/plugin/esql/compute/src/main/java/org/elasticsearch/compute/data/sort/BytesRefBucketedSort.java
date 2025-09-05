@@ -210,9 +210,9 @@ public class BytesRefBucketedSort implements Releasable {
 
                 // If we are in the gathering mode, we need to heapify before sorting.
                 if (common.inHeapMode(bucket) == false) {
-                    heapify(rootIndex, (int) size);
+                    heapify(start, (int) size);
                 }
-                heapSort(rootIndex, (int) size);
+                heapSort(start, (int) size);
 
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {

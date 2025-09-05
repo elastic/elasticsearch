@@ -241,10 +241,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                 throwUpperBoundFailure(
                     upperBound,
-                    "modifies base id from "
-                        + existingUpperBound.definitionId().base()
-                        + " to "
-                        + upperBound.definitionId().base()
+                    "modifies base id from " + existingUpperBound.definitionId().base() + " to " + upperBound.definitionId().base()
                 );
             }
         }
@@ -266,12 +263,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
 
             if (getShouldValidateDensity().get() && previous.id().complete() - 1 != current.id().complete()) {
                 throw new IllegalStateException(
-                    "Transport version base id "
-                        + base
-                        + " is missing patch ids between "
-                        + current.id()
-                        + " and "
-                        + previous.id()
+                    "Transport version base id " + base + " is missing patch ids between " + current.id() + " and " + previous.id()
                 );
             }
             previous = current;

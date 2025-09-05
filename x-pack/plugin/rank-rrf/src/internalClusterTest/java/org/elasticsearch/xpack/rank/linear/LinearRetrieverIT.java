@@ -175,7 +175,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
 
         // all requests would have an equal weight and use the identity normalizer
         source.retriever(
@@ -233,7 +242,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -302,7 +320,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -393,7 +420,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                     ),
                     // this one bring just doc 7 which should be ranked first eventually with a score of 100
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null),
+                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null, null),
                         null
                     )
                 ),
@@ -447,7 +474,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -537,7 +573,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
         // with scores 1, 0.5, 0.05882353, 0.03846154
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
         // doc 1: 10
         // doc 2: 9 + 20 + 1 = 30
@@ -764,6 +809,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             10,
             10,
             null,
+            null,
             null
         );
         source.retriever(
@@ -816,8 +862,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 throw new IllegalStateException("Should not be called");
             }
         };
-        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null);
-        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
+        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new LinearRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10

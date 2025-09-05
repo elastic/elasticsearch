@@ -266,11 +266,20 @@ public class RandomSearchRequestGenerator {
                 }
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
+                Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
                 RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
                     ? null
                     : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
                 knnSearchBuilders.add(
-                    new KnnSearchBuilder(field, vector, k, numCands, rescoreVectorBuilder, randomBoolean() ? null : randomFloat())
+                    new KnnSearchBuilder(
+                        field,
+                        vector,
+                        k,
+                        numCands,
+                        visitPercentage,
+                        rescoreVectorBuilder,
+                        randomBoolean() ? null : randomFloat()
+                    )
                 );
             }
             builder.knnSearch(knnSearchBuilders);

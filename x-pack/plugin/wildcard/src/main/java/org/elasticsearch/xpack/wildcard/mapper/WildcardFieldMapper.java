@@ -956,7 +956,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
+                return new BlockDocValuesReader.BytesRefsFromCustomBinaryBlockLoader(name());
             }
             return null;
         }

@@ -719,6 +719,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
+            if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
+                checkForRemoteClusters(input, source(ctx), "FORK");
+            }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };

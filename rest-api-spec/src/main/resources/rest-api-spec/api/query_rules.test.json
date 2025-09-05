@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-test",
       "description": "Test a query ruleset"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
       "accept": [

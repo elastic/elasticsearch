@@ -4,8 +4,8 @@
       "url":"https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-migration",
       "description":"Get the migration reindexing status"
     },
-    "stability":"experimental",
-    "visibility":"private",
+    "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

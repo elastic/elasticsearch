@@ -48,6 +48,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -205,20 +206,23 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testIncrementalBulkMissingContent() {
-        assertThrows(
-            ElasticsearchParseException.class,
-            () -> new RestBulkAction(
-                Settings.EMPTY,
-                ClusterSettings.createBuiltInClusterSettings(),
-                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
-            ).handleRequest(
-                new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                    .withContentLength(0)
-                    .withBody(new FakeHttpBodyStream())
-                    .build(),
-                mock(RestChannel.class),
-                mock(NodeClient.class)
-            )
+        assertEquals(
+            "request body is required",
+            assertThrows(
+                ElasticsearchParseException.class,
+                () -> new RestBulkAction(
+                    Settings.EMPTY,
+                    ClusterSettings.createBuiltInClusterSettings(),
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withContentLength(0)
+                        .withBody(new FakeHttpBodyStream())
+                        .build(),
+                    mock(RestChannel.class),
+                    mock(NodeClient.class)
+                )
+            ).getMessage()
         );
     }
 

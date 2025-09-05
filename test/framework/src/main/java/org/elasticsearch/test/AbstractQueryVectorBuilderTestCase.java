@@ -83,6 +83,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 .queryVectorBuilder(createTestInstance())
                 .k(5)
                 .numCandidates(10)
+                .visitPercentage(10f)
                 .similarity(randomBoolean() ? null : randomFloat())
                 .build(DEFAULT_SIZE),
             getToXContentParams(),
@@ -98,6 +99,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 createTestInstance(),
                 5,
                 10,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
@@ -122,6 +124,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 queryVectorBuilder,
                 5,
                 10,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );

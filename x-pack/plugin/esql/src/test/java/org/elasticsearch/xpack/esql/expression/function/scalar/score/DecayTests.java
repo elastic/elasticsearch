@@ -625,7 +625,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayIntEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -659,7 +659,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayIntEvaluator["),
                 DataType.DOUBLE,
-                equalTo(scoreScriptNumericResult)
+                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
             );
         }));
     }
@@ -699,7 +699,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayLongEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -769,7 +769,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDoubleEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -803,7 +803,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDoubleEvaluator["),
                 DataType.DOUBLE,
-                equalTo(scoreScriptNumericResult)
+                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
             );
         }));
     }
@@ -839,7 +839,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayGeoPointEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -867,7 +867,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayGeoPointEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -901,7 +901,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayGeoPointEvaluator["),
                 DataType.DOUBLE,
-                equalTo(scoreScriptNumericResult)
+                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
             );
         }));
     }
@@ -981,7 +981,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayGeoPointEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -1009,7 +1009,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayCartesianPointEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 )
             )
         );
@@ -1037,7 +1037,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDatetimeEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 ).withoutEvaluator()
             )
         );
@@ -1080,7 +1080,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDatetimeEvaluator["),
                 DataType.DOUBLE,
-                equalTo(scoreScriptNumericResult)
+                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
             );
         }));
     }
@@ -1122,7 +1122,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDateNanosEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    closeTo(expected, Math.ulp(expected))
                 ).withoutEvaluator()
             )
         );

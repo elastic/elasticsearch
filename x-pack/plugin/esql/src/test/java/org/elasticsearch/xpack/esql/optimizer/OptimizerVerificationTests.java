@@ -428,4 +428,24 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@3:3")
         );
     }
+
+    public void testDanglingOrderByInInlineStats() {
+        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test"));
+
+        var err = error("""
+            FROM test
+            | SORT languages
+            | INLINESTATS count(*) BY languages
+            | INLINESTATS s = sum(salary) BY first_name
+            """, analyzer);
+
+        assertThat(
+            err,
+            containsString(
+                "2:3: Unbounded sort not supported yet [SORT languages] please add a limit\n"
+                    + "line 3:3: inlinestats [INLINESTATS count(*) BY languages] cannot yet have an unbounded sort [SORT languages] before"
+                    + " it : either move the sort after it, or add a limit before the sort"
+            )
+        );
+    }
 }

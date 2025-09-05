@@ -211,7 +211,9 @@ public class ZoneAwareAssignmentPlanner {
             Map<Node, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
-                finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
+                if (finalPlanBuilder.canAssign(originalDeployment, originalNode, assignment.getValue())) {
+                    finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
+                }
             }
         }
         return finalPlanBuilder.build();

@@ -417,7 +417,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return remainingModelAllocations.get(m);
         }
 
-        boolean canAssign(Deployment deployment, Node node, int allocations) {
+        public boolean canAssign(Deployment deployment, Node node, int allocations) {
             long requiredMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
             return canAssign(deployment, node, allocations, requiredMemory);
         }

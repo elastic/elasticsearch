@@ -220,13 +220,13 @@ public class EvalOperator extends AbstractPageMappingOperator {
             @Override
             public ConstantTrueEvaluator get(DriverContext context) {
                 return new ConstantTrueEvaluator(context);
-            }
+            };
 
             @Override
             public String toString() {
                 return NAME;
             }
-        }
+        };
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();

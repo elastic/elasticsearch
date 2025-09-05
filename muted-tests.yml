@@ -480,9 +480,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133461
-- class: org.elasticsearch.xpack.esql.action.TimeSeriesRateIT
-  method: testRateWithTimeBucketAndClusterMultipleMetricsByMin
-  issue: https://github.com/elastic/elasticsearch/issues/133478
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinOthers
   issue: https://github.com/elastic/elasticsearch/issues/133480
@@ -528,6 +525,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:inlinestats.MultiIndexInlinestatsOfMultiTypedField}
   issue: https://github.com/elastic/elasticsearch/issues/133973
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/510_range_query_out_of_bounds/Test range query for float field with out of bounds lower limit}
+  issue: https://github.com/elastic/elasticsearch/issues/134184
 
 # Examples:
 #

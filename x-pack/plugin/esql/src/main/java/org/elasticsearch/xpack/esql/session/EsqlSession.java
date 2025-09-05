@@ -633,23 +633,10 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        List<IndexPattern> indices = preAnalysis.indices;
-        if (indices.size() > 1) {
-            // Note: JOINs are not supported but we detect them when
-            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (indices.size() == 1) {
-            IndexPattern table = indices.getFirst();
-
-            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
-            // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
+        switch (preAnalysis.indices.size()) {
+            // occurs when dealing with local relations (row a = 1)
+            case 0 -> listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
+            case 1 -> {
                 boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
@@ -663,7 +650,7 @@ public class EsqlSession {
                     }
                 }
                 indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
+                    preAnalysis.indices.getFirst().indexPattern(),
                     result.fieldNames,
                     requestFilter,
                     includeAllDimensions,
@@ -672,13 +659,8 @@ public class EsqlSession {
                     })
                 );
             }
-        } else {
-            try {
-                // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            } catch (Exception ex) {
-                listener.onFailure(ex);
-            }
+            // Note: JOINs are not supported but we detect them when
+            default -> listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         }
     }
 

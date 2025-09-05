@@ -58,6 +58,7 @@ public class CrossClusterQueriesWithInvalidLicenseIT extends AbstractEnrichBased
         assertThat(e.getMessage(), containsString(LICENSE_ERROR_MESSAGE));
     }
 
+    @AwaitsFix(bugUrl = "es-12487")
     public void testQueryAgainstNonMatchingClusterWildcardPattern() {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();

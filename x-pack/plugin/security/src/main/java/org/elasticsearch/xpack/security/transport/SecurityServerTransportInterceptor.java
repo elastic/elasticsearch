@@ -420,11 +420,4 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
     }
 
-    record RemoteClusterCredentials(String clusterAlias, String credentials) {
-
-        @Override
-        public String toString() {
-            return "RemoteClusterCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
-        }
-    }
 }

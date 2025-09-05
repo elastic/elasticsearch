@@ -147,8 +147,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                final Optional<SecurityServerTransportInterceptor.RemoteClusterCredentials> remoteClusterCredentials =
-                    getRemoteClusterCredentials(connection);
+                final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
                 if (remoteClusterCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
                 } else {
@@ -164,9 +163,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
             /**
              * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
-            private Optional<SecurityServerTransportInterceptor.RemoteClusterCredentials> getRemoteClusterCredentials(
-                Transport.Connection connection
-            ) {
+            private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
                 final Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials =
                     remoteClusterCredentialsResolver.apply(connection);
                 if (remoteClusterAliasWithCredentials.isEmpty()) {
@@ -182,15 +179,12 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                 }
 
                 return Optional.of(
-                    new SecurityServerTransportInterceptor.RemoteClusterCredentials(
-                        remoteClusterAlias,
-                        ApiKeyService.withApiKeyPrefix(remoteClusterCredentials.toString())
-                    )
+                    new RemoteClusterCredentials(remoteClusterAlias, ApiKeyService.withApiKeyPrefix(remoteClusterCredentials.toString()))
                 );
             }
 
             private <T extends TransportResponse> void sendWithCrossClusterAccessHeaders(
-                final SecurityServerTransportInterceptor.RemoteClusterCredentials remoteClusterCredentials,
+                final RemoteClusterCredentials remoteClusterCredentials,
                 final Transport.Connection connection,
                 final String action,
                 final TransportRequest request,
@@ -381,6 +375,14 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         }
 
         return Collections.unmodifiableMap(profileFilters);
+    }
+
+    record RemoteClusterCredentials(String clusterAlias, String credentials) {
+
+        @Override
+        public String toString() {
+            return "RemoteClusterCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
+        }
     }
 
 }

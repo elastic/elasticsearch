@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.util.Map;
@@ -32,11 +33,20 @@ public interface RemoteClusterTransportInterceptor {
 
     /**
      * Allows providing custom {@link ServerTransportFilter} implementations per transport "profile".
-     * The transport filter is called on the receiver side to filter incoming requests.
+     * The transport filter is called on the receiver side to filter incoming requests
+     * and execute authentication and authorization for all requests.
      */
     Map<String, ServerTransportFilter> getProfileFilters(
         Map<String, SslProfile> profileConfigurations,
         DestructiveOperations destructiveOperations
     );
+
+    /**
+     * Returns {@code true} if any of the remote cluster access headers are in the security context.
+     * This method is used to assert we don't have access headers already in the security context,
+     * before we even run remote cluster intercepts. Serves as a sanity check that we properly clear
+     * the security context between requests.
+     */
+    boolean hasRemoteClusterAccessHeadersInContext(SecurityContext securityContext);
 
 }

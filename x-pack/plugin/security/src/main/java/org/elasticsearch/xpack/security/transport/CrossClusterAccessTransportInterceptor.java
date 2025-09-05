@@ -377,6 +377,13 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         return Collections.unmodifiableMap(profileFilters);
     }
 
+    @Override
+    public boolean hasRemoteClusterAccessHeadersInContext(SecurityContext securityContext) {
+        return securityContext.getThreadContext().getHeader(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY) != null
+            || securityContext.getThreadContext()
+                .getHeader(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY) != null;
+    }
+
     record RemoteClusterCredentials(String clusterAlias, String credentials) {
 
         @Override

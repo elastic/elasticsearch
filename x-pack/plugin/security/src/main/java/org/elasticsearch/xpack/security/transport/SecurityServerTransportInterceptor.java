@@ -33,13 +33,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
@@ -129,7 +127,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                assertNoCrossClusterAccessHeadersInContext();
+                assert false == remoteClusterTransportInterceptor.hasRemoteClusterAccessHeadersInContext(securityContext)
+                    : "remote cluster access headers should not be in security context";
                 final boolean isRemoteClusterConnection = remoteClusterTransportInterceptor.isRemoteClusterConnection(connection);
                 if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(
                     action,
@@ -149,15 +148,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else {
                     sendRequestInner(sender, connection, action, request, options, handler);
                 }
-            }
-
-            private void assertNoCrossClusterAccessHeadersInContext() {
-                assert securityContext.getThreadContext()
-                    .getHeader(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY) == null
-                    : "cross cluster access headers should not be in security context";
-                assert securityContext.getThreadContext()
-                    .getHeader(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY) == null
-                    : "cross cluster access headers should not be in security context";
             }
         };
     }

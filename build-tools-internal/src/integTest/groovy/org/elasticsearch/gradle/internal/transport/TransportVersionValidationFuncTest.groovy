@@ -53,7 +53,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/${name}.csv] does not have a valid definitionName, " +
+            "[myserver/src/main/resources/transport/definitions/referable/${name}.csv] does not have a valid name, " +
             "must be lowercase alphanumeric and underscore")
 
         where:
@@ -128,7 +128,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         def result = validateResourcesFails()
         then:
         assertValidateResourcesFailure(result, "Transport version upper bound file " +
-            "[myserver/src/main/resources/transport/upper_bounds/9.2.csv] contains transport version definitionName [dne] which is not defined")
+            "[myserver/src/main/resources/transport/upper_bounds/9.2.csv] contains transport version name [dne] which is not defined")
     }
 
     def "upper bound files id must exist in definition"() {
@@ -217,7 +217,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertValidateResourcesFailure(result, "Transport version definition file " +
                 "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv] " +
-                "has same definitionName as unreferable definition " +
+                "has same name as unreferable definition " +
                 "[myserver/src/main/resources/transport/definitions/unreferable/existing_92.csv]")
     }
 

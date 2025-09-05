@@ -32,7 +32,7 @@ import java.util.Set;
  * This task generates transport version definition files. These files
  * are runtime resources that TransportVersion loads statically.
  * They contain a comma separated list of integer ids. Each file is named the same
- * as the transport version definitionName itself (with the .csv suffix).
+ * as the transport version name itself (with the .csv suffix).
  *
  * Additionally, when definition files are added or updated, the upper bounds files
  * for each relevant branch's upper bound file are also updated.
@@ -140,21 +140,21 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         List<String> changedDefinitions
     ) {
         if (getDefinitionName().isPresent()) {
-            // an explicit definitionName was passed in, so use it
+            // an explicit name was passed in, so use it
             return getDefinitionName().get();
         }
 
         // First check for unreferenced names. We only care about the first one. If there is more than one
         // validation will fail later and the developer will have to remove one. When that happens, generation
-        // will re-run and we will fixup the state to use whatever new definitionName remains.
+        // will re-run and we will fixup the state to use whatever new name remains.
         for (String referencedName : referencedNames) {
             if (resources.referableDefinitionExists(referencedName) == false) {
                 return referencedName;
             }
         }
 
-        // Since we didn't find any missing names, we use the first changed definitionName. If there is more than
-        // one changed definitionName, validation will fail later, just as above.
+        // Since we didn't find any missing names, we use the first changed name. If there is more than
+        // one changed name, validation will fail later, just as above.
         if (changedDefinitions.isEmpty()) {
             return "";
         } else {
@@ -162,7 +162,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             if (referencedNames.contains(changedDefinitionName)) {
                 return changedDefinitionName;
             } else {
-                return ""; // the changed definitionName is unreferenced, so go into "reset mode"
+                return ""; // the changed name is unreferenced, so go into "reset mode"
             }
         }
     }
@@ -217,11 +217,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String name
     ) {
         if (existingDefinition == null) {
-            // the definitionName doesn't yet exist, so there is no id to return
+            // the name doesn't yet exist, so there is no id to return
             return null;
         }
         if (upperBound.definitionName().equals(name)) {
-            // the definitionName exists and this upper bound already points at it
+            // the name exists and this upper bound already points at it
             return upperBound.definitionId();
         }
         if (upperBound.name().equals(getCurrentUpperBoundName().get())) {

@@ -105,7 +105,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             TransportVersionDefinition existing = allDefinitions.put(entry.getKey(), entry.getValue());
             if (existing != null) {
                 Path unreferablePath = getResources().get().getUnreferableDefinitionRepositoryPath(entry.getValue());
-                throwDefinitionFailure(existing, "has same definitionName as unreferable definition [" + unreferablePath + "]");
+                throwDefinitionFailure(existing, "has same name as unreferable definition [" + unreferablePath + "]");
             }
         }
         return allDefinitions;
@@ -144,7 +144,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             throwDefinitionFailure(definition, "is not referenced");
         }
         if (NAME_FORMAT.matcher(definition.name()).matches() == false) {
-            throwDefinitionFailure(definition, "does not have a valid definitionName, must be lowercase alphanumeric and underscore");
+            throwDefinitionFailure(definition, "does not have a valid name, must be lowercase alphanumeric and underscore");
         }
         if (definition.ids().isEmpty()) {
             throwDefinitionFailure(definition, "does not contain any ids");
@@ -184,7 +184,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         if (definition.ids().size() > 1) {
             throwDefinitionFailure(definition, " contains more than one id");
         }
-        // note: no definitionName validation, anything that is a valid filename is ok, this allows eg initial_8.9.1
+        // note: no name validation, anything that is a valid filename is ok, this allows eg initial_8.9.1
     }
 
     private void validateIdenticalPrimaryId(TransportVersionDefinition definition, TransportVersionDefinition originalDefinition) {
@@ -206,7 +206,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         if (upperBoundDefinition == null) {
             throwUpperBoundFailure(
                 upperBound,
-                "contains transport version definitionName [" + upperBound.definitionName() + "] which is not defined"
+                "contains transport version name [" + upperBound.definitionName() + "] which is not defined"
             );
         }
         if (upperBoundDefinition.ids().contains(upperBound.definitionId()) == false) {

@@ -803,8 +803,8 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
-    private static final int IGNORE_ABOVE_DEFAULT = Integer.MAX_VALUE;
-    private static final int IGNORE_ABOVE_DEFAULT_LOGSDB = 8191;
+    public static final int IGNORE_ABOVE_DEFAULT = Integer.MAX_VALUE;
+    public static final int IGNORE_ABOVE_DEFAULT_LOGSDB = 8191;
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",

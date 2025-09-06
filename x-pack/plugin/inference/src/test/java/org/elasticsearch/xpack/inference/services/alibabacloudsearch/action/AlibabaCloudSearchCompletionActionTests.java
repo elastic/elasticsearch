@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -110,8 +109,8 @@ public class AlibabaCloudSearchCompletionActionTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is(constructFailedToSendRequestMessage("AlibabaCloud Search completion")));
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is("Failed to send AlibabaCloud Search completion request. Cause: error"));
     }
 
     public void testExecute_ThrowsIllegalArgumentException_WhenInputIsNotChatCompletionInput() {

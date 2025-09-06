@@ -44,6 +44,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config.registry(), config.deprecationHandler(), config.restApiVersion());
         this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
+        this.currentToken = convertToken(parser.currentToken());
     }
 
     @Override

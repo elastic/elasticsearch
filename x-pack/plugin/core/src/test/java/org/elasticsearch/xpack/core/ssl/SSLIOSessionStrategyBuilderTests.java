@@ -62,8 +62,8 @@ public class SSLIOSessionStrategyBuilderTests extends ESTestCase {
         when(builder.sslParameters(sslContext)).thenReturn(sslParameters);
         when(sslParameters.getCipherSuites()).thenReturn(supportedCiphers);
 
-        when(builder.sslIOSessionStrategy(any(SSLContext.class), any(String[].class), any(String[].class), any(HostnameVerifier.class)))
-            .thenAnswer(inv -> {
+        when(builder.build(any(SSLContext.class), any(String[].class), any(String[].class), any(HostnameVerifier.class))).thenAnswer(
+            inv -> {
                 final Object[] args = inv.getArguments();
                 assertThat(args[0], is(sslContext));
                 assertThat(args[1], is(protocols));
@@ -74,12 +74,13 @@ public class SSLIOSessionStrategyBuilderTests extends ESTestCase {
                     assertThat(args[3], sameInstance(NoopHostnameVerifier.INSTANCE));
                 }
                 return sslStrategy;
-            });
+            }
+        );
 
-        when(builder.sslIOSessionStrategy(Mockito.eq(sslConfig), Mockito.any(SSLContext.class))).thenCallRealMethod();
+        when(builder.build(Mockito.eq(sslConfig), Mockito.any(SSLContext.class))).thenCallRealMethod();
 
         final SslConfiguration config = new SSLService(env).sslConfiguration(settings);
-        final SSLIOSessionStrategy actual = builder.sslIOSessionStrategy(config, sslContext);
+        final SSLIOSessionStrategy actual = builder.build(config, sslContext);
         assertThat(actual, sameInstance(sslStrategy));
     }
 

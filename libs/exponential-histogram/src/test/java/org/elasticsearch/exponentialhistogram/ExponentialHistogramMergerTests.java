@@ -36,6 +36,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -112,7 +113,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         try (
             // Merge some empty histograms too to test that code path
             ReleasableExponentialHistogram merged = ExponentialHistogram.merge(
-                2,
+                4,
                 breaker(),
                 ExponentialHistogram.empty(),
                 createAutoReleasedHistogram(10, firstValues),
@@ -150,6 +151,15 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
                     assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
                 }
             }
+        }
+    }
+
+    public void testMinimumBucketCountBounded() {
+        try {
+            ExponentialHistogram.merge(3, breaker(), ExponentialHistogram.empty(), ExponentialHistogram.empty());
+            fail("Expected exception");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("limit must be at least 4"));
         }
     }
 

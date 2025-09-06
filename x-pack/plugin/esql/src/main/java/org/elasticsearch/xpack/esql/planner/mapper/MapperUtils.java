@@ -135,8 +135,8 @@ public class MapperUtils {
             );
         }
 
-        if (p instanceof FuseScoreEval rrf) {
-            return new FuseScoreEvalExec(rrf.source(), child, rrf.score(), rrf.discriminator());
+        if (p instanceof FuseScoreEval fuse) {
+            return new FuseScoreEvalExec(fuse.source(), child, fuse.score(), fuse.discriminator(), fuse.fuseConfig());
         }
 
         if (p instanceof Sample sample) {

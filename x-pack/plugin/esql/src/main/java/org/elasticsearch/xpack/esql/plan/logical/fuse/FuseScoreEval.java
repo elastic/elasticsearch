@@ -11,23 +11,36 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
-public class FuseScoreEval extends UnaryPlan implements LicenseAware {
+public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalysisVerificationAware {
     private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
+    private final MapExpression options;
 
-    public FuseScoreEval(Source source, LogicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr) {
+    public FuseScoreEval(Source source, LogicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr, MapExpression options) {
         super(source, child);
         this.scoreAttr = scoreAttr;
         this.discriminatorAttr = discriminatorAttr;
+        this.options = options;
     }
 
     @Override
@@ -42,7 +55,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, FuseScoreEval::new, child(), scoreAttr, discriminatorAttr);
+        return NodeInfo.create(this, FuseScoreEval::new, child(), scoreAttr, discriminatorAttr, options);
     }
 
     @Override
@@ -52,7 +65,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new FuseScoreEval(source(), newChild, scoreAttr, discriminatorAttr);
+        return new FuseScoreEval(source(), newChild, scoreAttr, discriminatorAttr, options);
     }
 
     public Attribute score() {
@@ -61,6 +74,27 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware {
 
     public Attribute discriminator() {
         return discriminatorAttr;
+    }
+
+    public FuseConfig fuseConfig() {
+        if (options == null) {
+            return RrfConfig.DEFAULT_CONFIG;
+        }
+        Double rankConstant = RrfConfig.DEFAULT_RANK_CONSTANT;
+        Expression rankConstantExp = options.keyFoldedMap().get(RrfConfig.RANK_CONSTANT);
+        if (rankConstantExp != null) {
+            rankConstant = Double.valueOf(rankConstantExp.fold(FoldContext.small()).toString());
+        }
+
+        Map<String, Double> weights = new HashMap<>();
+        Expression weightsExp = options.keyFoldedMap().get(FuseConfig.WEIGHTS);
+        if (weightsExp != null) {
+            for (Map.Entry<String, Expression> entry : ((MapExpression) weightsExp).keyFoldedMap().entrySet()) {
+                weights.put(entry.getKey(), Double.valueOf(entry.getValue().fold(FoldContext.small()).toString()));
+            }
+        }
+
+        return new RrfConfig(rankConstant, weights);
     }
 
     @Override
@@ -84,5 +118,55 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware {
     @Override
     public boolean licenseCheck(XPackLicenseState state) {
         return state.isAllowedByLicense(License.OperationMode.ENTERPRISE);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (options == null) {
+            return;
+        }
+
+        options.keyFoldedMap().forEach((key, value) -> {
+            if (key.equals(RrfConfig.RANK_CONSTANT)) {
+                validatePositiveDouble(failures, value, key);
+            } else if (key.equals(FuseConfig.WEIGHTS)) {
+                validateWeights(value, failures);
+            } else {
+                failures.add(new Failure(this, "unknown option [" + key + "] in [" + this.sourceText() + "]"));
+            }
+        });
+    }
+
+    private void validateWeights(Expression weights, Failures failures) {
+        if ((weights instanceof MapExpression) == false) {
+            failures.add(new Failure(this, "expected weights to be a MapExpression, got [" + weights.sourceText() + "]"));
+            return;
+        }
+        ((MapExpression) weights).keyFoldedMap().forEach((key, value) -> { validatePositiveDouble(failures, value, "weight"); });
+    }
+
+    private void validatePositiveDouble(Failures failures, Expression value, String name) {
+        if ((value instanceof Literal) == false) {
+            failures.add(new Failure(this, "expected " + name + " to be a literal, got [" + value.sourceText() + "]"));
+        }
+
+        if (value.dataType().isNumeric() == false) {
+            failures.add(new Failure(this, "expected " + name + " to be numeric, got [" + value.sourceText() + "]"));
+            return;
+        }
+        Double numericValue = null;
+        try {
+            numericValue = EsqlDataTypeConverter.stringToDouble(value.fold(FoldContext.small()).toString());
+        } catch (InvalidArgumentException e) {
+            failures.add(
+                new Failure(
+                    this,
+                    "expected double, cannot convert [" + value.sourceText() + "] to a double, got [" + value.dataType().name() + "]"
+                )
+            );
+        }
+        if (numericValue != null && numericValue <= 0) {
+            failures.add(new Failure(this, "expected " + name + " to be positive, got [" + value.sourceText() + "]"));
+        }
     }
 }

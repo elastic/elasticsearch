@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -27,27 +28,40 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
     private final Settings settings;
     private final ProjectResolver projectResolver;
 
+    /**
+     * Constructs a new {@link ClusterSettingsLinkedProjectConfigService}.
+     *
+     * @param settings        The initial node settings available on startup, used in {@link #getInitialLinkedProjectConfigs()}.
+     * @param clusterSettings The {@link ClusterSettings} to add setting update consumers to, if non-null.
+     * @param projectResolver The {@link ProjectResolver} to use to resolve the origin project ID.
+     */
     @SuppressWarnings("this-escape")
-    public ClusterSettingsLinkedProjectConfigService(Settings settings, ClusterSettings clusterSettings, ProjectResolver projectResolver) {
+    public ClusterSettingsLinkedProjectConfigService(
+        Settings settings,
+        @Nullable ClusterSettings clusterSettings,
+        ProjectResolver projectResolver
+    ) {
         this.settings = settings;
         this.projectResolver = projectResolver;
-        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteClusterSettings.REMOTE_CONNECTION_MODE,
-            RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
-            RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
-            RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
-            RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS,
-            RemoteClusterSettings.ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
-            RemoteClusterSettings.ProxyConnectionStrategySettings.SERVER_NAME
-        );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::settingsChangedCallback);
-        clusterSettings.addAffixUpdateConsumer(
-            RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-            this::skipUnavailableChangedCallback,
-            (alias, value) -> {}
-        );
+        if (clusterSettings != null) {
+            List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
+                RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
+                RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
+                RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+                RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
+                RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
+                RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
+                RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS,
+                RemoteClusterSettings.ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
+                RemoteClusterSettings.ProxyConnectionStrategySettings.SERVER_NAME
+            );
+            clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::settingsChangedCallback);
+            clusterSettings.addAffixUpdateConsumer(
+                RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+                this::skipUnavailableChangedCallback,
+                (alias, value) -> {}
+            );
+        }
     }
 
     @Override
@@ -58,7 +72,6 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
             .map(alias -> RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, settings))
             .toList();
     }
-
 
     private void settingsChangedCallback(String clusterAlias, Settings newSettings) {
         final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();

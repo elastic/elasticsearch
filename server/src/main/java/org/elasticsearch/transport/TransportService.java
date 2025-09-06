@@ -276,11 +276,7 @@ public class TransportService extends AbstractLifecycleComponent
             clusterSettings,
             connectionManager,
             taskManger,
-            new ClusterSettingsLinkedProjectConfigService(
-                settings,
-                clusterSettings != null ? clusterSettings : ClusterSettings.createBuiltInClusterSettings(),
-                DefaultProjectResolver.INSTANCE
-            ),
+            new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -317,10 +313,10 @@ public class TransportService extends AbstractLifecycleComponent
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
-            if (remoteClusterClient) {
-                linkedProjectConfigService.register(remoteClusterService);
-            }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
+        }
+        if (remoteClusterClient) {
+            linkedProjectConfigService.register(remoteClusterService);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,

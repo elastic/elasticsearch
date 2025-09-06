@@ -141,6 +141,14 @@ public class PatternedTextFieldType extends StringFieldType {
         return terms.intersect(automaton, searchBytes);
     }
 
+    @Override
+    public Object valueForDisplay(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return new BytesRef(bytesRef.utf8ToString());
+        }
+        return value;
+    }
+
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
         SearchExecutionContext searchExecutionContext
     ) {

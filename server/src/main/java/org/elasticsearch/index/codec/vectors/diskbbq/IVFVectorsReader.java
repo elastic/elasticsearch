@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -35,7 +35,7 @@ import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import java.io.IOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_VISIT_RATIO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -54,7 +54,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         this.fieldInfos = state.fieldInfos;
         this.rawVectorsReader = rawVectorsReader;
         this.fields = new IntObjectHashMap<>();
-        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, IVFVectorsFormat.IVF_META_EXTENSION);
+        String meta = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
+        );
 
         int versionMeta = -1;
         boolean success = false;
@@ -63,9 +67,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     ivfMeta,
-                    IVFVectorsFormat.NAME,
-                    IVFVectorsFormat.VERSION_START,
-                    IVFVectorsFormat.VERSION_CURRENT,
+                    ES920DiskBBQVectorsFormat.NAME,
+                    ES920DiskBBQVectorsFormat.VERSION_START,
+                    ES920DiskBBQVectorsFormat.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -75,8 +79,20 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            ivfCentroids = openDataInput(state, versionMeta, IVFVectorsFormat.CENTROID_EXTENSION, IVFVectorsFormat.NAME, state.context);
-            ivfClusters = openDataInput(state, versionMeta, IVFVectorsFormat.CLUSTER_EXTENSION, IVFVectorsFormat.NAME, state.context);
+            ivfCentroids = openDataInput(
+                state,
+                versionMeta,
+                ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
+                ES920DiskBBQVectorsFormat.NAME,
+                state.context
+            );
+            ivfClusters = openDataInput(
+                state,
+                versionMeta,
+                ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+                ES920DiskBBQVectorsFormat.NAME,
+                state.context
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -108,8 +124,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             final int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
                 codecName,
-                IVFVectorsFormat.VERSION_START,
-                IVFVectorsFormat.VERSION_CURRENT,
+                ES920DiskBBQVectorsFormat.VERSION_START,
+                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );

@@ -40,9 +40,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -201,7 +203,7 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
         if (result.wasSuccessful) {
@@ -270,31 +272,44 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
-        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        FieldPath.Element leafKey = fieldPath.pathElements[leafKeyIndex];
         for (int i = 0; i <= lastContainerIndex; i++) {
-            String pathElement = fieldPath.pathElements[i];
+            FieldPath.Element pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
                 switch (getCurrentAccessPatternSafe()) {
-                    case CLASSIC -> context = map.get(pathElement);
+                    case CLASSIC -> context = map.get(pathElement.fieldName);
                     case FLEXIBLE -> {
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND);
+                        if (pathElement.isArrayIndex()) {
+                            return false;
+                        }
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND);
                         if (object != NOT_FOUND) {
                             context = object;
                         } else if (i == lastContainerIndex) {
-                            // This is the last path element, update the leaf key to use this path element as a dotted prefix.
-                            // Leave the context as it is.
-                            leafKey = pathElement + "." + leafKey;
+                            // This is our last path element
+                            if (leafKey.isArrayIndex()) {
+                                // Our leaf element is an array index. which means that resolution of a list was required
+                                return false;
+                            }
+                            // Update the leaf key to use this path element as a dotted prefix. Leave the context as it is.
+                            leafKey = leafKey.prefix(pathElement.fieldName);
                         } else {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
-                            String combinedPath = pathElement;
+                            String combinedPath = pathElement.fieldName;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                var nextElement = fieldPath.pathElements[j];
+                                if (nextElement.isArrayIndex()) {
+                                    // We cannot chain array indices into field lookups.
+                                    // If we have an array index here, we needed to find a list in the last check but didn't
+                                    return false;
+                                }
+                                combinedPath = combinedPath + "." + nextElement.fieldName;
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -304,9 +319,13 @@ public final class IngestDocument {
                                 }
                             }
                             if (object == NOT_FOUND) {
+                                if (leafKey.isArrayIndex()) {
+                                    // Our leaf element is an array index, which means that resolution of a list was required
+                                    return false;
+                                }
                                 // Made it to the last path element without finding the field.
                                 // Update the leaf key to use the visited combined path elements as a dotted prefix.
-                                leafKey = combinedPath + "." + leafKey;
+                                leafKey = leafKey.prefix(combinedPath);
                                 // Update outer loop index to skip past the elements we've used
                                 i = lastContainerIndex;
                             }
@@ -315,22 +334,36 @@ public final class IngestDocument {
                 }
             } else if (context instanceof Map<?, ?> map) {
                 switch (getCurrentAccessPatternSafe()) {
-                    case CLASSIC -> context = map.get(pathElement);
+                    case CLASSIC -> context = map.get(pathElement.fieldName);
                     case FLEXIBLE -> {
+                        if (pathElement.isArrayIndex()) {
+                            return false;
+                        }
                         @SuppressWarnings("unchecked")
                         Map<String, Object> typedMap = (Map<String, Object>) context;
-                        Object object = typedMap.getOrDefault(pathElement, NOT_FOUND);
+                        Object object = typedMap.getOrDefault(pathElement.fieldName, NOT_FOUND);
                         if (object != NOT_FOUND) {
                             context = object;
                         } else if (i == lastContainerIndex) {
+                            // This is our last path element
+                            if (leafKey.isArrayIndex()) {
+                                // Our leaf element is an array index, which means that resolution of a list was required
+                                return false;
+                            }
                             // This is the last path element, update the leaf key to use this path element as a dotted prefix.
                             // Leave the context as it is.
-                            leafKey = pathElement + "." + leafKey;
+                            leafKey = leafKey.prefix(pathElement.fieldName);
                         } else {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
-                            String combinedPath = pathElement;
+                            String combinedPath = pathElement.fieldName;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                var nextElement = fieldPath.pathElements[j];
+                                if (nextElement.isArrayIndex()) {
+                                    // We cannot chain array indices into field lookups.
+                                    // If we have an array index here, we needed to find a list in the last check but didn't
+                                    return false;
+                                }
+                                combinedPath = combinedPath + "." + nextElement;
                                 object = typedMap.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -340,9 +373,13 @@ public final class IngestDocument {
                                 }
                             }
                             if (object == NOT_FOUND) {
+                                if (leafKey.isArrayIndex()) {
+                                    // Our leaf element is an array index, which means that resolution of a list was required
+                                    return false;
+                                }
                                 // Made it to the last path element without finding the field.
                                 // Update the leaf key to use the visited combined path elements as a dotted prefix.
-                                leafKey = combinedPath + "." + leafKey;
+                                leafKey = leafKey.prefix(combinedPath);
                                 // Update outer loop index to skip past the elements we've used.
                                 i = lastContainerIndex;
                             }
@@ -350,16 +387,27 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
-                    // Flexible access pattern cannot yet access array values, new syntax must be added.
-                    // Handle this as if the path element was not parsable as an integer in the classic mode
-                    return false;
-                }
                 int index;
-                try {
-                    index = Integer.parseInt(pathElement);
-                } catch (NumberFormatException e) {
-                    return false;
+                switch (getCurrentAccessPatternSafe()) {
+                    case CLASSIC -> {
+                        try {
+                            index = Integer.parseInt(pathElement.fieldName);
+                        } catch (NumberFormatException e) {
+                            return false;
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        // Flexible array access requires all array indices to be specified in square brackets.
+                        if (pathElement.isFieldName()) {
+                            return false;
+                        }
+                        index = pathElement.arrayIndex;
+                    }
+                    default -> {
+                        // Sanity case
+                        assert false : "Unsupported access pattern [" + getCurrentAccessPatternSafe() + "]";
+                        return false;
+                    }
                 }
                 if (index < 0 || index >= list.size()) {
                     if (failOutOfRange) {
@@ -378,28 +426,48 @@ public final class IngestDocument {
         if (context == null) {
             return false;
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-            return map.containsKey(leafKey);
-        } else if (context instanceof Map<?, ?> map) {
-            return map.containsKey(leafKey);
-        } else if (context instanceof List<?> list) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
-                // Flexible access pattern cannot yet access array values, new syntax must be added.
-                // Handle this as if the path element was not parsable as an integer in the classic mode
+            if (leafKey.isFieldName()) {
+                return map.containsKey(leafKey.fieldName);
+            } else {
                 return false;
             }
-            try {
-                int index = Integer.parseInt(leafKey);
-                if (index >= 0 && index < list.size()) {
-                    return true;
-                } else {
-                    if (failOutOfRange) {
-                        throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
-                    } else {
+        } else if (context instanceof Map<?, ?> map) {
+            if (leafKey.isFieldName()) {
+                return map.containsKey(leafKey.fieldName);
+            } else {
+                return false;
+            }
+        } else if (context instanceof List<?> list) {
+            int index;
+            switch (getCurrentAccessPatternSafe()) {
+                case CLASSIC -> {
+                    try {
+                        index = Integer.parseInt(leafKey.fieldName);
+                    } catch (NumberFormatException e) {
                         return false;
                     }
                 }
-            } catch (NumberFormatException e) {
-                return false;
+                case FLEXIBLE -> {
+                    // Flexible array access requires all array indices to be specified in square brackets.
+                    if (leafKey.isFieldName()) {
+                        return false;
+                    }
+                    index = leafKey.arrayIndex;
+                }
+                default -> {
+                    // Sanity case
+                    assert false : "Unsupported access pattern [" + getCurrentAccessPatternSafe() + "]";
+                    return false;
+                }
+            }
+            if (index >= 0 && index < list.size()) {
+                return true;
+            } else {
+                if (failOutOfRange) {
+                    throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                } else {
+                    return false;
+                }
             }
         } else {
             return false;
@@ -424,9 +492,9 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        FieldPath.Element leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         ResolveResult result = resolve(
             fieldPath.pathElements,
             fieldPath.pathElements.length - 1,
@@ -437,8 +505,17 @@ public final class IngestDocument {
         if (result.wasSuccessful) {
             context = result.resolvedObject;
         } else if (result.missingFields != null) {
+            if (leafKey.isArrayIndex()) {
+                if (ignoreMissing == false) {
+                    // If we want to remove a leafKey that is an array index, we needed to find a list
+                    throw new IllegalArgumentException(Errors.notPresent(path, result.missingFields));
+                } else {
+                    // couldn't find the array field, so there's nothing to remove :shrug:
+                    return;
+                }
+            }
             // Incomplete result, update the leaf key and context to continue the operation
-            leafKey = result.missingFields + "." + leafKey;
+            leafKey = leafKey.prefix(result.missingFields);
             context = result.resolvedObject;
         } else if (ignoreMissing) {
             return; // nothing was found, so there's nothing to remove :shrug:
@@ -447,35 +524,57 @@ public final class IngestDocument {
         }
 
         if (context == null && ignoreMissing == false) {
-            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
+            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey.toString(), null));
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-            if (map.containsKey(leafKey)) {
-                map.remove(leafKey);
-            } else if (ignoreMissing == false) {
-                throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
-            }
-        } else if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(leafKey)) {
-                map.remove(leafKey);
-            } else if (ignoreMissing == false) {
-                throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
-            }
-        } else if (context instanceof List<?> list) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
-                // Flexible access pattern cannot yet access array values, new syntax must be added.
+            if (leafKey.isArrayIndex()) {
                 if (ignoreMissing == false) {
-                    throw new IllegalArgumentException("path [" + path + "] is not valid");
+                    throw new IllegalArgumentException(Errors.cannotResolve(path, leafKey.toString(), map));
                 } else {
                     // ignoreMissing is true, so treat this as if we had just not found the field.
                     return;
                 }
             }
-            int index = -1;
-            try {
-                index = Integer.parseInt(leafKey);
-            } catch (NumberFormatException e) {
+            if (map.containsKey(leafKey.fieldName)) {
+                map.remove(leafKey.fieldName);
+            } else if (ignoreMissing == false) {
+                throw new IllegalArgumentException(Errors.notPresent(path, leafKey.fieldName));
+            }
+        } else if (context instanceof Map<?, ?> map) {
+            if (leafKey.isArrayIndex()) {
                 if (ignoreMissing == false) {
-                    throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                    throw new IllegalArgumentException(Errors.cannotResolve(path, leafKey.toString(), map));
+                } else {
+                    // ignoreMissing is true, so treat this as if we had just not found the field.
+                    return;
+                }
+            }
+            if (map.containsKey(leafKey.fieldName)) {
+                map.remove(leafKey.fieldName);
+            } else if (ignoreMissing == false) {
+                throw new IllegalArgumentException(Errors.notPresent(path, leafKey.fieldName));
+            }
+        } else if (context instanceof List<?> list) {
+            int index = -1;
+            switch (getCurrentAccessPatternSafe()) {
+                case CLASSIC -> {
+                    try {
+                        index = Integer.parseInt(leafKey.fieldName);
+                    } catch (NumberFormatException e) {
+                        if (ignoreMissing == false) {
+                            throw new IllegalArgumentException(Errors.notInteger(path, leafKey.fieldName), e);
+                        }
+                    }
+                }
+                case FLEXIBLE -> {
+                    if (leafKey.isFieldName()) {
+                        if (ignoreMissing == false) {
+                            throw new IllegalArgumentException(Errors.cannotResolve(path, leafKey.toString(), list));
+                        } else {
+                            // ignoreMissing is true, so treat this as if we had just not found the field.
+                            return;
+                        }
+                    }
+                    index = leafKey.arrayIndex;
                 }
             }
             if (index < 0 || index >= list.size()) {
@@ -486,7 +585,7 @@ public final class IngestDocument {
                 list.remove(index);
             }
         } else if (ignoreMissing == false) {
-            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
+            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey.toString(), context));
         }
     }
 
@@ -495,39 +594,48 @@ public final class IngestDocument {
      * or can indicate a failure.
      */
     private static ResolveResult resolve(
-        final String[] pathElements,
+        final FieldPath.Element[] pathElements,
         final int limit,
         final String fullPath,
         Object context,
         IngestPipelineFieldAccessPattern accessPattern
     ) {
         for (int i = 0; i < limit; i++) {
-            String pathElement = pathElements[i];
+            FieldPath.Element pathElement = pathElements[i];
             if (context == null) {
-                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement.toString(), null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
                 switch (accessPattern) {
                     case CLASSIC -> {
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement.toString()));
                         } else {
                             context = object;
                         }
                     }
                     case FLEXIBLE -> {
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (pathElement.isArrayIndex()) {
+                            return ResolveResult.error(Errors.cannotResolveIndex(fullPath, pathElement.arrayIndex, context));
+                        }
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return ResolveResult.incomplete(context, pathElement.toString());
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
-                            String combinedPath = pathElement;
+                            String combinedPath = pathElement.fieldName;
                             for (int j = i + 1; j < limit; j++) {
-                                combinedPath = combinedPath + "." + pathElements[j];
+                                var nextElement = pathElements[j];
+                                if (nextElement.isArrayIndex()) {
+                                    // We cannot chain array indices into field lookups.
+                                    // If we have an array index here, we needed to find a list in the last check but didn't
+                                    return ResolveResult.error(Errors.notPresent(fullPath, combinedPath));
+                                }
+                                combinedPath = combinedPath + "." + nextElement.fieldName;
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -548,28 +656,37 @@ public final class IngestDocument {
                     case CLASSIC -> {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) context;
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement.toString()));
                         } else {
                             context = object;
                         }
                     }
                     case FLEXIBLE -> {
+                        if (pathElement.isArrayIndex()) {
+                            return ResolveResult.error(Errors.cannotResolveIndex(fullPath, pathElement.arrayIndex, context));
+                        }
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) context;
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return ResolveResult.incomplete(context, pathElement.toString());
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
-                            String combinedPath = pathElement;
+                            String combinedPath = pathElement.fieldName;
                             for (int j = i + 1; j < limit; j++) {
-                                combinedPath = combinedPath + "." + pathElements[j];
+                                var nextElement = pathElements[j];
+                                if (nextElement.isArrayIndex()) {
+                                    // We cannot chain array indices into field lookups.
+                                    // If we have an array index here, we needed to find a list in the last check but didn't
+                                    return ResolveResult.error(Errors.notPresent(fullPath, combinedPath));
+                                }
+                                combinedPath = combinedPath + "." + nextElement.fieldName;
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -586,15 +703,29 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
-                    // Flexible access pattern cannot yet access array values, new syntax must be added.
-                    return ResolveResult.error(Errors.invalidPath(fullPath));
-                }
                 int index;
-                try {
-                    index = Integer.parseInt(pathElement);
-                } catch (NumberFormatException e) {
-                    return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
+                switch (accessPattern) {
+                    case CLASSIC -> {
+                        // Classic array access uses integers after dot separators as an array accessor if context allows
+                        try {
+                            index = Integer.parseInt(pathElement.fieldName);
+                        } catch (NumberFormatException e) {
+                            return ResolveResult.error(Errors.notInteger(fullPath, pathElement.fieldName));
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        // Flexible array access requires all array indices to be specified in square brackets.
+                        if (pathElement.isFieldName()) {
+                            // This is noted on the element object
+                            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement.fieldName, list));
+                        }
+                        index = pathElement.arrayIndex;
+                    }
+                    default -> {
+                        // Sanity case
+                        assert false : "Unsupported access pattern [" + accessPattern + "]";
+                        return ResolveResult.error(Errors.invalidPath(fullPath));
+                    }
                 }
                 if (index < 0 || index >= list.size()) {
                     return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
@@ -602,7 +733,7 @@ public final class IngestDocument {
                     context = list.get(index);
                 }
             } else {
-                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
+                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement.toString(), context));
             }
         }
         return ResolveResult.success(context);
@@ -734,40 +865,53 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
-        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        FieldPath.Element leafKey = fieldPath.pathElements[leafKeyIndex];
         for (int i = 0; i <= lastContainerIndex; i++) {
-            String pathElement = fieldPath.pathElements[i];
+            FieldPath.Element pathElement = fieldPath.pathElements[i];
             if (context == null) {
-                throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
+                throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement.toString(), null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
                 switch (getCurrentAccessPatternSafe()) {
                     case CLASSIC -> {
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
                             Map<Object, Object> newMap = new HashMap<>();
-                            map.put(pathElement, newMap);
+                            map.put(pathElement.fieldName, newMap);
                             context = newMap;
                         } else {
                             context = object;
                         }
                     }
                     case FLEXIBLE -> {
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (pathElement.isArrayIndex()) {
+                            throw new IllegalArgumentException(Errors.cannotResolveIndex(path, pathElement.arrayIndex, context));
+                        }
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
                             context = object;
                         } else if (i == lastContainerIndex) {
-                            // This is our last path element, update the leaf key to use this path element as a dotted prefix.
-                            // Leave the context as it is.
-                            leafKey = pathElement + "." + leafKey;
+                            // This is our last path element
+                            if (leafKey.isArrayIndex()) {
+                                // Our leaf element is an array index, which means that resolution of a list was required
+                                throw new IllegalArgumentException(Errors.notPresent(path, pathElement.toString()));
+                            }
+                            // Update the leaf key to use this path element as a dotted prefix. Leave the context as it is.
+                            leafKey = leafKey.prefix(pathElement.fieldName);
                         } else {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
-                            String combinedPath = pathElement;
+                            String combinedPath = pathElement.fieldName;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                var nextElement = fieldPath.pathElements[j];
+                                if (nextElement.isArrayIndex()) {
+                                    // We cannot chain array indices into field lookups.
+                                    // If we have an array index here, we needed to find a list in the last check but didn't
+                                    throw new IllegalArgumentException(Errors.notPresent(path, combinedPath));
+                                }
+                                combinedPath = combinedPath + "." + nextElement.fieldName;
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -777,9 +921,13 @@ public final class IngestDocument {
                                 }
                             }
                             if (object == NOT_FOUND) {
+                                if (leafKey.isArrayIndex()) {
+                                    // Our leaf element is an array index, which means that resolution of a list was required
+                                    throw new IllegalArgumentException(Errors.notPresent(path, combinedPath));
+                                }
                                 // Made it to the last path element without finding the field.
                                 // Update the leaf key to use the visited combined path elements as a dotted prefix.
-                                leafKey = combinedPath + "." + leafKey;
+                                leafKey = leafKey.prefix(combinedPath);
                                 // Update outer loop index to skip past the elements we've used
                                 i = lastContainerIndex;
                             }
@@ -791,30 +939,43 @@ public final class IngestDocument {
                     case CLASSIC -> {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) context;
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
                             Map<Object, Object> newMap = new HashMap<>();
-                            map.put(pathElement, newMap);
+                            map.put(pathElement.fieldName, newMap);
                             context = newMap;
                         } else {
                             context = object;
                         }
                     }
                     case FLEXIBLE -> {
+                        if (pathElement.isArrayIndex()) {
+                            throw new IllegalArgumentException(Errors.cannotResolveIndex(path, pathElement.arrayIndex, context));
+                        }
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) context;
-                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        Object object = map.getOrDefault(pathElement.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
                             context = object;
                         } else if (i == lastContainerIndex) {
-                            // This is our last path element, update the leaf key to use this path element as a dotted prefix.
-                            // Leave the context as it is.
-                            leafKey = pathElement + "." + leafKey;
+                            // This is our last path element
+                            if (leafKey.isArrayIndex()) {
+                                // Our leaf element is an array index, which means that resolution of a list was required
+                                throw new IllegalArgumentException(Errors.notPresent(path, pathElement.toString()));
+                            }
+                            // Update the leaf key to use this path element as a dotted prefix. Leave the context as it is.
+                            leafKey = leafKey.prefix(pathElement.fieldName);
                         } else {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
-                            String combinedPath = pathElement;
+                            String combinedPath = pathElement.fieldName;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                var nextElement = fieldPath.pathElements[j];
+                                if (nextElement.isArrayIndex()) {
+                                    // We cannot chain array indices into field lookups.
+                                    // If we have an array index here, we needed to find a list in the last check but didn't
+                                    throw new IllegalArgumentException(Errors.notPresent(path, combinedPath));
+                                }
+                                combinedPath = combinedPath + "." + nextElement.fieldName;
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -824,9 +985,13 @@ public final class IngestDocument {
                                 }
                             }
                             if (object == NOT_FOUND) {
+                                if (leafKey.isArrayIndex()) {
+                                    // Our leaf element is an array index, which means that resolution of a list was required
+                                    throw new IllegalArgumentException(Errors.notPresent(path, combinedPath));
+                                }
                                 // Made it to the last path element without finding the field.
                                 // Update the leaf key to use the visited combined path elements as a dotted prefix.
-                                leafKey = combinedPath + "." + leafKey;
+                                leafKey = leafKey.prefix(combinedPath);
                                 // Update outer loop index to skip past the elements we've used
                                 i = lastContainerIndex;
                             }
@@ -834,15 +999,28 @@ public final class IngestDocument {
                     }
                 }
             } else if (context instanceof List<?> list) {
-                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
-                    // Flexible access pattern cannot yet access array values, new syntax must be added.
-                    throw new IllegalArgumentException("path [" + path + "] is not valid");
-                }
                 int index;
-                try {
-                    index = Integer.parseInt(pathElement);
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException(Errors.notInteger(path, pathElement), e);
+                switch (getCurrentAccessPatternSafe()) {
+                    case CLASSIC -> {
+                        try {
+                            index = Integer.parseInt(pathElement.fieldName);
+                        } catch (NumberFormatException e) {
+                            throw new IllegalArgumentException(Errors.notInteger(path, pathElement.toString()), e);
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        // Flexible array access requires all array indices to be specified in square brackets.
+                        if (pathElement.isFieldName()) {
+                            // This is noted on the element object
+                            throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement.fieldName, list));
+                        }
+                        index = pathElement.arrayIndex;
+                    }
+                    default -> {
+                        // Sanity case
+                        assert false : "Unsupported access pattern [" + getCurrentAccessPatternSafe() + "]";
+                        throw new IllegalArgumentException(Errors.invalidPath(path));
+                    }
                 }
                 if (index < 0 || index >= list.size()) {
                     throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
@@ -850,58 +1028,77 @@ public final class IngestDocument {
                     context = list.get(index);
                 }
             } else {
-                throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, context));
+                throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement.toString(), context));
             }
         }
 
         if (context == null) {
-            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
+            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey.toString(), null));
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            if (leafKey.isArrayIndex()) {
+                throw new IllegalArgumentException(Errors.cannotResolveIndex(path, leafKey.arrayIndex, context));
+            }
             if (append) {
-                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                Object object = map.getOrDefault(leafKey.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value);
-                    map.put(leafKey, list);
+                    map.put(leafKey.fieldName, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
-                        map.put(leafKey, list);
+                        map.put(leafKey.fieldName, list);
                     }
                 }
                 return;
             }
-            map.put(leafKey, value);
+            map.put(leafKey.fieldName, value);
         } else if (context instanceof Map<?, ?>) {
+            if (leafKey.isArrayIndex()) {
+                throw new IllegalArgumentException(Errors.cannotResolveIndex(path, leafKey.arrayIndex, context));
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
-                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                Object object = map.getOrDefault(leafKey.fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value);
-                    map.put(leafKey, list);
+                    map.put(leafKey.fieldName, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
-                        map.put(leafKey, list);
+                        map.put(leafKey.fieldName, list);
                     }
                 }
                 return;
             }
-            map.put(leafKey, value);
+            map.put(leafKey.fieldName, value);
         } else if (context instanceof List<?>) {
-            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
-                // Flexible access pattern cannot yet access array values, new syntax must be added.
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
-            }
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
             int index;
-            try {
-                index = Integer.parseInt(leafKey);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+            switch (getCurrentAccessPatternSafe()) {
+                case CLASSIC -> {
+                    try {
+                        index = Integer.parseInt(leafKey.fieldName);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException(Errors.notInteger(path, leafKey.fieldName), e);
+                    }
+                }
+                case FLEXIBLE -> {
+                    // Flexible array access requires all array indices to be specified in square brackets.
+                    if (leafKey.isFieldName()) {
+                        // This is noted on the element object
+                        throw new IllegalArgumentException(Errors.cannotResolve(path, leafKey.toString(), list));
+                    }
+                    index = leafKey.arrayIndex;
+                }
+                default -> {
+                    // Sanity case
+                    assert false : "Unsupported access pattern [" + getCurrentAccessPatternSafe() + "]";
+                    throw new IllegalArgumentException(Errors.invalidPath(path));
+                }
             }
             if (index < 0 || index >= list.size()) {
                 throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
@@ -917,7 +1114,7 @@ public final class IngestDocument {
                 list.set(index, value);
             }
         } else {
-            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, context));
+            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey.toString(), context));
         }
     }
 
@@ -1153,10 +1350,10 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or null if no pipelines are in progress for this doc
+     * @return The access pattern for any currently executing pipelines, or empty if no pipelines are in progress for this doc
      */
-    public IngestPipelineFieldAccessPattern getCurrentAccessPattern() {
-        return accessPatternStack.peek();
+    public Optional<IngestPipelineFieldAccessPattern> getCurrentAccessPattern() {
+        return Optional.ofNullable(accessPatternStack.peek());
     }
 
     /**
@@ -1164,7 +1361,7 @@ public final class IngestDocument {
      * pipelines are in progress for this doc for the sake of backwards compatibility
      */
     private IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
-        return Objects.requireNonNullElse(getCurrentAccessPattern(), IngestPipelineFieldAccessPattern.CLASSIC);
+        return getCurrentAccessPattern().orElse(IngestPipelineFieldAccessPattern.CLASSIC);
     }
 
     /**
@@ -1288,8 +1485,77 @@ public final class IngestDocument {
 
     private static final class FieldPath {
 
+        private record Element(String fieldName, Integer arrayIndex) {
+            private static final String EMPTY_STRING = "";
+
+            /**
+             * Creates a new FieldPath Element which corresponds to a regular part of a field path.
+             * @param fieldName name of the field to access, or a string to use for array indexing if running in CLASSIC access pattern.
+             * @return A field name element
+             */
+            static Element field(String fieldName) {
+                Objects.requireNonNull(fieldName, "fieldName cannot be null");
+                if (fieldName.isEmpty()) {
+                    throw new IllegalArgumentException("fieldName cannot be empty");
+                }
+                return new Element(fieldName, null);
+            }
+
+            /**
+             * Creates a new FieldPath Element which corresponds to an array index specified by the square bracket syntax available
+             * when using the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} access pattern.
+             * @param arrayIndex array index specified in square brackets
+             * @return An array index element
+             */
+            static Element index(int arrayIndex) {
+                if (arrayIndex < 0) {
+                    throw new IndexOutOfBoundsException(arrayIndex);
+                }
+                return new Element(EMPTY_STRING, arrayIndex);
+            }
+
+            /**
+             * @return true if this element is for accessing a regular field
+             */
+            boolean isFieldName() {
+                return fieldName.isEmpty() == false && arrayIndex == null;
+            }
+
+            /**
+             * @return true if this element is for an array index used for the FLEXIBLE access pattern
+             */
+            boolean isArrayIndex() {
+                return isFieldName() == false;
+            }
+
+            /**
+             * Creates a new Element combining the given prefix field with the current field name
+             * @param prefixField field to use as a prefix to the current field
+             * @return A new Element for a combined field name
+             * @throws IllegalArgumentException if this Element is an array index
+             */
+            Element prefix(String prefixField) {
+                if (isArrayIndex()) {
+                    throw new IllegalArgumentException("Cannot prefix an array index element");
+                }
+                return field(prefixField + "." + fieldName);
+            }
+
+            @Override
+            public String toString() {
+                return isFieldName() ? fieldName : "[" + arrayIndex + "]";
+            }
+        }
+
+        /**
+         * A compound cache key for tracking previously parsed field paths
+         * @param path The field path as given by the caller
+         * @param accessPattern The access pattern used to parse the field path
+         */
+        private record CacheKey(String path, IngestPipelineFieldAccessPattern accessPattern) {}
+
         private static final int MAX_SIZE = 512;
-        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        private static final Map<CacheKey, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
         // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
         // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
@@ -1298,27 +1564,28 @@ public final class IngestDocument {
         // do some processing ourselves on the path and path elements to validate and prepare them.
         // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
 
-        static FieldPath of(String path) {
+        static FieldPath of(String path, IngestPipelineFieldAccessPattern accessPattern) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
-            FieldPath res = CACHE.get(path);
+            CacheKey cacheKey = new CacheKey(path, accessPattern);
+            FieldPath res = CACHE.get(cacheKey);
             if (res != null) {
                 return res;
             }
-            res = new FieldPath(path);
+            res = new FieldPath(path, accessPattern);
             if (CACHE.size() > MAX_SIZE) {
                 CACHE.clear();
             }
-            CACHE.put(path, res);
+            CACHE.put(cacheKey, res);
             return res;
         }
 
-        private final String[] pathElements;
+        private final Element[] pathElements;
         private final boolean useIngestContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path) {
+        private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 useIngestContext = true;
@@ -1331,10 +1598,69 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = newPath.split("\\.");
-            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            String[] pathParts = newPath.split("\\.");
+            this.pathElements = processPathParts(path, pathParts, accessPattern);
+        }
+
+        private static Element[] processPathParts(String fullPath, String[] pathParts, IngestPipelineFieldAccessPattern accessPattern) {
+            if (pathParts.length == 1 && pathParts[0].isEmpty()) {
+                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
             }
+            return switch (accessPattern) {
+                case CLASSIC -> Arrays.stream(pathParts).map(Element::field).toArray(Element[]::new);
+                case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);
+            };
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} ingest doc access pattern. Supports
+         * syntax like square bracket array access, which is the only way to index arrays in flexible mode.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Elements
+         */
+        private static Element[] parseFlexibleFields(String fullPath, String[] pathParts) {
+            return Arrays.stream(pathParts).flatMap(pathPart -> {
+                int openBracket = pathPart.indexOf('[');
+                if (openBracket == -1) {
+                    // Ensure there are no end bracket characters as they are also reserved
+                    if (pathPart.indexOf(']') >= 0) {
+                        throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                    }
+                    return Stream.of(Element.field(pathPart));
+                } else if (openBracket == 0) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                } else {
+                    List<Element> resultElements = new ArrayList<>();
+                    String rootField = pathPart.substring(0, openBracket);
+                    resultElements.add(Element.field(rootField));
+
+                    boolean elementsRemain = true;
+                    while (elementsRemain) {
+                        int closeBracket = pathPart.indexOf(']', openBracket);
+                        if (closeBracket <= openBracket) {
+                            throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                        }
+
+                        String rawIndex = pathPart.substring(openBracket + 1, closeBracket);
+                        try {
+                            resultElements.add(Element.index(Integer.parseInt(rawIndex)));
+                        } catch (NumberFormatException numberFormatException) {
+                            throw new IllegalArgumentException(Errors.notInteger(fullPath, rawIndex));
+                        }
+
+                        if (closeBracket == pathPart.length() - 1) {
+                            elementsRemain = false;
+                        } else {
+                            if (pathPart.charAt(closeBracket + 1) != '[') {
+                                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                            }
+                            openBracket = closeBracket + 1;
+                        }
+                    }
+                    return resultElements.stream();
+                }
+            }).toArray(Element[]::new);
         }
 
         public Object initialContext(IngestDocument document) {
@@ -1477,6 +1803,15 @@ public final class IngestDocument {
             } else {
                 final String type = value.getClass().getName();
                 return "cannot resolve [" + key + "] from object of type [" + type + "] as part of path [" + path + "]";
+            }
+        }
+
+        private static String cannotResolveIndex(String path, int key, Object value) {
+            if (value == null) {
+                return "cannot resolve array index [" + key + "] from null as part of path [" + path + "]";
+            } else {
+                final String type = value.getClass().getName();
+                return "cannot resolve array index [" + key + "] from object of type [" + type + "] as part of path [" + path + "]";
             }
         }
 

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.LinkedProjectConfig;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterSettings;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -19,19 +19,18 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public final class RemoteClusterResolver extends RemoteClusterAware {
     private final CopyOnWriteArraySet<String> clusters;
 
-    public RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+    public RemoteClusterResolver(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
         super(settings);
-        clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
-        listenForUpdates(clusterSettings);
-    }
-
-    @Override
-    protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, settings)) {
-            clusters.add(clusterAlias);
-        } else {
-            clusters.remove(clusterAlias);
-        }
+        clusters = new CopyOnWriteArraySet<>(
+            linkedProjectConfigService.getInitialLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+        );
+        linkedProjectConfigService.register(config -> {
+            if (config.isConnectionEnabled()) {
+                clusters.add(config.linkedProjectAlias());
+            } else {
+                clusters.remove(config.linkedProjectAlias());
+            }
+        });
     }
 
     public Set<String> remoteClusters() {

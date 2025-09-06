@@ -133,7 +133,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.EmptyRequest;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -267,6 +269,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private SecurityContext securityContext;
     private ProjectResolver projectResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
+    private LinkedProjectConfigService linkedProjectConfigService;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -320,6 +323,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         projectResolver = TestProjectResolvers.singleProject(projectId);
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(projectResolver);
+        linkedProjectConfigService = new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, projectResolver);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -336,6 +340,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
             projectResolver
         );
     }
@@ -1769,6 +1774,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
             projectResolver
         );
 
@@ -1819,6 +1825,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
             projectResolver
         );
 
@@ -3357,6 +3364,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
             projectResolver
         );
 
@@ -3513,6 +3521,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
             projectResolver
         );
         Authentication authentication;

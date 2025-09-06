@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.LinkedProjectConfig;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterSettings;
 
 import java.util.Collections;
 import java.util.List;
@@ -46,19 +46,18 @@ class RemoteClusterResolver extends RemoteClusterAware {
         }
     }
 
-    RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+    RemoteClusterResolver(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
         super(settings);
-        clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
-        listenForUpdates(clusterSettings);
-    }
-
-    @Override
-    protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, settings)) {
-            clusters.add(clusterAlias);
-        } else {
-            clusters.remove(clusterAlias);
-        }
+        clusters = new CopyOnWriteArraySet<>(
+            linkedProjectConfigService.getInitialLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+        );
+        linkedProjectConfigService.register(config -> {
+            if (config.isConnectionEnabled()) {
+                clusters.add(config.linkedProjectAlias());
+            } else {
+                clusters.remove(config.linkedProjectAlias());
+            }
+        });
     }
 
     ResolvedIndices resolve(String... indices) {

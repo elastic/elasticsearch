@@ -2,7 +2,7 @@ pipeline {
     agent { label 'ubuntu' } 
 
     tools {
-        jdk 'jdk-21' 
+        jdk 'jdk_21' 
     }
 
     options {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.SourceContext;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -704,14 +704,14 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
-        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         IndexRequest indexRequest = indexRequest(index);
         long total = indexRequest.ramBytesUsed();
         while (total < 2048) {
-            refCounted.incRef();
-            handler.addItems(List.of(indexRequest), refCounted::decRef, () -> nextPage.set(true));
+            contextsToClose.add(indexRequest.sourceContext());
+            handler.addItems(List.of(indexRequest), () -> nextPage.set(true));
             assertTrue(nextPage.get());
             nextPage.set(false);
             indexRequest = indexRequest(index);
@@ -737,8 +737,9 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             equalTo(0L)
         );
 
-        refCounted.incRef();
-        handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
+        indexRequest = indexRequest(index);
+        contextsToClose.add(indexRequest.sourceContext());
+        handler.addItems(List.of(indexRequest), () -> nextPage.set(true));
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
         assertBusy(() -> assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(1L)));
@@ -761,11 +762,13 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         );
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
+        IndexRequest lastRequest = indexRequest(index);
+        contextsToClose.add(lastRequest.sourceContext());
+        handler.lastItems(List.of(lastRequest), future);
 
         BulkResponse bulkResponse = safeGet(future);
         assertNoFailures(bulkResponse);
-        assertFalse(refCounted.hasReferences());
+        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
     }
 
     // Borrowed this test from IncrementalBulkIT and added test for metrics to it
@@ -792,28 +795,26 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
         for (int i = 0; i < 4; ++i) {
             ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
-            add512BRequests(requests, index);
+            add512BRequests(requests, contextsToClose, index);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
             handlers.add(handler);
-            refCounted.incRef();
-            handler.addItems(requests, refCounted::decRef, () -> nextPage.set(true));
+            handler.addItems(requests, () -> nextPage.set(true));
             assertTrue(nextPage.get());
             nextPage.set(false);
         }
 
         // Test that a request smaller than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is not throttled
         ArrayList<DocWriteRequest<?>> requestsNoThrottle = new ArrayList<>();
-        add512BRequests(requestsNoThrottle, index);
+        add512BRequests(requestsNoThrottle, contextsToClose, index);
         IncrementalBulkService.Handler handlerNoThrottle = incrementalBulkService.newBulkRequest();
         handlers.add(handlerNoThrottle);
-        refCounted.incRef();
-        handlerNoThrottle.addItems(requestsNoThrottle, refCounted::decRef, () -> nextPage.set(true));
+        handlerNoThrottle.addItems(requestsNoThrottle, () -> nextPage.set(true));
         assertTrue(nextPage.get());
         nextPage.set(false);
         assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(0L));
@@ -836,14 +837,13 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         ArrayList<DocWriteRequest<?>> requestsThrottle = new ArrayList<>();
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
-        add512BRequests(requestsThrottle, index);
-        add512BRequests(requestsThrottle, index);
+        add512BRequests(requestsThrottle, contextsToClose, index);
+        add512BRequests(requestsThrottle, contextsToClose, index);
 
         CountDownLatch finishLatch = new CountDownLatch(1);
         blockWriteCoordinationPool(threadPool, finishLatch);
         IncrementalBulkService.Handler handlerThrottled = incrementalBulkService.newBulkRequest();
-        refCounted.incRef();
-        handlerThrottled.addItems(requestsThrottle, refCounted::decRef, () -> nextPage.set(true));
+        handlerThrottled.addItems(requestsThrottle, () -> nextPage.set(true));
         assertFalse(nextPage.get());
         finishLatch.countDown();
 
@@ -871,16 +871,16 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         );
 
         for (IncrementalBulkService.Handler h : handlers) {
-            refCounted.incRef();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-            h.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            IndexRequest indexRequest = indexRequest(index);
+            contextsToClose.add(indexRequest.sourceContext());
+            h.lastItems(List.of(indexRequest), future);
             BulkResponse bulkResponse = safeGet(future);
             assertNoFailures(bulkResponse);
         }
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
-        refCounted.decRef();
-        assertFalse(refCounted.hasReferences());
+        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
         testTelemetryPlugin.collect();
     }
 
@@ -909,10 +909,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         return indexRequest;
     }
 
-    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, String index) {
+    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, ArrayList<SourceContext> contextsToClose, String index) {
         long total = 0;
         while (total < 512) {
             IndexRequest indexRequest = indexRequest(index);
+            contextsToClose.add(indexRequest.sourceContext());
             requests.add(indexRequest);
             total += indexRequest.ramBytesUsed();
         }

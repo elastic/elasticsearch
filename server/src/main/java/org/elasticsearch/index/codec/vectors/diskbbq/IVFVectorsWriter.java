@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
@@ -59,42 +59,42 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            IVFVectorsFormat.IVF_META_EXTENSION
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
         );
 
         final String ivfCentroidsFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            IVFVectorsFormat.CENTROID_EXTENSION
+            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION
         );
         final String ivfClustersFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            IVFVectorsFormat.CLUSTER_EXTENSION
+            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION
         );
         boolean success = false;
         try {
             ivfMeta = state.directory.createOutput(metaFileName, state.context);
             CodecUtil.writeIndexHeader(
                 ivfMeta,
-                IVFVectorsFormat.NAME,
-                IVFVectorsFormat.VERSION_CURRENT,
+                ES920DiskBBQVectorsFormat.NAME,
+                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
             ivfCentroids = state.directory.createOutput(ivfCentroidsFileName, state.context);
             CodecUtil.writeIndexHeader(
                 ivfCentroids,
-                IVFVectorsFormat.NAME,
-                IVFVectorsFormat.VERSION_CURRENT,
+                ES920DiskBBQVectorsFormat.NAME,
+                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
             ivfClusters = state.directory.createOutput(ivfClustersFileName, state.context);
             CodecUtil.writeIndexHeader(
                 ivfClusters,
-                IVFVectorsFormat.NAME,
-                IVFVectorsFormat.VERSION_CURRENT,
+                ES920DiskBBQVectorsFormat.NAME,
+                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );

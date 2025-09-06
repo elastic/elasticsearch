@@ -13,14 +13,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collection;
+import java.util.Map;
 
 public class TransportClosePointInTimeAction extends HandledTransportAction<ClosePointInTimeRequest, ClosePointInTimeResponse> {
 
@@ -28,6 +30,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportClosePointInTimeAction(
@@ -35,23 +38,26 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        ProjectResolver projectResolver
     ) {
         super(TYPE.name(), transportService, actionFilters, ClosePointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, ClosePointInTimeRequest request, ActionListener<ClosePointInTimeResponse> listener) {
         final SearchContextId searchContextId = SearchContextId.decode(namedWriteableRegistry, request.getId());
-        final Collection<SearchContextIdForNode> contextIds = searchContextId.shards().values();
+        Map<ShardId, SearchContextIdForNode> shards = searchContextId.shards();
         ClearScrollController.closeContexts(
-            clusterService.state().nodes(),
+            clusterService,
+            projectResolver,
             searchTransportService,
-            contextIds,
-            listener.map(freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
+            shards,
+            listener.map(freed -> new ClosePointInTimeResponse(freed == shards.size(), freed))
         );
     }
 }

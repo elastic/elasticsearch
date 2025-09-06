@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -86,7 +87,10 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
                 );
             Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStatsForThreadPools = new HashMap<>();
             usageStatsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);
-            nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
+            nodeUsageStatsForThreadPools.put(
+                ThreadPool.Names.WRITE,
+                new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools, randomInstantBetween(Instant.MIN, Instant.MAX))
+            );
         }
         return nodeUsageStatsForThreadPools;
     }

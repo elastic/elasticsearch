@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -301,6 +302,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         threadPoolUsageMap.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);
 
         // Create the node's thread pool usage map
-        return new NodeUsageStatsForThreadPools(discoveryNode.getId(), threadPoolUsageMap);
+        return new NodeUsageStatsForThreadPools(discoveryNode.getId(), threadPoolUsageMap, Instant.now());
     }
 }

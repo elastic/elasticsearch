@@ -2921,7 +2921,9 @@ public class InternalEngine extends Engine {
     }
 
     private void maybeFlushAfterMerge(OnGoingMerge merge) {
-        if (indexWriter.hasPendingMerges() == false && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+        if (merge.getMerge().isAborted() == false
+            && indexWriter.hasPendingMerges() == false
+            && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
             // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
             // writer
             // we deadlock on engine#close for instance.

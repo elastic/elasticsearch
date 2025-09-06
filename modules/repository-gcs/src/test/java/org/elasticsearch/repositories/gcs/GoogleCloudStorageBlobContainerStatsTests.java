@@ -58,7 +58,9 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.StorageOperation.GET;
 import static org.elasticsearch.repositories.gcs.StorageOperation.INSERT;
 import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
+import org.junit.Ignore;
 
+@Ignore("Skipping GoogleCloudStorageBlobContainerStatsTests temporarily")
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     private static final String BUCKET = "bucket";

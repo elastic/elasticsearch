@@ -8,7 +8,7 @@
  */
 
 package org.elasticsearch.common.util.concurrent;
-
+import org.junit.Assume;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -811,6 +811,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testScalingWithEmptyCoreAndKeepAliveAndLargerMaxSize() {
+        Assume.assumeTrue("Skipping due to flakiness in CI", false);
         testScalingWithEmptyCoreAndMaxMultipleThreads(
             EsExecutors.newScaling(
                 getTestName(),

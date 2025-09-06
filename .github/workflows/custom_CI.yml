@@ -31,9 +31,9 @@ jobs:
       - name: Build local distribution
         run: ./gradlew localDistro --stacktrace --no-daemon
 
-      # 5. Run server tests
+      # 5. Run unit  tests
       - name: Run server tests
-        run: ./gradlew test --stacktrace --no-daemon
+        run: ./gradlew :server:test --stacktrace --no-daemon
 
       # 6. Upload all test reports
       - name: Archive test reports

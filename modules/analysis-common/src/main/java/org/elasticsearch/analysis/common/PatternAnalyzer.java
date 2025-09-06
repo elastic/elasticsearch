@@ -25,7 +25,7 @@ public final class PatternAnalyzer extends Analyzer {
     private final boolean lowercase;
     private final CharArraySet stopWords;
 
-    PatternAnalyzer(Pattern pattern, boolean lowercase, CharArraySet stopWords) {
+    public PatternAnalyzer(Pattern pattern, boolean lowercase, CharArraySet stopWords) {
         this.pattern = pattern;
         this.lowercase = lowercase;
         this.stopWords = stopWords;

@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PatternedTextValueProcessor {
-    private static final String DELIMITER = "[\\s\\[\\]]";
+    public static final String DELIMITER = "[\\s\\[\\]]";
 
     public record Parts(String template, String templateId, List<String> args, List<Arg.Info> argsInfo) {
         Parts(String template, List<String> args, List<Arg.Info> argsInfo) {

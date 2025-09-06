@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.analysis.common.PatternAnalyzer;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -42,7 +49,15 @@ import java.util.function.Supplier;
  */
 public class PatternedTextFieldMapper extends FieldMapper {
 
+    private static final Logger logger = LogManager.getLogger(PatternedTextFieldMapper.class);
+
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
+    private static final NamedAnalyzer ANALYZER;
+
+    static {
+        var analyzer = new PatternAnalyzer(Regex.compile(PatternedTextValueProcessor.DELIMITER, null), true, CharArraySet.EMPTY_SET);
+        ANALYZER = new NamedAnalyzer("pattern_text_analyzer", AnalyzerScope.GLOBAL, analyzer);
+    }
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE_DOCS;
@@ -78,15 +93,15 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
 
         public Builder(String name, MappingParserContext context) {
-            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
+            this(name, context.indexVersionCreated(), context.getIndexSettings());
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
+                (type, name1) -> ANALYZER,
                 m -> ((PatternedTextFieldMapper) m).indexAnalyzer,
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
@@ -142,20 +157,28 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 true
             ).indexed(false).build(context);
-            return new PatternedTextFieldMapper(leafName(), fieldType, patternedTextFieldType, builderParams, this, templateIdMapper);
+            return new PatternedTextFieldMapper(
+                leafName(),
+                fieldType,
+                patternedTextFieldType,
+                builderParams,
+                this,
+                templateIdMapper,
+                context.isSourceSynthetic()
+            );
         }
     }
 
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
     private final IndexVersion indexCreatedVersion;
-    private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
     private final IndexSettings indexSettings;
     private final String indexOptions;
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
+    private final boolean isSourceSynthetic;
 
     private PatternedTextFieldMapper(
         String simpleName,
@@ -163,19 +186,20 @@ public class PatternedTextFieldMapper extends FieldMapper {
         PatternedTextFieldType mappedFieldType,
         BuilderParams builderParams,
         Builder builder,
-        KeywordFieldMapper templateIdMapper
+        KeywordFieldMapper templateIdMapper,
+        boolean isSourceSynthetic
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
+        this.isSourceSynthetic = isSourceSynthetic;
     }
 
     @Override
@@ -185,7 +209,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings).init(this);
     }
 
     @Override
@@ -213,12 +237,30 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         // Parse template and args
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
+        BytesRef templateBytes = new BytesRef(parts.template());
+        if (templateBytes.length >= IndexWriter.MAX_TERM_LENGTH) {
+            logger.error(
+                "pattern text template is longer than allowed maximum term length.\n Template={}\n Original value={}",
+                templateBytes.utf8ToString(),
+                value
+            );
+            // Maybe adding template id helps with compressing the original stored field:
+            context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
+            // Even when template too large we can still create an inverted index:
+            context.doc().add(new Field(fieldType().name(), value, fieldType));
+            // It is kind of ignored:
+            context.addIgnoredField(fullPath());
+            if (isSourceSynthetic) {
+                context.doc().add(new StoredField(fieldType().name() + ".original", value));
+            }
+            return;
+        }
 
         // Add index on original value
         context.doc().add(new Field(fieldType().name(), value, fieldType));
 
         // Add template doc_values
-        context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
+        context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), templateBytes));
 
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));

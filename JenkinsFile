@@ -1,0 +1,40 @@
+pipeline {
+    agent { label 'ubuntu' } 
+
+    tools {
+        jdk 'jdk-21' 
+    }
+
+    stages {
+        stage('Checkout repository') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Grant execute permission for gradlew') {
+            steps {
+                sh 'chmod +x gradlew'
+            }
+        }
+
+        stage('Build local distribution') {
+            steps {
+                sh './gradlew localDistro --stacktrace --no-daemon'
+            }
+        }
+
+        stage('Run server tests') {
+            steps {
+                sh './gradlew :server:test --stacktrace --no-daemon'
+            }
+        }
+    }
+
+    post {
+        always {
+            junit '**/build/test-results/**/*.xml' 
+            archiveArtifacts artifacts: '**/build/reports/tests/**/*', allowEmptyArchive: true
+        }
+    }
+}

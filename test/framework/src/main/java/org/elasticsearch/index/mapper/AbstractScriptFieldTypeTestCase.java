@@ -22,21 +22,27 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -292,6 +298,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
         return mockContext(
             allowExpensiveQueries,
+            false,
             mappedFieldType,
             SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
         );
@@ -299,6 +306,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     protected static SearchExecutionContext mockContext(
         boolean allowExpensiveQueries,
+        boolean fieldOnlyMappedAsRuntimeField,
         MappedFieldType mappedFieldType,
         SourceProvider sourceProvider
     ) {
@@ -309,9 +317,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
+            (fieldName) -> fieldOnlyMappedAsRuntimeField,
             (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSupplier, context::sourcePath, fdo))
                 .build(null, null),
-            sourceProvider
+            sourceProvider,
+            LeafFieldLookupProvider.fromStoredFields()
         );
         when(context.lookup()).thenReturn(lookup);
         when(context.getForField(any(), any())).then(args -> {
@@ -465,7 +475,16 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
         throws IOException {
-        BlockLoader loader = fieldType.blockLoader(blContext());
+        return blockLoaderReadValuesFromColumnAtATimeReader(Settings.EMPTY, reader, fieldType, offset);
+    }
+
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
+        Settings settings,
+        DirectoryReader reader,
+        MappedFieldType fieldType,
+        int offset
+    ) throws IOException {
+        BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
@@ -478,13 +497,29 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
         throws IOException {
-        BlockLoader loader = fieldType.blockLoader(blContext());
+        return blockLoaderReadValuesFromRowStrideReader(Settings.EMPTY, reader, fieldType, false);
+    }
+
+    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        Settings settings,
+        DirectoryReader reader,
+        MappedFieldType fieldType,
+        boolean fieldOnlyMappedAsRuntimeField
+    ) throws IOException {
+        BlockLoader loader = fieldType.blockLoader(blContext(settings, fieldOnlyMappedAsRuntimeField));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+
+            assert loader.rowStrideStoredFieldSpec().requiresSource() == false;
+            BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                null
+            );
             for (int i = 0; i < ctx.reader().numDocs(); i++) {
-                blockReader.read(i, null, builder);
+                storedFields.advanceTo(i);
+                blockReader.read(i, storedFields, builder);
             }
             TestBlock block = (TestBlock) builder.build();
             for (int i = 0; i < block.size(); i++) {
@@ -494,16 +529,18 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return all;
     }
 
-    private MappedFieldType.BlockLoaderContext blContext() {
+    protected MappedFieldType.BlockLoaderContext blContext(Settings settings, boolean fieldOnlyMappedAsRuntimeField) {
+        String indexName = "test_index";
+        var imd = IndexMetadata.builder(indexName).settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(settings)).build();
         return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
-                throw new UnsupportedOperationException();
+                return indexName;
             }
 
             @Override
             public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
+                return new IndexSettings(imd, settings);
             }
 
             @Override
@@ -513,7 +550,12 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
             @Override
             public SearchLookup lookup() {
-                return mockContext().lookup();
+                return mockContext(
+                    true,
+                    fieldOnlyMappedAsRuntimeField,
+                    null,
+                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                ).lookup();
             }
 
             @Override

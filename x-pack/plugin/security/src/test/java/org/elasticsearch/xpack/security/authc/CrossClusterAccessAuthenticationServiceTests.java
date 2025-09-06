@@ -193,14 +193,14 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         verifyNoInteractions(auditableRequest);
     }
 
-    public void testTerminateExceptionBubblesUpWithTryAuthenticate() {
+    public void testTerminateExceptionBubblesUpWithAuthenticateHeaders() {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(apiKeyService)
             .tryAuthenticate(any(), any(ApiKeyService.ApiKeyCredentials.class), listenerCaptor.capture());
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        crossClusterAccessAuthenticationService.tryAuthenticate(
+        crossClusterAccessAuthenticationService.authenticateHeaders(
             new ApiKeyService.ApiKeyCredentials(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUIDSecureString(), ApiKey.Type.CROSS_CLUSTER),
             future
         );

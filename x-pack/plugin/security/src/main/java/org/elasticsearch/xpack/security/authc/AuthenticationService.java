@@ -262,7 +262,7 @@ public class AuthenticationService {
      * Returns an authenticator context for verifying only the provided {@param authenticationToken} without trying
      * to extract any other tokens from the thread context.
      */
-    Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
+    public Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
         return new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
@@ -271,7 +271,7 @@ public class AuthenticationService {
         );
     }
 
-    void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
+    public void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
         authenticatorChain.authenticate(context, listener);
     }
 

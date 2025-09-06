@@ -183,8 +183,9 @@ public class BlockBuilderTests extends ESTestCase {
                     RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
-                        if (built instanceof AggregateMetricDoubleArrayBlock == false) {
-                            assertThat(built.asVector().isConstant(), is(true));
+                        Vector vector = built.asVector();
+                        if (vector != null) { // some types don't support vectors, e.g. AggregateMetricDouble and ExponentialHistogram
+                            assertThat(vector.isConstant(), is(true));
                         }
                         assertThat(built, equalTo(random.block()));
                     }

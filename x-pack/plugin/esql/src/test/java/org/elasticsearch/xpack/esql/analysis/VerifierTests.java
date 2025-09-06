@@ -2376,12 +2376,13 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsWithSemanticText() {
+        assumeTrue("requires knn function", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         checkFullTextFunctionsWithSemanticText("knn(semantic, [0, 1, 2])");
         checkFullTextFunctionsWithSemanticText("match(semantic, \"hello world\")");
         checkFullTextFunctionsWithSemanticText("semantic:\"hello world\"");
     }
 
-    public void checkFullTextFunctionsWithSemanticText(String functionInvocation) {
+    private void checkFullTextFunctionsWithSemanticText(String functionInvocation) {
         query("from test | where " + functionInvocation, fullTextAnalyzer);
     }
 

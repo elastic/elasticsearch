@@ -57,5 +57,5 @@
     "ROW string = \"4/8/5\"\n| EVAL geotile = TO_GEOTILE(string)"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

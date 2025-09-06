@@ -57,5 +57,5 @@
     "ROW string = \"u3bu\"\n| EVAL geohash = TO_GEOHASH(string)"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

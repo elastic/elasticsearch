@@ -3,7 +3,7 @@
 ### ST GEOHASH
 Calculates the `geohash` of the supplied geo_point at the specified precision.
 The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-[TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](esql-to_geoshape.md) to calculate
+[TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](esql-to_geoshape) to calculate
 the `geo_shape` bounding geometry.
 
 These functions are related to the [`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)

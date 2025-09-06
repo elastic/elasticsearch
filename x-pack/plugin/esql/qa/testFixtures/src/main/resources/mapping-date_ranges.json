@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "name": {
+      "type": "keyword"
+    },
+    "range": {
+      "type": "date_range"
+    }
+  }
+}

@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
@@ -547,6 +548,13 @@ public class EsqlDataTypeConverter {
 
     public static String ipToString(BytesRef field) {
         return DocValueFormat.IP.format(field);
+    }
+
+    public static String dateRangeToString(BytesRef field) {
+        var from = ByteUtils.readLongBE(field.bytes, 0);
+        var to = ByteUtils.readLongBE(field.bytes, Long.BYTES);
+        // TODO: use / move to DocValueFormat?
+        return Long.toString(from) + "-" + Long.toString(to);
     }
 
     public static BytesRef stringToVersion(BytesRef field) {

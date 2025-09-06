@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -36,14 +37,11 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 
 /**
  * A {@link FieldMapper} for full-text log fields that internally splits text into a low cardinality template component
@@ -159,7 +157,15 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 true
             ).indexed(false).build(context);
-            return new PatternedTextFieldMapper(leafName(), fieldType, patternedTextFieldType, builderParams, this, templateIdMapper);
+            return new PatternedTextFieldMapper(
+                leafName(),
+                fieldType,
+                patternedTextFieldType,
+                builderParams,
+                this,
+                templateIdMapper,
+                context.isSourceSynthetic()
+            );
         }
     }
 
@@ -172,6 +178,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
+    private final boolean isSourceSynthetic;
 
     private PatternedTextFieldMapper(
         String simpleName,
@@ -179,7 +186,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         PatternedTextFieldType mappedFieldType,
         BuilderParams builderParams,
         Builder builder,
-        KeywordFieldMapper templateIdMapper
+        KeywordFieldMapper templateIdMapper,
+        boolean isSourceSynthetic
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
@@ -191,6 +199,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
+        this.isSourceSynthetic = isSourceSynthetic;
     }
 
     @Override
@@ -232,21 +241,19 @@ public class PatternedTextFieldMapper extends FieldMapper {
         if (templateBytes.length >= IndexWriter.MAX_TERM_LENGTH) {
             logger.error(
                 "pattern text template is longer than allowed maximum term length.\n Template={}\n Original value={}",
-                templateBytes,
+                templateBytes.utf8ToString(),
                 value
             );
-            byte[] prefix = new byte[30];
-            System.arraycopy(templateBytes.bytes, templateBytes.offset, prefix, 0, 30);
-            String msg = "pattern text template is longer than allowed maximum term length=\""
-                + fieldType().name()
-                + "\" (whose "
-                + "UTF8 encoding is longer than the max length "
-                + MAX_TERM_LENGTH
-                + "), all of which were "
-                + "skipped. The prefix of the first immense term is: '"
-                + Arrays.toString(prefix)
-                + "...'";
-            throw new IllegalArgumentException(msg);
+            // Maybe adding template id helps with compressing the original stored field:
+            context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
+            // Even when template too large we can still create an inverted index:
+            context.doc().add(new Field(fieldType().name(), value, fieldType));
+            // It is kind of ignored:
+            context.addIgnoredField(fullPath());
+            if (isSourceSynthetic) {
+                context.doc().add(new StoredField(fieldType().name() + ".original", value));
+            }
+            return;
         }
 
         // Add index on original value

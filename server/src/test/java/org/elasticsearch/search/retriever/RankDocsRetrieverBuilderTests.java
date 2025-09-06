@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +71,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),
-                    randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
+                    (IVF_FORMAT.isEnabled() == false && randomBoolean()) ? null : randomFloatBetween(0.0f, 100.0f, true),
                     randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                     randomFloat()
                 );

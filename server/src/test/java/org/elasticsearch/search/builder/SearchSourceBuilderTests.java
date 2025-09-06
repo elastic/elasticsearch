@@ -827,8 +827,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.fetchField("field");
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
-        Float percentage = IVF_FORMAT.isEnabled() ? 10f : null;
-        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, percentage, null, null)));
+        searchSourceBuilder.knnSearch(
+            List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, IVF_FORMAT.isEnabled() ? 10f : null, null, null))
+        );
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pitid")));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");

@@ -321,8 +321,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        // Only the first STATS command in a TS query is treated as the time-series aggregation
         return input -> {
-            if (input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
+            if (input.anyMatch(p -> p instanceof Aggregate) == false
+                && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
                 return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);

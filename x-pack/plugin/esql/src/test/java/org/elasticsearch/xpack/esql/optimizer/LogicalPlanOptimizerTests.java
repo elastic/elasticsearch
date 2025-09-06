@@ -1032,10 +1032,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), EmptyLocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
 
-        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
+        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
             case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };
@@ -8993,5 +8993,67 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
         Bucket bucket = as(Alias.unwrap(eval.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    /**
+     *
+     * Project[[languages{f}#8, language_code{f}#16, language_name{f}#17]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#8, language_code{f}#16],[languages{f}#8],[language_code{f}#16],languages{f}#8 == language_code{
+     * f}#16]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     *
+     */
+    public void testLookupJoinExpressionSwapped() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | keep languages
+            | lookup join languages_lookup ON language_code == languages
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var join = as(limit.child(), Join.class);
+        assertEquals("language_code == languages", join.config().joinOnConditions().toString());
+        var equals = as(join.config().joinOnConditions(), Equals.class);
+        // we expect left and right to be swapped
+        var left = as(equals.left(), Attribute.class);
+        var right = as(equals.right(), Attribute.class);
+        assertEquals("language_code", right.name());
+        assertEquals("languages", left.name());
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    public void testLookupJoinExpressionAmbigiousRight() {
+        String query = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON salary == language_code
+            """;
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("Reference [language_code] is ambiguous; matches any of "));
+    }
+
+    public void testLookupJoinExpressionAmbigiousLeft() {
+        String query = """
+            from test
+            | rename languages as language_name
+            | lookup join languages_lookup ON language_name == language_code
+            """;
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("Reference [language_name] is ambiguous; matches any of "));
+    }
+
+    public void testLookupJoinExpressionAmbigiousBoth() {
+        String query = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON language_code != language_code
+            """;
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("Reference [language_code] is ambiguous; matches any of "));
     }
 }

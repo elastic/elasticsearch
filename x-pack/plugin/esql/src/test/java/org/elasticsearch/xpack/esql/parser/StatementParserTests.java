@@ -4634,9 +4634,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectError(
                     LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
                     List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                    command.contains("join")
-                        ? "JOIN ON clause only supports fields at the moment"
-                        : "declared as a constant, cannot be used as an identifier"
+                    "declared as a constant, cannot be used as an identifier"
                 );
             }
         }

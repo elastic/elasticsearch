@@ -28,10 +28,8 @@ public final class MatchConfig implements Writeable {
         this.type = type;
     }
 
-    public MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-        // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
-        // indices, so the call to exactAttribute looks redundant now.
-        this(match.exactAttribute().fieldName(), input.channel(), input.type());
+    public MatchConfig(FieldAttribute.FieldName fieldName, Layout.ChannelAndType input) {
+        this(fieldName, input.channel(), input.type());
     }
 
     public MatchConfig(StreamInput in) throws IOException {

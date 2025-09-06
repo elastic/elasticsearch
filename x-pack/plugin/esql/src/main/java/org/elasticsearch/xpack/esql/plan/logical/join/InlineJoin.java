@@ -169,7 +169,7 @@ public class InlineJoin extends Join {
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, matchFields, leftFields, rightFields);
+        super(source, left, right, type, matchFields, leftFields, rightFields, null);
     }
 
     private static InlineJoin readFrom(StreamInput in) throws IOException {

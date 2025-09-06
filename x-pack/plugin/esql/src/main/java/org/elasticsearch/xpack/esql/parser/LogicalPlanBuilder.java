@@ -44,6 +44,10 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -596,7 +600,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
-        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/, null);
     }
 
     @Override
@@ -641,40 +645,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         var condition = ctx.joinCondition();
-
-        // ON only with un-qualified names for now
-        var predicates = expressions(condition.joinPredicate());
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
-        for (var f : predicates) {
-            // verify each field is an unresolved attribute
-            if (f instanceof UnresolvedAttribute ua) {
-                if (ua.qualifier() != null) {
-                    throw new ParsingException(
-                        ua.source(),
-                        "JOIN ON clause only supports unqualified fields, found [{}]",
-                        ua.qualifiedName()
-                    );
-                }
-                joinFields.add(ua);
-            } else {
-                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
-            }
-        }
-
-        var matchFieldsCount = joinFields.size();
-        if (matchFieldsCount > 1) {
-            Set<String> matchFieldNames = new LinkedHashSet<>();
-            for (Attribute field : joinFields) {
-                if (matchFieldNames.add(field.name()) == false) {
-                    throw new ParsingException(
-                        field.source(),
-                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
-                        field.name()
-                    );
-                }
-
-            }
-        }
+        var joinInfo = typedParsing(this, condition, JoinInfo.class);
 
         return p -> {
             boolean hasRemotes = p.anyMatch(node -> {
@@ -688,8 +659,84 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                 throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
             }
-            return new LookupJoin(source, p, right, joinFields, hasRemotes);
+            return new LookupJoin(source, p, right, joinInfo.joinFields(), hasRemotes, Predicates.combineAnd(joinInfo.joinExpressions()));
         };
+    }
+
+    private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
+
+    @Override
+    public JoinInfo visitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx) {
+        var predicates = visitList(this, ctx.qualifiedName(), Expression.class);
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            // verify each field is an unresolved attribute
+            if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
+                joinFields.add(ua);
+            } else {
+                throw new ParsingException(
+                    f.source(),
+                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                    f.sourceText()
+                );
+            }
+        }
+        validateJoinFields(joinFields);
+        return new JoinInfo(joinFields, emptyList());
+    }
+
+    @Override
+    public JoinInfo visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) {
+        var predicates = visitList(this, ctx.comparisonExpression(), Expression.class);
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        List<Expression> joinExpressions = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            f = handleNegationOfEquals(f);
+            if (f instanceof EsqlBinaryComparison comparison
+                && comparison.left() instanceof UnresolvedAttribute left
+                && comparison.right() instanceof UnresolvedAttribute right) {
+                joinFields.add(left);
+                joinFields.add(right);
+                joinExpressions.add(f);
+            } else {
+                throw new ParsingException(
+                    f.source(),
+                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                    f.sourceText()
+                );
+            }
+        }
+        return new JoinInfo(joinFields, joinExpressions);
+    }
+
+    private void validateJoinFields(List<Attribute> joinFields) {
+        if (joinFields.size() > 1) {
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+            }
+        }
+    }
+
+    private Expression handleNegationOfEquals(Expression f) {
+        if (f instanceof Not not && not.children().size() == 1 && not.children().get(0) instanceof Equals equals) {
+            // we only support NOT on Equals, by converting it to NotEquals
+            return equals.negate();
+        }
+        return f;
     }
 
     private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {

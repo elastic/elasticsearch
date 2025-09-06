@@ -1033,6 +1033,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterOperatorExpressionDefault(EsqlBaseParser.OperatorExpressionDefaultContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1405,25 +1417,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
+  @Override public void enterFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
+  @Override public void exitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
+  @Override public void enterExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
+  @Override public void exitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) { }
 
   /**
    * {@inheritDoc}

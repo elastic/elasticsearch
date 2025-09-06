@@ -546,6 +546,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitComparison(EsqlBaseParser.ComparisonContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#comparisonExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code operatorExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
@@ -750,15 +756,17 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
+   * Visit a parse tree produced by the {@code fieldBasedLookupJoin}
+   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  T visitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * Visit a parse tree produced by the {@code expressionBasedLookupJoin}
+   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  T visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx);
 }

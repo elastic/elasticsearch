@@ -12,7 +12,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * Service for registering {@link LinkedProjectConfigListener}s to be notified of changes to linked project configurations.
@@ -61,18 +60,4 @@ public interface LinkedProjectConfigService {
      * @return A collection of all existing {@link LinkedProjectConfig}s.
      */
     Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs();
-
-    /**
-     * A no-op stub implementation of {@link LinkedProjectConfigService} intended for use in test scenarios where linked project
-     * configuration updates are not needed.
-     */
-    LinkedProjectConfigService NOOP = new LinkedProjectConfigService() {
-        @Override
-        public void register(LinkedProjectConfigListener listener) {}
-
-        @Override
-        public Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs() {
-            return Collections.emptyList();
-        }
-    };
 }

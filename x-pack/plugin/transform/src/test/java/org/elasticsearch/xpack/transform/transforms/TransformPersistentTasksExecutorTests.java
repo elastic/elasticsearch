@@ -39,9 +39,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
@@ -661,7 +661,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            LinkedProjectConfigService.NOOP,
+            StubLinkedProjectConfigService.INSTANCE,
             configManager,
             mockAuditor
         );

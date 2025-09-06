@@ -30,9 +30,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
@@ -196,7 +196,7 @@ public class TransformTaskTests extends ESTestCase {
         var transformsCheckpointService = new TransformCheckpointService(
             clock,
             Settings.EMPTY,
-            LinkedProjectConfigService.NOOP,
+            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             auditor
         );

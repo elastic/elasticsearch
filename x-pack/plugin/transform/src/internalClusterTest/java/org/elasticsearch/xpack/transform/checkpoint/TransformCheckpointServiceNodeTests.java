@@ -46,10 +46,10 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
-import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
@@ -176,7 +176,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            LinkedProjectConfigService.NOOP,
+            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             mockAuditor
         );

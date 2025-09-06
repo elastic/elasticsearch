@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.util.Collections;
@@ -34,7 +34,7 @@ public class SqlPluginTests extends ESTestCase {
                 mock(Client.class),
                 Settings.EMPTY,
                 randomAlphaOfLength(10),
-                LinkedProjectConfigService.NOOP,
+                StubLinkedProjectConfigService.INSTANCE,
                 new NamedWriteableRegistry(Cursors.getNamedWriteables())
             ),
             hasSize(3)

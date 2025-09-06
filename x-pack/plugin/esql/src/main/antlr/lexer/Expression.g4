@@ -91,6 +91,7 @@ ASSIGN : '=';
 BY : 'by';
 CAST_OP : '::';
 COLON : ':';
+SEMICOLON : ';';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';

@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -39,14 +39,14 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -58,13 +58,13 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     @Override
     public void setUp() throws Exception {
         if (rarely()) {
-            format = new IVFVectorsFormat(
-                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, IVFVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
+            format = new ES920DiskBBQVectorsFormat(
+                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
+                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
             );
         } else {
             // run with low numbers to force many clusters with parents
-            format = new IVFVectorsFormat(
+            format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8)
             );
@@ -108,10 +108,10 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new IVFVectorsFormat(128, 4);
+                return new ES920DiskBBQVectorsFormat(128, 4);
             }
         };
-        String expectedPattern = "IVFVectorsFormat(vectorPerCluster=128)";
+        String expectedPattern = "ES920DiskBBQVectorsFormat(vectorPerCluster=128)";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
@@ -119,10 +119,10 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
-        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
     }
 
     public void testSimpleOffHeapSize() throws IOException {

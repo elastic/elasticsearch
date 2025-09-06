@@ -7,10 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.search.CheckedIntConsumer;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 
@@ -28,7 +29,7 @@ abstract class DiskBBQBulkWriter {
         this.out = out;
     }
 
-    abstract void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
+    abstract void writeVectors(ES920DiskBBQVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
         throws IOException;
 
     static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
@@ -40,7 +41,7 @@ abstract class DiskBBQBulkWriter {
         }
 
         @Override
-        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
+        void writeVectors(ES920DiskBBQVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
             throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
@@ -103,7 +104,7 @@ abstract class DiskBBQBulkWriter {
         }
 
         @Override
-        void writeVectors(DefaultIVFVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
+        void writeVectors(ES920DiskBBQVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
             throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;

@@ -1,4 +1,6 @@
 pipeline {
+    agent any
+    
     tools {
         jdk 'jdk_21' 
     }

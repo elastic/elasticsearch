@@ -24,11 +24,15 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -38,7 +42,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class DateParse extends EsqlScalarFunction implements OptionalArgument {
+public class DateParse extends EsqlScalarFunction implements TwoOptionalArguments, OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateParse",
@@ -47,6 +51,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field;
     private final Expression format;
+    private final Expression locale;
 
     @FunctionInfo(
         returnType = "date",
@@ -63,19 +68,24 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
             name = "dateString",
             type = { "keyword", "text" },
             description = "Date expression as a string. If `null` or an empty string, the function returns `null`."
-        ) Expression second
-    ) {
-        super(source, second != null ? List.of(first, second) : List.of(first));
+        ) Expression second,
+        @Param(
+            name = "locale",
+            type = { "keyword", "text" },
+            description = "Locale expression as a string. If `null` or an empty string, date formatter uses default locale."
+        ) Expression third) {
+        super(source, second != null && third != null ? List.of(first, second, third) : List.of(first));
         this.field = second != null ? second : first;
         this.format = second != null ? first : null;
+        this.locale = third;
     }
 
     private DateParse(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
-        );
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class));
     }
 
     @Override
@@ -141,9 +151,17 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
+
+        if (Objects.nonNull(locale) &&
+            !Arrays.asList(Locale.getAvailableLocales()).contains(Locale.forLanguageTag(locale.toString()))) {
+            throw new IllegalArgumentException("unsupported locale [" + locale + "]");
+        }
         if (format.foldable()) {
             try {
                 DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
+                if (Objects.nonNull(locale)) {
+                    formatter = formatter.withLocale(Locale.forLanguageTag(locale.toString()));
+                }
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
@@ -159,13 +177,13 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateParse(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
+        return new DateParse(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, locale);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
-        return NodeInfo.create(this, DateParse::new, first, second);
+        return NodeInfo.create(this, (source, first1, second1) -> new DateParse(source, first1, second1, locale), first, second);
     }
 }

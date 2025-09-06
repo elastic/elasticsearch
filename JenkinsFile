@@ -1,6 +1,6 @@
 pipeline {
     agent any
-    
+
     tools {
         jdk 'jdk_21' 
     }
@@ -8,7 +8,7 @@ pipeline {
     options {
         skipDefaultCheckout() 
     }
-    //hello
+    //hello world
     stages {
         stage('Checkout repository') {
             steps {

@@ -31,7 +31,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":distribution:docker");
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
         map.put(LegacyRestTestBasePlugin.class, ":qa:remote-clusters");
         map.put(LegacyRestTestBasePlugin.class, ":qa:repository-multi-version");

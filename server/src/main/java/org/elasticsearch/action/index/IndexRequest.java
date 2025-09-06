@@ -219,7 +219,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public IndexRequest() {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, 0);
     }
 
     /**
@@ -227,7 +227,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, 0);
         this.index = index;
     }
 

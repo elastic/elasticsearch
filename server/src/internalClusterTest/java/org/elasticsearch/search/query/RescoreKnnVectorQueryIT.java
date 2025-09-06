@@ -130,7 +130,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 randomVector(numDims),
                 k,
                 (int) (k * randomFloatBetween(1.0f, 10.0f, true)),
-                (IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
+                IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
                 new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true))
             );
         }

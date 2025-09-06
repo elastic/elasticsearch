@@ -104,9 +104,6 @@ public class TransportVersions {
     public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16 = def(8_772_0_02);
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16 = def(8_772_0_03);
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_7 = def(8_772_0_07);
     public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_0_00);
     public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_0_00);
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_0_00);
@@ -134,15 +131,6 @@ public class TransportVersions {
     public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_0_00);
     public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17 = def(8_797_0_01);
     public static final TransportVersion SOURCE_MODE_TELEMETRY_FIX_8_17 = def(8_797_0_02);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_6 = def(8_797_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_7 = def(8_797_0_07);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_8 = def(8_797_0_08);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_9 = def(8_797_0_09);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_10 = def(8_797_0_10);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_11 = def(8_797_0_11);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -175,6 +163,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_827_0_00);
     public static final TransportVersion ADD_INDEX_BLOCK_TWO_PHASE = def(8_828_0_00);
     public static final TransportVersion RESOLVE_CLUSTER_NO_INDEX_EXPRESSION = def(8_829_0_00);
+    public static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = def(8_830_0_00);
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_0_00);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_0_00);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_0_00);
@@ -187,11 +176,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_6 = def(8_840_0_08);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_7 = def(8_840_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
@@ -256,10 +240,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
+    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_2 = def(8_841_0_66);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_3 = def(8_841_0_67);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
 
     /*

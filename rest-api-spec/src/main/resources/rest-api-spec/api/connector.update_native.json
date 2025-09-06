@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/update-connector-native-api.html",
       "description": "Update the connector is_native flag"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

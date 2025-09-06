@@ -47,8 +47,8 @@ import java.util.concurrent.TimeUnit;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.CUMULATIVE;
 import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.DELTA;
-import static org.elasticsearch.action.otlp.OTLPMetricsIndexingRestIT.Monotonicity.MONOTONIC;
-import static org.elasticsearch.action.otlp.OTLPMetricsIndexingRestIT.Monotonicity.NON_MONOTONIC;
+import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.MONOTONIC;
+import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.NON_MONOTONIC;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -124,13 +124,13 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
             .setUnit("By")
             .buildWithCallback(result -> result.record(totalMemory, Attributes.empty()));
 
-        var result = meterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+        var result = meterProvider.shutdown();
         assertThat(result.isSuccess(), is(true));
 
         refreshMetricsIndices();
 
         ObjectPath search = search("metrics-generic.otel-default");
-        assertThat(search.evaluate("hits.total.value"), equalTo(1));
+        assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
         assertThat(ObjectPath.evaluate(source, "@timestamp"), isA(String.class));
         assertThat(ObjectPath.evaluate(source, "start_timestamp"), isA(String.class));
@@ -147,7 +147,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
 
         export(List.of(jvmMemoryMetricData));
         ObjectPath search = search("metrics-generic.otel-default");
-        assertThat(search.evaluate("hits.total.value"), equalTo(1));
+        assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
         assertThat(ObjectPath.evaluate(source, "@timestamp"), equalTo(timestampAsString(now)));
         assertThat(ObjectPath.evaluate(source, "start_timestamp"), equalTo(timestampAsString(now)));
@@ -169,7 +169,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         ObjectPath path = ObjectPath.createFromResponse(
             client().performRequest(new Request("GET", "metrics-generic.otel-default/_search"))
         );
-        assertThat(path.evaluate("hits.total.value"), equalTo(1));
+        assertThat(path.toString(), path.evaluate("hits.total.value"), equalTo(1));
         assertThat(path.evaluate("hits.hits.0._source.metrics"), equalTo(Map.of("metric1", 42.0, "metric2", 42.0)));
         assertThat(path.evaluate("hits.hits.0._source.resource"), equalTo(Map.of("attributes", Map.of("service.name", "elasticsearch"))));
     }
@@ -185,7 +185,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
             )
         );
         ObjectPath path = search("metrics-generic.otel-default");
-        assertThat(path.evaluate("hits.total.value"), equalTo(4));
+        assertThat(path.toString(), path.evaluate("hits.total.value"), equalTo(4));
     }
 
     public void testGauge() throws Exception {

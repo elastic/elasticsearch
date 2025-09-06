@@ -93,7 +93,8 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
             MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor);
             context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
             if (bulkRequestBuilder.numberOfActions() == 0) {
-                handleEmptyBulk(listener, context);
+                // all data points were ignored
+                handlePartialSuccess(listener, context);
                 return;
             }
 
@@ -127,11 +128,9 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dataPointGroup);
             bulkRequestBuilder.add(
-                new IndexRequest(dataPointGroup.targetIndex()).opType(DocWriteRequest.OpType.CREATE)
+                new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
-                    // TODO uncomment after https://github.com/elastic/elasticsearch/pull/132566 has been merged
-                    // .tsid(DataPointGroupTsidFunnel.forDataPointGroup(dataPointGroup).buildTsid())
                     .setDynamicTemplates(dynamicTemplates)
             );
         }
@@ -149,17 +148,13 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         handleSuccess(listener);
     }
 
-    private static void handleEmptyBulk(ActionListener<MetricsResponse> listener, DataPointGroupingContext context) {
-        // If the processing of the request fails because the request contains data that cannot be decoded
-        // or is otherwise invalid and such failure is permanent,
-        // then the server MUST respond with HTTP 400 Bad Request.
-        // https://opentelemetry.io/docs/specs/otlp/#bad-data
-        listener.onResponse(
-            new MetricsResponse(
-                RestStatus.BAD_REQUEST,
-                responseWithRejectedDataPoints(context.totalDataPoints(), context.getIgnoredDataPointsMessage())
-            )
-        );
+    private static void handlePartialSuccess(ActionListener<MetricsResponse> listener, DataPointGroupingContext context) {
+        // If the request is only partially accepted
+        // (i.e. when the server accepts only parts of the data and rejects the rest),
+        // the server MUST respond with HTTP 200 OK.
+        // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
+        MessageLite response = responseWithRejectedDataPoints(context.getIgnoredDataPoints(), context.getIgnoredDataPointsMessage());
+        listener.onResponse(new MetricsResponse(RestStatus.OK, response));
     }
 
     private static void handlePartialSuccess(

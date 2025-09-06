@@ -1,16 +1,28 @@
 pipeline {
-
     agent { label 'ubuntu' } 
 
     tools {
         jdk 'jdk-21' 
     }
 
+    options {
+        skipDefaultCheckout() // disables automatic lightweight checkout
+    }
+
     stages {
         stage('Checkout repository') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Jingjia01/elasticsearch.git'
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: 'main']],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [
+                        [$class: 'CloneOption', shallow: false, depth: 0]
+                    ],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/Jingjia01/elasticsearch.git'
+                    ]]
+                ])
             }
         }
 

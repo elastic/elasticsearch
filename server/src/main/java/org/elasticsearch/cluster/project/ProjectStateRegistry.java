@@ -199,8 +199,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         return projectsMarkedForDeletionGeneration;
     }
 
-    // visible for testing
-    Set<ProjectId> knownProjects() {
+    public Set<ProjectId> knownProjects() {
         return projectsEntries.keySet();
     }
 

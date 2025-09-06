@@ -8,7 +8,7 @@ pipeline {
     options {
         skipDefaultCheckout() 
     }
-    //hello world
+    //hello world gay
     stages {
         stage('Checkout repository') {
             steps {

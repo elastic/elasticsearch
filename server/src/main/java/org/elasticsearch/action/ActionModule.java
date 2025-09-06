@@ -405,6 +405,12 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.sample.GetSampleAction;
+import org.elasticsearch.sample.PutSampleConfigAction;
+import org.elasticsearch.sample.RestGetSampleAction;
+import org.elasticsearch.sample.RestPutSampleConfigAction;
+import org.elasticsearch.sample.TransportGetSampleAction;
+import org.elasticsearch.sample.TransportPutSampleConfigAction;
 import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -813,6 +819,9 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
+        actions.register(PutSampleConfigAction.INSTANCE, TransportPutSampleConfigAction.class);
+        actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -1040,6 +1049,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
+
+        registerHandler.accept(new RestPutSampleConfigAction());
+        registerHandler.accept(new RestGetSampleAction());
     }
 
     @Override

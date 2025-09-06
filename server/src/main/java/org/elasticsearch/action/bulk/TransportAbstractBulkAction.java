@@ -42,6 +42,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -63,7 +65,7 @@ import java.util.function.LongSupplier;
  */
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
-
+    private final Map<String, List<IndexRequest>> samples = new HashMap<>();
     public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(9) {
         {
             add("error_trace");
@@ -90,6 +92,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
     protected final FeatureService featureService;
+    private final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -103,7 +106,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         LongSupplier relativeTimeNanosProvider,
-        FeatureService featureService
+        FeatureService featureService,
+        SamplingService samplingService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -119,6 +123,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
+        this.samplingService = samplingService;
     }
 
     @Override
@@ -204,13 +209,18 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, true);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
-        throws IOException {
+    private boolean applyPipelines(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        boolean firstTime
+    ) throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
@@ -303,6 +313,13 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
+        } else if (samplingService != null && firstTime) {
+            // else sample, but only if this is the first time through?
+            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                if (actionRequest instanceof IndexRequest ir) {
+                    samplingService.maybeSample(project, ir);
+                }
+            }
         }
         return false;
     }
@@ -317,6 +334,10 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         final Thread originalThread = Thread.currentThread();
+        // Function<IndexRequest, Void> rawDocSaver = indexRequest -> {
+        // indexRequest.source();
+        // return null;
+        // };
         getIngestService(original).executeBulkRequest(
             metadata.id(),
             original.numberOfActions(),
@@ -338,7 +359,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                         @Override
                         protected void doRun() throws IOException {
-                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, false);
                         }
 
                         @Override
@@ -416,7 +437,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        boolean firstTime
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
 
@@ -433,8 +455,22 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
 
         var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
-
-        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
+        boolean noPipelinesRemaining;
+        try {
+            noPipelinesRemaining = applyPipelines(
+                task,
+                bulkRequestModifier.getBulkRequest(),
+                executor,
+                wrappedListener,
+                firstTime
+            ) == false;
+        } catch (Exception e) {
+            maybeSample();
+            throw e;
+        }
+        if (noPipelinesRemaining) {
+            // we have run all pipelines, so maybe sample
+            maybeSample();
             doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }
@@ -489,6 +525,10 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
     private boolean streamsRestrictedParamsUsed(BulkRequest bulkRequest) {
         return Sets.difference(bulkRequest.requestParamsUsed(), STREAMS_ALLOWED_PARAMS).isEmpty() == false;
+    }
+
+    private void maybeSample() {
+        // Is sampling enabled for this index?
     }
 
     /**

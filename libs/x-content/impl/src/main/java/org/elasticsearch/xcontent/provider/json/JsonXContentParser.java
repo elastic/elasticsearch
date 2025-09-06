@@ -39,6 +39,7 @@ import java.nio.CharBuffer;
 public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
+    private Token currentToken;
 
     public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config.registry(), config.deprecationHandler(), config.restApiVersion());
@@ -88,7 +89,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public Token nextToken() throws IOException {
         try {
-            return convertToken(parser.nextToken());
+            return (currentToken = convertToken(parser.nextToken()));
         } catch (IOException e) {
             throw handleParserException(e);
         }
@@ -110,7 +111,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public Token currentToken() {
-        return convertToken(parser.getCurrentToken());
+        return currentToken;
     }
 
     @Override

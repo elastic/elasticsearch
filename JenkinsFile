@@ -1,5 +1,5 @@
 pipeline {
-    
+
     agent { label 'ubuntu' } 
 
     tools {
@@ -9,7 +9,8 @@ pipeline {
     stages {
         stage('Checkout repository') {
             steps {
-                checkout scm
+                git branch: 'main',
+                    url: 'https://github.com/Jingjia01/elasticsearch.git'
             }
         }
 

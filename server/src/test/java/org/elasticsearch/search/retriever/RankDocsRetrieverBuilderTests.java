@@ -71,7 +71,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),
-                    (IVF_FORMAT.isEnabled() == false && randomBoolean()) ? null : randomFloatBetween(0.0f, 100.0f, true),
+                    IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
                     randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                     randomFloat()
                 );

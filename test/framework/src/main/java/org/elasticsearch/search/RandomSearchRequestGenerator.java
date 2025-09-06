@@ -267,8 +267,7 @@ public class RandomSearchRequestGenerator {
                 }
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
-                Float visitPercentage = (IVF_FORMAT.isEnabled() == false && randomBoolean())
-                    ? null
+                Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null
                     : randomFloatBetween(0.0f, 100.0f, true);
                 RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
                     ? null

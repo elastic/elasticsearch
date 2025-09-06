@@ -374,9 +374,6 @@ public final class RemoteClusterService extends RemoteClusterAware
 
     @Override
     public void updateLinkedProject(LinkedProjectConfig config) {
-        if (LOCAL_CLUSTER_GROUP_KEY.equals(config.linkedProjectAlias())) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
         final var projectId = config.originProjectId();
         final var clusterAlias = config.linkedProjectAlias();
         CountDownLatch latch = new CountDownLatch(1);

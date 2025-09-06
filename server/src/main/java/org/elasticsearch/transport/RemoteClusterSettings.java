@@ -42,12 +42,14 @@ import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStr
 
 public class RemoteClusterSettings {
 
+    public static final String REMOTE_CLUSTER_SETTINGS_PREFIX = "cluster.remote.";
+
     public static final TimeValue DEFAULT_INITIAL_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     /**
      * The initial connect timeout for remote cluster connections
      */
     public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "cluster.remote.initial_connect_timeout",
+        REMOTE_CLUSTER_SETTINGS_PREFIX + "initial_connect_timeout",
         DEFAULT_INITIAL_CONNECTION_TIMEOUT,
         Setting.Property.NodeScope
     );
@@ -59,13 +61,13 @@ public class RemoteClusterSettings {
      * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString(
-        "cluster.remote.node.attr",
+        REMOTE_CLUSTER_SETTINGS_PREFIX + "node.attr",
         Setting.Property.NodeScope
     );
 
     public static final boolean DEFAULT_SKIP_UNAVAILABLE = true;
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE = Setting.affixKeySetting(
-        "cluster.remote.",
+        REMOTE_CLUSTER_SETTINGS_PREFIX,
         "skip_unavailable",
         (ns, key) -> boolSetting(
             key,
@@ -77,7 +79,7 @@ public class RemoteClusterSettings {
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
-        "cluster.remote.",
+        REMOTE_CLUSTER_SETTINGS_PREFIX,
         "transport.ping_schedule",
         (ns, key) -> timeSetting(
             key,
@@ -89,7 +91,7 @@ public class RemoteClusterSettings {
     );
 
     public static final Setting.AffixSetting<Compression.Enabled> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
-        "cluster.remote.",
+        REMOTE_CLUSTER_SETTINGS_PREFIX,
         "transport.compress",
         (ns, key) -> enumSetting(
             Compression.Enabled.class,
@@ -102,7 +104,7 @@ public class RemoteClusterSettings {
     );
 
     public static final Setting.AffixSetting<Compression.Scheme> REMOTE_CLUSTER_COMPRESSION_SCHEME = Setting.affixKeySetting(
-        "cluster.remote.",
+        REMOTE_CLUSTER_SETTINGS_PREFIX,
         "transport.compression_scheme",
         (ns, key) -> enumSetting(
             Compression.Scheme.class,
@@ -115,7 +117,7 @@ public class RemoteClusterSettings {
     );
 
     public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_CREDENTIALS = Setting.affixKeySetting(
-        "cluster.remote.",
+        REMOTE_CLUSTER_SETTINGS_PREFIX,
         "credentials",
         key -> SecureSetting.secureString(key, null)
     );

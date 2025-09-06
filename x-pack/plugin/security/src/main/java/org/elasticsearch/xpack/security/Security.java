@@ -417,6 +417,9 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerReloader;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -603,6 +606,8 @@ public class Security extends Plugin
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<CrossClusterAccessAuthenticationService> crossClusterAccessAuthcService = new SetOnce<>();
+    private final SetOnce<CrossClusterApiKeySigner> crossClusterApiKeySigner = new SetOnce<>();
+    private final SetOnce<CrossClusterApiKeySignerReloader> crossClusterApiKeySignerReloader = new SetOnce<>();
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
@@ -1164,6 +1169,16 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
+        crossClusterApiKeySigner.set(new CrossClusterApiKeySigner(environment));
+        components.add(crossClusterApiKeySigner.get());
+        crossClusterApiKeySignerReloader.set(
+            new CrossClusterApiKeySignerReloader(
+                resourceWatcherService,
+                clusterService.getClusterSettings(),
+                crossClusterApiKeySigner.get()
+            )
+        );
+        components.add(crossClusterApiKeySignerReloader.get());
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1174,7 +1189,8 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
-                getLicenseState()
+                getLicenseState(),
+                crossClusterApiKeySigner.get()
             )
         );
 
@@ -1544,6 +1560,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
+        settingsList.addAll(CrossClusterApiKeySignerSettings.getSettings());
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));

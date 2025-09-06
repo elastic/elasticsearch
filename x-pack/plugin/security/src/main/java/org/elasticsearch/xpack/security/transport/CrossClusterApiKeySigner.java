@@ -1,0 +1,252 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.security.transport;
+
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.SslUtil;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterSettings;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+import javax.net.ssl.X509KeyManager;
+
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.KEYSTORE_ALIAS_SUFFIX;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SETTINGS_PART_SIGNING;
+
+public class CrossClusterApiKeySigner {
+    private final Logger logger = LogManager.getLogger(getClass());
+    private final Environment environment;
+    private static final Map<String, String> SIGNATURE_ALGORITHM_BY_TYPE = Map.of("RSA", "SHA256withRSA", "EC", "SHA256withECDSA");
+
+    private final Map<String, SigningConfig> signingConfigByClusterAlias = new ConcurrentHashMap<>();
+
+    public CrossClusterApiKeySigner(Environment environment) {
+        this.environment = environment;
+        loadSigningConfigs();
+    }
+
+    public Map<Path, Set<String>> getDependentFilesToClusterAliases() {
+        return signingConfigByClusterAlias.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().dependentFiles != null)
+            .flatMap(entry -> entry.getValue().dependentFiles.stream().map(path -> Map.entry(path, entry.getKey())))
+            .collect(Collectors.groupingBy(Map.Entry::getKey, Collectors.mapping(Map.Entry::getValue, Collectors.toSet())));
+    }
+
+    public void loadSigningConfig(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
+        signingConfigByClusterAlias.compute(clusterAlias, (key, currentSigningConfig) -> {
+            var effectiveSettings = buildEffectiveSettings(
+                currentSigningConfig != null ? currentSigningConfig.settings : null,
+                settings,
+                updateSecureSettings
+            );
+            assert effectiveSettings != null : "Signing config settings must not be null";
+            logger.trace("Loading signing config for [{}] with settings [{}]", clusterAlias, effectiveSettings);
+
+            SigningConfig signingConfig = new SigningConfig(null, null, effectiveSettings);
+            if (effectiveSettings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
+                try {
+                    SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(
+                        effectiveSettings,
+                        SETTINGS_PART_SIGNING + ".",
+                        environment,
+                        false
+                    );
+                    if (keyConfig.hasKeyMaterial()) {
+                        String alias = effectiveSettings.get(SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX);
+                        var keyPair = Strings.isNullOrEmpty(alias) ? buildKeyPair(keyConfig) : buildKeyPair(keyConfig, alias);
+                        if (keyPair != null) {
+                            logger.trace("Key pair [{}] found for [{}]", keyPair, clusterAlias);
+                            signingConfig = new SigningConfig(keyPair, keyConfig.getDependentFiles(), effectiveSettings);
+                        }
+                    } else {
+                        logger.error(Strings.format("No signing credentials found in signing config for cluster [%s]", clusterAlias));
+                    }
+                } catch (Exception e) {
+                    // Since this can be called by the settings applier we don't want to surface an error here
+                    logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
+                }
+            } else {
+                logger.trace("No signing settings found for [{}]", clusterAlias);
+            }
+            return signingConfig;
+        });
+    }
+
+    public X509CertificateSignature sign(String clusterAlias, String... headers) {
+        SigningConfig signingConfig = signingConfigByClusterAlias.get(clusterAlias);
+        if (signingConfig == null || signingConfig.keyPair() == null) {
+            logger.trace("No signing config found for [{}] returning empty signature", clusterAlias);
+            return null;
+        }
+        var keyPair = signingConfig.keyPair();
+        try {
+            String algorithm = keyPair.signatureAlgorithm();
+            Signature signature = Signature.getInstance(algorithm);
+            signature.initSign(keyPair.privateKey);
+            signature.update(getSignableBytes(headers));
+            final byte[] sigBytes = signature.sign();
+            return new X509CertificateSignature(keyPair.certificate, algorithm, new BytesArray(sigBytes));
+        } catch (GeneralSecurityException e) {
+            throw new ElasticsearchSecurityException(
+                Strings.format("Failed to sign cross cluster headers for cluster [%s]", clusterAlias),
+                e
+            );
+        }
+    }
+
+    private void loadSigningConfigs() {
+        this.environment.settings().getGroups(RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX, true).forEach((alias, settings) -> {
+            loadSigningConfig(alias, settings, false);
+        });
+    }
+
+    /**
+     * Build the effective remote cluster settings by merging the currently configured (if any) and new/updated settings
+     * <p>
+     * - If newSettings is null - use existing settings, used to refresh the dependent files
+     * - If updateSecureSettings is true - merge secure settings from newSettings with current settings, used by secure settings refresh
+     * - If updateSecureSettings is false - merge new settings with existing secure settings, used for regular settings update
+     */
+    private Settings buildEffectiveSettings(
+        @Nullable Settings currentSettings,
+        @Nullable Settings newSettings,
+        boolean updateSecureSettings
+    ) {
+        if (currentSettings == null && newSettings == null) {
+            return Settings.EMPTY;
+        }
+        if (newSettings == null) {
+            return currentSettings;
+        }
+        if (currentSettings == null || newSettings.isEmpty()) {
+            return newSettings;
+        }
+
+        Settings secureSettingsSource = updateSecureSettings ? newSettings : currentSettings;
+        Settings settingsSource = updateSecureSettings ? currentSettings : newSettings;
+
+        SecureSettings secureSettings = Settings.builder().put(secureSettingsSource, true).getSecureSettings();
+        return Settings.builder().put(settingsSource, false).setSecureSettings(secureSettings).build();
+    }
+
+    void reloadSigningConfigs(Set<String> clusterAliases) {
+        clusterAliases.forEach(alias -> loadSigningConfig(alias, null, true));
+    }
+
+    private X509KeyPair buildKeyPair(SslKeyConfig keyConfig) {
+        final X509KeyManager keyManager = keyConfig.createKeyManager();
+        if (keyManager == null) {
+            return null;
+        }
+
+        final Set<String> aliases = SIGNATURE_ALGORITHM_BY_TYPE.keySet()
+            .stream()
+            .map(keyType -> keyManager.getServerAliases(keyType, null))
+            .filter(Objects::nonNull)
+            .flatMap(Arrays::stream)
+            .collect(Collectors.toSet());
+
+        logger.trace("KeyConfig [{}] has compatible entries: [{}]", keyConfig, aliases);
+
+        return switch (aliases.size()) {
+            case 0 -> throw new IllegalStateException("Cannot find a signing key in [" + keyConfig + "]");
+            case 1 -> {
+                final String aliasFromKeyStore = aliases.iterator().next();
+                final X509Certificate[] chain = keyManager.getCertificateChain(aliasFromKeyStore);
+                yield new X509KeyPair(chain[0], keyManager.getPrivateKey(aliasFromKeyStore));
+            }
+            default -> throw new IllegalStateException(
+                "The configured signing key store has multiple signing keys ["
+                    + aliases
+                    + "] but no alias has been specified in signing configuration."
+            );
+        };
+    }
+
+    private X509KeyPair buildKeyPair(SslKeyConfig keyConfig, String alias) {
+        assert alias != null;
+
+        final X509KeyManager keyManager = keyConfig.createKeyManager();
+        if (keyManager == null) {
+            return null;
+        }
+
+        final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
+        if (SIGNATURE_ALGORITHM_BY_TYPE.containsKey(keyType) == false) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "The key associated with alias [%s] uses unsupported key algorithm type [%s], only %s is supported",
+                    alias,
+                    keyType,
+                    SIGNATURE_ALGORITHM_BY_TYPE.keySet()
+                )
+            );
+        }
+
+        final X509Certificate[] chain = keyManager.getCertificateChain(alias);
+        logger.trace("KeyConfig [{}] has entry for alias: [{}] [{}]", keyConfig, alias, chain != null);
+
+        return chain != null ? new X509KeyPair(chain[0], keyManager.getPrivateKey(alias)) : null;
+    }
+
+    private static byte[] getSignableBytes(final String... headers) {
+        return String.join("\n", headers).getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String calculateFingerprint(X509Certificate certificate) {
+        try {
+            return SslUtil.calculateFingerprint(certificate, "SHA-1");
+        } catch (CertificateEncodingException e) {
+            return "<?>";
+        }
+    }
+
+    private record X509KeyPair(X509Certificate certificate, PrivateKey privateKey, String signatureAlgorithm, String fingerprint) {
+        X509KeyPair(X509Certificate certificate, PrivateKey privateKey) {
+            this(
+                Objects.requireNonNull(certificate),
+                Objects.requireNonNull(privateKey),
+                Optional.ofNullable(SIGNATURE_ALGORITHM_BY_TYPE.get(privateKey.getAlgorithm()))
+                    .orElseThrow(
+                        () -> new IllegalArgumentException(
+                            "Unsupported Key Type [" + privateKey.getAlgorithm() + "] for [" + privateKey + "]"
+                        )
+                    ),
+                calculateFingerprint(certificate)
+            );
+        }
+    }
+
+    private record SigningConfig(@Nullable X509KeyPair keyPair, @Nullable Collection<Path> dependentFiles, Settings settings) {}
+
+}

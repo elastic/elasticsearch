@@ -231,7 +231,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         BytesRef templateBytes = new BytesRef(parts.template());
         if (templateBytes.length >= IndexWriter.MAX_TERM_LENGTH) {
             logger.error(
-                "pattern text template is longer than allowed maximum term length.\n Template={}\n Original value:{}",
+                "pattern text template is longer than allowed maximum term length.\n Template={}\n Original value={}",
                 templateBytes,
                 value
             );
@@ -243,8 +243,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 + "UTF8 encoding is longer than the max length "
                 + MAX_TERM_LENGTH
                 + "), all of which were "
-                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
-                + "term is: '"
+                + "skipped. The prefix of the first immense term is: '"
                 + Arrays.toString(prefix)
                 + "...'";
             throw new IllegalArgumentException(msg);

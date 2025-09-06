@@ -279,7 +279,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    protected ReferenceManager<DirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
 

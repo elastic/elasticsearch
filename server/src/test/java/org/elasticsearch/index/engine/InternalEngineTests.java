@@ -7203,7 +7203,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testNotWarmUpSearcherInEngineCtor() throws Exception {
         try (Store store = createStore()) {
-            List<ElasticsearchDirectoryReader> warmedUpReaders = new ArrayList<>();
+            List<DirectoryReader> warmedUpReaders = new ArrayList<>();
             Engine.Warmer warmer = reader -> {
                 assertNotNull(reader);
                 assertThat(reader, not(in(warmedUpReaders)));

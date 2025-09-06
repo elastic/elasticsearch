@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -1017,8 +1016,8 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ReferenceManager<DirectoryReader> referenceManager = getReferenceManager(scope);
+            DirectoryReader directoryReader = wrapDirectoryReader(referenceManager.acquire());
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -1026,7 +1025,7 @@ public abstract class Engine implements Closeable {
                     onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        acquire,
+                        directoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),
@@ -1037,7 +1036,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        referenceManager.release(acquire);
+                        referenceManager.release(directoryReader);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {
@@ -1090,7 +1089,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+    protected abstract ReferenceManager<DirectoryReader> getReferenceManager(SearcherScope scope);
+
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return reader;
+    }
 
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
@@ -2332,7 +2335,7 @@ public abstract class Engine implements Closeable {
         /**
          * Called once a new top-level reader is opened.
          */
-        void warm(ElasticsearchDirectoryReader reader);
+        void warm(DirectoryReader reader);
     }
 
     /**
@@ -2583,10 +2586,7 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
     }
 
-    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(
-        R referenceManager,
-        EngineConfig engineConfig
-    ) {
+    protected static <R extends ReferenceManager<DirectoryReader>> R wrapForAssertions(R referenceManager, EngineConfig engineConfig) {
         if (Assertions.ENABLED) {
             referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineResetLock()));
         }

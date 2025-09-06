@@ -113,7 +113,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
-        return switch (random().nextInt(9)) {
+        return switch (IVF_FORMAT.isEnabled() ? random().nextInt(9) : random().nextInt(8)) {
             case 0 -> {
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
                 yield new KnnSearchBuilder(

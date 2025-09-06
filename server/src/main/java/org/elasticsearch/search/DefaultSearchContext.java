@@ -23,6 +23,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -51,6 +53,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -468,6 +471,19 @@ final class DefaultSearchContext extends SearchContext {
                 return slicedQuery;
             } else {
                 filters.add(slicedQuery);
+            }
+        }
+
+        IndexMetadata indexMetadata = indexService.getMetadata();
+        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+        if (reshardingMetadata != null) {
+            assert reshardingMetadata.isSplit();
+            if (reshardingMetadata.getSplit().isTargetShard(indexShard.shardId().id())) {
+                // ShardSplittingQuery returns all documents that DO NOT belong to the shard
+                // so this query should be a NOT query.
+                filters.add(
+                    Queries.not(new ShardSplittingQuery(indexMetadata, indexShard.shardId().id(), nestedLookup != NestedLookup.EMPTY))
+                );
             }
         }
 

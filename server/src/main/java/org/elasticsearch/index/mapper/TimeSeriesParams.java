@@ -21,6 +21,7 @@ public final class TimeSeriesParams {
 
     public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
     public static final String TIME_SERIES_DIMENSION_PARAM = "time_series_dimension";
+    public static final String TIME_SERIES_DEFAULT_METRIC_PARAM = "default_metric";
 
     private TimeSeriesParams() {}
 

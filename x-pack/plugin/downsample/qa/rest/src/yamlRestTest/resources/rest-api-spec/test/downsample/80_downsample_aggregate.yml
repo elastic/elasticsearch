@@ -77,3 +77,91 @@
         metrics: [min, sum, value_count]
         default_metric: sum
         time_series_metric: gauge
+
+---
+"downsample numeric field":
+  - requires:
+      cluster_features: ["data_stream.downsample.index_level_default_metric"]
+      reason: "Specify default metric to be used in an index when downsampling numerics"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [sensor_id]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+                default_metric: value_count
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              sensor_id:
+                type: keyword
+                time_series_dimension: true
+              temperature:
+                type: double
+                time_series_metric: gauge
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ min, sum, value_count ]
+                default_metric: sum
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:34:00Z", "sensor_id": "1", "temperature": 24.1, "agg_metric": {"min": -1, "sum": 20, "value_count": 5}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:39:00Z", "sensor_id": "1", "temperature": 25.3, "agg_metric": {"min": 3, "sum": 50, "value_count": 7}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:45:00Z", "sensor_id": "1", "temperature": 24.8, "agg_metric": {"min": -5, "sum": 33, "value_count": 9}}'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body:  >
+          {
+            "fixed_interval": "30m"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+
+  - match:
+      hits.total.value: 1
+
+  - do:
+      indices.get_mapping:
+        index: test-downsample
+  - match:
+      test-downsample.mappings.properties.temperature:
+        type: aggregate_metric_double
+        metrics: [min, max, sum, value_count]
+        default_metric: value_count
+        time_series_metric: gauge
+  - match:
+      test-downsample.mappings.properties.agg_metric:
+        type: aggregate_metric_double
+        metrics: [min, sum, value_count]
+        default_metric: sum
+        time_series_metric: gauge

@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
@@ -59,8 +60,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -80,7 +79,7 @@ public final class TimeSeriesRestDriver {
         return getStepKey(indexResponse);
     }
 
-    private static Step.StepKey getStepKey(Map<String, Object> explainIndexResponse) {
+    public static Step.StepKey getStepKey(Map<String, Object> explainIndexResponse) {
         String phase = (String) explainIndexResponse.get("phase");
         String action = (String) explainIndexResponse.get("action");
         String step = (String) explainIndexResponse.get("step");
@@ -105,14 +104,26 @@ public final class TimeSeriesRestDriver {
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
         explainRequest.setOptions(consumeWarningsOptions);
         Response response = client.performRequest(explainRequest);
-        Map<String, Object> responseMap;
-        try (InputStream is = response.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        return objectPath.evaluate("indices");
+    }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
-        return indexResponse;
+    /**
+     * Waits until the specified index is at the specified ILM step. If any of phase, action, or step is null, that part is ignored.
+     */
+    public static void awaitStepKey(RestClient client, String indexName, String phase, String action, String step) throws Exception {
+        ESRestTestCase.assertBusy(() -> {
+            final Step.StepKey stepKey = getStepKeyForIndex(client, indexName);
+            if (phase != null) {
+                assertThat(stepKey.phase(), equalTo(phase));
+            }
+            if (action != null) {
+                assertThat(stepKey.action(), equalTo(action));
+            }
+            if (step != null) {
+                assertThat(stepKey.name(), equalTo(step));
+            }
+        });
     }
 
     public static void indexDocument(RestClient client, String indexAbstractionName) throws IOException {
@@ -499,24 +510,6 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
-    }
-
-    @SuppressWarnings("unchecked")
-    public static List<String> getBackingIndices(RestClient client, String dataStreamName) throws IOException {
-        Response getDataStream = client.performRequest(new Request("GET", "_data_stream/" + dataStreamName));
-        Map<String, Object> responseMap;
-        try (InputStream is = getDataStream.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
-
-        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
-        assertThat(dataStreams.size(), is(1));
-        Map<String, Object> dataStream = dataStreams.get(0);
-        assertThat(dataStream.get("name"), is(dataStreamName));
-        List<String> indices = ((List<Map<String, Object>>) dataStream.get("indices")).stream()
-            .map(indexMap -> (String) indexMap.get("index_name"))
-            .toList();
-        return indices;
     }
 
     private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {

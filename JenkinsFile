@@ -6,7 +6,7 @@ pipeline {
     }
 
     options {
-        skipDefaultCheckout() // disables automatic lightweight checkout
+        skipDefaultCheckout() 
     }
 
     stages {

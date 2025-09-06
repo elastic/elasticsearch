@@ -4,11 +4,11 @@ pipeline {
     tools {
         jdk 'jdk_21' 
     }
-    //help me
+
     options {
-        skipDefaultCheckout() 
+        skipDefaultCheckout()
     }
-    //hello world gay
+
     stages {
         stage('Checkout repository') {
             steps {
@@ -17,28 +17,22 @@ pipeline {
             }
         }
 
-        stage('Grant execute permission for gradlew') {
-            steps {
-                sh 'chmod +x gradlew'
-            }
-        }
-
         stage('Build local distribution') {
             steps {
-                sh './gradlew localDistro --stacktrace --no-daemon'
+                bat 'gradlew.bat localDistro --stacktrace --no-daemon'
             }
         }
 
         stage('Run server tests') {
             steps {
-                sh './gradlew :server:test --stacktrace --no-daemon'
+                bat 'gradlew.bat :server:test --stacktrace --no-daemon'
             }
         }
     }
 
     post {
         always {
-            junit '**/build/test-results/**/*.xml' 
+            junit '**/build/test-results/**/*.xml'
             archiveArtifacts artifacts: '**/build/reports/tests/**/*', allowEmptyArchive: true
         }
     }

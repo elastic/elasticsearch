@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.PatternAnalyzer;
 import org.elasticsearch.common.regex.Regex;
@@ -33,17 +36,22 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
+
 /**
  * A {@link FieldMapper} for full-text log fields that internally splits text into a low cardinality template component
  * and high cardinality argument component. Separating these pieces allows the template component to be highly compressed.
  */
 public class PatternedTextFieldMapper extends FieldMapper {
+
+    private static final Logger logger = LogManager.getLogger(PatternedTextFieldMapper.class);
 
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
     private static final NamedAnalyzer ANALYZER;
@@ -220,12 +228,33 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         // Parse template and args
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
+        BytesRef templateBytes = new BytesRef(parts.template());
+        if (templateBytes.length >= IndexWriter.MAX_TERM_LENGTH) {
+            logger.error(
+                "pattern text template is longer than allowed maximum term length.\n Template={}\n Original value:{}",
+                templateBytes,
+                value
+            );
+            byte[] prefix = new byte[30];
+            System.arraycopy(templateBytes.bytes, templateBytes.offset, prefix, 0, 30);
+            String msg = "pattern text template is longer than allowed maximum term length=\""
+                + fieldType().name()
+                + "\" (whose "
+                + "UTF8 encoding is longer than the max length "
+                + MAX_TERM_LENGTH
+                + "), all of which were "
+                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+                + "term is: '"
+                + Arrays.toString(prefix)
+                + "...'";
+            throw new IllegalArgumentException(msg);
+        }
 
         // Add index on original value
         context.doc().add(new Field(fieldType().name(), value, fieldType));
 
         // Add template doc_values
-        context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
+        context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), templateBytes));
 
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));

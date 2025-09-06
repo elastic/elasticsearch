@@ -308,7 +308,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
-        if (knnSearch.visitPercentage != null) {
+        if (IVF_FORMAT.isEnabled() && knnSearch.visitPercentage != null) {
             builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
         }
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);

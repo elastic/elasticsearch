@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -83,7 +84,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 .queryVectorBuilder(createTestInstance())
                 .k(5)
                 .numCandidates(10)
-                .visitPercentage(10f)
+                .visitPercentage(IVF_FORMAT.isEnabled() ? 10f : null)
                 .similarity(randomBoolean() ? null : randomFloat())
                 .build(DEFAULT_SIZE),
             getToXContentParams(),

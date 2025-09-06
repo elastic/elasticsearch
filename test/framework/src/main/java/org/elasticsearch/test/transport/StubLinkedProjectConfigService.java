@@ -27,7 +27,7 @@ public class StubLinkedProjectConfigService implements LinkedProjectConfigServic
     public void register(LinkedProjectConfigListener listener) {}
 
     @Override
-    public Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs() {
+    public Collection<LinkedProjectConfig> getInitialLinkedProjectConfigs() {
         return Collections.emptyList();
     }
 }

@@ -1856,7 +1856,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     private void initializeRemoteClusters(RemoteClusterService remoteClusterService) {
-        remoteClusterService.initializeRemoteClusters(linkedProjectConfigService.loadAllLinkedProjectConfigs());
+        remoteClusterService.initializeRemoteClusters(linkedProjectConfigService.getInitialLinkedProjectConfigs());
     }
 
     private static Settings createSettings(String clusterAlias, List<String> seeds) {

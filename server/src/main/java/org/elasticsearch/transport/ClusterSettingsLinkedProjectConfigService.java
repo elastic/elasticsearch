@@ -52,7 +52,7 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
 
     @Override
     @FixForMultiProject(description = "Refactor to add the linked project IDs associated with the aliases.")
-    public Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs() {
+    public Collection<LinkedProjectConfig> getInitialLinkedProjectConfigs() {
         return RemoteClusterSettings.getRemoteClusters(settings)
             .stream()
             .map(alias -> RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, settings))

@@ -55,9 +55,9 @@ public interface LinkedProjectConfigService {
     void register(LinkedProjectConfigListener listener);
 
     /**
-     * Loads all existing linked project configurations for all origin projects.
+     * Loads all linked project configurations known at node startup, for all origin projects.
      *
-     * @return A collection of all existing {@link LinkedProjectConfig}s.
+     * @return A collection of all known {@link LinkedProjectConfig}s at node startup.
      */
-    Collection<LinkedProjectConfig> loadAllLinkedProjectConfigs();
+    Collection<LinkedProjectConfig> getInitialLinkedProjectConfigs();
 }

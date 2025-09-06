@@ -49,7 +49,7 @@ class RemoteClusterResolver extends RemoteClusterAware {
     RemoteClusterResolver(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
         super(settings);
         clusters = new CopyOnWriteArraySet<>(
-            linkedProjectConfigService.loadAllLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+            linkedProjectConfigService.getInitialLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
         );
         linkedProjectConfigService.register(config -> {
             if (config.isConnectionEnabled()) {

@@ -39,7 +39,7 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        for (var config : linkedProjectConfigService.loadAllLinkedProjectConfigs()) {
+        for (var config : linkedProjectConfigService.getInitialLinkedProjectConfigs()) {
             putRepository(CcrRepository.NAME_PREFIX + config.linkedProjectAlias());
         }
     }

@@ -79,7 +79,7 @@ public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
         final var config = new ProxyLinkedProjectConfigBuilder(alias).proxyAddress(initialProxyAddress).build();
 
         // Verify we can get the linked projects on startup.
-        assertThat(service.loadAllLinkedProjectConfigs(), equalTo(List.of(config)));
+        assertThat(service.getInitialLinkedProjectConfigs(), equalTo(List.of(config)));
 
         final int numListeners = randomIntBetween(1, 10);
         final var listeners = new ArrayList<StubLinkedProjectConfigListener>(numListeners);

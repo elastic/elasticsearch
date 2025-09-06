@@ -9,6 +9,5 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
-  systemProperty 'test.literalUsername', literalUsername
   systemProperty 'test.literalUsername', buildParams.random.map{r -> r.nextBoolean()}.get()
 }

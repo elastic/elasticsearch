@@ -284,7 +284,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
 
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
-        Float visitPercentage = (IVF_FORMAT.isEnabled() == false && randomBoolean()) ? null : randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         return new KnnSearch(field, vector, k, numCands, visitPercentage);
     }
 
@@ -308,7 +308,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             .field(KnnSearch.FIELD_FIELD.getPreferredName(), knnSearch.field)
             .field(KnnSearch.K_FIELD.getPreferredName(), knnSearch.k)
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands);
-        if (knnSearch.visitPercentage != null) {
+        if (IVF_FORMAT.isEnabled() && knnSearch.visitPercentage != null) {
             builder.field(KnnSearch.VISIT_PERCENTAGE_FIELD.getPreferredName(), knnSearch.visitPercentage);
         }
         builder.field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector);

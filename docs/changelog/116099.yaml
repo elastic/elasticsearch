@@ -1,0 +1,6 @@
+pr: 116099
+summary: Fix sort on date fields with missing values
+area: bug
+type: enhancement
+issues:
+ - 116534

@@ -1442,7 +1442,12 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot());
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+
+        /**
+         * Support for the Present function
+         */
+        FN_PRESENT;
 
         private final boolean enabled;
 

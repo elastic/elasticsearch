@@ -59,3 +59,6 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 
 :::{include} ../_snippets/functions/layout/weighted_avg.md
 :::
+
+:::{include} ../_snippets/functions/layout/present.md
+:::

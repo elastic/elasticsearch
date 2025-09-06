@@ -153,6 +153,13 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
+EXPORT int32_t dot7u_bulk(int8_t* a, int8_t* b, size_t dims, size_t count, float* scores) {
+    for (int i = 0; i < count; i++) {
+        scores[i] = (float) dot7u(a + i * dims, b, dims);
+    }
+    return count;
+}
+
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();

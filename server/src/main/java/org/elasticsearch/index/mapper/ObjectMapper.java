@@ -548,10 +548,19 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public void validate(MappingLookup mappers) {
+    public final void validate(MappingLookup mappers) {
         for (Mapper mapper : this.mappers.values()) {
-            mapper.validate(mappers);
+            validateSubField(mapper, mappers);
         }
+    }
+
+    /**
+     * This method is separated out to allow subclasses (such as RootObjectMapper) to
+     * override it and add in additional validations beyond what the mapper.validate()
+     * method will check on each mapping.
+     */
+    protected void validateSubField(Mapper mapper, MappingLookup mappers) {
+        mapper.validate(mappers);
     }
 
     protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {

@@ -58,6 +58,9 @@ import static org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator.
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
@@ -142,7 +145,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
         ensureGreen(indexName);
 
-        logger.info("---> Waiting for all shards to be assigned to node " + harness.firstDataNodeName);
+        logger.info("---> Waiting for all [" + randomNumberOfShards + "] shards to be assigned to node " + harness.firstDataNodeName);
         safeAwait(verifyAssignmentToFirstNodeListener);
 
         /**
@@ -246,19 +249,34 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName));
 
-        safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            Index index = clusterState.routingTable().index(indexName).getIndex();
-            return checkShardAssignment(
-                clusterState.getRoutingNodes(),
-                index,
-                harness.firstDataNodeId,
-                harness.secondDataNodeId,
-                harness.thirdDataNodeId,
-                0,
-                randomNumberOfShards,
-                0
-            );
-        }));
+        try {
+            safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+                Index index = clusterState.routingTable().index(indexName).getIndex();
+                return checkShardAssignment(
+                    clusterState.getRoutingNodes(),
+                    index,
+                    harness.firstDataNodeId,
+                    harness.secondDataNodeId,
+                    harness.thirdDataNodeId,
+                    0,
+                    randomNumberOfShards,
+                    0
+                );
+            }));
+        } catch (AssertionError error) {
+            ClusterState state = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setRoutingTable(true)
+                .get()
+                .getState();
+            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            throw error;
+        }
     }
 
     public void testMaxQueueLatencyMetricIsPublished() {
@@ -352,6 +370,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
+            // TODO (ES-12862): remove these overrides when throttling is turned off for simulations.
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 100)
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 100)
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 100)
             .build();
     }
 
@@ -452,6 +474,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final String thirdDataNodeId = getNodeId(thirdDataNodeName);
         ensureStableCluster(4);
 
+        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
+        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
+        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
+
         logger.info(
             "---> first node name "
                 + firstDataNodeName
@@ -467,9 +493,14 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 + thirdDataNodeId
         );
 
-        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
-        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
-        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
+        logger.info(
+            "---> utilization threshold: "
+                + randomUtilizationThresholdPercent
+                + ",  write threads: "
+                + randomNumberOfWritePoolThreads
+                + ", individual shard write loads: "
+                + randomShardWriteLoad
+        );
 
         return new TestHarness(
             firstDataNodeName,

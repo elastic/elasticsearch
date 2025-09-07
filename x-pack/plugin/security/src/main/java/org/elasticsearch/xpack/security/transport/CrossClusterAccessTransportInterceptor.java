@@ -327,7 +327,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
     }
 
     @Override
-    public Map<String, ServerTransportFilter> getProfileFilters(
+    public Map<String, ServerTransportFilter> getProfileTransportFilters(
         Map<String, SslProfile> profileConfigurations,
         DestructiveOperations destructiveOperations
     ) {

@@ -63,7 +63,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.threadPool = threadPool;
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
-        this.profileFilters = this.remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
+        this.profileFilters = this.remoteClusterTransportInterceptor.getProfileTransportFilters(
+            profileConfigurations,
+            destructiveOperations
+        );
     }
 
     @Override

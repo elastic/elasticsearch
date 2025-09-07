@@ -27,16 +27,18 @@ public interface RemoteClusterTransportInterceptor {
     TransportInterceptor.AsyncSender interceptSender(TransportInterceptor.AsyncSender sender);
 
     /**
-     * Returns {@code true} if the {@code connection} is targeting a remote cluster.
+     * This method returns {@code true} if the {@code connection} is targeting a remote cluster.
      */
     boolean isRemoteClusterConnection(Transport.Connection connection);
 
     /**
-     * Allows providing custom {@link ServerTransportFilter} implementations per transport "profile".
+     * Allows interceptors to provide a custom {@link ServerTransportFilter} implementations per transport profile.
      * The transport filter is called on the receiver side to filter incoming requests
      * and execute authentication and authorization for all requests.
+     *
+     * @return map of {@link ServerTransportFilter}s per transport profile name
      */
-    Map<String, ServerTransportFilter> getProfileFilters(
+    Map<String, ServerTransportFilter> getProfileTransportFilters(
         Map<String, SslProfile> profileConfigurations,
         DestructiveOperations destructiveOperations
     );

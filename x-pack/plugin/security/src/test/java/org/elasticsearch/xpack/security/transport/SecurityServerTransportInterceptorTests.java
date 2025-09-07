@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -114,7 +112,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@Repeat(iterations = 1000)
 public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     private Settings settings;

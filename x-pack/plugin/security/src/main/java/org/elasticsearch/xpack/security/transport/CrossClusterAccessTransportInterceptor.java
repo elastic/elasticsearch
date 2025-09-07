@@ -80,9 +80,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
     );
 
-    private final Function<
-        Transport.Connection,
-        Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
+    private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -165,8 +163,8 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
              * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
             private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
-                final Optional<RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials =
-                    remoteClusterCredentialsResolver.apply(connection);
+                final Optional<RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials = remoteClusterCredentialsResolver
+                    .apply(connection);
                 if (remoteClusterAliasWithCredentials.isEmpty()) {
                     logger.trace("Connection is not remote");
                     return Optional.empty();
@@ -325,9 +323,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     @Override
     public boolean isRemoteClusterConnection(Transport.Connection connection) {
-        return remoteClusterCredentialsResolver.apply(connection)
-            .map(RemoteClusterAliasWithCredentials::clusterAlias)
-            .isPresent();
+        return remoteClusterCredentialsResolver.apply(connection).map(RemoteClusterAliasWithCredentials::clusterAlias).isPresent();
     }
 
     @Override

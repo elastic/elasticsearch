@@ -256,7 +256,7 @@ dependencyResolutionManagement {
     withModule("org.apache.ftpserver:ftplet-api", ExcludeTransitivesRule)
     withModule("org.apache.hadoop:hadoop-hdfs", ExcludeTransitivesRule)
     withModule("org.apache.hadoop:hadoop-client-runtime", ExcludeTransitivesRule)
-    withModule("org.apache.ftpserver:ftpserver-core", ExcludeTransitivesRule)
+    //withModule("org.apache.ftpserver:ftpserver-core", ExcludeTransitivesRule)
     withModule("org.apache.httpcomponents:fluent-hc", ExcludeTransitivesRule)
     withModule("org.apache.httpcomponents:httpasyncclient", ExcludeTransitivesRule)
     withModule("org.apache.httpcomponents:httpclient", ExcludeTransitivesRule)

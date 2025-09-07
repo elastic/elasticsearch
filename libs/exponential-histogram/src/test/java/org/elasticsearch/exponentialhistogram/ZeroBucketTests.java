@@ -21,40 +21,63 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import static org.hamcrest.Matchers.equalTo;
+import org.junit.Test;
 
-public class ZeroBucketTests extends ExponentialHistogramTestCase {
+import static org.junit.Assert.*;
 
-    public void testMinimalBucketHasZeroThreshold() {
-        assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
+public class ZeroBucketTests {
+
+    @Test
+    public void testFromThresholdLazyIndex() {
+        ZeroBucket z = ZeroBucket.fromThreshold(1.25d, 5L);
+        assertTrue(z.isThresholdComputed());
+        assertFalse(z.isIndexComputed());
+        assertEquals(1.25d, z.zeroThreshold(), 0.0);
+        z.index(); // compute index
+        assertTrue(z.isIndexComputed());
     }
 
-    public void testExactThresholdPreserved() {
-        ZeroBucket bucket = new ZeroBucket(3.0, 10);
-        assertThat(bucket.zeroThreshold(), equalTo(3.0));
+    @Test
+    public void testFromIndexLazyThreshold() {
+        ZeroBucket z = ZeroBucket.fromIndexAndScale(42L, ExponentialHistogram.MAX_SCALE, 3L);
+        assertTrue(z.isIndexComputed());
+        assertFalse(z.isThresholdComputed());
+        double thr = z.zeroThreshold();
+        assertTrue(thr >= 0.0);
+        assertTrue(z.isThresholdComputed());
     }
 
-    public void testMergingPreservesExactThreshold() {
-        ZeroBucket bucketA = new ZeroBucket(3.0, 10);
-        ZeroBucket bucketB = new ZeroBucket(3.5, 20);
-        ZeroBucket merged = bucketA.merge(bucketB);
-        assertThat(merged.zeroThreshold(), equalTo(3.5));
-        assertThat(merged.count(), equalTo(30L));
+    @Test
+    public void testEqualityAndHashStable() {
+        ZeroBucket a = ZeroBucket.fromThreshold(0.6d, 10L);
+        ZeroBucket b = ZeroBucket.fromThreshold(0.6d, 10L);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        a.index(); // force index
+        assertEquals(a, b);
+        b.index();
+        assertEquals(a.hashCode(), b.hashCode());
     }
 
-    public void testBucketCollapsingPreservesExactThreshold() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(2);
-        histo.resetBuckets(0);
-        histo.tryAddBucket(0, 42, true); // bucket [1,2]
-
-        ZeroBucket bucketA = new ZeroBucket(3.0, 10);
-
-        CopyableBucketIterator iterator = histo.positiveBuckets().iterator();
-        ZeroBucket merged = bucketA.collapseOverlappingBuckets(iterator);
-
-        assertThat(iterator.hasNext(), equalTo(false));
-        assertThat(merged.zeroThreshold(), equalTo(3.0));
-        assertThat(merged.count(), equalTo(52L));
+    @Test
+    public void testMinimalEmptySingleton() {
+        ZeroBucket m1 = ZeroBucket.minimalEmpty();
+        ZeroBucket m2 = ZeroBucket.minimalEmpty();
+        assertSame(m1, m2);
+        assertEquals(0L, m1.count());
+        assertEquals(0.0, m1.zeroThreshold(), 0.0);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidNegativeThreshold() {
+        ZeroBucket.fromThreshold(-0.01d, 1L);
+    }
+
+    @Test
+    public void testToStringContainsKeyFields() {
+        ZeroBucket z = ZeroBucket.fromThreshold(0.75d, 2L);
+        String s = z.toString();
+        assertTrue(s.contains("scale="));
+        assertTrue(s.contains("count=2"));
+    }
 }

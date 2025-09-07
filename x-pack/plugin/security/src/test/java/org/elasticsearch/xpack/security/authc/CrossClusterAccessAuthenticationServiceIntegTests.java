@@ -142,7 +142,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
-    public void testTryAuthenticateSuccess() throws IOException {
+    public void testAuthenticateHeadersSuccess() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
@@ -209,7 +209,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
     }
 
-    public void testTryAuthenticateFailure() throws IOException {
+    public void testAuthenticateHeadersFailure() throws IOException {
         final EncodedKeyWithId encodedCrossClusterAccessApiKeyWithId = getEncodedCrossClusterAccessApiKeyWithId();
         final EncodedKeyWithId encodedRestApiKeyWithId = getEncodedRestApiKeyWithId();
         final String nodeName = internalCluster().getRandomNodeName();

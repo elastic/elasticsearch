@@ -119,7 +119,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
     }
 
     @Override
-    public void tryAuthenticate(Map<String, String> headers, ActionListener<Void> listener) {
+    public void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener) {
         final ApiKeyService.ApiKeyCredentials credentials;
         try {
             credentials = extractApiKeyCredentialsFromHeaders(headers);

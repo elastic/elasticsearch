@@ -42,6 +42,6 @@ public interface RemoteClusterAuthenticationService {
      * @param listener callback to receive {@code null} on successful authentication,
      *                 or an exception on authentication failure
      */
-    void tryAuthenticate(Map<String, String> headers, ActionListener<Void> listener);
+    void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener);
 
 }

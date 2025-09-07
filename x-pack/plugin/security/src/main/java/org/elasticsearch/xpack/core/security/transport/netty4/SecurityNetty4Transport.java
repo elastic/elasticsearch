@@ -180,7 +180,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                         channel.config().setAutoRead(false);
                         // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
                         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                            remoteClusterAuthenticationService.tryAuthenticate(
+                            remoteClusterAuthenticationService.authenticateHeaders(
                                 header.getRequestHeaders(),
                                 ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 
@@ -42,9 +43,9 @@ import java.io.IOException;
  * <p> Stores metadata including the number of centroids and their offsets in the clivf file</p>
  *
  */
-public class IVFVectorsFormat extends KnnVectorsFormat {
+public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
-    public static final String NAME = "IVFVectorsFormat";
+    public static final String NAME = "ES920DiskBBQVectorsFormat";
     // centroid ordinals -> centroid values, offsets
     public static final String CENTROID_EXTENSION = "cenivf";
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized
@@ -72,7 +73,7 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
 
-    public IVFVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
+    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -99,18 +100,18 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
-    public IVFVectorsFormat() {
+    public ES920DiskBBQVectorsFormat() {
         this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new DefaultIVFVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster, centroidsPerParentCluster);
+        return new ES920DiskBBQVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster, centroidsPerParentCluster);
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new DefaultIVFVectorsReader(state, rawVectorFormat.fieldsReader(state));
+        return new ES920DiskBBQVectorsReader(state, rawVectorFormat.fieldsReader(state));
     }
 
     @Override
@@ -120,7 +121,7 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "IVFVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
+        return "ES920DiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
     }
 
 }

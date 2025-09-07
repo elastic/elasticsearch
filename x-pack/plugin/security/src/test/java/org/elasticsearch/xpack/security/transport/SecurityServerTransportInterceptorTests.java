@@ -120,6 +120,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private SecurityContext securityContext;
     private ClusterService clusterService;
     private MockLicenseState mockLicenseState;
+    private DestructiveOperations destructiveOperations;
 
     @Override
     public void setUp() throws Exception {
@@ -131,6 +132,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         mockLicenseState = MockLicenseState.createMock();
         Mockito.when(mockLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(true);
+        destructiveOperations = new DestructiveOperations(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+        );
     }
 
     @After
@@ -151,10 +156,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -207,10 +209,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -256,10 +255,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -323,10 +319,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -396,10 +389,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -467,10 +457,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -639,10 +626,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -781,10 +765,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -926,10 +907,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -992,10 +970,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -1098,10 +1073,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -1215,10 +1187,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             sslService,
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),
@@ -1278,10 +1247,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadPool,
             sslService,
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
+            destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
                 mock(CrossClusterAccessAuthenticationService.class),
                 mock(AuthenticationService.class),

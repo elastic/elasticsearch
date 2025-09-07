@@ -133,10 +133,6 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     @Override
     public TransportInterceptor.AsyncSender interceptSender(TransportInterceptor.AsyncSender sender) {
-        return interceptForCrossClusterAccessRequests(sender);
-    }
-
-    private TransportInterceptor.AsyncSender interceptForCrossClusterAccessRequests(final TransportInterceptor.AsyncSender sender) {
         return new TransportInterceptor.AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(

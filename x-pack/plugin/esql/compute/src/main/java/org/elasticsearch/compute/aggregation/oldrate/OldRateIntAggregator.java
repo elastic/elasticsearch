@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.aggregation;
+package org.elasticsearch.compute.aggregation.oldrate;
 
 // begin generated imports
 import org.apache.lucene.util.Accountable;
@@ -13,13 +13,14 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.compute.ann.GroupingAggregator;
-import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorState;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -29,31 +30,23 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for double.
- * This class is generated. Edit `X-RateAggregator.java.st` instead.
+ * A rate grouping aggregation definition for int.
  */
-@GroupingAggregator(
-    value = {
-        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "DOUBLE_BLOCK"),
-        @IntermediateState(name = "sampleCounts", type = "INT"),
-        @IntermediateState(name = "resets", type = "DOUBLE") }
-)
-public class RateDoubleAggregator {
+public class OldRateIntAggregator {
 
-    public static DoubleRateGroupingState initGrouping(DriverContext driverContext) {
-        return new DoubleRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
+    public static IntRateGroupingState initGrouping(DriverContext driverContext) {
+        return new IntRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(DoubleRateGroupingState current, int groupId, double value, long timestamp) {
+    public static void combine(IntRateGroupingState current, int groupId, int value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
-        DoubleRateGroupingState current,
+        IntRateGroupingState current,
         int groupId,
         LongBlock timestamps,
-        DoubleBlock values,
+        IntBlock values,
         int sampleCount,
         double reset,
         int otherPosition
@@ -61,35 +54,35 @@ public class RateDoubleAggregator {
         current.combine(groupId, timestamps, values, sampleCount, reset, otherPosition);
     }
 
-    public static Block evaluateFinal(DoubleRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(IntRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class DoubleRateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(DoubleRateState.class);
+    private static class IntRateState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntRateState.class);
         final long[] timestamps; // descending order
-        final double[] values;
+        final int[] values;
         // the timestamps and values arrays might have collapsed to fewer values than the actual sample count
         int sampleCount = 0;
         double reset = 0;
 
-        DoubleRateState(int initialSize) {
+        IntRateState(int initialSize) {
             this.timestamps = new long[initialSize];
-            this.values = new double[initialSize];
+            this.values = new int[initialSize];
         }
 
-        DoubleRateState(long[] ts, double[] vs) {
+        IntRateState(long[] ts, int[] vs) {
             this.timestamps = ts;
             this.values = vs;
             this.sampleCount = values.length;
         }
 
-        private double dv(double v0, double v1) {
+        private int dv(int v0, int v1) {
             // counter reset detection
             return v0 > v1 ? v1 : v1 - v0;
         }
 
-        void append(long t, double v) {
+        void append(long t, int v) {
             assert timestamps.length == 2 : "expected two timestamps; got " + timestamps.length;
             assert t < timestamps[1] : "@timestamp goes backward: " + t + " >= " + timestamps[1];
             reset += dv(v, values[1]) + dv(values[1], values[0]) - dv(v, values[0]);
@@ -104,18 +97,18 @@ public class RateDoubleAggregator {
 
         static long bytesUsed(int entries) {
             var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
-            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Double.BYTES * entries);
+            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * entries);
             return BASE_RAM_USAGE + ts + vs;
         }
     }
 
-    public static final class DoubleRateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
-        private ObjectArray<DoubleRateState> states;
+    public static final class IntRateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private ObjectArray<IntRateState> states;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
 
-        DoubleRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+        public IntRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
@@ -131,26 +124,26 @@ public class RateDoubleAggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, double value) {
+        void append(int groupId, long timestamp, int value) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker(DoubleRateState.bytesUsed(1));
-                state = new DoubleRateState(new long[] { timestamp }, new double[] { value });
+                adjustBreaker(IntRateState.bytesUsed(1));
+                state = new IntRateState(new long[] { timestamp }, new int[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
-                    adjustBreaker(DoubleRateState.bytesUsed(2));
-                    state = new DoubleRateState(new long[] { state.timestamps[0], timestamp }, new double[] { state.values[0], value });
+                    adjustBreaker(IntRateState.bytesUsed(2));
+                    state = new IntRateState(new long[] { state.timestamps[0], timestamp }, new int[] { state.values[0], value });
                     states.set(groupId, state);
-                    adjustBreaker(-DoubleRateState.bytesUsed(1)); // old state
+                    adjustBreaker(-IntRateState.bytesUsed(1)); // old state
                 } else {
                     state.append(timestamp, value);
                 }
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, DoubleBlock values, int sampleCount, double reset, int otherPosition) {
+        public void combine(int groupId, LongBlock timestamps, IntBlock values, int sampleCount, double reset, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -159,28 +152,28 @@ public class RateDoubleAggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker(DoubleRateState.bytesUsed(valueCount));
-                state = new DoubleRateState(valueCount);
+                adjustBreaker(IntRateState.bytesUsed(valueCount));
+                state = new IntRateState(valueCount);
                 state.reset = reset;
                 state.sampleCount = sampleCount;
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
                     state.timestamps[i] = timestamps.getLong(firstIndex + i);
-                    state.values[i] = values.getDouble(firstIndex + i);
+                    state.values[i] = values.getInt(firstIndex + i);
                 }
             } else {
-                adjustBreaker(DoubleRateState.bytesUsed(state.entries() + valueCount));
-                var newState = new DoubleRateState(state.entries() + valueCount);
+                adjustBreaker(IntRateState.bytesUsed(state.entries() + valueCount));
+                var newState = new IntRateState(state.entries() + valueCount);
                 newState.reset = state.reset + reset;
                 newState.sampleCount = state.sampleCount + sampleCount;
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
-                adjustBreaker(-DoubleRateState.bytesUsed(state.entries())); // old state
+                adjustBreaker(-IntRateState.bytesUsed(state.entries())); // old state
             }
         }
 
-        void merge(DoubleRateState curr, DoubleRateState dst, int firstIndex, int rightCount, LongBlock timestamps, DoubleBlock values) {
+        void merge(IntRateState curr, IntRateState dst, int firstIndex, int rightCount, LongBlock timestamps, IntBlock values) {
             int i = 0, j = 0, k = 0;
             final int leftCount = curr.entries();
             while (i < leftCount && j < rightCount) {
@@ -192,7 +185,7 @@ public class RateDoubleAggregator {
                     ++i;
                 } else {
                     dst.timestamps[k] = t2;
-                    dst.values[k] = values.getDouble(firstIndex + j);
+                    dst.values[k] = values.getInt(firstIndex + j);
                     ++j;
                 }
                 ++k;
@@ -203,16 +196,16 @@ public class RateDoubleAggregator {
             }
             while (j < rightCount) {
                 dst.timestamps[k] = timestamps.getLong(firstIndex + j);
-                dst.values[k] = values.getDouble(firstIndex + j);
+                dst.values[k] = values.getInt(firstIndex + j);
                 ++k;
                 ++j;
             }
         }
 
-        DoubleRateState mergeState(DoubleRateState s1, DoubleRateState s2) {
+        IntRateState mergeState(IntRateState s1, IntRateState s2) {
             var newLen = s1.entries() + s2.entries();
-            adjustBreaker(DoubleRateState.bytesUsed(newLen));
-            var dst = new DoubleRateState(newLen);
+            adjustBreaker(IntRateState.bytesUsed(newLen));
+            var dst = new IntRateState(newLen);
             dst.reset = s1.reset + s2.reset;
             dst.sampleCount = s1.sampleCount + s2.sampleCount;
             int i = 0, j = 0, k = 0;
@@ -252,7 +245,7 @@ public class RateDoubleAggregator {
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                DoubleBlock.Builder values = blockFactory.newDoubleBlockBuilder(positionCount * 2);
+                IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
                 IntVector.FixedBuilder sampleCounts = blockFactory.newIntVectorFixedBuilder(positionCount);
                 DoubleVector.FixedBuilder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
             ) {
@@ -267,8 +260,8 @@ public class RateDoubleAggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        for (double v : state.values) {
-                            values.appendDouble(v);
+                        for (int v : state.values) {
+                            values.appendInt(v);
                         }
                         values.endPositionEntry();
                         sampleCounts.appendInt(i, state.sampleCount);
@@ -287,7 +280,7 @@ public class RateDoubleAggregator {
             }
         }
 
-        private static double computeRateWithoutExtrapolate(DoubleRateState state) {
+        private static double computeRateWithoutExtrapolate(IntRateState state) {
             final int len = state.entries();
             assert len >= 2 : "rate requires at least two samples; got " + len;
             final long firstTS = state.timestamps[state.timestamps.length - 1];
@@ -312,7 +305,7 @@ public class RateDoubleAggregator {
          * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
          * samples (which is our guess for where the series actually starts or ends).
          */
-        private static double extrapolateRate(DoubleRateState state, long rangeStart, long rangeEnd) {
+        private static double extrapolateRate(IntRateState state, long rangeStart, long rangeEnd) {
             final int len = state.entries();
             assert len >= 2 : "rate requires at least two samples; got " + len;
             final long firstTS = state.timestamps[state.timestamps.length - 1];

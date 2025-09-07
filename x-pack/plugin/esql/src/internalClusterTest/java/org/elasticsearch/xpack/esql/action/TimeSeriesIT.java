@@ -12,8 +12,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -33,7 +33,6 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -546,32 +545,17 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.profile(true);
             request.pragmas(pragmas);
             request.acceptedPragmaRisks(true);
-            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
+            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 for (DriverProfile p : dataProfiles) {
-                    if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesSourceOperator.Status)) {
-                        assertThat(p.operators(), hasSize(2));
-                        TimeSeriesSourceOperator.Status status = (TimeSeriesSourceOperator.Status) p.operators().get(0).status();
-                        // If the target shard is empty or does not match the query, processedShards will be empty.
-                        // TODO: Update ComputeService to avoid creating pipelines for non-matching or empty shards.
-                        assertThat(status.processedShards(), either(hasSize(1)).or(empty()));
-                        assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
-                    } else if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)) {
-                        assertThat(p.operators(), hasSize(3));
-                        assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                        assertThat(p.operators().get(1).operator(), containsString("TimeSeriesAggregationOperator"));
-                        assertThat(p.operators().get(2).operator(), equalTo("ExchangeSinkOperator"));
-                    } else {
-                        assertThat(p.operators(), hasSize(4));
-                        assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                        assertThat(p.operators().get(1).operator(), containsString("TimeSeriesExtractFieldOperator"));
-                        assertThat(p.operators().get(2).operator(), containsString("EvalOperator"));
-                        assertThat(p.operators().get(3).operator(), equalTo("ExchangeSinkOperator"));
+                    assertThat(p.operators().get(0).operator(), containsString("LuceneSourceOperator"));
+                    LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
+                    for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
+                        assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
                     }
                 }
-                assertThat(dataProfiles, hasSize(9));
             }
         }
         // non-rate aggregation is executed with multiple shards at a time

@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
@@ -72,31 +71,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.threadPool = threadPool;
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
         this.profileFilters = this.remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
-    }
-
-    public SecurityServerTransportInterceptor(
-        Settings settings,
-        ThreadPool threadPool,
-        AuthenticationService authcService,
-        AuthorizationService authzService,
-        SSLService sslService,
-        SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        XPackLicenseState licenseState
-    ) {
-        this(
-            settings,
-            threadPool,
-            authcService,
-            authzService,
-            sslService,
-            securityContext,
-            destructiveOperations,
-            crossClusterAccessAuthcService,
-            licenseState,
-            RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
-        );
     }
 
     SecurityServerTransportInterceptor(

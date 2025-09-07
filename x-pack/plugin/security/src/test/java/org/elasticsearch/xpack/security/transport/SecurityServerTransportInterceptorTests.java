@@ -205,16 +205,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -249,16 +254,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings
+            )
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -311,16 +321,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -379,16 +394,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -445,16 +465,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings
+            )
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -1155,16 +1180,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             sslService,
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                builder.build()
+            )
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
@@ -1213,16 +1243,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             sslService,
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                builder.build()
+            )
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();

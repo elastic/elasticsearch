@@ -33,7 +33,7 @@ public class ZeroBucketTests {
         assertTrue(z.isThresholdComputed());
         assertFalse(z.isIndexComputed());
         assertEquals(1.25d, z.zeroThreshold(), 0.0);
-        z.index(); // compute index
+        z.index();
         assertTrue(z.isIndexComputed());
     }
 
@@ -48,29 +48,79 @@ public class ZeroBucketTests {
     }
 
     @Test
+    public void testMinimalEmptySingleton() {
+        ZeroBucket m1 = ZeroBucket.minimalEmpty();
+        ZeroBucket m2 = ZeroBucket.minimalEmpty();
+        assertSame(m1, m2);
+        assertEquals(0L, m1.count());
+        double threshold = m1.zeroThreshold();
+        assertTrue("threshold should be non-negative", threshold >= 0.0);
+    }
+
+    @Test
+    public void testMinimalWithCount() {
+        ZeroBucket m = ZeroBucket.minimalWithCount(5L);
+        assertEquals(5L, m.count());
+        assertTrue(m.zeroThreshold() >= 0.0);
+    }
+
+    @Test
+    public void testMergeKeepsLargerThreshold() {
+        ZeroBucket a = ZeroBucket.fromThreshold(0.5d, 4L);
+        ZeroBucket b = ZeroBucket.fromThreshold(1.0d, 6L);
+        ZeroBucket merged = a.merge(b);
+        assertEquals(10L, merged.count());
+        assertEquals(b.zeroThreshold(), merged.zeroThreshold(), 0.0);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidNegativeThreshold() {
+        ZeroBucket.fromThreshold(-0.01d, 1L);
+    }
+
+    @Test
     public void testEqualityAndHashStable() {
         ZeroBucket a = ZeroBucket.fromThreshold(0.6d, 10L);
         ZeroBucket b = ZeroBucket.fromThreshold(0.6d, 10L);
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
-        a.index(); // force index
+        a.index();
         assertEquals(a, b);
         b.index();
         assertEquals(a.hashCode(), b.hashCode());
     }
 
     @Test
-    public void testMinimalEmptySingleton() {
-        ZeroBucket m1 = ZeroBucket.minimalEmpty();
-        ZeroBucket m2 = ZeroBucket.minimalEmpty();
-        assertSame(m1, m2);
-        assertEquals(0L, m1.count());
-        assertEquals(0.0, m1.zeroThreshold(), 0.0);
-    }
+    public void testCollapseNoOverlapReturnsSame() {
+        ZeroBucket z = ZeroBucket.fromThreshold(0.5d, 2L);
+        // Empty iterator scenario -> remains same
+        BucketIterator empty = new BucketIterator() {
+            @Override
+            public void advance() {
+            }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testInvalidNegativeThreshold() {
-        ZeroBucket.fromThreshold(-0.01d, 1L);
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public long peekCount() {
+                throw new IllegalStateException();
+            }
+
+            @Override
+            public long peekIndex() {
+                throw new IllegalStateException();
+            }
+
+            @Override
+            public int scale() {
+                return ExponentialHistogram.MAX_SCALE;
+            }
+        };
+        ZeroBucket result = z.collapseOverlappingBuckets(empty);
+        assertSame(z, result);
     }
 
     @Test

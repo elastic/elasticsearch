@@ -22,6 +22,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -81,7 +82,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     private final Function<
         Transport.Connection,
-        Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
+        Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -120,7 +121,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         SecurityContext securityContext,
         ThreadPool threadPool,
         Settings settings,
-        Function<Transport.Connection, Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
+        Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
@@ -164,7 +165,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
              * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
             private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
-                final Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials =
+                final Optional<RemoteClusterAliasWithCredentials> remoteClusterAliasWithCredentials =
                     remoteClusterCredentialsResolver.apply(connection);
                 if (remoteClusterAliasWithCredentials.isEmpty()) {
                     logger.trace("Connection is not remote");
@@ -325,7 +326,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
     @Override
     public boolean isRemoteClusterConnection(Transport.Connection connection) {
         return remoteClusterCredentialsResolver.apply(connection)
-            .map(RemoteConnectionManager.RemoteClusterAliasWithCredentials::clusterAlias)
+            .map(RemoteClusterAliasWithCredentials::clusterAlias)
             .isPresent();
     }
 

@@ -16,10 +16,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -35,16 +33,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -71,35 +64,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.threadPool = threadPool;
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
         this.profileFilters = this.remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
-    }
-
-    SecurityServerTransportInterceptor(
-        Settings settings,
-        ThreadPool threadPool,
-        AuthenticationService authcService,
-        AuthorizationService authzService,
-        SSLService sslService,
-        SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        XPackLicenseState licenseState,
-        // Inject for simplified testing
-        Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
-    ) {
-        this.threadPool = threadPool;
-        this.securityContext = securityContext;
-        this.remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
-            crossClusterAccessAuthcService,
-            authcService,
-            authzService,
-            licenseState,
-            securityContext,
-            threadPool,
-            settings,
-            remoteClusterCredentialsResolver
-        );
-        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
-        this.profileFilters = remoteClusterTransportInterceptor.getProfileFilters(profileConfigurations, destructiveOperations);
     }
 
     @Override

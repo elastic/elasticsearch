@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -112,6 +114,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@Repeat(iterations = 1000)
 public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     private Settings settings;
@@ -637,17 +640,22 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            unsupportedLicenseState,
-            mockRemoteClusterCredentialsResolver(remoteClusterAlias)
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                unsupportedLicenseState,
+                securityContext,
+                threadPool,
+                settings,
+                mockRemoteClusterCredentialsResolver(remoteClusterAlias)
+            )
         );
 
         final AsyncSender sender = interceptor.interceptSender(mock(AsyncSender.class, ignored -> {
@@ -774,17 +782,24 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            authzService,
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                authzService,
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings,
+                ignored -> Optional.of(
+                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                )
+            )
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -912,21 +927,28 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            authzService,
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> notRemoteConnection
-                ? Optional.empty()
-                : (finalNoCredential
-                    ? Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, null))
-                    : Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))))
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                authzService,
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings,
+                ignored -> notRemoteConnection
+                    ? Optional.empty()
+                    : (finalNoCredential
+                        ? Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, null))
+                        : Optional.of(
+                            new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                        ))
+            )
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -971,17 +993,24 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings,
+                ignored -> Optional.of(
+                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                )
+            )
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -1070,17 +1099,24 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            authzService,
             mockSslService(),
             securityContext,
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+            new CrossClusterAccessTransportInterceptor(
+                mock(CrossClusterAccessAuthenticationService.class),
+                mock(AuthenticationService.class),
+                authzService,
+                mockLicenseState,
+                securityContext,
+                threadPool,
+                settings,
+                ignored -> Optional.of(
+                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                )
+            )
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {

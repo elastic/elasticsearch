@@ -71,6 +71,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             null,
                             null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
                             null
                         )
                     )
@@ -98,6 +99,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             null,
                             null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
                             null
                         )
                     )
@@ -173,6 +175,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -259,6 +262,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 

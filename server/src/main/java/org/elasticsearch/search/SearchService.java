@@ -2132,9 +2132,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TransportVersion minTransportVersion,
         String clusterAlias,
         ResolvedIndices resolvedIndices,
-        PointInTimeBuilder pit
+        PointInTimeBuilder pit,
+        final Boolean ccsMinimizeRoundTrips
     ) {
-        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, false);
+        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false);
     }
 
     /**
@@ -2146,9 +2147,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
+        final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain
     ) {
-        return indicesService.getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, isExplain);
+        return indicesService.getRewriteContext(
+            nowInMillis,
+            minTransportVersion,
+            clusterAlias,
+            resolvedIndices,
+            pit,
+            ccsMinimizeRoundTrips,
+            isExplain
+        );
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

@@ -136,7 +136,8 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             null,
-            createRewriteInterceptor()
+            createRewriteInterceptor(),
+            null
         );
     }
 

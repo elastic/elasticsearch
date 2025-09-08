@@ -554,6 +554,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     original.getLocalClusterAlias(),
                     resolvedIndices,
                     original.pointInTimeBuilder(),
+                    shouldMinimizeRoundtrips(original),
                     isExplain
                 ),
                 rewriteListener

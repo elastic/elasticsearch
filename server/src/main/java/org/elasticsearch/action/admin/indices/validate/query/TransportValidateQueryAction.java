@@ -128,7 +128,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            // We can safely set the cluster alias to null because the validate endpoint can only reference local indices
+            // We can safely set the cluster alias and CCS minimize round-trips to null because the validate endpoint can only reference
+            // local indices
             Rewriteable.rewriteAndFetch(
                 request.query(),
                 searchService.getRewriteContext(
@@ -136,6 +137,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
                     clusterService.state().getMinTransportVersion(),
                     null,
                     resolvedIndices,
+                    null,
                     null
                 ),
                 rewriteListener

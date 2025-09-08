@@ -69,13 +69,14 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        // TODO: How to set the cluster alias here?
+        // TODO: How to set the cluster alias and CCS minimize round-trips here?
         return services.searchService()
             .getRewriteContext(
                 System::currentTimeMillis,
                 clusterService.state().getMinTransportVersion(),
                 null,
                 resolvedIndices,
+                null,
                 null
             );
     }

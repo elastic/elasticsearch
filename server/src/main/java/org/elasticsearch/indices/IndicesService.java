@@ -1852,6 +1852,7 @@ public class IndicesService extends AbstractLifecycleComponent
         String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
+        final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain
     ) {
         return new QueryRewriteContext(
@@ -1863,6 +1864,7 @@ public class IndicesService extends AbstractLifecycleComponent
             resolvedIndices,
             pit,
             queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
             isExplain
         );
     }

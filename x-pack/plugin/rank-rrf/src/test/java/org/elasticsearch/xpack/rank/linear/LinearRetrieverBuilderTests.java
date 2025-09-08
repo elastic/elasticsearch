@@ -52,6 +52,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -184,6 +185,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 

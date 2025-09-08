@@ -125,6 +125,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + searchShardsRequest);
         }
 
+        // Set CCS minimize round-trips to null since search shards requests are guaranteed to only reference local indices
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(
@@ -132,6 +133,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 clusterService.state().getMinTransportVersion(),
                 searchShardsRequest.clusterAlias(),
                 resolvedIndices,
+                null,
                 null
             ),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {

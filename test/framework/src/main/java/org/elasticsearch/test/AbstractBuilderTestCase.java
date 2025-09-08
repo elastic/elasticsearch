@@ -640,6 +640,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 createMockResolvedIndices(),
                 null,
                 createMockQueryRewriteInterceptor(),
+                null,
                 false
             );
         }

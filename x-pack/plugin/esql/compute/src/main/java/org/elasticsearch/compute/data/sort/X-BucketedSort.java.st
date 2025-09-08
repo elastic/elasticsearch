@@ -9,9 +9,10 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.$Type$Array;
 $if(Tuple)$
 import org.elasticsearch.common.util.ObjectArray;
+$else$
+import org.elasticsearch.common.util.$Type$Array;
 $endif$
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -217,6 +218,7 @@ $if(Tuple)$
             blocks[offset + 1] = longBuilder.build();
         }
     }
+
 $else$
     /**
      * Creates a block with the values from the {@code selected} groups.

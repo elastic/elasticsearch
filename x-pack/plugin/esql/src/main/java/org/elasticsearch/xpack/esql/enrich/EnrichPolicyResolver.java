@@ -139,7 +139,7 @@ public class EnrichPolicyResolver {
         if (indexPattern != null) {
             indexResolver.resolveConcreteIndices(indexPattern.indexPattern(), requestFilter, listener.map(EsqlCCSUtils::getRemotesOf));
         } else {
-            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
+            listener.onResponse(Set.of());
         }
     }
 

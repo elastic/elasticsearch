@@ -155,6 +155,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), balancingWeights);
         balancer.allocateUnassigned();
         balancer.moveShards();
+        balancer.moveNonPreferred();
         balancer.balance();
 
         // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
@@ -712,6 +713,77 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
+         * Move started shards that are in non-preferred allocations
+         */
+        public void moveNonPreferred() {
+            for (Iterator<ShardRouting> it = allocation.deciders().findNonPreferred(allocation); it.hasNext();) {
+                ShardRouting shardRouting = it.next();
+                ProjectIndex index = projectIndex(shardRouting);
+                final MoveDecision moveDecision = decideMoveNonPreferred(index, shardRouting);
+                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                    final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+                    final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
+                    sourceNode.removeShard(index, shardRouting);
+                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+                        shardRouting,
+                        targetNode.getNodeId(),
+                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "non-preferred",
+                        allocation.changes()
+                    );
+                    final ShardRouting shard = relocatingShards.v2();
+                    targetNode.addShard(projectIndex(shard), shard);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+                    }
+                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
+                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                }
+            }
+        }
+
+        /**
+         * Makes a decision on whether to move a started shard to another node. The following rules apply
+         * to the {@link MoveDecision} return object:
+         *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
+         *   2. If the shard's current allocation is preferred ({@link Decision.Type#YES}), no attempt will be made to move the shard and
+         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
+         *   3. If the shard is not allowed ({@link Decision.Type#NO}), or not preferred ({@link Decision.Type#NOT_PREFERRED}) to remain
+         *      on its current node, then {@link MoveDecision#getAllocationDecision()} will be populated with the decision of moving to
+         *      another node. If {@link MoveDecision#forceMove()} returns {@code true}, then {@link MoveDecision#getTargetNode} will return
+         *      a non-null value representing a node that returned {@link Decision.Type#YES} from canAllocate, otherwise the assignedNodeId
+         *      will be null.
+         *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
+         *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
+         */
+        public MoveDecision decideMoveNonPreferred(final ProjectIndex index, final ShardRouting shardRouting) {
+            NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
+            index.assertMatch(shardRouting);
+
+            if (shardRouting.started() == false) {
+                // we can only move started shards
+                return MoveDecision.NOT_TAKEN;
+            }
+
+            final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+            assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
+            RoutingNode routingNode = sourceNode.getRoutingNode();
+            Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+            if (canRemain.type() != Type.NOT_PREFERRED || canRemain.type() != Type.NO) {
+                return MoveDecision.remain(canRemain);
+            }
+
+            sorter.reset(index);
+            /*
+             * the sorter holds the minimum weight node first for the shards index.
+             * We now walk through the nodes until we find a node to allocate the shard.
+             * This is not guaranteed to be balanced after this operation we still try best effort to
+             * allocate on the minimal eligible node.
+             */
+            return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocatePreferredOnly);
+        }
+
+        /**
          * Move started shards that can not be allocated to a node anymore
          *
          * For each shard to be moved this function executes a move operation
@@ -837,6 +909,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 targetNode != null ? targetNode.node() : null,
                 nodeResults
             );
+        }
+
+        private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {
+            Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+            // not-preferred means no here
+            if (decision.type() == Type.NOT_PREFERRED) {
+                return Decision.NO;
+            }
+            return decision;
         }
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {

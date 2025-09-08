@@ -17,9 +17,12 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -243,5 +246,15 @@ public class AllocationDeciders {
             }
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Iterator<ShardRouting> findNonPreferred(RoutingAllocation routingAllocation) {
+        var iterators = new ArrayList<Iterator<ShardRouting>>(deciders.length);
+        for (AllocationDecider decider : deciders) {
+            decider.getNonPreferredAllocations(routingAllocation).ifPresent(iterators::add);
+            assert iterators.size() == 1 : "when we've got more than one decider contributing we should revisit how these are combined";
+        }
+        return Iterators.concat(iterators.<Iterator<ShardRouting>>toArray(Iterator[]::new));
     }
 }

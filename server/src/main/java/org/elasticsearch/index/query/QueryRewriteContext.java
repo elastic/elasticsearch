@@ -140,7 +140,6 @@ public class QueryRewriteContext {
         );
     }
 
-    // TODO: Pass cluster alias to this constructor
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
         final Client client,
@@ -153,7 +152,6 @@ public class QueryRewriteContext {
         this(parserConfiguration, client, nowInMillis, localClusterAlias, resolvedIndices, pit, queryRewriteInterceptor, false);
     }
 
-    // TODO: Pass cluster alias to this constructor
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
         final Client client,

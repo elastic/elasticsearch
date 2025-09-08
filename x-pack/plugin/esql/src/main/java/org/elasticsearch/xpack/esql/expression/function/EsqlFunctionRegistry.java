@@ -1005,13 +1005,22 @@ public class EsqlFunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
+            boolean hasMinimumOne = TwoOptionalArguments.class.isAssignableFrom(function);
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
+            if (hasMinimumOne && (children.size() > 3 || children.isEmpty())) {
+                throw new QlIllegalArgumentException("expects minimum one, maximum three arguments");
+            } else if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
-            } else if (hasMinimumTwo == false && children.size() != 3) {
+            } else if (hasMinimumOne == false && hasMinimumTwo == false && children.size() != 3) {
                 throw new QlIllegalArgumentException("expects exactly three arguments");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
+
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() > 1 ? children.get(1) : null,
+                children.size() == 3 ? children.get(2) : null
+            );
         };
         return def(function, builder, names);
     }

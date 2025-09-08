@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -27,12 +25,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Chunk}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ChunkStringEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChunkStringEvaluator.class);
+public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChunkBytesRefEvaluator.class);
 
   private final Source source;
-
-  private final BreakingBytesRefBuilder scratch;
 
   private final EvalOperator.ExpressionEvaluator str;
 
@@ -44,11 +40,10 @@ public final class ChunkStringEvaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings;
 
-  public ChunkStringEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator numChunks,
-      EvalOperator.ExpressionEvaluator chunkSize, DriverContext driverContext) {
+  public ChunkBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
+      EvalOperator.ExpressionEvaluator numChunks, EvalOperator.ExpressionEvaluator chunkSize,
+      DriverContext driverContext) {
     this.source = source;
-    this.scratch = scratch;
     this.str = str;
     this.numChunks = numChunks;
     this.chunkSize = chunkSize;
@@ -126,7 +121,7 @@ public final class ChunkStringEvaluator implements EvalOperator.ExpressionEvalua
           continue position;
         }
         try {
-          result.appendBytesRef(Chunk.process(this.scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numChunksBlock.getInt(numChunksBlock.getFirstValueIndex(p)), chunkSizeBlock.getInt(chunkSizeBlock.getFirstValueIndex(p))));
+          Chunk.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numChunksBlock.getInt(numChunksBlock.getFirstValueIndex(p)), chunkSizeBlock.getInt(chunkSizeBlock.getFirstValueIndex(p)));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -142,7 +137,7 @@ public final class ChunkStringEvaluator implements EvalOperator.ExpressionEvalua
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(Chunk.process(this.scratch, strVector.getBytesRef(p, strScratch), numChunksVector.getInt(p), chunkSizeVector.getInt(p)));
+          Chunk.process(result, strVector.getBytesRef(p, strScratch), numChunksVector.getInt(p), chunkSizeVector.getInt(p));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -154,12 +149,12 @@ public final class ChunkStringEvaluator implements EvalOperator.ExpressionEvalua
 
   @Override
   public String toString() {
-    return "ChunkStringEvaluator[" + "str=" + str + ", numChunks=" + numChunks + ", chunkSize=" + chunkSize + "]";
+    return "ChunkBytesRefEvaluator[" + "str=" + str + ", numChunks=" + numChunks + ", chunkSize=" + chunkSize + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(scratch, str, numChunks, chunkSize);
+    Releasables.closeExpectNoException(str, numChunks, chunkSize);
   }
 
   private Warnings warnings() {
@@ -177,33 +172,29 @@ public final class ChunkStringEvaluator implements EvalOperator.ExpressionEvalua
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
-
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
     private final EvalOperator.ExpressionEvaluator.Factory numChunks;
 
     private final EvalOperator.ExpressionEvaluator.Factory chunkSize;
 
-    public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory str,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
         EvalOperator.ExpressionEvaluator.Factory numChunks,
         EvalOperator.ExpressionEvaluator.Factory chunkSize) {
       this.source = source;
-      this.scratch = scratch;
       this.str = str;
       this.numChunks = numChunks;
       this.chunkSize = chunkSize;
     }
 
     @Override
-    public ChunkStringEvaluator get(DriverContext context) {
-      return new ChunkStringEvaluator(source, scratch.apply(context), str.get(context), numChunks.get(context), chunkSize.get(context), context);
+    public ChunkBytesRefEvaluator get(DriverContext context) {
+      return new ChunkBytesRefEvaluator(source, str.get(context), numChunks.get(context), chunkSize.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ChunkStringEvaluator[" + "str=" + str + ", numChunks=" + numChunks + ", chunkSize=" + chunkSize + "]";
+      return "ChunkBytesRefEvaluator[" + "str=" + str + ", numChunks=" + numChunks + ", chunkSize=" + chunkSize + "]";
     }
   }
 }

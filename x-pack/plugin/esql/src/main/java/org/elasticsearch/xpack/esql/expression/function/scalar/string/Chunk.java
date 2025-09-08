@@ -12,11 +12,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -145,41 +144,38 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         return chunkSize;
     }
 
-    @Evaluator(extraName = "String", warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
-        BytesRef str,
-        int numChunks,
-        int chunkSize
-    ) {
+    @Evaluator(extraName = "BytesRef", warnExceptions = IllegalArgumentException.class)
+    static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, int chunkSize) {
         String content = str.utf8ToString();
-        
+
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
         Chunker chunker = ChunkerBuilder.fromChunkingStrategy(settings.getChunkingStrategy());
-        
+
         List<String> chunks = chunker.chunk(content, settings)
             .stream()
             .map(offset -> content.substring(offset.start(), offset.end()))
             .limit(numChunks)
             .toList();
-        
-        int totalBytes = chunks.stream().mapToInt(chunk -> chunk.getBytes().length).sum();
-        scratch.grow(totalBytes);
-        scratch.clear();
-        
-        for (String chunk : chunks) {
-            scratch.append(new BytesRef(chunk));
+
+        boolean multivalued = chunks.size() > 1;
+        if (multivalued) {
+            builder.beginPositionEntry();
         }
-        
-        return scratch.bytesRefView();
+        for (String chunk : chunks) {
+            builder.appendBytesRef(new BytesRef(chunk));
+        }
+
+        if (multivalued) {
+            builder.endPositionEntry();
+        }
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field()) 
-            && Objects.equals(numChunks(), chunk.numChunks()) 
+        return Objects.equals(field(), chunk.field())
+            && Objects.equals(numChunks(), chunk.numChunks())
             && Objects.equals(chunkSize(), chunk.chunkSize());
     }
 
@@ -202,12 +198,13 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new ChunkStringEvaluator.Factory(
+        return new ChunkBytesRefEvaluator.Factory(
             source(),
-            context -> new BreakingBytesRefBuilder(context.breaker(), "chunk"),
             toEvaluator.apply(field),
-            toEvaluator.apply(numChunks),
-            toEvaluator.apply(chunkSize)
+            numChunks != null ? toEvaluator.apply(numChunks) 
+                : toEvaluator.apply(new Literal(source(), DEFAULT_NUM_CHUNKS, DataType.INTEGER)),
+            chunkSize != null ? toEvaluator.apply(chunkSize) 
+                : toEvaluator.apply(new Literal(source(), DEFAULT_CHUNK_SIZE, DataType.INTEGER))
         );
     }
 }

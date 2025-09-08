@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 
-import java.util.Iterator;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 
@@ -156,12 +156,12 @@ public abstract class AllocationDecider {
     }
 
     /**
-     * Return a list of shard allocations that are non-preferable according to this decider
+     * Get a list of allocation problems that can be fixed by moving some shards
      *
      * @param allocation the current routing allocation
-     * @return A list of shard allocations that this decider would like to move elsewhere, in order of descending priority
+     * @return A list of node IDs that contain shards this decider would like to move elsewhere, in order of descending priority
      */
-    public Optional<Iterator<ShardRouting>> getNonPreferredAllocations(RoutingAllocation allocation) {
+    public Optional<Collection<AllocationDeciders.AllocationProblem>> getAllocationProblems(RoutingAllocation allocation) {
         return Optional.empty();
     }
 }

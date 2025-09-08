@@ -716,8 +716,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Move started shards that are in non-preferred allocations
          */
         public void moveNonPreferred() {
-            for (Iterator<ShardRouting> it = allocation.deciders().findNonPreferred(allocation); it.hasNext();) {
-                ShardRouting shardRouting = it.next();
+            boolean movedAShard = false;
+            do {
+                for (Iterator<AllocationDeciders.AllocationProblem> problemIterator = allocation.deciders()
+                    .findAllocationProblems(allocation); problemIterator.hasNext();) {
+                    AllocationDeciders.AllocationProblem problem = problemIterator.next();
+                    if (tryResolveAllocationProblem(problem)) {
+                        movedAShard = true;
+                        break;
+                    }
+                    logger.debug("Unable to resolve allocation problem [{}], will try next time", problem);
+                }
+                // TODO: Update cluster info
+            } while (movedAShard);
+        }
+
+        private boolean tryResolveAllocationProblem(AllocationDeciders.AllocationProblem problem) {
+            for (Iterator<ShardRouting> shardIterator = problem.preferredShardMovements(); shardIterator.hasNext();) {
+                ShardRouting shardRouting = shardIterator.next();
                 ProjectIndex index = projectIndex(shardRouting);
                 final MoveDecision moveDecision = decideMoveNonPreferred(index, shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
@@ -728,7 +744,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardRouting,
                         targetNode.getNodeId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                        "non-preferred",
+                        problem.relocateReason(),
                         allocation.changes()
                     );
                     final ShardRouting shard = relocatingShards.v2();
@@ -736,10 +752,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
+                    return true;
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
+            return false;
         }
 
         /**

@@ -17,14 +17,14 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.set.Sets;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -248,13 +248,22 @@ public class AllocationDeciders {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
-    public Iterator<ShardRouting> findNonPreferred(RoutingAllocation routingAllocation) {
-        var iterators = new ArrayList<Iterator<ShardRouting>>(deciders.length);
+    public Iterator<AllocationProblem> findAllocationProblems(RoutingAllocation routingAllocation) {
+        var problems = new TreeSet<>(Comparator.comparing(AllocationProblem::priority).reversed());
         for (AllocationDecider decider : deciders) {
-            decider.getNonPreferredAllocations(routingAllocation).ifPresent(iterators::add);
-            assert iterators.size() <= 1 : "when we've got more than one decider contributing we should revisit how these are combined";
+            decider.getAllocationProblems(routingAllocation).ifPresent(problems::addAll);
         }
-        return Iterators.concat(iterators.<Iterator<ShardRouting>>toArray(Iterator[]::new));
+        return problems.iterator();
+    }
+
+    public interface AllocationProblem {
+
+        Iterator<ShardRouting> preferredShardMovements();
+
+        String relocateReason();
+
+        default int priority() {
+            return 1;
+        }
     }
 }

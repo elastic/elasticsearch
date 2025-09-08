@@ -368,11 +368,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return inSubplan == false;
     }
 
-    public void startSubPlan() {
+    public void startSubPlans() {
         this.inSubplan = true;
     }
 
-    public void finishSubPlan() {
+    public void finishSubPlans() {
         this.inSubplan = false;
     }
 

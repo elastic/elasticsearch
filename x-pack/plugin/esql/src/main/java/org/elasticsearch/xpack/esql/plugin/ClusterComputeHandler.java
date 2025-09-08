@@ -158,20 +158,27 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 .setSuccessfulShards(resp.getSuccessfulShards())
                 .setSkippedShards(resp.getSkippedShards())
                 .setFailedShards(resp.getFailedShards());
-            // TODO: correctly aggregate took time from subplans
-            if (resp.getTook() != null) {
-                builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
+            if (v.getTook() != null && resp.getTook() != null) {
+                // This can happen when we had some subplan executions before the main plan - we need to accumulate the took time
+                builder.setTook(TimeValue.timeValueNanos(v.getTook().nanos() + resp.getTook().nanos()));
             } else {
-                // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
-                // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-                builder.setTook(executionInfo.tookSoFar());
-            }
-            if (executionInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                builder.addFailures(resp.failures);
-                if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
-                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                if (resp.getTook() != null) {
+                    builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
                 } else {
-                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+                    // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+                    builder.setTook(executionInfo.tookSoFar());
+                }
+            }
+            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                builder.addFailures(v.getFailures());
+                builder.addFailures(resp.failures);
+                if (executionInfo.isMainPlan()) {
+                    if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                    } else {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    }
                 }
             }
             return builder.build();

@@ -1442,7 +1442,10 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot());
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+
+        /** INLINESTATS supports remote indices */
+        INLINESTATS_SUPPORTS_REMOTE;
 
         private final boolean enabled;
 

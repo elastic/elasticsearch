@@ -99,6 +99,24 @@ teardown:
   - match: { _source.dest: [3] }
 
 ---
+"allow_duplicates (false) doesn't remove duplicates with a missing array and copy_from (wat!)":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [3, 3, 3]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3, 3, 3] }
+
+---
 "allow_duplicates (false) removes duplicates with a present array and templating":
   - do:
       index:
@@ -138,3 +156,22 @@ teardown:
         index: test-some-index
         id: "1"
   - match: { _source.dest: [3] }
+
+---
+"allow_duplicates (false) doesn't remove duplicates with a missing array and templating (wat!)":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": true,
+            "three": 3
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3, 3, 3] }

@@ -841,7 +841,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         final var allocationServiceRef = new AtomicReference<AllocationService>();
         var clusterSettings = createBuiltInClusterSettings();
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, TEST_ONLY_EXPLAINER);
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
@@ -849,8 +849,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> allocationServiceRef.get()
                 .executeWithRoutingAllocation(reconcilerClusterState, "reconcile-desired-balance", rerouteStrategy),
-            TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP
         ) {
             @Override
             protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -868,7 +868,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         final var clusterInfoRef = new AtomicReference<>(
-            ClusterInfo.builder().shardWriteLoads(Map.of(shardId, 10.0d)).nodeUsageStatsForThreadPools(initialThreadPoolStats).build()
+            ClusterInfo.builder()
+                .dataPath(Map.of(ClusterInfo.NodeAndShard.from(shardRouting), "/data/path1"))
+                .shardWriteLoads(Map.of(shardId, 10.0d))
+                .nodeUsageStatsForThreadPools(initialThreadPoolStats)
+                .build()
         );
 
         var service = new AllocationService(
@@ -952,6 +956,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             // 5. A new ClusterInfo is polled
             clusterInfoRef.set(
                 ClusterInfo.builder()
+                    .dataPath(Map.of(new ClusterInfo.NodeAndShard(secondNode.getId(), shardId), "/data/path2"))
                     .shardWriteLoads(Map.of(shardId, 10.0d))
                     .nodeUsageStatsForThreadPools(
                         Map.of(

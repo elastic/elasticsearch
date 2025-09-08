@@ -1,0 +1,6 @@
+pr: 134299
+summary: '`AsyncSearch` - Handle released `finalResponse` with `tryIncRef()` to avoid
+  race assertions'
+area: Search
+type: bug
+issues: []

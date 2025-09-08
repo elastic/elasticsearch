@@ -1752,6 +1752,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         SearchListenerPlugin.blockLocalQueryPhase();
+        SearchListenerPlugin.blockRemoteQueryPhase();
 
         TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
         // query builder that will sleep for the specified amount of time in the query phase
@@ -1810,6 +1811,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         } finally {
             SearchListenerPlugin.allowLocalQueryPhase();
+            SearchListenerPlugin.allowRemoteQueryPhase();
         }
 
         // query phase has begun, so wait for query failure (due to timeout)

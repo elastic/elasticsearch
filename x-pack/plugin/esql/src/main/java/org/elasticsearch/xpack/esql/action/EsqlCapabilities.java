@@ -422,6 +422,11 @@ public class EsqlCapabilities {
         SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
 
         /**
+         * Support geohash, geotile and geohex in ST_INTERSECTS and ST_DISJOINT. Done in #133546
+         */
+        SPATIAL_GRID_INTERSECTS(Build.current().isSnapshot()),
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -1096,6 +1101,11 @@ public class EsqlCapabilities {
         FORK_V9,
 
         /**
+         * Support for union types in FORK
+         */
+        FORK_UNION_TYPES,
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1432,7 +1442,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES;
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -327,8 +327,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_9_1 = def(9_112_0_01);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_2 = def(9_112_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_4 = def(9_112_0_07);
     public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -241,7 +243,13 @@ class MutableSearchResponse implements Releasable {
         if (finalResponse != null) {
             // We have a final response, use it.
             searchResponse = finalResponse;
-            searchResponse.mustIncRef();
+            if (searchResponse.tryIncRef() == false) {
+
+                searchResponse = null;
+                if (failure == null) {
+                    failure = new ElasticsearchStatusException("async-search result, no longer available", RestStatus.GONE);
+                }
+            }
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;

@@ -262,7 +262,13 @@ public class EsqlSession {
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
 
-        runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
+        executionInfo.startSubPlan();
+        var listenerForSublan = listener.delegateResponse((l, e) -> {
+            executionInfo.finishSubPlan();
+            l.onFailure(e);
+        });
+
+        runner.run(physicalSubPlan, listenerForSublan.delegateFailureAndWrap((next, result) -> {
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
@@ -282,6 +288,8 @@ public class EsqlSession {
                 var newSubPlan = firstSubPlan(newLogicalPlan);
 
                 if (newSubPlan == null) {// run the final "main" plan
+                    // TODO: failures!
+                    executionInfo.finishSubPlan();
                     LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
                     runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
@@ -291,7 +299,15 @@ public class EsqlSession {
                         );
                     }));
                 } else {// continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    executeSubPlan(
+                        completionInfoAccumulator,
+                        newLogicalPlan,
+                        newSubPlan,
+                        executionInfo,
+                        runner,
+                        request,
+                        listenerForSublan
+                    );
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

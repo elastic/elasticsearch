@@ -83,6 +83,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
     private TimeValue overallTook;
 
+    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
+    private transient boolean inSubplan = false;
+
     // This is only used is tests.
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to being skippable on failure
@@ -142,6 +145,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);
         }
+        assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
 
     public boolean includeCCSMetadata() {
@@ -168,8 +172,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
-        overallTimeSpan = relativeStart.stop();
-        overallTook = overallTimeSpan.toTimeValue();
+        if (isMainPlan()) {
+            overallTimeSpan = relativeStart.stop();
+            overallTook = overallTimeSpan.toTimeValue();
+        }
     }
 
     // for testing only - use markEndQuery in production code
@@ -356,6 +362,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {
         this.clusterInfoInitializing = clusterInfoInitializing;
+    }
+
+    public boolean isMainPlan() {
+        return inSubplan == false;
+    }
+
+    public void startSubPlan() {
+        this.inSubplan = true;
+    }
+
+    public void finishSubPlan() {
+        this.inSubplan = false;
     }
 
     /**

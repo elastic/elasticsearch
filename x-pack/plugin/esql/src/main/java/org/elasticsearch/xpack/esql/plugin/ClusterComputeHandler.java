@@ -158,6 +158,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 .setSuccessfulShards(resp.getSuccessfulShards())
                 .setSkippedShards(resp.getSkippedShards())
                 .setFailedShards(resp.getFailedShards());
+            // TODO: correctly aggregate took time from subplans
             if (resp.getTook() != null) {
                 builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
             } else {
@@ -165,7 +166,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
                 builder.setTook(executionInfo.tookSoFar());
             }
-            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+            if (executionInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                 builder.addFailures(resp.failures);
                 if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);

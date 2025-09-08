@@ -93,6 +93,10 @@ public class ParsingTests extends ESTestCase {
             report.humanReadable(true).prettyPrint();
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                // Some types do not have a converter function if the capability is disabled
+                namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
+            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);

@@ -714,7 +714,7 @@ class NodeConstruction {
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
-        SamplingService samplingService = new SamplingService(scriptService);
+        SamplingService samplingService = new SamplingService(scriptService, System::nanoTime);
         modules.bindToInstance(SamplingService.class, samplingService);
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());

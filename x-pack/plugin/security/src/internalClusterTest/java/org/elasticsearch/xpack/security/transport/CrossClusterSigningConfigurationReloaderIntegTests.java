@@ -73,15 +73,15 @@ public class CrossClusterSigningConfigurationReloaderIntegTests extends Security
             updateClusterSettings(
                 Settings.builder()
                     .put(
-                        SIGNING_KEYSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                        getDataPath("/org/elasticsearch/xpack/security/signature/signing.jks")
-                    )
-                    .put(SIGNING_KEYSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey(), "jks")
-                    .put(
                         SIGNING_KEYSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         KeyManagerFactory.getDefaultAlgorithm()
                     )
                     .put(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(clusterAlias).getKey(), "wholelottakey")
+                    .put(SIGNING_KEYSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey(), inFipsJvm() ? "BCFKS" : "PKCS12")
+                    .put(
+                        SIGNING_KEYSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        getDataPath("/org/elasticsearch/xpack/security/signature/signing." + (inFipsJvm() ? "bcfks" : "jks"))
+                    )
             );
         }, clusterAlias -> {
             updateClusterSettings(
@@ -96,6 +96,7 @@ public class CrossClusterSigningConfigurationReloaderIntegTests extends Security
     }
 
     public void testDependentKeyConfigFilesUpdated() throws Exception {
+        assumeFalse("Test credentials uses key encryption not supported in Fips JVM", inFipsJvm());
         final CrossClusterApiKeySigner signer = internalCluster().getInstance(
             CrossClusterApiKeySigner.class,
             internalCluster().getRandomNodeName()
@@ -234,7 +235,7 @@ public class CrossClusterSigningConfigurationReloaderIntegTests extends Security
     }
 
     private void writeSecureSettingsToKeyStoreAndReload(Map<String, char[]> entries) {
-        char[] keyStorePassword = randomAlphaOfLengthBetween(1, randomIntBetween(5, 20)).toCharArray();
+        char[] keyStorePassword = randomAlphaOfLengthBetween(15, randomIntBetween(15, 20)).toCharArray();
         internalCluster().getInstances(Environment.class).forEach(environment -> {
             final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
             entries.forEach(keyStoreWrapper::setString);

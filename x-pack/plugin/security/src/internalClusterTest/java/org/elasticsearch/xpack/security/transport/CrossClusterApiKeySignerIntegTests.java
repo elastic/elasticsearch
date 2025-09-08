@@ -16,7 +16,9 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigne
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_ALIAS;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_PATH;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_SECURE_PASSWORD;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_TYPE;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_PATH;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 
 public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
 
@@ -40,7 +42,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
             getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt").getParent()
         );
 
-        assertEquals(signature.algorithm(), keyConfig.getKeys().getFirst().v2().getSigAlgName());
+        assertThat(signature.algorithm(), equalToIgnoringCase(keyConfig.getKeys().getFirst().v2().getSigAlgName()));
         assertEquals(signature.certificate(), keyConfig.getKeys().getFirst().v2());
     }
 
@@ -66,8 +68,12 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
             updateClusterSettings(
                 Settings.builder()
                     .put(
+                        SIGNING_KEYSTORE_TYPE.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(),
+                        inFipsJvm() ? "BCFKS" : "PKCS12"
+                    )
+                    .put(
                         SIGNING_KEYSTORE_PATH.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(),
-                        getDataPath("/org/elasticsearch/xpack/security/signature/signing.jks")
+                        getDataPath("/org/elasticsearch/xpack/security/signature/signing." + (inFipsJvm() ? "bcfks" : "jks"))
                     )
             );
 
@@ -100,6 +106,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
                 Settings.builder()
                     .putNull(SIGNING_KEYSTORE_PATH.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey())
                     .putNull(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey())
+                    .putNull(SIGNING_KEYSTORE_TYPE.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey())
                     .setSecureSettings(new MockSecureSettings())
             );
         }

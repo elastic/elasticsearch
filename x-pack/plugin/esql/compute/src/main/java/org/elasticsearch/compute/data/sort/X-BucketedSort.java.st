@@ -226,6 +226,7 @@ $if(hasExtra)$
             blocks[offset + 1] = builder.build();
         }
     }
+
 $else$
     /**
      * Creates a block with the values from the {@code selected} groups.

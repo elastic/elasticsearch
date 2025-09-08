@@ -91,21 +91,6 @@ public class MemoryIndexChunkScorer {
         }
     }
 
-    private String[] tokenizeText(String text) throws IOException {
-        List<String> tokens = new ArrayList<>();
-        try (org.apache.lucene.analysis.TokenStream tokenStream = analyzer.tokenStream(CONTENT_FIELD, text)) {
-            org.apache.lucene.analysis.tokenattributes.CharTermAttribute termAttribute = tokenStream.addAttribute(
-                org.apache.lucene.analysis.tokenattributes.CharTermAttribute.class
-            );
-            tokenStream.reset();
-            while (tokenStream.incrementToken()) {
-                tokens.add(termAttribute.toString());
-            }
-            tokenStream.end();
-        }
-        return tokens.toArray(new String[0]);
-    }
-
     /**
      * Represents a chunk with its relevance score.
      */

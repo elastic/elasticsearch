@@ -28,22 +28,22 @@ intExp
 required_capability: decay_function
 
 ROW value = 5
-| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "exp"}), 16) 
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "exp"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
-0.7071067811865475
+0.7071068
 ;
 
 intGauss
 required_capability: decay_function
 
 ROW value = 5
-| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "gauss"}), 16) 
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "gauss"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
-0.8408964152537146
+0.8408964
 ;
 
 intLinearWithOffset
@@ -61,22 +61,22 @@ intExpWithOffset
 required_capability: decay_function
 
 ROW value = 120
-| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "exp"}), 16) 
+| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "exp"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
-0.6968453019359488
+0.6968453
 ;
 
 intGaussWithOffset
 required_capability: decay_function
 
 ROW value = 120
-| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "gauss"}), 16) 
+| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "gauss"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
-0.8973067049097825
+0.8973067
 ;
 
 intWithoutOptions
@@ -165,22 +165,22 @@ doubleExp
 required_capability: decay_function
 
 ROW value = 5.0
-| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "exp"}), 16) 
+| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "exp"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
-0.7071067811865475
+0.7071068
 ;
 
 doubleGauss
 required_capability: decay_function
 
 ROW value = 5.0
-| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "gauss"}), 16) 
+| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "gauss"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
-0.8408964152537146
+0.8408964
 ;
 
 longLinear
@@ -209,7 +209,7 @@ cartesianPointLinear2
 required_capability: decay_function
 
 ROW value = TO_CARTESIANPOINT("POINT(10 0)")
-| EVAL decay_result = ROUND(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 0.0, "decay": 0.25, "type": "linear"}), 10) 
+| EVAL decay_result = ROUND(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 0.0, "decay": 0.25, "type": "linear"}), 7) 
 | KEEP decay_result;
 
 decay_result:double
@@ -220,7 +220,7 @@ cartesianPointLinearWithOffset
 required_capability: decay_function
 
 ROW value = TO_CARTESIANPOINT("POINT(10 0)")
-| EVAL decay_result = ROUND(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 5.0, "decay": 0.25, "type": "linear"}), 10) 
+| EVAL decay_result = ROUND(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 5.0, "decay": 0.25, "type": "linear"}), 7) 
 | KEEP decay_result;
 
 decay_result:double

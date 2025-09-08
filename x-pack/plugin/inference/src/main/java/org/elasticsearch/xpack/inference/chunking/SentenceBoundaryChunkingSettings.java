@@ -65,11 +65,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
 
         if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
             validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE
-                    + "["
-                    + maxChunkSize
-                    + "] must be above "
-                    + MAX_CHUNK_SIZE_LOWER_LIMIT
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
             );
         }
 

@@ -861,7 +861,7 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    innerAppendValues(list, value);
+                    appendValues(list, value, allowDuplicates);
                     map.put(leafKey, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
@@ -879,7 +879,7 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    innerAppendValues(list, value);
+                    appendValues(list, value, allowDuplicates);
                     map.put(leafKey, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);

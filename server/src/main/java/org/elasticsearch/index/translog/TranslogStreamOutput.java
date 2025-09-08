@@ -23,6 +23,10 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         super(recycler);
     }
 
+    public void writeIndexHeader(Translog.Index indexOperation) {
+
+    }
+
     public void write4Longs(long l1, long l2, long l3, long l4) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (32 > (pageSize - currentPageOffset)) {

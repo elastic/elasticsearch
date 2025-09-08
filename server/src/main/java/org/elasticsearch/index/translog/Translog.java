@@ -1675,6 +1675,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.seek(end);
     }
 
+    public static int writeHeaderWithSize(TranslogStreamOutput out, Translog.Operation op) throws IOException {
+        final long start = out.position();
+        out.skip(Integer.BYTES);
+        op.writeTo(out);
+        CRC32C checksum = new CRC32C();
+        out.calculateChecksum(checksum, Math.toIntExact(start + 4));
+        out.writeInt((int) checksum.getValue());
+        final long end = out.position();
+        final int operationSize = (int) (end - Integer.BYTES - start);
+        out.seek(start);
+        out.writeInt(operationSize);
+        out.seek(end);
+        return (int) checksum.getValue();
+    }
+
     /**
      * Gets the minimum generation that could contain any sequence number after the specified sequence number, or the current generation if
      * there is no generation that could any such sequence number.

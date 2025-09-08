@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;

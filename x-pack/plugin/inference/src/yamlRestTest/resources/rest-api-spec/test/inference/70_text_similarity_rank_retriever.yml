@@ -522,7 +522,7 @@ setup:
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
-      catch: /num_chunks must be greater than 0/
+      catch: /size must be greater than 0/
       search:
         index: test-index
         body:
@@ -539,7 +539,7 @@ setup:
               inference_text: "How often does the moon hide the sun?"
               field: inference_text_field
               chunk_rescorer:
-                num_chunks: 0
+                size: 0
           size: 10
 
   - match: { status: 400 }
@@ -570,7 +570,7 @@ setup:
               inference_text: "How often does the moon hide the sun?"
               field: text
               chunk_rescorer:
-                num_chunks: 2
+                size: 2
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -638,7 +638,7 @@ setup:
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
               chunk_rescorer:
-                num_chunks: 2
+                size: 2
           size: 10
 
   - match: { hits.total.value: 2 }

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkerBuilder;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_NUM_CHUNKS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_SIZE;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
@@ -47,7 +47,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
             DocumentField docField = hit.field(field);
             if (docField != null) {
                 if (chunkScorerConfig != null) {
-                    int numChunks = chunkScorerConfig.numChunks() != null ? chunkScorerConfig.numChunks() : DEFAULT_NUM_CHUNKS;
+                    int size = chunkScorerConfig.size() != null ? chunkScorerConfig.size() : DEFAULT_SIZE;
                     List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(docField.getValue().toString(), chunkingSettings);
                     List<String> chunks = chunkOffsets.stream()
                         .map(offset -> { return docField.getValue().toString().substring(offset.start(), offset.end()); })
@@ -59,9 +59,9 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
                             chunks,
                             chunkScorerConfig.inferenceText(),
-                            numChunks
+                            size
                         );
-                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numChunks).toList();
+                        bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(size).toList();
                     } catch (IOException e) {
                         throw new IllegalStateException("Could not generate chunks for input to reranker", e);
                     }

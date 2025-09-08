@@ -53,7 +53,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("allow_rerank_failures");
     public static final ParseField CHUNK_RESCORER_FIELD = new ParseField("chunk_rescorer");
-    public static final ParseField NUM_CHUNKS_FIELD = new ParseField("num_chunks");
+    public static final ParseField CHUNK_SIZE_FIELD = new ParseField("size");
     public static final ParseField CHUNKING_SETTINGS_FIELD = new ParseField("chunking_settings");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
@@ -79,11 +79,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     private static final ConstructingObjectParser<ChunkScorerConfig, RetrieverParserContext> CHUNK_SCORER_PARSER =
         new ConstructingObjectParser<>(CHUNK_RESCORER_FIELD.getPreferredName(), true, args -> {
-            Integer numChunks = (Integer) args[0];
+            Integer size = (Integer) args[0];
             @SuppressWarnings("unchecked")
             Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[1];
             ChunkingSettings chunkingSettings = ChunkScorerConfig.chunkingSettingsFromMap(chunkingSettingsMap);
-            return new ChunkScorerConfig(numChunks, chunkingSettings);
+            return new ChunkScorerConfig(size, chunkingSettings);
         });
 
     static {
@@ -99,7 +99,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), CHUNK_SCORER_PARSER, CHUNK_RESCORER_FIELD);
         if (RERANK_RESCORE_CHUNKS.isEnabled()) {
-            CHUNK_SCORER_PARSER.declareInt(optionalConstructorArg(), NUM_CHUNKS_FIELD);
+            CHUNK_SCORER_PARSER.declareInt(optionalConstructorArg(), CHUNK_SIZE_FIELD);
             CHUNK_SCORER_PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, CHUNKING_SETTINGS_FIELD);
         }
 
@@ -156,8 +156,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         if (retrieverSource.size() != 1) {
             throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
         }
-        if (chunkScorerConfig != null && chunkScorerConfig.numChunks() != null && chunkScorerConfig.numChunks() < 1) {
-            throw new IllegalArgumentException("num_chunks must be greater than 0, was: " + chunkScorerConfig.numChunks());
+        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
+            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
         }
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -220,7 +220,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
                 minScore,
                 failuresAllowed,
                 chunkScorerConfig != null
-                    ? new ChunkScorerConfig(chunkScorerConfig.numChunks, inferenceText, chunkScorerConfig.chunkingSettings())
+                    ? new ChunkScorerConfig(chunkScorerConfig.size, inferenceText, chunkScorerConfig.chunkingSettings())
                     : null
             )
         );
@@ -252,8 +252,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         }
         if (chunkScorerConfig != null) {
             builder.startObject(CHUNK_RESCORER_FIELD.getPreferredName());
-            if (chunkScorerConfig.numChunks() != null) {
-                builder.field(NUM_CHUNKS_FIELD.getPreferredName(), chunkScorerConfig.numChunks());
+            if (chunkScorerConfig.size() != null) {
+                builder.field(CHUNK_SIZE_FIELD.getPreferredName(), chunkScorerConfig.size());
             }
             if (chunkScorerConfig.chunkingSettings() != null) {
                 builder.field(CHUNKING_SETTINGS_FIELD.getPreferredName(), chunkScorerConfig.chunkingSettings().asMap());

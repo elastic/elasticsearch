@@ -20,12 +20,12 @@ import java.util.Objects;
 
 public class ChunkScorerConfig implements Writeable {
 
-    public final Integer numChunks;
+    public final Integer size;
     private final String inferenceText;
     private final ChunkingSettings chunkingSettings;
 
     public static final int DEFAULT_CHUNK_SIZE = 300;
-    public static final int DEFAULT_NUM_CHUNKS = 1;
+    public static final int DEFAULT_SIZE = 1;
 
     public static ChunkingSettings createChunkingSettings(Integer chunkSize) {
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : DEFAULT_CHUNK_SIZE;
@@ -48,31 +48,31 @@ public class ChunkScorerConfig implements Writeable {
     }
 
     public ChunkScorerConfig(StreamInput in) throws IOException {
-        this.numChunks = in.readOptionalVInt();
+        this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
         Map<String, Object> chunkingSettingsMap = in.readGenericMap();
         this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 
-    public ChunkScorerConfig(Integer numChunks, ChunkingSettings chunkingSettings) {
-        this(numChunks, null, chunkingSettings);
+    public ChunkScorerConfig(Integer size, ChunkingSettings chunkingSettings) {
+        this(size, null, chunkingSettings);
     }
 
-    public ChunkScorerConfig(Integer numChunks, String inferenceText, ChunkingSettings chunkingSettings) {
-        this.numChunks = numChunks;
+    public ChunkScorerConfig(Integer size, String inferenceText, ChunkingSettings chunkingSettings) {
+        this.size = size;
         this.inferenceText = inferenceText;
         this.chunkingSettings = chunkingSettings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(numChunks);
+        out.writeOptionalVInt(size);
         out.writeString(inferenceText);
         out.writeGenericMap(chunkingSettings.asMap());
     }
 
-    public Integer numChunks() {
-        return numChunks;
+    public Integer size() {
+        return size;
     }
 
     public String inferenceText() {
@@ -88,13 +88,13 @@ public class ChunkScorerConfig implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ChunkScorerConfig that = (ChunkScorerConfig) o;
-        return Objects.equals(numChunks, that.numChunks)
+        return Objects.equals(size, that.size)
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(chunkingSettings, that.chunkingSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numChunks, inferenceText, chunkingSettings);
+        return Objects.hash(size, inferenceText, chunkingSettings);
     }
 }

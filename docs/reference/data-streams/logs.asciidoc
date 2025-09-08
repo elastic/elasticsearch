@@ -223,22 +223,22 @@ reconstructing the original value.
 
 The `logsdb` index mode uses the following settings:
 
-* **`index.mode`**: `"logsdb"`
+* **`"index.mode"`**: `"logsdb"`
 
-* **`index.mapping.synthetic_source_keep`**: `"arrays"`
+* **`"index.mapping.synthetic_source_keep"`**: `"arrays"`
 
-* **`index.sort.field`**: `["host.name", "@timestamp"]`
+* **`"index.sort.field"`**: `["host.name", "@timestamp"]`
 
-* **`index.sort.order`**: `["desc", "desc"]`
+* **`"index.sort.order"`**: `["desc", "desc"]`
 
-* **`index.sort.mode`**: `["min", "min"]`
+* **`"index.sort.mode"`**: `["min", "min"]`
 
-* **`index.sort.missing`**: `["_first", "_first"]`
+* **`"index.sort.missing"`**: `["_first", "_first"]`
 
-* **`index.codec`**: `"best_compression"`
+* **`"index.codec"`**: `"best_compression"`
 
-* **`index.mapping.ignore_malformed`**: `true`
+* **`"index.mapping.ignore_malformed"`**: `true`
 
-* **`index.mapping.ignore_above`**: `8191`
+* **`"index.mapping.ignore_above"`**: `8191`
 
-* **`index.mapping.total_fields.ignore_dynamic_beyond_limit`**: `true`
+* **`"index.mapping.total_fields.ignore_dynamic_beyond_limit"`**: `true`

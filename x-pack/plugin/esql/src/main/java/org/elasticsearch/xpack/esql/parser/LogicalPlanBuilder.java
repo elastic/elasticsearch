@@ -117,7 +117,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
-    protected EsqlStatement query(ParseTree ctx) {
+    protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
         return p;
     }

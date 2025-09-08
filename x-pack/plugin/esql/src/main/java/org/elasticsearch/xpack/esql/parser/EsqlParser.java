@@ -125,7 +125,7 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::statements, AstBuilder::query, configuration);
+        return invokeParser(query, params, metrics, EsqlBaseParser::statements, AstBuilder::statement, configuration);
     }
 
     private <T> T invokeParser(

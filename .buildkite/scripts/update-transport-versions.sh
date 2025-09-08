@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 if [[ -z "${BUILDKITE_PULL_REQUEST:-}" ]]; then
   echo "Not a pull request, skipping transport version update"
@@ -28,7 +29,7 @@ if [[ -z "${backport_branches}" ]]; then
   exit 0
 fi
 
-.ci/scripts/run-gradle.sh generateTransportVersionDefinition --backport_branches="${backport_branches}"
+.ci/scripts/run-gradle.sh generateTransportVersionDefinition --backport-branches="${backport_branches}"
 
 if git diff --exit-code; then
   echo "No changes found after updating transport versions. Don't need to auto commit."

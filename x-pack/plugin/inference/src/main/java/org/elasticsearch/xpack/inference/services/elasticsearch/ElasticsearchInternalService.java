@@ -349,19 +349,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<Model> modelListener
     ) {
 
-        var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
+        var serviceSettings = ElasticRerankerServiceSettings.fromMap(serviceSettingsMap);
 
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());
 
         modelListener.onResponse(
-            new ElasticRerankerModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                new ElasticRerankerServiceSettings(esServiceSettingsBuilder.build()),
-                RerankTaskSettings.fromMap(taskSettingsMap)
-            )
+            new ElasticRerankerModel(inferenceEntityId, taskType, NAME, serviceSettings, RerankTaskSettings.fromMap(taskSettingsMap))
         );
     }
 
@@ -535,7 +529,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inferenceEntityId,
                 taskType,
                 NAME,
-                new ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
+                ElasticRerankerServiceSettings.fromMap(serviceSettingsMap),
                 RerankTaskSettings.fromMap(taskSettingsMap)
             );
         } else {
@@ -688,8 +682,18 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankChunker = new RerankRequestChunker(query, inputs);
-        var chunkedInputs = rerankChunker.getChunkedInputs();
+        var chunkedInputs = inputs;
+        var resultsListener = listener;
+        if (model instanceof ElasticRerankerModel elasticRerankerModel) {
+            var serviceSettings = elasticRerankerModel.getServiceSettings();
+            var longDocumentHandlingStrategy = serviceSettings.getLongDocumentHandlingStrategy();
+            if (longDocumentHandlingStrategy == ElasticRerankerServiceSettings.LongDocumentHandlingStrategy.CHUNK) {
+                var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
+                chunkedInputs = rerankChunker.getChunkedInputs();
+                resultsListener = rerankChunker.parseChunkedRerankResultsListener(listener);
+            }
+
+        }
         var request = buildInferenceRequest(
             model.mlNodeDeploymentId(),
             new TextSimilarityConfigUpdate(query),
@@ -708,12 +712,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? chunkedInputs::get : i -> null;
 
-        ActionListener<InferModelAction.Response> mlResultsListener = rerankChunker.parseChunkedRerankResultsListener(listener)
-            .delegateFailureAndWrap(
-                (l, inferenceResult) -> l.onResponse(
-                    textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier, topN)
-                )
-            );
+        ActionListener<InferModelAction.Response> mlResultsListener = resultsListener.delegateFailureAndWrap(
+            (l, inferenceResult) -> l.onResponse(
+                textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier, topN)
+            )
+        );
 
         var maybeDeployListener = mlResultsListener.delegateResponse(
             (l, exception) -> maybeStartDeployment(model, exception, request, mlResultsListener)

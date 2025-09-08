@@ -20,46 +20,46 @@ public class RerankRequestChunkerTests extends ESTestCase {
     private static final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
     public void testGetChunkedInput_EmptyInput() {
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, List.of());
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, List.of(), null);
         assertTrue(chunker.getChunkedInputs().isEmpty());
     }
 
     public void testGetChunkedInput_SingleInputWithoutChunkingRequired() {
         var inputs = List.of(generateTestText(10));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         assertEquals(inputs, chunker.getChunkedInputs());
     }
 
     public void testGetChunkedInput_SingleInputWithChunkingRequired() {
         var inputs = List.of(generateTestText(100));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var chunkedInputs = chunker.getChunkedInputs();
         assertEquals(3, chunkedInputs.size());
     }
 
     public void testGetChunkedInput_MultipleInputsWithoutChunkingRequired() {
         var inputs = List.of(generateTestText(10), generateTestText(10));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         assertEquals(inputs, chunker.getChunkedInputs());
     }
 
     public void testGetChunkedInput_MultipleInputsWithSomeChunkingRequired() {
         var inputs = List.of(generateTestText(10), generateTestText(100));
-        var chunker = new RerankRequestChunker(randomAlphaOfLength(10), inputs);
+        var chunker = new RerankRequestChunker(randomAlphaOfLength(10), inputs, null);
         var chunkedInputs = chunker.getChunkedInputs();
         assertEquals(4, chunkedInputs.size());
     }
 
     public void testGetChunkedInput_MultipleInputsWithAllRequiringChunking() {
         var inputs = List.of(generateTestText(100), generateTestText(100));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var chunkedInputs = chunker.getChunkedInputs();
         assertEquals(6, chunkedInputs.size());
     }
 
     public void testParseChunkedRerankResultsListener_NonRankedDocsResults() {
         var inputs = List.of(generateTestText(10), generateTestText(100));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var listener = chunker.parseChunkedRerankResultsListener(
             ActionListener.wrap(
                 results -> fail("Expected failure but got: " + results.getClass()),
@@ -72,7 +72,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
     }
 
     public void testParseChunkedRerankResultsListener_EmptyInput() {
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, List.of());
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, List.of(), null);
         var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
@@ -83,7 +83,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
 
     public void testParseChunkedRerankResultsListener_SingleInputWithoutChunking() {
         var inputs = List.of(generateTestText(10));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
@@ -99,7 +99,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
         var inputs = List.of(generateTestText(100));
         var relevanceScore1 = randomFloatBetween(0, 1, true);
         var relevanceScore2 = randomFloatBetween(0, 1, true);
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
@@ -120,7 +120,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
 
     public void testParseChunkedRerankResultsListener_MultipleInputsWithoutChunking() {
         var inputs = List.of(generateTestText(10), generateTestText(10));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
@@ -141,7 +141,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
 
     public void testParseChunkedRerankResultsListener_MultipleInputsWithSomeChunking() {
         var inputs = List.of(generateTestText(10), generateTestText(100));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
@@ -163,7 +163,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
 
     public void testParseChunkedRerankResultsListener_MultipleInputsWithAllRequiringChunking() {
         var inputs = List.of(generateTestText(100), generateTestText(100));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
         var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;

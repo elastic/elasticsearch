@@ -23,16 +23,23 @@ public class RerankRequestChunker {
     private final List<String> inputs;
     private final List<RerankChunks> rerankChunks;
 
-    public RerankRequestChunker(String query, List<String> inputs) {
+    public RerankRequestChunker(String query, List<String> inputs, Integer maxChunksPerDoc) {
         this.inputs = inputs;
-        this.rerankChunks = chunk(inputs, buildChunkingSettingsForElasticRerank(query));
+        this.rerankChunks = chunk(inputs, buildChunkingSettingsForElasticRerank(query), maxChunksPerDoc);
     }
 
-    private List<RerankChunks> chunk(List<String> inputs, ChunkingSettings chunkingSettings) {
+    private List<RerankChunks> chunk(List<String> inputs, ChunkingSettings chunkingSettings, Integer maxChunksPerDoc) {
         var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
         var chunks = new ArrayList<RerankChunks>();
         for (int i = 0; i < inputs.size(); i++) {
             var chunksForInput = chunker.chunk(inputs.get(i), chunkingSettings);
+            if (maxChunksPerDoc != null && chunksForInput.size() > maxChunksPerDoc) {
+                var limitedChunks = chunksForInput.subList(0, maxChunksPerDoc - 1);
+                var lastChunk = limitedChunks.getLast();
+                limitedChunks.add(new Chunker.ChunkOffset(lastChunk.end(), inputs.get(i).length()));
+                chunksForInput = limitedChunks;
+            }
+
             for (var chunk : chunksForInput) {
                 chunks.add(new RerankChunks(i, inputs.get(i).substring(chunk.start(), chunk.end())));
             }

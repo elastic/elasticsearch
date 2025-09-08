@@ -238,7 +238,7 @@ public class AssignmentPlanTests extends ESTestCase {
         Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 2, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.validateAssignment(m, n, 1));
 
         assertThat(e.getMessage(), equalTo("not enough memory on node [n_1] to assign [1] allocations to deployment [m_1]"));
     }
@@ -261,7 +261,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 2));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.validateAssignment(m, n, 2));
             assertThat(e.getMessage(), containsString("not enough memory on node"));
         }
         { // new memory format
@@ -281,7 +281,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 2));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.validateAssignment(m, n, 2));
             assertThat(e.getMessage(), containsString("not enough memory on node"));
         }
     }
@@ -291,7 +291,7 @@ public class AssignmentPlanTests extends ESTestCase {
         Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", ByteSizeValue.ofMb(100).getBytes(), 5, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 5));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.validateAssignment(m, n, 5));
 
         assertThat(
             e.getMessage(),
@@ -315,7 +315,7 @@ public class AssignmentPlanTests extends ESTestCase {
         );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 3));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.validateAssignment(m, n, 3));
 
         assertThat(
             e.getMessage(),

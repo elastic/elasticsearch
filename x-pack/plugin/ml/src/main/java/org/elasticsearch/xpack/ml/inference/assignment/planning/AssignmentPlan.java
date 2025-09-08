@@ -444,6 +444,25 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (allocations <= 0 || canAssign(deployment, node, allocations, requiredMemory) == false) {
                 return this;
             }
+
+            validateAssignment(deployment, node, allocations);
+
+            assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + allocations);
+            accountMemory(deployment, node, requiredMemory);
+
+            if (deployment.priority == Priority.NORMAL) {
+                remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * deployment.threadsPerAllocation());
+            }
+            remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - allocations);
+            return this;
+        }
+
+        void validateAssignment(Deployment deployment, Node node, int allocations) {
+            long requiredMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
+            validateAssignment(deployment, node, allocations, requiredMemory);
+        }
+
+        private void validateAssignment(Deployment deployment, Node node, int allocations, long requiredMemory) {
             if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough memory on node ["
@@ -455,6 +474,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                         + "]"
                 );
             }
+
             if (deployment.priority == Priority.NORMAL && allocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough cores on node ["
@@ -468,15 +488,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                         + "]"
                 );
             }
-
-            assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + allocations);
-            accountMemory(deployment, node, requiredMemory);
-
-            if (deployment.priority == Priority.NORMAL) {
-                remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * deployment.threadsPerAllocation());
-            }
-            remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - allocations);
-            return this;
         }
 
         private int getAssignedAllocations(Deployment deployment, Node node) {

@@ -42,73 +42,41 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse mutateInstance(GetInferenceDiagnosticsAction.NodeResponse instance)
         throws IOException {
-        var select = randomIntBetween(0, 3);
-        var connPoolStats = instance.getExternalConnectionPoolStats();
-        var eisPoolStats = instance.getEisMtlsConnectionPoolStats();
+        if (randomBoolean()) {
+            PoolStats mutatedConnPoolStats = mutatePoolStats(instance.getExternalConnectionPoolStats());
+            PoolStats eisPoolStats = copyPoolStats(instance.getEisMtlsConnectionPoolStats());
+            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), mutatedConnPoolStats, eisPoolStats);
+        } else {
+            PoolStats connPoolStats = copyPoolStats(instance.getExternalConnectionPoolStats());
+            PoolStats mutatedEisPoolStats = mutatePoolStats(instance.getEisMtlsConnectionPoolStats());
+            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), connPoolStats, mutatedEisPoolStats);
+        }
+    }
 
+    private PoolStats mutatePoolStats(GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats stats)
+        throws UnsupportedEncodingException {
+        var select = randomIntBetween(0, 3);
         return switch (select) {
-            case 0 -> new GetInferenceDiagnosticsAction.NodeResponse(
-                instance.getNode(),
-                new PoolStats(
-                    randomInt(),
-                    connPoolStats.getPendingConnections(),
-                    connPoolStats.getAvailableConnections(),
-                    connPoolStats.getMaxConnections()
-                ),
-                new PoolStats(
-                    randomInt(),
-                    eisPoolStats.getPendingConnections(),
-                    eisPoolStats.getAvailableConnections(),
-                    eisPoolStats.getMaxConnections()
-                )
-            );
-            case 1 -> new GetInferenceDiagnosticsAction.NodeResponse(
-                instance.getNode(),
-                new PoolStats(
-                    connPoolStats.getLeasedConnections(),
-                    randomInt(),
-                    connPoolStats.getAvailableConnections(),
-                    connPoolStats.getMaxConnections()
-                ),
-                new PoolStats(
-                    eisPoolStats.getLeasedConnections(),
-                    randomInt(),
-                    eisPoolStats.getAvailableConnections(),
-                    eisPoolStats.getMaxConnections()
-                )
-            );
-            case 2 -> new GetInferenceDiagnosticsAction.NodeResponse(
-                instance.getNode(),
-                new PoolStats(
-                    connPoolStats.getLeasedConnections(),
-                    connPoolStats.getPendingConnections(),
-                    randomInt(),
-                    connPoolStats.getMaxConnections()
-                ),
-                new PoolStats(
-                    eisPoolStats.getLeasedConnections(),
-                    eisPoolStats.getPendingConnections(),
-                    randomInt(),
-                    eisPoolStats.getMaxConnections()
-                )
-            );
-            case 3 -> new GetInferenceDiagnosticsAction.NodeResponse(
-                instance.getNode(),
-                new PoolStats(
-                    connPoolStats.getLeasedConnections(),
-                    connPoolStats.getPendingConnections(),
-                    connPoolStats.getAvailableConnections(),
-                    randomInt()
-                ),
-                new PoolStats(
-                    eisPoolStats.getLeasedConnections(),
-                    eisPoolStats.getPendingConnections(),
-                    eisPoolStats.getAvailableConnections(),
-                    randomInt()
-                )
+            case 0 -> new PoolStats(randomInt(), stats.getPendingConnections(), stats.getAvailableConnections(), stats.getMaxConnections());
+            case 1 -> new PoolStats(stats.getLeasedConnections(), randomInt(), stats.getAvailableConnections(), stats.getMaxConnections());
+            case 2 -> new PoolStats(stats.getLeasedConnections(), stats.getPendingConnections(), randomInt(), stats.getMaxConnections());
+            case 3 -> new PoolStats(
+                stats.getLeasedConnections(),
+                stats.getPendingConnections(),
+                stats.getAvailableConnections(),
+                randomInt()
             );
             default -> throw new UnsupportedEncodingException(Strings.format("Encountered unsupported case %s", select));
         };
+    }
+
+    private PoolStats copyPoolStats(GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats stats) {
+        return new PoolStats(
+            stats.getLeasedConnections(),
+            stats.getPendingConnections(),
+            stats.getAvailableConnections(),
+            stats.getMaxConnections()
+        );
     }
 
     @Override

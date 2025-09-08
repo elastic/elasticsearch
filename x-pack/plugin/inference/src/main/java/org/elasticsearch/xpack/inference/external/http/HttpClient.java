@@ -139,18 +139,18 @@ public class HttpClient implements Closeable {
         SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
-                respondUsingUtilityThread(response, request, listener);
+                respondUsingResponseThread(response, request, listener);
             }
 
             @Override
             public void failed(Exception ex) {
                 throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
-                failUsingUtilityThread(ex, listener);
+                failUsingResponseThread(ex, listener);
             }
 
             @Override
             public void cancelled() {
-                failUsingUtilityThread(
+                failUsingResponseThread(
                     new CancellationException(format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())),
                     listener
                 );
@@ -158,7 +158,7 @@ public class HttpClient implements Closeable {
         }));
     }
 
-    private void respondUsingUtilityThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
+    private void respondUsingResponseThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
         threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
@@ -175,7 +175,7 @@ public class HttpClient implements Closeable {
         });
     }
 
-    private void failUsingUtilityThread(Exception exception, ActionListener<?> listener) {
+    private void failUsingResponseThread(Exception exception, ActionListener<?> listener) {
         threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
     }
 

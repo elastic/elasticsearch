@@ -244,7 +244,6 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
 
     public Set<String> attributeNames() {
         Set<String> s = Sets.newLinkedHashSetWithExpectedSize(size());
-
         for (AttributeWrapper aw : delegate.keySet()) {
             s.add(aw.attr.name());
         }

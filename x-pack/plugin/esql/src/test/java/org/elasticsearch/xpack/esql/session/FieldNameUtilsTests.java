@@ -1489,15 +1489,10 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        assertFieldNames(
-            """
-                from employees
-                | enrich languages_policy
-                | keep emp_no""",
-            enrichResolutionWith("language_name"),
-            Set.of("emp_no", "emp_no.*", "language_name", "language_name.*"),
-            Set.of()
-        );
+        assertFieldNames("""
+            from employees
+            | enrich languages_policy
+            | keep emp_no""", enrichResolutionWith("language_name"), Set.of("*"), Set.of());
     }
 
     public void testDissectOverwriteName() {

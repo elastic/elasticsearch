@@ -221,7 +221,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         testQuantileAccuracy(values, bucketCount);
     }
 
-    private static double[] generateSamples(RealDistribution distribution, int sampleSize) {
+    public static double[] generateSamples(RealDistribution distribution, int sampleSize) {
         double[] values = new double[sampleSize];
         for (int i = 0; i < sampleSize; i++) {
             values[i] = distribution.sample();

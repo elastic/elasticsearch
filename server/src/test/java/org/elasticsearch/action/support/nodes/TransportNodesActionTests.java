@@ -397,9 +397,11 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         final var raceBarrier = new CyclicBarrier(3);
+        final var completedLatch = new CountDownLatch(1);
         final Thread completeThread = new Thread(() -> {
             safeAwait(raceBarrier);
             nodeResponses.add(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
+            completedLatch.countDown();
         });
         final Thread cancelThread = new Thread(() -> {
             safeAwait(raceBarrier);
@@ -420,6 +422,7 @@ public class TransportNodesActionTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
             assertTrue(cancellableTask.isCancelled());
             safeAwait(onCancelledLatch); // wait for the latch, the listener for releasing node responses is called before it
+            safeAwait(completedLatch); // Wait till all responses are gathered
             assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
         }
 

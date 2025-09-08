@@ -373,14 +373,18 @@ public class EsqlSession {
         }
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
+        var result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false);
+
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
 
-        SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
-            .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
-            .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
+        SubscribableListener.<PreAnalysisResult>newForked(l -> {
+            inferenceService.inferenceResolver().resolveInferenceIds(parsed, l.map(result::withInferenceResolution));
+        })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+            .<PreAnalysisResult>andThen((l, r) -> {
+                enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
+            })
             .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);
     }
@@ -637,7 +641,7 @@ public class EsqlSession {
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
+                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
                 );
             } else {
                 boolean includeAllDimensions = false;
@@ -658,13 +662,13 @@ public class EsqlSession {
                     requestFilter,
                     includeAllDimensions,
                     listener.delegateFailure((l, indexResolution) -> {
-                        l.onResponse(result.withIndexResolution(indexResolution));
+                        l.onResponse(result.withIndices(indexResolution));
                     })
                 );
             }
         } else {
             // occurs when dealing with local relations (row a = 1)
-            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
+            listener.onResponse(result.withIndices(IndexResolution.invalid("[none specified]")));
         }
     }
 
@@ -730,10 +734,6 @@ public class EsqlSession {
         }
     }
 
-    private void resolveInferences(LogicalPlan plan, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
-        inferenceService.inferenceResolver().resolveInferenceIds(plan, l.map(preAnalysisResult::withInferenceResolution));
-    }
-
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan);
         physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
@@ -793,43 +793,33 @@ public class EsqlSession {
     }
 
     public record PreAnalysisResult(
+        Set<String> fieldNames,
+        Set<String> wildcardJoinIndices,
         IndexResolution indices,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
-        Set<String> fieldNames,
-        Set<String> wildcardJoinIndices,
         InferenceResolution inferenceResolution
     ) {
 
-        public PreAnalysisResult(EnrichResolution enrichResolution, Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
+        public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
+            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY);
         }
 
-        PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {
-            return new PreAnalysisResult(
-                indices(),
-                lookupIndices(),
-                enrichResolution(),
-                fieldNames(),
-                wildcardJoinIndices(),
-                newInferenceResolution
-            );
+        PreAnalysisResult withIndices(IndexResolution indices) {
+            return new PreAnalysisResult(fieldNames, wildcardJoinIndices, indices, lookupIndices, enrichResolution, inferenceResolution);
         }
 
-        PreAnalysisResult withIndexResolution(IndexResolution newIndexResolution) {
-            return new PreAnalysisResult(
-                newIndexResolution,
-                lookupIndices(),
-                enrichResolution(),
-                fieldNames(),
-                wildcardJoinIndices(),
-                inferenceResolution()
-            );
-        }
-
-        PreAnalysisResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
-            lookupIndices.put(index, newIndexResolution);
+        PreAnalysisResult addLookupIndexResolution(String index, IndexResolution indexResolution) {
+            lookupIndices.put(index, indexResolution);
             return this;
+        }
+
+        PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
+            return new PreAnalysisResult(fieldNames, wildcardJoinIndices, indices, lookupIndices, enrichResolution, inferenceResolution);
+        }
+
+        PreAnalysisResult withInferenceResolution(InferenceResolution inferenceResolution) {
+            return new PreAnalysisResult(fieldNames, wildcardJoinIndices, indices, lookupIndices, enrichResolution, inferenceResolution);
         }
     }
 }

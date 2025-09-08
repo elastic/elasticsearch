@@ -25,7 +25,6 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Objects;
-import java.util.zip.Checksum;
 
 /**
  * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
@@ -34,20 +33,20 @@ import java.util.zip.Checksum;
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
-    static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-    static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
-    static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-    static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    protected static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    protected static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    protected static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+    protected static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final Recycler<BytesRef> recycler;
-    private final int pageSize;
+    protected ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
+    protected final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
-    private int currentPageOffset;
 
-    private byte[] bytesRefBytes;
-    private int bytesRefOffset;
+    protected int bytesRefOffset;
+    protected byte[] bytesRefBytes;
+    protected int currentPageOffset;
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
@@ -355,42 +354,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 BytesRef last = this.pages.get(pageCount - 1).v();
                 references[pageCount - 1] = new BytesArray(last.bytes, last.offset, bytesInLastPage);
                 return CompositeBytesReference.of(references);
-            }
-        }
-    }
-
-    public void calculateChecksum(Checksum checksum, int startPosition) {
-        int position = (int) position();
-        Objects.checkIndex(startPosition, position);
-
-        int bytesToProcess = position - startPosition;
-        if (bytesToProcess == 0) {
-            return;
-        }
-
-        int startPageIndex = startPosition / pageSize;
-        int startPageOffset = startPosition % pageSize;
-
-        final int remainder = position % pageSize;
-        final int bytesInLastPage = remainder != 0 ? remainder : pageSize;
-        final int endPageIndex = (position - 1) / pageSize;
-
-        if (startPageIndex == endPageIndex) {
-            BytesRef page = pages.get(startPageIndex).v();
-            checksum.update(page.bytes, page.offset + startPageOffset, bytesToProcess);
-        } else {
-            BytesRef firstPage = pages.get(startPageIndex).v();
-            int firstPageBytes = pageSize - startPageOffset;
-            checksum.update(firstPage.bytes, firstPage.offset + startPageOffset, firstPageBytes);
-
-            for (int i = startPageIndex + 1; i < endPageIndex; i++) {
-                BytesRef page = pages.get(i).v();
-                checksum.update(page.bytes, page.offset, pageSize);
-            }
-
-            if (endPageIndex > startPageIndex) {
-                BytesRef lastPage = pages.get(endPageIndex).v();
-                checksum.update(lastPage.bytes, lastPage.offset, bytesInLastPage);
             }
         }
     }

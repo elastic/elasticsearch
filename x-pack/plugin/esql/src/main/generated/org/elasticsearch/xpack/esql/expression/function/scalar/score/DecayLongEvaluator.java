@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -40,21 +39,22 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final double decay;
 
-  private final BytesRef functionType;
+  private final Decay.DecayFunction decayFunction;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DecayLongEvaluator(Source source, EvalOperator.ExpressionEvaluator value, long origin,
-      long scale, long offset, double decay, BytesRef functionType, DriverContext driverContext) {
+      long scale, long offset, double decay, Decay.DecayFunction decayFunction,
+      DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
     this.scale = scale;
     this.offset = offset;
     this.decay = decay;
-    this.functionType = functionType;
+    this.decayFunction = decayFunction;
     this.driverContext = driverContext;
   }
 
@@ -90,7 +90,7 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.functionType));
+        result.appendDouble(Decay.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -99,7 +99,7 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleVector eval(int positionCount, LongVector valueVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getLong(p), this.origin, this.scale, this.offset, this.decay, this.functionType));
+        result.appendDouble(p, Decay.process(valueVector.getLong(p), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -107,7 +107,7 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "DecayLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+    return "DecayLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
   }
 
   @Override
@@ -140,27 +140,27 @@ public final class DecayLongEvaluator implements EvalOperator.ExpressionEvaluato
 
     private final double decay;
 
-    private final BytesRef functionType;
+    private final Decay.DecayFunction decayFunction;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, long origin,
-        long scale, long offset, double decay, BytesRef functionType) {
+        long scale, long offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;
       this.scale = scale;
       this.offset = offset;
       this.decay = decay;
-      this.functionType = functionType;
+      this.decayFunction = decayFunction;
     }
 
     @Override
     public DecayLongEvaluator get(DriverContext context) {
-      return new DecayLongEvaluator(source, value.get(context), origin, scale, offset, decay, functionType, context);
+      return new DecayLongEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
     }
 
     @Override
     public String toString() {
-      return "DecayLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+      return "DecayLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
     }
   }
 }

@@ -289,7 +289,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
         Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
-        BytesRef typeFolded = typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION;
+        DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
         return switch (valueDataType) {
             case INTEGER -> new DecayIntEvaluator.Factory(
@@ -299,7 +299,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (Integer) scaleFolded,
                 (Integer) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             case DOUBLE -> new DecayDoubleEvaluator.Factory(
                 source(),
@@ -308,7 +308,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (Double) scaleFolded,
                 (Double) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             case LONG -> new DecayLongEvaluator.Factory(
                 source(),
@@ -317,7 +317,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (Long) scaleFolded,
                 (Long) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             case GEO_POINT -> new DecayGeoPointEvaluator.Factory(
                 source(),
@@ -326,7 +326,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (BytesRef) scaleFolded,
                 (BytesRef) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             case CARTESIAN_POINT -> new DecayCartesianPointEvaluator.Factory(
                 source(),
@@ -335,7 +335,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (Double) scaleFolded,
                 (Double) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             case DATETIME -> new DecayDatetimeEvaluator.Factory(
                 source(),
@@ -344,7 +344,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (Long) scaleFolded,
                 (Long) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             case DATE_NANOS -> new DecayDateNanosEvaluator.Factory(
                 source(),
@@ -353,7 +353,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 (Long) scaleFolded,
                 (Long) offsetFolded,
                 decayFolded,
-                typeFolded
+                decayFunction
             );
             default -> throw new UnsupportedOperationException("Unsupported data typeExpr: " + valueDataType);
         };
@@ -376,9 +376,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed int scale,
         @Fixed int offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
-        return DecayFunction.fromBytesRef(functionType).numericDecay(value, origin, scale, offset, decay);
+        return decayFunction.numericDecay(value, origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "Double")
@@ -388,9 +388,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed double scale,
         @Fixed double offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
-        return DecayFunction.fromBytesRef(functionType).numericDecay(value, origin, scale, offset, decay);
+        return decayFunction.numericDecay(value, origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "Long")
@@ -400,9 +400,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed long scale,
         @Fixed long offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
-        return DecayFunction.fromBytesRef(functionType).numericDecay(value, origin, scale, offset, decay);
+        return decayFunction.numericDecay(value, origin, scale, offset, decay);
 
     }
 
@@ -413,7 +413,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed BytesRef scale,
         @Fixed BytesRef offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
         Point valuePoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(value);
         GeoPoint valueGeoPoint = new GeoPoint(valuePoint.getY(), valuePoint.getX());
@@ -425,7 +425,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         String scaleStr = scale.utf8ToString();
         String offsetStr = offset.utf8ToString();
 
-        return DecayFunction.fromBytesRef(functionType).geoPointDecay(valueGeoPoint, originStr, scaleStr, offsetStr, decay);
+        return decayFunction.geoPointDecay(valueGeoPoint, originStr, scaleStr, offsetStr, decay);
     }
 
     @Evaluator(extraName = "CartesianPoint")
@@ -435,7 +435,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed double scale,
         @Fixed double offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
         Point valuePoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(value);
         Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
@@ -447,7 +447,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
         distance = Math.max(0.0, distance - offset);
 
-        return DecayFunction.fromBytesRef(functionType).cartesianDecay(distance, scale, offset, decay);
+        return decayFunction.cartesianDecay(distance, scale, offset, decay);
     }
 
     @Evaluator(extraName = "Datetime", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
@@ -457,9 +457,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed long scale,
         @Fixed long offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
-        return DecayFunction.fromBytesRef(functionType).temporalDecay(value, origin, scale, offset, decay);
+        return decayFunction.temporalDecay(value, origin, scale, offset, decay);
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { InvalidArgumentException.class, IllegalArgumentException.class })
@@ -469,13 +469,13 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed long scale,
         @Fixed long offset,
         @Fixed double decay,
-        @Fixed BytesRef functionType
+        @Fixed DecayFunction decayFunction
     ) {
-        return DecayFunction.fromBytesRef(functionType).temporalDecay(value, origin, scale, offset, decay);
+        return decayFunction.temporalDecay(value, origin, scale, offset, decay);
 
     }
 
-    private enum DecayFunction {
+    public enum DecayFunction {
         LINEAR("linear") {
             @Override
             public double numericDecay(double value, double origin, double scale, double offset, double decay) {

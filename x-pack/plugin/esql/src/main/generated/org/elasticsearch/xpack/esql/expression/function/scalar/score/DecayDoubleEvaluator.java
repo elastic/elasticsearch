@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -38,14 +37,14 @@ public final class DecayDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
   private final double decay;
 
-  private final BytesRef functionType;
+  private final Decay.DecayFunction decayFunction;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DecayDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator value, double origin,
-      double scale, double offset, double decay, BytesRef functionType,
+      double scale, double offset, double decay, Decay.DecayFunction decayFunction,
       DriverContext driverContext) {
     this.source = source;
     this.value = value;
@@ -53,7 +52,7 @@ public final class DecayDoubleEvaluator implements EvalOperator.ExpressionEvalua
     this.scale = scale;
     this.offset = offset;
     this.decay = decay;
-    this.functionType = functionType;
+    this.decayFunction = decayFunction;
     this.driverContext = driverContext;
   }
 
@@ -89,7 +88,7 @@ public final class DecayDoubleEvaluator implements EvalOperator.ExpressionEvalua
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.process(valueBlock.getDouble(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.functionType));
+        result.appendDouble(Decay.process(valueBlock.getDouble(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -98,7 +97,7 @@ public final class DecayDoubleEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleVector eval(int positionCount, DoubleVector valueVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getDouble(p), this.origin, this.scale, this.offset, this.decay, this.functionType));
+        result.appendDouble(p, Decay.process(valueVector.getDouble(p), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -106,7 +105,7 @@ public final class DecayDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
   @Override
   public String toString() {
-    return "DecayDoubleEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+    return "DecayDoubleEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
   }
 
   @Override
@@ -139,27 +138,27 @@ public final class DecayDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
     private final double decay;
 
-    private final BytesRef functionType;
+    private final Decay.DecayFunction decayFunction;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, double origin,
-        double scale, double offset, double decay, BytesRef functionType) {
+        double scale, double offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;
       this.scale = scale;
       this.offset = offset;
       this.decay = decay;
-      this.functionType = functionType;
+      this.decayFunction = decayFunction;
     }
 
     @Override
     public DecayDoubleEvaluator get(DriverContext context) {
-      return new DecayDoubleEvaluator(source, value.get(context), origin, scale, offset, decay, functionType, context);
+      return new DecayDoubleEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
     }
 
     @Override
     public String toString() {
-      return "DecayDoubleEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+      return "DecayDoubleEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
     }
   }
 }

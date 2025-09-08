@@ -40,22 +40,22 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
 
   private final double decay;
 
-  private final BytesRef functionType;
+  private final Decay.DecayFunction decayFunction;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DecayGeoPointEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      BytesRef origin, BytesRef scale, BytesRef offset, double decay, BytesRef functionType,
-      DriverContext driverContext) {
+      BytesRef origin, BytesRef scale, BytesRef offset, double decay,
+      Decay.DecayFunction decayFunction, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
     this.scale = scale;
     this.offset = offset;
     this.decay = decay;
-    this.functionType = functionType;
+    this.decayFunction = decayFunction;
     this.driverContext = driverContext;
   }
 
@@ -92,7 +92,7 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.process(valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch), this.origin, this.scale, this.offset, this.decay, this.functionType));
+        result.appendDouble(Decay.process(valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -102,7 +102,7 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getBytesRef(p, valueScratch), this.origin, this.scale, this.offset, this.decay, this.functionType));
+        result.appendDouble(p, Decay.process(valueVector.getBytesRef(p, valueScratch), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -110,7 +110,7 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "DecayGeoPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+    return "DecayGeoPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
   }
 
   @Override
@@ -143,27 +143,27 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
 
     private final double decay;
 
-    private final BytesRef functionType;
+    private final Decay.DecayFunction decayFunction;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, BytesRef origin,
-        BytesRef scale, BytesRef offset, double decay, BytesRef functionType) {
+        BytesRef scale, BytesRef offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;
       this.scale = scale;
       this.offset = offset;
       this.decay = decay;
-      this.functionType = functionType;
+      this.decayFunction = decayFunction;
     }
 
     @Override
     public DecayGeoPointEvaluator get(DriverContext context) {
-      return new DecayGeoPointEvaluator(source, value.get(context), origin, scale, offset, decay, functionType, context);
+      return new DecayGeoPointEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
     }
 
     @Override
     public String toString() {
-      return "DecayGeoPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", functionType=" + functionType + "]";
+      return "DecayGeoPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
     }
   }
 }

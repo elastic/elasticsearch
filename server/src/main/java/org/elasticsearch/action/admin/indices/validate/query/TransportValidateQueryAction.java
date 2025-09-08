@@ -42,7 +42,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
@@ -129,13 +128,13 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
+            // We can safely set the cluster alias to null because the validate endpoint can only reference local indices
             Rewriteable.rewriteAndFetch(
                 request.query(),
                 searchService.getRewriteContext(
                     timeProvider,
                     clusterService.state().getMinTransportVersion(),
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    null,
                     resolvedIndices,
                     null
                 ),

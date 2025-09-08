@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -104,7 +105,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             vector,
             10,
             10,
-            10f,
+            IVF_FORMAT.isEnabled() ? 10f : null,
             null,
             null
         );

@@ -62,7 +62,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private transient boolean includeIndices = false;
 
     /**
-     * Controls weather all local indices should be returned if no remotes matched
+     * Controls whether all local indices should be returned if no remotes matched
      * See {@link org.elasticsearch.transport.RemoteClusterService#groupIndices} returnLocalAll argument
      */
     private transient boolean returnLocalAll = true;

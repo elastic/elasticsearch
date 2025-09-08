@@ -172,13 +172,11 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     File internalBuild(
             List<String> extraPlugins = [],
-            String maintenance = "7.16.10",
-            String major4 = "8.1.3",
-            String major3 = "8.2.1",
-            String major2 = "8.3.0",
-            String major1 = "8.4.0",
-            String current = "9.0.0"
+            String currentVersion = "9.0.0",
+            Map<String, String> backportVersionsByBranch =
+                ["8.x": "8.4.0", "8.3": "8.3.0", "8.2": "8.2.1", "8.1": "8.1.3", "7.16": "7.16.10"]
     ) {
+        Collection<String> backportVersions = backportVersionsByBranch.values()
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
           ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
@@ -189,29 +187,21 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.internal.info.DevelopmentBranch
         import org.elasticsearch.gradle.Version
 
-        Version currentVersion = Version.fromString("${current}")
+        Version currentVersion = Version.fromString("${currentVersion}")
         def versionList = [
-          Version.fromString("$maintenance"),
-          Version.fromString("$major4"),
-          Version.fromString("$major3"),
-          Version.fromString("$major2"),
-          Version.fromString("$major1"),
-          currentVersion
+        ${backportVersions.collect {"Version.fromString(\"${ it }\")," }.join(System.lineSeparator())}
+        currentVersion
         ]
 
         BwcVersions versions = new BwcVersions(currentVersion, versionList, [
-          new DevelopmentBranch('main', Version.fromString("$current")),
-          new DevelopmentBranch('8.x', Version.fromString("$major1")),
-          new DevelopmentBranch('8.3', Version.fromString("$major2")),
-          new DevelopmentBranch('8.2', Version.fromString("$major3")),
-          new DevelopmentBranch('8.1', Version.fromString("$major4")),
-          new DevelopmentBranch('7.16', Version.fromString("$maintenance")),
+            new DevelopmentBranch('main', currentVersion),
+            ${backportVersionsByBranch.collect {"new DevelopmentBranch('${ it.key }', Version.fromString(\"${ it.value }\"))," }.join(System.lineSeparator())}
         ])
         buildParams.setBwcVersions(project.provider { versions } )
         """
     }
 
-    void execute(String command, File workingDir = testProjectDir.root) {
+    String execute(String command, File workingDir = testProjectDir.root) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
         if (proc.exitValue()) {
@@ -221,6 +211,7 @@ abstract class AbstractGradleFuncTest extends Specification {
             """
             throw new RuntimeException(msg)
         }
+        return proc.inputStream.text
     }
 
     File dir(String path) {

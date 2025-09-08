@@ -40,7 +40,7 @@ git config --global user.name elasticsearchmachine
 git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
 gh pr checkout "${BUILDKITE_PULL_REQUEST}"
-git add -u .
+git add -A .
 git commit -m "$NEW_COMMIT_MESSAGE"
 git push
 

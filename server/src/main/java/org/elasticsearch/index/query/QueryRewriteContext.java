@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -371,10 +372,10 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Returns the local cluster alias. Returns null if it is unknown.
+     * Returns the local cluster alias.
      */
     public String getLocalClusterAlias() {
-        return localClusterAlias;
+        return localClusterAlias != null ? localClusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
     }
 
     /**

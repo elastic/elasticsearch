@@ -18,20 +18,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,7 +53,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterNodeAction<PutSampleConfigAction.Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutSampleConfigAction.class);
     private final ProjectResolver projectResolver;
-    private final MasterServiceTaskQueue<UpdateSampleConfigTask> updateSamplingConfigTaskQueue;
+    private final SamplingService samplingService;
 
     @Inject
     public TransportPutSampleConfigAction(
@@ -68,7 +61,8 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        SamplingService samplingService
     ) {
         super(
             PutSampleConfigAction.NAME,
@@ -80,36 +74,7 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.projectResolver = projectResolver;
-        ClusterStateTaskExecutor<UpdateSampleConfigTask> updateMappingsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
-
-            @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
-                UpdateSampleConfigTask updateSamplingConfigTask,
-                ClusterState clusterState
-            ) throws Exception {
-                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSamplingConfigTask.projectId);
-                SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(SamplingConfigCustomMetadata.NAME);
-                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
-                projectMetadataBuilder.putCustom(
-                    SamplingConfigCustomMetadata.NAME,
-                    new SamplingConfigCustomMetadata(
-                        updateSamplingConfigTask.indexName,
-                        updateSamplingConfigTask.rate,
-                        updateSamplingConfigTask.maxSamples,
-                        updateSamplingConfigTask.maxSize,
-                        updateSamplingConfigTask.timeToLive,
-                        updateSamplingConfigTask.condition
-                    )
-                );
-                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
-                return new Tuple<>(updatedClusterState, updateSamplingConfigTask);
-            }
-        };
-        this.updateSamplingConfigTaskQueue = clusterService.createTaskQueue(
-            "update-data-stream-mappings",
-            Priority.NORMAL,
-            updateMappingsExecutor
-        );
+        this.samplingService = samplingService;
     }
 
     @Override
@@ -120,58 +85,24 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         ProjectId projectId = projectResolver.getProjectId();
-        updateSamplingConfigTaskQueue.submitTask(
-            "updating mappings on data stream",
-            new UpdateSampleConfigTask(
-                projectId,
-                request.indices()[0],
-                request.getRate(),
-                request.getMaxSamples(),
-                request.getMaxSize(),
-                request.getTimeToLive(),
-                request.getCondition(),
-                request.ackTimeout(),
-                listener
-            ),
-            request.masterNodeTimeout()
+        samplingService.updateSampleConfiguration(
+            projectId,
+            request.indices()[0],
+            request.getRate(),
+            request.getMaxSamples(),
+            request.getMaxSize(),
+            request.getTimeToLive(),
+            request.getCondition(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            listener
         );
-        state.projectState(projectResolver.getProjectId()).metadata().custom("sample_config");
+        state.projectState(projectId).metadata().custom("sample_config");
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutSampleConfigAction.Request request, ClusterState state) {
         return null;
-    }
-
-    static class UpdateSampleConfigTask extends AckedBatchedClusterStateUpdateTask {
-        final ProjectId projectId;
-        private final String indexName;
-        private final double rate;
-        private final Integer maxSamples;
-        private final ByteSizeValue maxSize;
-        private final TimeValue timeToLive;
-        private final String condition;
-
-        UpdateSampleConfigTask(
-            ProjectId projectId,
-            String indexName,
-            double rate,
-            Integer maxSamples,
-            ByteSizeValue maxSize,
-            TimeValue timeToLive,
-            String condition,
-            TimeValue ackTimeout,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
-            super(ackTimeout, listener);
-            this.projectId = projectId;
-            this.indexName = indexName;
-            this.rate = rate;
-            this.maxSamples = maxSamples;
-            this.maxSize = maxSize;
-            this.timeToLive = timeToLive;
-            this.condition = condition;
-        }
     }
 
     public static final class SamplingConfigCustomMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom>
@@ -306,7 +237,6 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
                 if (condition != null) {
                     b.field(CONDITION_FIELD.getPreferredName(), condition);
                 }
-                // b.endObject();
                 return b;
             });
         }

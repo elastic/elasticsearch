@@ -9,12 +9,27 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
@@ -42,11 +57,73 @@ public class SamplingService {
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
     private final ScriptService scriptService;
     private final LongSupplier relativeNanoTimeSupplier;
+    private final MasterServiceTaskQueue<UpdateSampleConfigTask> updateSamplingConfigTaskQueue;
     private final Map<String, SampleInfo> samples = new HashMap<>();
 
-    public SamplingService(ScriptService scriptService, LongSupplier relativeNanoTimeSupplier) {
+    public SamplingService(ScriptService scriptService, ClusterService clusterService, LongSupplier relativeNanoTimeSupplier) {
         this.scriptService = scriptService;
         this.relativeNanoTimeSupplier = relativeNanoTimeSupplier;
+        ClusterStateTaskExecutor<UpdateSampleConfigTask> updateSampleConfigExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateSampleConfigTask updateSamplingConfigTask,
+                ClusterState clusterState
+            ) {
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSamplingConfigTask.projectId);
+                TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(
+                    TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME
+                );
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                projectMetadataBuilder.putCustom(
+                    TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME,
+                    new TransportPutSampleConfigAction.SamplingConfigCustomMetadata(
+                        updateSamplingConfigTask.indexName,
+                        updateSamplingConfigTask.rate,
+                        updateSamplingConfigTask.maxSamples,
+                        updateSamplingConfigTask.maxSize,
+                        updateSamplingConfigTask.timeToLive,
+                        updateSamplingConfigTask.condition
+                    )
+                );
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+                return new Tuple<>(updatedClusterState, updateSamplingConfigTask);
+            }
+        };
+        this.updateSamplingConfigTaskQueue = clusterService.createTaskQueue(
+            "update-data-stream-mappings",
+            Priority.NORMAL,
+            updateSampleConfigExecutor
+        );
+    }
+
+    public void updateSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        double rate,
+        @Nullable Integer maxSamples,
+        @Nullable ByteSizeValue maxSize,
+        @Nullable TimeValue timeToLive,
+        @Nullable String condition,
+        @Nullable TimeValue masterNodeTimeout,
+        @Nullable TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateSamplingConfigTaskQueue.submitTask(
+            "updating mappings on data stream",
+            new UpdateSampleConfigTask(
+                projectId,
+                index,
+                rate,
+                maxSamples,
+                maxSize,
+                timeToLive,
+                condition,
+                ackTimeout,
+                ActionListener.runBefore(listener, () -> samples.computeIfPresent(index, (s, sampleInfo) -> new SampleInfo()))
+            ),
+            masterNodeTimeout
+        );
     }
 
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) throws IOException {
@@ -82,9 +159,21 @@ public class SamplingService {
                             if (sampleInfo.script == null || sampleInfo.factory == null) {
                                 // We don't want to pay for synchronization because worst case, we compile the script twice
                                 long compileScriptStartTime = relativeNanoTimeSupplier.getAsLong();
-                                Script script = getScript(condition);
-                                sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
-                                stats.timeCompilingCondition.add((relativeNanoTimeSupplier.getAsLong() - compileScriptStartTime));
+                                try {
+                                    if (sampleInfo.compilationFailed) {
+                                        // we don't want to waste time
+                                        stats.samplesRejectedForException.increment();
+                                        return;
+                                    } else {
+                                        Script script = getScript(condition);
+                                        sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
+                                    }
+                                } catch (Exception e) {
+                                    sampleInfo.compilationFailed = true;
+                                    throw e;
+                                } finally {
+                                    stats.timeCompilingCondition.add((relativeNanoTimeSupplier.getAsLong() - compileScriptStartTime));
+                                }
                             }
                         }
                         long conditionStartTime = relativeNanoTimeSupplier.getAsLong();
@@ -111,8 +200,8 @@ public class SamplingService {
                 } catch (Exception e) {
                     stats.samplesRejectedForException.increment();
                     stats.lastException = e;
-                    e.printStackTrace(System.out);
-                    throw e;
+                    logger.info("Error performing sampling for " + samplingIndex, e);
+                    // e.printStackTrace(System.out);
                 } finally {
                     stats.timeSampling.add((relativeNanoTimeSupplier.getAsLong() - startTime));
                     logger.info("********* Stats: " + stats);
@@ -156,6 +245,7 @@ public class SamplingService {
         private final SampleStats stats;
         private volatile Script script;
         private volatile IngestConditionalScript.Factory factory;
+        private volatile boolean compilationFailed = false;
 
         SampleInfo() {
             this.samples = new ArrayList<>();
@@ -204,6 +294,37 @@ public class SamplingService {
                 + (timeEvaluatingCondition.longValue() / 1000000)
                 + ", timeCompilingCondition: "
                 + (timeCompilingCondition.longValue() / 1000000);
+        }
+    }
+
+    static class UpdateSampleConfigTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        private final String indexName;
+        private final double rate;
+        private final Integer maxSamples;
+        private final ByteSizeValue maxSize;
+        private final TimeValue timeToLive;
+        private final String condition;
+
+        UpdateSampleConfigTask(
+            ProjectId projectId,
+            String indexName,
+            double rate,
+            Integer maxSamples,
+            ByteSizeValue maxSize,
+            TimeValue timeToLive,
+            String condition,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+            this.rate = rate;
+            this.maxSamples = maxSamples;
+            this.maxSize = maxSize;
+            this.timeToLive = timeToLive;
+            this.condition = condition;
         }
     }
 }

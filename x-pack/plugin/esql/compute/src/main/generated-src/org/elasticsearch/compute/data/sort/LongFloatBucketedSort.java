@@ -215,6 +215,7 @@ public class LongFloatBucketedSort implements Releasable {
             blocks[offset + 1] = builder.build();
         }
     }
+
     /**
      * Checks if the selected groups are all empty.
      */

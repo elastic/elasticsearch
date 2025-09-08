@@ -260,7 +260,7 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
                 mdBuilder = Metadata.builder(filteredState.metadata());
                 mdBuilder.removeCustomIf(notApi);
 
-                if (request.multiproject() == false) {
+                if (projectResolver.supportsMultipleProjects() && request.multiproject() == false) {
                     ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(filteredState);
                     if (projectStateRegistry.size() > 1) {
                         throw new Metadata.MultiProjectPendingException(
@@ -328,28 +328,31 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         return new ClusterStateResponse(filteredState.getClusterName(), builder.build(), false);
     }
 
-    private ReservedStateMetadata mergeReservedStateMetadata(ReservedStateMetadata metadata1, ReservedStateMetadata metadata2) {
-        if (Objects.equals(metadata1.version(), metadata2.version()) == false) {
+    private ReservedStateMetadata mergeReservedStateMetadata(ReservedStateMetadata clusterReservedMetadata,
+                                                             ReservedStateMetadata projectReservedMetadata) {
+        if (Objects.equals(clusterReservedMetadata.version(), projectReservedMetadata.version()) == false) {
             logger.warn(
                 "Reserved state metadata version is different for Metadata ({}) and the only project ({})",
-                metadata2.version(),
-                metadata1.version()
+                clusterReservedMetadata.version(),
+                projectReservedMetadata.version()
             );
         }
-        ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(metadata1.namespace())
-            .version(Math.max(metadata1.version(), metadata2.version()));
+        ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(clusterReservedMetadata.namespace())
+            .version(Math.max(clusterReservedMetadata.version(), projectReservedMetadata.version()));
 
-        for (ReservedStateHandlerMetadata handler : metadata1.handlers().values()) {
+        for (ReservedStateHandlerMetadata handler : clusterReservedMetadata.handlers().values()) {
             builder.putHandler(handler);
         }
-        for (ReservedStateHandlerMetadata handler : metadata2.handlers().values()) {
-            builder.putHandler(handler);
+        for (Map.Entry<String, ReservedStateHandlerMetadata> handlerEntry : projectReservedMetadata.handlers().entrySet()) {
+            assert clusterReservedMetadata.handlers().containsKey(handlerEntry.getKey()) == false
+                : "Duplicate of handler: " + handlerEntry.getKey();
+            builder.putHandler(handlerEntry.getValue());
         }
 
-        if (metadata2.errorMetadata() != null) {
-            builder.errorMetadata(metadata2.errorMetadata());
-        } else if (metadata1.errorMetadata() != null) {
-            builder.errorMetadata(metadata1.errorMetadata());
+        if (projectReservedMetadata.errorMetadata() != null) {
+            builder.errorMetadata(projectReservedMetadata.errorMetadata());
+        } else if (clusterReservedMetadata.errorMetadata() != null) {
+            builder.errorMetadata(clusterReservedMetadata.errorMetadata());
         }
 
         return builder.build();

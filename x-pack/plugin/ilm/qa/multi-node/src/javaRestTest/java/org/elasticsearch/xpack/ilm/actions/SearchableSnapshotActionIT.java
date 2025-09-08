@@ -695,7 +695,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
 
-
         // remove ILM from the partially mounted searchable snapshot
         {
             Request request = new Request("POST", "/" + partialMountedIndexName + "/_ilm/remove");

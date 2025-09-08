@@ -41,11 +41,10 @@ public final class ThreadContextValue<T> {
             return this.type.cast(val);
         } else {
             final String message = Strings.format(
-                "Found object [%s] as transient [%s] in thread-context; expected to be [%s] but is [%s]",
-                val,
+                "Found object of type [%s] as transient [%s] in thread-context, but expected it to be [%s]",
+                val.getClass(),
                 key,
-                type,
-                val.getClass()
+                type
             );
             assert false : message;
             throw new IllegalStateException(message);
@@ -64,9 +63,15 @@ public final class ThreadContextValue<T> {
         threadContext.putTransient(this.key, value);
     }
 
-    public void setIfEmpty(ThreadContext threadContext, T value) {
+    /**
+     * @return If the value was set
+     */
+    public boolean setIfEmpty(ThreadContext threadContext, T value) {
         if (exists(threadContext) == false) {
             set(threadContext, value);
+            return true;
+        } else {
+            return false;
         }
     }
 

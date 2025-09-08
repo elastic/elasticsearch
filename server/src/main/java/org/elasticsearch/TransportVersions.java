@@ -336,6 +336,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
+    public static final TransportVersion RERANK_RESCORE_CHUNKS = def(9_130_0_00);
     public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
     public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
     public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);

@@ -895,8 +895,6 @@ public class Stateless extends Plugin
         final int prewarmMaxThreads = Math.min(processors * 4, 32);
         final int uploadPrewarmCoreThreads;
         final int uploadPrewarmMaxThreads;
-        final int mergeCoreThreads;
-        final int mergeMaxThreads;
 
         if (hasIndexRole) {
             shardReadMaxThreads = Math.min(processors * 4, 10);
@@ -917,8 +915,6 @@ public class Stateless extends Plugin
             // threads around to reduce churn and re-use the existing buffers more
             uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
             uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
-            mergeCoreThreads = 1;
-            mergeMaxThreads = processors;
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
@@ -935,8 +931,6 @@ public class Stateless extends Plugin
             fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
             uploadPrewarmCoreThreads = 0;
             uploadPrewarmMaxThreads = 1;
-            mergeCoreThreads = 0;
-            mergeMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {

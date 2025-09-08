@@ -55,6 +55,10 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
             return failed ? this : other;
         }
 
+        public TypeResolution or(TypeResolution other) {
+            return failed ? other : this;
+        }
+
         public TypeResolution and(Supplier<TypeResolution> other) {
             return failed ? this : other.get();
         }

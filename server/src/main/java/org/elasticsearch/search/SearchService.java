@@ -2129,11 +2129,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(
         LongSupplier nowInMillis,
+        TransportVersion minTransportVersion,
         String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit
     ) {
-        return getRewriteContext(nowInMillis, clusterAlias, resolvedIndices, pit, false);
+        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, false);
     }
 
     /**
@@ -2141,12 +2142,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(
         LongSupplier nowInMillis,
+        TransportVersion minTransportVersion,
         String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
         final boolean isExplain
     ) {
-        return indicesService.getRewriteContext(nowInMillis, clusterAlias, resolvedIndices, pit, isExplain);
+        return indicesService.getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, isExplain);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

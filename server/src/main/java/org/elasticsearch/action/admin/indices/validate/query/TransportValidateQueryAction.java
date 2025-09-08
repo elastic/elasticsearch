@@ -129,9 +129,16 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
+            // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolvedIndices, null),
+                searchService.getRewriteContext(
+                    timeProvider,
+                    clusterService.state().getMinTransportVersion(),
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    resolvedIndices,
+                    null
+                ),
                 rewriteListener
             );
         }

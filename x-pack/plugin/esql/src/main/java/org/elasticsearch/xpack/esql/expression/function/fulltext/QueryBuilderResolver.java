@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -59,10 +60,11 @@ public final class QueryBuilderResolver {
     }
 
     private static QueryRewriteContext queryRewriteContext(TransportActionServices services, Set<String> indexNames) {
+        ClusterService clusterService = services.clusterService();
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            services.projectResolver().getProjectMetadata(services.clusterService().state()),
+            services.projectResolver().getProjectMetadata(clusterService.state()),
             services.indexNameExpressionResolver(),
             services.transportService().getRemoteClusterService(),
             System.currentTimeMillis()
@@ -70,7 +72,13 @@ public final class QueryBuilderResolver {
 
         // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
         return services.searchService()
-            .getRewriteContext(System::currentTimeMillis, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolvedIndices, null);
+            .getRewriteContext(
+                System::currentTimeMillis,
+                clusterService.state().getMinTransportVersion(),
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                resolvedIndices,
+                null
+            );
     }
 
     private static Set<String> indexNames(LogicalPlan plan) {

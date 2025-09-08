@@ -270,6 +270,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             runtimeMappings,
             indexSettings,
+            null,
             clusterAlias,
             fullyQualifiedIndex,
             indexNameMatcher,

@@ -550,6 +550,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 original,
                 searchService.getRewriteContext(
                     timeProvider::absoluteStartMillis,
+                    clusterState.getMinTransportVersion(),
                     original.getLocalClusterAlias(),
                     resolvedIndices,
                     original.pointInTimeBuilder(),

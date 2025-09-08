@@ -7,6 +7,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -156,6 +157,7 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
             null,
             client,
             null,
+            TransportVersion.current(),
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             null,

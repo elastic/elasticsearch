@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
@@ -56,6 +57,7 @@ public class QueryRewriteContext {
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
     protected final IndexSettings indexSettings;
+    private final TransportVersion minTransportVersion;
     private final String localClusterAlias;
     protected final Index fullyQualifiedIndex;
     protected final Predicate<String> indexNameMatcher;
@@ -83,6 +85,7 @@ public class QueryRewriteContext {
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
         final IndexSettings indexSettings,
+        final TransportVersion minTransportVersion,
         final String localClusterAlias,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
@@ -104,6 +107,7 @@ public class QueryRewriteContext {
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
         this.indexSettings = indexSettings;
+        this.minTransportVersion = minTransportVersion;
         this.localClusterAlias = localClusterAlias;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
@@ -136,6 +140,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             false
         );
     }
@@ -144,18 +149,30 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
+        final TransportVersion minTransportVersion,
         final String localClusterAlias,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
-        this(parserConfiguration, client, nowInMillis, localClusterAlias, resolvedIndices, pit, queryRewriteInterceptor, false);
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            minTransportVersion,
+            localClusterAlias,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            false
+        );
     }
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
+        final TransportVersion minTransportVersion,
         final String localClusterAlias,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
@@ -170,6 +187,7 @@ public class QueryRewriteContext {
             MappingLookup.EMPTY,
             Collections.emptyMap(),
             null,
+            minTransportVersion,
             localClusterAlias,
             null,
             null,
@@ -357,6 +375,13 @@ public class QueryRewriteContext {
      */
     public String getLocalClusterAlias() {
         return localClusterAlias;
+    }
+
+    /**
+     * Returns the minimum {@link TransportVersion} for intra-cluster node-to-node communications. Returns null if it is unknown.
+     */
+    public TransportVersion getMinTransportVersion() {
+        return minTransportVersion;
     }
 
     /**

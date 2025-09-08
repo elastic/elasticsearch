@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -68,6 +69,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             null,
                             null,
                             null,
+                            null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
                             null
                         )
@@ -90,6 +92,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                     .rewrite(
                         new QueryRewriteContext(
                             parserConfig(),
+                            null,
                             null,
                             null,
                             null,
@@ -166,6 +169,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
@@ -251,6 +255,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),

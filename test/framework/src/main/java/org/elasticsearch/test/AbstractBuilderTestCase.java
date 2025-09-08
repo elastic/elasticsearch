@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -625,6 +626,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService.mappingLookup(),
                 emptyMap(),
                 idxSettings,
+                TransportVersion.current(),
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 new Index(
                     RemoteClusterAware.buildRemoteIndexName(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, idxSettings.getIndex().getName()),

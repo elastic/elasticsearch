@@ -55,6 +55,7 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
                 false
             );
 
@@ -75,6 +76,7 @@ public class QueryRewriteContextTests extends ESTestCase {
                 MappingLookup.EMPTY,
                 Collections.emptyMap(),
                 new IndexSettings(metadata, Settings.EMPTY),
+                null,
                 null,
                 null,
                 null,

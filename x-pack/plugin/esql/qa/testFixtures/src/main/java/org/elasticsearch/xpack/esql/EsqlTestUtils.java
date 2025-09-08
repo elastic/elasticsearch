@@ -37,6 +37,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -886,10 +888,17 @@ public final class EsqlTestUtils {
                 }
             }
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
+            case EXPONENTIAL_HISTOGRAM -> new WriteableExponentialHistogram(EsqlTestUtils.randomExponentialHistogram());
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
+    }
+
+    private static ExponentialHistogram randomExponentialHistogram() {
+        // TODO(b/133393): populate the random histogram fully when supported by the block
+        int scale = randomIntBetween(ExponentialHistogram.MIN_SCALE, ExponentialHistogram.MAX_SCALE);
+        return ExponentialHistogram.builder(scale, ExponentialHistogramCircuitBreaker.noop()).build();
     }
 
     static Version randomVersion() {

@@ -19,12 +19,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -69,6 +73,7 @@ public class BlockTestUtils {
                 randomInt(),
                 between(0, Integer.MAX_VALUE)
             );
+            case EXPONENTIAL_HISTOGRAM -> randomExponentialHistogram();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
@@ -216,6 +221,10 @@ public class BlockTestUtils {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
         }
+        if (builder instanceof ExponentialHistogramBlockBuilder b && value instanceof ExponentialHistogram histogram) {
+            b.append(histogram);
+            return;
+        }
         if (value instanceof List<?> l && l.isEmpty()) {
             builder.appendNull();
             return;
@@ -301,6 +310,7 @@ public class BlockTestUtils {
                         yield literal;
 
                     }
+                    case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(i++);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
@@ -359,6 +369,12 @@ public class BlockTestUtils {
         } finally {
             Releasables.close(blocks);
         }
+    }
+
+    static ExponentialHistogram randomExponentialHistogram() {
+        // TODO(b/133393): populate the random histogram fully when supported by the block
+        int scale = randomIntBetween(ExponentialHistogram.MIN_SCALE, ExponentialHistogram.MAX_SCALE);
+        return ExponentialHistogram.builder(scale, ExponentialHistogramCircuitBreaker.noop()).build();
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

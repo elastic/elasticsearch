@@ -12,6 +12,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -217,6 +219,7 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
+            case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -246,6 +249,7 @@ public final class BlockUtils {
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
+            case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -298,6 +302,11 @@ public final class BlockUtils {
                     aggBlock.sumBlock().getDouble(offset),
                     aggBlock.countBlock().getInt(offset)
                 );
+            }
+            case EXPONENTIAL_HISTOGRAM -> {
+                ExponentialHistogram histogram = ((ExponentialHistogramArrayBlock) block).getExponentialHistogram(offset);
+                // return a copy so that the returned value is not bound to the lifetime of the block
+                yield ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).build();
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

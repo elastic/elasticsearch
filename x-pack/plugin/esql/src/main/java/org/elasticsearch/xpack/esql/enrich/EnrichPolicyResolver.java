@@ -125,25 +125,21 @@ public class EnrichPolicyResolver {
         EsqlExecutionInfo executionInfo,
         ActionListener<EnrichResolution> listener
     ) {
-        if (preAnalysis.enriches.isEmpty()) {
+        if (preAnalysis.enriches().isEmpty()) {
             listener.onResponse(new EnrichResolution());
             return;
         }
 
-        doResolveRemotes(preAnalysis.indices, requestFilter, listener.delegateFailureAndWrap((l, remotes) -> {
-            doResolvePolicies(remotes, preAnalysis.enriches.stream().map(UnresolvedPolicy::from).toList(), executionInfo, l);
+        doResolveRemotes(preAnalysis.indexPattern(), requestFilter, listener.delegateFailureAndWrap((l, remotes) -> {
+            doResolvePolicies(remotes, preAnalysis.enriches().stream().map(UnresolvedPolicy::from).toList(), executionInfo, l);
         }));
     }
 
-    private void doResolveRemotes(List<IndexPattern> indexPatterns, QueryBuilder requestFilter, ActionListener<Set<String>> listener) {
-        switch (indexPatterns.size()) {
-            case 0 -> listener.onResponse(Set.of());
-            case 1 -> indexResolver.resolveConcreteIndices(
-                indexPatterns.getFirst().indexPattern(),
-                requestFilter,
-                listener.map(EsqlCCSUtils::getRemotesOf)
-            );
-            default -> listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
+    private void doResolveRemotes(IndexPattern indexPattern, QueryBuilder requestFilter, ActionListener<Set<String>> listener) {
+        if (indexPattern != null) {
+            indexResolver.resolveConcreteIndices(indexPattern.indexPattern(), requestFilter, listener.map(EsqlCCSUtils::getRemotesOf));
+        } else {
+            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         }
     }
 

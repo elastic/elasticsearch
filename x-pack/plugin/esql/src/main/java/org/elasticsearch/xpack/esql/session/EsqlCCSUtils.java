@@ -323,20 +323,19 @@ public class EsqlCCSUtils {
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        List<IndexPattern> patterns,
+        IndexPattern indexPattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (patterns.isEmpty()) {
+        if (indexPattern == null) {
             return;
         }
-        assert patterns.size() == 1 : "Only single index pattern is supported";
         try {
             var groupedIndices = indicesGrouper.groupIndices(
                 // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
                 // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                patterns.getFirst().indexPattern()
+                indexPattern.indexPattern()
             );
 
             executionInfo.clusterInfoInitializing(true);

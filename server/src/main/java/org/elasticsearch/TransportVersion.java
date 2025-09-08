@@ -108,7 +108,6 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * This method takes in the parameter {@code upperBound} which is the highest transport version id
      * that will be loaded by this node.
      */
-    @SuppressWarnings("checkstyle:EmptyBlock")
     public static TransportVersion fromBufferedReader(
         String component,
         String path,

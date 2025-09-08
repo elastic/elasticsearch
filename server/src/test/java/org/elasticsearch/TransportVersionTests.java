@@ -356,7 +356,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testComment() {
-        byte[] data1 = "#comment\n1000000".getBytes(StandardCharsets.UTF_8);
+        byte[] data1 = ("#comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
         TransportVersion test1 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports3",
@@ -367,7 +367,7 @@ public class TransportVersionTests extends ESTestCase {
         );
         assertThat(new TransportVersion(null, 1000000, null).supports(test1), is(true));
 
-        byte[] data2 = " # comment\n1000000".getBytes(StandardCharsets.UTF_8);
+        byte[] data2 = (" # comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
         TransportVersion test2 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports3",
@@ -378,7 +378,9 @@ public class TransportVersionTests extends ESTestCase {
         );
         assertThat(new TransportVersion(null, 1000000, null).supports(test2), is(true));
 
-        byte[] data3 = "#comment\n# comment3\n1000000".getBytes(StandardCharsets.UTF_8);
+        byte[] data3 = ("#comment" + System.lineSeparator() + "# comment3" + System.lineSeparator() + "1000000").getBytes(
+            StandardCharsets.UTF_8
+        );
         TransportVersion test3 = TransportVersion.fromBufferedReader(
             "<test>",
             "testSupports3",

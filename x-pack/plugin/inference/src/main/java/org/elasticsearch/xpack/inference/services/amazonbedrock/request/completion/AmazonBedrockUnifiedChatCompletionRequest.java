@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
@@ -18,7 +20,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.response.complet
 import java.util.Objects;
 import java.util.concurrent.Flow;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getInputSchema;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getUnifiedConverseMessageList;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 
@@ -48,7 +50,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
         this.stream = stream;
     }
 
-    public Flow.Publisher<? extends InferenceServiceResults.Result> executeStreamChatCompletionRequest(
+    public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> executeStreamChatCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient
     ) {
         var converseStreamRequest = ConverseStreamRequest.builder()
@@ -65,7 +67,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
                                     ToolSpecification.builder()
                                         .name(tool.function().name())
                                         .description(tool.function().description())
-                                        .inputSchema(ToolInputSchema.builder().json(Document.fromString("")).build())
+                                        .inputSchema(getInputSchema())
                                         .build()
                                 )
                                 .build()
@@ -77,8 +79,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
-
-        return awsBedrockClient.converseStream(converseStreamRequest.build());
+        return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
     }
 
     @Override

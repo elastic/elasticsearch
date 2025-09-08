@@ -69,6 +69,8 @@ public class DataPointGroupingContext {
                             scopeGroup.addDataPoints(metric, metric.getGauge().getDataPointsList(), DataPoint.Number::new);
                             break;
                         case EXPONENTIAL_HISTOGRAM:
+                            // for now, we convert exponential histograms to TDigest
+                            // once we have native support for exponential histograms in ES, we'll migrate to that
                             scopeGroup.addDataPoints(
                                 metric,
                                 metric.getExponentialHistogram().getDataPointsList(),

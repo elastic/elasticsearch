@@ -91,6 +91,8 @@ public class ZoneAwareAssignmentPlanner {
                 remainingZones,
                 tryAssigningPreviouslyAssignedModels
             );
+
+            // Update remaining allocations to account for allocations satisfied in this zone
             plan.deployments()
                 .forEach(
                     d -> deploymentIdToRemainingAllocations.computeIfPresent(
@@ -211,14 +213,20 @@ public class ZoneAwareAssignmentPlanner {
             Map<Node, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
-                if (finalPlanBuilder.canAssign(originalDeployment, originalNode, assignment.getValue())) {
-                    finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
-                }
+                finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
             }
         }
         return finalPlanBuilder.build();
     }
 
+    /**
+     * The mergeAllocationsByNodeIdByDeploymentId method is responsible for consolidating allocation data
+     * from multiple AssignmentPlan objects into a single structure. This structure maps deployment IDs
+     * to their respective node allocations, allowing the system to track how resources are distributed
+     * across nodes for each deployment.
+     * @param plans List of AssignmentPlan objects to merge allocations from
+     * @return
+     */
     private Map<String, Map<String, Integer>> mergeAllocationsByNodeIdByDeploymentId(List<AssignmentPlan> plans) {
         Map<String, Map<String, Integer>> allocationsByNodeIdByDeploymentId = new HashMap<>();
         deployments.forEach(d -> allocationsByNodeIdByDeploymentId.put(d.deploymentId(), new HashMap<>()));

@@ -138,9 +138,7 @@ class TrainedModelAssignmentRebalancer {
             Map<AssignmentPlan.Node, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
             for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
                 AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
-                if (dest.canAssign(deployment, node, sourceAssignment.getValue())) {
-                    dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
-                }
+                dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
             }
         }
     }

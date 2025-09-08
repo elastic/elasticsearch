@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
+
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.Well19937c;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;

@@ -86,6 +86,10 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
+    /**
+     * Helper constructor that only requires DLM stats. This can be used when elasticsearch is running in
+     * data-stream-lifecycle-only mode. In this mode ILM is not supported, which entails there will be no stats either.
+     */
     public TimeSeriesFeatureSetUsage(
         long timeSeriesDataStreamCount,
         long timeSeriesIndexCount,

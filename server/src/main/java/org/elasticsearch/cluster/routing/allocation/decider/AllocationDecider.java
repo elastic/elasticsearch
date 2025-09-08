@@ -161,7 +161,7 @@ public abstract class AllocationDecider {
      * @param allocation the current routing allocation
      * @return A list of node IDs that contain shards this decider would like to move elsewhere, in order of descending priority
      */
-    public Optional<Collection<AllocationDeciders.AllocationProblem>> getAllocationProblems(RoutingAllocation allocation) {
+    public Optional<Collection<? extends AllocationDeciders.AllocationProblem>> getAllocationProblems(RoutingAllocation allocation) {
         return Optional.empty();
     }
 }

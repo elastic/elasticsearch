@@ -353,6 +353,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = def(9_152_0_00);
     public static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = def(9_153_0_00);
     public static final TransportVersion VISIT_PERCENTAGE = def(9_154_0_00);
+    public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_155_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -16,10 +16,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * Invokes a force merge on a single index.
@@ -28,11 +30,33 @@ public class ForceMergeStep extends AsyncActionStep {
 
     public static final String NAME = "forcemerge";
     private static final Logger logger = LogManager.getLogger(ForceMergeStep.class);
-    private final int maxNumSegments;
+    private static final BiFunction<String, LifecycleExecutionState, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = (
+        indexName,
+        lifecycleState) -> indexName;
 
+    private final int maxNumSegments;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
+
+    /**
+     * Creates a new {@link ForceMergeStep} that will perform a force merge on the index that ILM is currently operating on.
+     */
     public ForceMergeStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
+        this(key, nextStepKey, client, maxNumSegments, DEFAULT_TARGET_INDEX_NAME_SUPPLIER);
+    }
+
+    /**
+     * Creates a new {@link ForceMergeStep} that will perform a force merge on the index name returned by the supplier.
+     */
+    public ForceMergeStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        int maxNumSegments,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier
+    ) {
         super(key, nextStepKey, client);
         this.maxNumSegments = maxNumSegments;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
     }
 
     @Override
@@ -51,7 +75,8 @@ public class ForceMergeStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        String indexName = indexMetadata.getIndex().getName();
+        String indexName = targetIndexNameSupplier.apply(indexMetadata.getIndex().getName(), indexMetadata.getLifecycleExecutionState());
+        assert indexName != null : "target index name supplier must not return null";
         ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
         getClient(currentState.projectId()).admin().indices().forceMerge(request, listener.delegateFailureAndWrap((l, response) -> {

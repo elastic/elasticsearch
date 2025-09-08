@@ -230,7 +230,7 @@ public class CrossClusterSigningConfigurationReloaderIntegTests extends Security
     }
 
     private Set<String> randomClusterAliases() {
-        return randomUnique(() -> randomAlphaOfLengthBetween(1, randomInt(20)), randomInt(5));
+        return randomUnique(() -> randomAlphaOfLengthBetween(1, randomIntBetween(5, 20)), randomInt(5));
     }
 
     private void writeSecureSettingsToKeyStoreAndReload(Map<String, char[]> entries) {

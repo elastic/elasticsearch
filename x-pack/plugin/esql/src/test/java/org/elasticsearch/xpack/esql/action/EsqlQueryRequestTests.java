@@ -35,6 +35,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -104,7 +107,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             ,"params":[ {"n1" : "8.15.0"}, { "n2" : 0.05}, {"n3" : -799810013},
              {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false},
              {"_n1" : "8.15.0"}, { "__n2" : 0.05}, {"__3" : -799810013},
-             {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false}] }""";
+             {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false},
+             {"_n8": ["8.15.0", "8.19.0"]}, {"_n9": ["x", "y"]}, {"_n10": [true, false]}, {"_n11": [1.0, 1.1, 1.2]},
+             {"_n12": [-799810013, 0, 799810013]}, {"_n13": [null, null, null]}
+             ] }""";
 
         List<QueryParam> params = List.of(
             paramAsConstant("n1", "8.15.0"),
@@ -120,7 +126,56 @@ public class EsqlQueryRequestTests extends ESTestCase {
             paramAsConstant("__4n", "127.0.0.1"),
             paramAsConstant("_n5", "esql"),
             paramAsConstant("_n6", null),
-            paramAsConstant("_n7", false)
+            paramAsConstant("_n7", false),
+            new QueryParam("_n8", List.of("8.15.0", "8.19.0"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n9", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n10", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n11", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n12", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n13", Arrays.asList(null, null, null), NULL, ParserUtils.ParamClassification.VALUE)
+            // TODO add mixed null values, or check all elements, and separate into a new method
+        );
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(query, request.query());
+        assertEquals(columnar, request.columnar());
+        assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
+        assertEquals(locale, request.locale());
+        assertEquals(filter, request.filter());
+        assertEquals(params.size(), request.params().size());
+
+        for (int i = 0; i < request.params().size(); i++) {
+            assertEquals(params.get(i), request.params().get(i + 1));
+        }
+    }
+
+    public void testNamedMultivaluedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString = """
+            ,"params":[
+             {"_n1": ["8.15.0", "8.19.0"]}, {"_n2": ["x", "y"]}, {"_n3": [true, false]}, {"_n4": [1.0, 1.1, 1.2]},
+             {"_n5": [-799810013, 0, 799810013]}, {"_n6": [null, null, null]},
+             ] }""";
+
+        List<QueryParam> params = List.of(
+            new QueryParam("_n1", List.of("8.15.0", "8.19.0"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n2", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n3", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n4", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n5", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n6", Arrays.asList(null, null, null), NULL, ParserUtils.ParamClassification.VALUE)
         );
         String json = String.format(Locale.ROOT, """
             {
@@ -253,6 +308,63 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(
             e2.getCause().getMessage(),
             containsString("Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}] and [{1}, {2}]")
+        );
+    }
+
+    public void testInvalidMultivaluedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        // invalid named parameter for multivalued constants
+        String paramsString = """
+            "params":[
+             {"_n1": [null, "8.15.0"]}, {"_n2": [null, null, "x"]}, {"_n3": [null, true, false]},
+             {"_n4": [null, 1.0, null]}, {"_n5": [null, -799810013, null, 799810013]},
+             {"n6" : [{"value" : {"a5" : "v5"}}]}, {"n7" : [{"identifier" : ["x", "y"]}]}, {"n8" : [{"pattern" : ["x*", "y*"]}]}
+             ]""";
+        String json1 = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString, query, columnar, locale.toLanguageTag(), filter);
+
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("Failed to parse params: [3:2] _n1 parameter has values from different types, found NULL and KEYWORD")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:29] _n2 parameter has values from different types, found NULL and KEYWORD")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:57] _n3 parameter has values from different types, found NULL and BOOLEAN")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[4:2] _n4 parameter has values from different types, found NULL and DOUBLE")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[4:30] _n5 parameter has values from different types, found NULL and INTEGER")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[5:2] n6=[{value={a5=v5}}] is not supported as a parameter")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[5:40] n7=[{identifier=[x, y]}] is not supported as a parameter")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[5:80] n8=[{pattern=[x*, y*]}] is not supported as a parameter")
         );
     }
 

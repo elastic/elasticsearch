@@ -167,7 +167,6 @@ final class RequestXContent {
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         ParserUtils.ParamClassification classification = null;
-                        paramValue = null;
                         String paramName = entry.getKey();
                         checkParamNameValidity(paramName, errors, loc);
 
@@ -183,18 +182,52 @@ final class RequestXContent {
                         } else {// parameter specifies as a value only
                             paramValue = entry.getValue();
                             classification = VALUE;
+                            if (paramValue instanceof List) {
+                                type = null;
+                                List<Object> values = new ArrayList<>();
+                                for (Object currentValue : (List<?>) paramValue) {
+                                    checkParamValueValidity(classification, currentValue, loc, errors);
+                                    DataType currentType = DataType.fromJava(currentValue);
+                                    if (currentType == null) {
+                                        errors.add(
+                                            new XContentParseException(
+                                                loc,
+                                                entry + " is not supported as a parameter"
+                                            )
+                                        );
+                                        break;
+                                    } else if ((type != null) && (type != currentType)) {
+                                        errors.add(new XContentParseException(
+                                            loc,
+                                            paramName + " parameter has values from different types, found " + type + " and "
+                                                + currentType
+                                        ));
+                                        break;
+                                    }
+                                    type = currentType;
+                                    values.add(currentValue);
+                                }
+                                currentParam = new QueryParam(
+                                    paramName,
+                                    values,
+                                    (classification == VALUE) ? type : DataType.NULL,
+                                    classification
+                                );
+                                namedParams.add(currentParam);
+                            } else {
+                                type = DataType.fromJava(paramValue);
+                                if (type == null) {
+                                    errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
+                                }
+                                currentParam = new QueryParam(
+                                    paramName,
+                                    paramValue,
+                                    (classification == VALUE) ? type : DataType.NULL,
+                                    classification
+                                );
+                                namedParams.add(currentParam);
+                            }
                         }
-                        type = DataType.fromJava(paramValue);
-                        if (type == null) {
-                            errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
-                        }
-                        currentParam = new QueryParam(
-                            paramName,
-                            paramValue,
-                            (classification == VALUE) ? type : DataType.NULL,
-                            classification
-                        );
-                        namedParams.add(currentParam);
                     }
                 } else {
                     paramValue = null;

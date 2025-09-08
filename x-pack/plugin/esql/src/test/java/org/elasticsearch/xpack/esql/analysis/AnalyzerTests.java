@@ -2351,11 +2351,12 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         checkDenseVectorCastingKnn("float_vector");
+        checkDenseVectorCastingKnn("byte_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, [0.342, 0.164, 0.234])
+            from test | where knn(%s, [0, 1, 2])
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
@@ -2363,7 +2364,32 @@ public class AnalyzerTests extends ESTestCase {
         var knn = as(filter.condition(), Knn.class);
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));
+        assertThat(queryVector.value(), equalTo(List.of(0f, 1f, 2f)));
+    }
+
+    public void testDenseVectorImplicitCastingKnnQueryParams() {
+        assumeTrue("multi values for query params capability must be available", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
+
+        checkDenseVectorCastingKnnQueryParams("float_vector");
+        checkDenseVectorCastingKnnQueryParams("byte_vector");
+    }
+
+    private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+        from test | where knn(%s, ?query_vector)
+        """, fieldName), "mapping-dense_vector.json",
+        new QueryParams(
+            List.of(
+                paramAsConstant("query_vector", List.of(0, 1, 2))
+            )
+        ));
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var queryVector = as(knn.query(), Literal.class);
+        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
+        assertThat(queryVector.value(), equalTo(List.of(0f, 1f, 2f)));
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {

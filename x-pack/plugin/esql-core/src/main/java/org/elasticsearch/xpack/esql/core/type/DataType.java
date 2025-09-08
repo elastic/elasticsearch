@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -456,41 +457,51 @@ public enum DataType {
     }
 
     public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof BigInteger) {
-            return UNSIGNED_LONG;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof Byte) {
-            return BYTE;
-        }
-        if (value instanceof Short) {
-            return SHORT;
-        }
-        if (value instanceof ZonedDateTime) {
-            return DATETIME;
-        }
-        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
-            return KEYWORD;
+        switch (value) {
+            case null -> {
+                return NULL;
+            }
+            case Integer i -> {
+                return INTEGER;
+            }
+            case Long l -> {
+                return LONG;
+            }
+            case BigInteger bigInteger -> {
+                return UNSIGNED_LONG;
+            }
+            case Boolean b -> {
+                return BOOLEAN;
+            }
+            case Double v -> {
+                return DOUBLE;
+            }
+            case Float v -> {
+                return FLOAT;
+            }
+            case Byte b -> {
+                return BYTE;
+            }
+            case Short i -> {
+                return SHORT;
+            }
+            case ZonedDateTime zonedDateTime -> {
+                return DATETIME;
+            }
+            case List<?> list -> {
+                if (list.isEmpty()) {
+                    return null;
+                }
+                return fromJava(list.getFirst());
+            }
+            default -> {
+                if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
+                    return KEYWORD;
+                }
+                return null;
+            }
         }
 
-        return null;
     }
 
     public static boolean isUnsupported(DataType from) {

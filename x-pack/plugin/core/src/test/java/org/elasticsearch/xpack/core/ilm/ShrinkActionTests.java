@@ -290,7 +290,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey generateShrinkIndexNameKey = new StepKey(phase, ShrinkAction.NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
-        StepKey shrinkKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
+        StepKey shrinkKey = new StepKey(phase, ShrinkAction.NAME, ResizeIndexStep.SHRINK);
         StepKey enoughShardsKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -347,7 +347,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(9).getKey(), equalTo(allocationRoutedKey));
         assertThat(steps.get(9).getNextStepKey(), equalTo(shrinkKey));
 
-        assertTrue(steps.get(10) instanceof ShrinkStep);
+        assertTrue(steps.get(10) instanceof ResizeIndexStep);
         assertThat(steps.get(10).getKey(), equalTo(shrinkKey));
         assertThat(steps.get(10).getNextStepKey(), equalTo(enoughShardsKey));
 

@@ -16,7 +16,10 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 :::{include} ../_snippets/functions/layout/bucket.md
 :::
 
-:::{note} 
+:::{include} ../_snippets/functions/layout/tbucket.md
+:::
+
+:::{note}
 The `CATEGORIZE` function requires a [platinum license](https://www.elastic.co/subscriptions).
 :::
 

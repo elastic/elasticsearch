@@ -550,7 +550,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
     }
 }

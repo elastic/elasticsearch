@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -72,7 +74,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -86,8 +87,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -95,6 +96,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
@@ -1632,7 +1634,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or geo_point or geo_shape or ip or numeric or string or version";
+            + "or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -2346,20 +2348,19 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         checkDenseVectorCastingKnn("float_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, [0.342, 0.164, 0.234], 10)
+            from test | where knn(%s, [0.342, 0.164, 0.234])
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        var field = knn.field();
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
         assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));
@@ -3105,6 +3106,27 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
+    public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
+        assertThat(attribute.name(), is("message"));
+        assertThat(attribute.dataType(), is(DataType.LONG));
+    }
+
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -3482,17 +3504,16 @@ public class AnalyzerTests extends ESTestCase {
 
         Limit limit = as(plan, Limit.class);
 
-        Dedup dedup = as(limit.child(), Dedup.class);
-        assertThat(dedup.groupings().size(), equalTo(2));
-        assertThat(dedup.aggregates().size(), equalTo(15));
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings().size(), equalTo(2));
 
-        RrfScoreEval rrf = as(dedup.child(), RrfScoreEval.class);
-        assertThat(rrf.scoreAttribute(), instanceOf(ReferenceAttribute.class));
-        assertThat(rrf.scoreAttribute().name(), equalTo("_score"));
-        assertThat(rrf.forkAttribute(), instanceOf(ReferenceAttribute.class));
-        assertThat(rrf.forkAttribute().name(), equalTo("_fork"));
+        FuseScoreEval scoreEval = as(aggregate.child(), FuseScoreEval.class);
+        assertThat(scoreEval.score(), instanceOf(ReferenceAttribute.class));
+        assertThat(scoreEval.score().name(), equalTo("_score"));
+        assertThat(scoreEval.discriminator(), instanceOf(ReferenceAttribute.class));
+        assertThat(scoreEval.discriminator().name(), equalTo("_fork"));
 
-        assertThat(rrf.child(), instanceOf(Fork.class));
+        assertThat(scoreEval.child(), instanceOf(Fork.class));
     }
 
     public void testFuseError() {
@@ -3535,7 +3556,11 @@ public class AnalyzerTests extends ESTestCase {
         String indexName,
         Map<String, IndexFieldCapabilities> fields
     ) {
-        return new FieldCapabilitiesIndexResponse(indexName, indexName, fields, false, IndexMode.STANDARD);
+        String indexMappingHash = new String(
+            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
+        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
     }
 
     private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
@@ -4114,7 +4139,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 
@@ -4240,11 +4264,48 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         verifyUnsupported("""
             from test
             | inlinestats MIN(salary) BY x = languages, x = x + 1
             """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
+        LogicalPlan plan = analyze("""
+            FROM sample_data
+            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
+            | SORT min
+            """, "mapping-sample_data.json");
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Aggregate agg = as(orderBy.child(), Aggregate.class);
+
+        List<? extends NamedExpression> aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("min", a.name());
+        Min min = as(a.child(), Min.class);
+        FieldAttribute fa = as(min.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        a = as(aggregates.get(1), Alias.class);
+        assertEquals("max", a.name());
+        Max max = as(a.child(), Max.class);
+        fa = as(max.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        ReferenceAttribute ra = as(aggregates.get(2), ReferenceAttribute.class);
+        assertEquals("bucket", ra.name());
+
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
+        TBucket tbucket = as(a.child(), TBucket.class);
+        fa = as(tbucket.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        Literal literal = as(tbucket.buckets(), Literal.class);
+        Literal oneWeek = new Literal(EMPTY, Period.ofWeeks(1), DATE_PERIOD);
+        assertEquals(oneWeek, literal);
     }
 
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {

@@ -350,6 +350,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         public IndicesOptions indicesOptions() {
             return searchRequest.indicesOptions();
         }
+
+        public List<ShardToQuery> shards() {
+            return shards;
+        }
     }
 
     private record ShardToQuery(float boost, String[] originalIndices, int shardIndex, ShardId shardId, ShardSearchContextId contextId)

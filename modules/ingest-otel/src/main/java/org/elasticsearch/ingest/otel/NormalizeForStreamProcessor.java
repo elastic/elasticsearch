@@ -114,7 +114,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         // handling structured messages
         Map<String, Object> body = null;
         try {
-            String message = document.getFieldValue("message", String.class, true);
+            String message = getSourceField(document, "message", String.class, true);
             if (message != null) {
                 message = message.trim();
                 if (message.startsWith("{") && message.endsWith("}")) {
@@ -269,10 +269,10 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
             boolean fieldExists = false;
             Object value = null;
             // first look assuming dot notation for nested fields
-            if (document.hasField(nonOtelName)) {
+            if (hasSourceField(document, nonOtelName)) {
                 fieldExists = true;
-                value = document.getFieldValue(nonOtelName, Object.class, true);
-                document.removeField(nonOtelName);
+                value = getSourceField(document, nonOtelName, Object.class, true);
+                removeSourceField(document, nonOtelName);
                 // recursively remove empty parent fields
                 int lastDot = nonOtelName.lastIndexOf('.');
                 while (lastDot > 0) {
@@ -284,9 +284,9 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                     //  `a.b` at the front to remove. We'd need to call getFieldValue on each field parent combination while ignoring
                     //  missing, removing it if empty.
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> parent = (Map<String, Object>) document.getFieldValue(parentName, Map.class);
+                    Map<String, Object> parent = getSourceField(document, parentName, Map.class, false);
                     if (parent.isEmpty()) {
-                        document.removeField(parentName);
+                        removeSourceField(document, parentName);
                     } else {
                         break;
                     }
@@ -304,7 +304,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
             if (fieldExists) {
                 // PRTODO: In flexible mode, this could create a dotted field name if the parent field does not exist. In classic mode
                 //  we don't have to worry because we create the parent path to the field being set.
-                document.setFieldValue(otelName, value);
+                setSourceField(document, otelName, value);
             }
         });
     }
@@ -332,5 +332,21 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         ) {
             return new NormalizeForStreamProcessor(tag, description);
         }
+    }
+
+    public static <T> T getSourceField(IngestDocument document, String fieldPath, Class<T> clazz, boolean ignoreMissing) {
+
+    }
+
+    public static boolean hasSourceField(IngestDocument document, String fieldPath) {
+
+    }
+
+    public static void setSourceField(IngestDocument document, String fieldPath, Object value) {
+
+    }
+
+    public static void removeSourceField(IngestDocument document, String fieldPath) {
+
     }
 }

@@ -135,13 +135,17 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDenseVectorQueryParams() {
-        assumeTrue("multi values for query params capability must be available", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
+        assumeTrue(
+            "multi values for query params capability must be available",
+            EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled()
+        );
 
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0);
         EsqlQueryRequest queryRequest = new EsqlQueryRequest();
-        QueryParams queryParams = new QueryParams(List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER,
-            ParserUtils.ParamClassification.PATTERN)));
+        QueryParams queryParams = new QueryParams(
+            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.PATTERN))
+        );
 
         queryRequest.params(queryParams);
 

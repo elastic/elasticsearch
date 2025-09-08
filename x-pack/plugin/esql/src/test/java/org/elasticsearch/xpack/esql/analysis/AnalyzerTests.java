@@ -2368,7 +2368,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingKnnQueryParams() {
-        assumeTrue("multi values for query params capability must be available", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
+        assumeTrue(
+            "multi values for query params capability must be available",
+            EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled()
+        );
 
         checkDenseVectorCastingKnnQueryParams("float_vector");
         checkDenseVectorCastingKnnQueryParams("byte_vector");
@@ -2376,13 +2379,8 @@ public class AnalyzerTests extends ESTestCase {
 
     private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-        from test | where knn(%s, ?query_vector)
-        """, fieldName), "mapping-dense_vector.json",
-        new QueryParams(
-            List.of(
-                paramAsConstant("query_vector", List.of(0, 1, 2))
-            )
-        ));
+            from test | where knn(%s, ?query_vector)
+            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);

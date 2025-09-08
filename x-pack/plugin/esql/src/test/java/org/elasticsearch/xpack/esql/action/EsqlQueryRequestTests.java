@@ -354,18 +354,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
             e1.getCause().getMessage(),
             containsString("[4:30] _n5 parameter has values from different types, found NULL and INTEGER")
         );
-        assertThat(
-            e1.getCause().getMessage(),
-            containsString("[5:2] n6=[{value={a5=v5}}] is not supported as a parameter")
-        );
-        assertThat(
-            e1.getCause().getMessage(),
-            containsString("[5:40] n7=[{identifier=[x, y]}] is not supported as a parameter")
-        );
-        assertThat(
-            e1.getCause().getMessage(),
-            containsString("[5:80] n8=[{pattern=[x*, y*]}] is not supported as a parameter")
-        );
+        assertThat(e1.getCause().getMessage(), containsString("[5:2] n6=[{value={a5=v5}}] is not supported as a parameter"));
+        assertThat(e1.getCause().getMessage(), containsString("[5:40] n7=[{identifier=[x, y]}] is not supported as a parameter"));
+        assertThat(e1.getCause().getMessage(), containsString("[5:80] n8=[{pattern=[x*, y*]}] is not supported as a parameter"));
     }
 
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {

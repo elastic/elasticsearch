@@ -189,19 +189,19 @@ final class RequestXContent {
                                     checkParamValueValidity(classification, currentValue, loc, errors);
                                     DataType currentType = DataType.fromJava(currentValue);
                                     if (currentType == null) {
+                                        errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
+                                        break;
+                                    } else if ((type != null) && (type != currentType)) {
                                         errors.add(
                                             new XContentParseException(
                                                 loc,
-                                                entry + " is not supported as a parameter"
+                                                paramName
+                                                    + " parameter has values from different types, found "
+                                                    + type
+                                                    + " and "
+                                                    + currentType
                                             )
                                         );
-                                        break;
-                                    } else if ((type != null) && (type != currentType)) {
-                                        errors.add(new XContentParseException(
-                                            loc,
-                                            paramName + " parameter has values from different types, found " + type + " and "
-                                                + currentType
-                                        ));
                                         break;
                                     }
                                     type = currentType;

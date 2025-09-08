@@ -611,10 +611,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
             // call it and verify that getHealth is called
-            Thread logHealthThread = new Thread(() -> {
-                testHealthPeriodicLogger.triggered(event);
-                logger.info("HALLO");
-            });
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
             logHealthThread.start();
             assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
 

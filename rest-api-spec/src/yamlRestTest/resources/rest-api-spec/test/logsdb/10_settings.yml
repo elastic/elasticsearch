@@ -504,9 +504,8 @@ routing path allowed in logs mode with routing on sort fields:
   - match: { test.settings.index.routing_path: [ host.name, agent_id ] }
 
 ---
-start time not allowed in logs mode:
+start time allowed in logs mode:
   - do:
-      catch: bad_request
       indices.create:
         index: test
         body:
@@ -532,14 +531,9 @@ start time not allowed in logs mode:
               message:
                 type: text
 
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[index.time_series.start_time] requires [index.mode=time_series]" }
-
 ---
-end time not allowed in logs mode:
+end time allowed in logs mode:
   - do:
-      catch: bad_request
       indices.create:
         index: test
         body:
@@ -564,10 +558,6 @@ end time not allowed in logs mode:
                 type: keyword
               message:
                 type: text
-
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[index.time_series.end_time] requires [index.mode=time_series]" }
 
 ---
 ignore dynamic beyond limit logsdb default value:

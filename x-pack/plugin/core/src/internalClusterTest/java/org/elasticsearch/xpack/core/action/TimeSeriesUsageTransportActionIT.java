@@ -71,6 +71,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
     private static final String DOWNSAMPLING_IN_WARM_COLD_POLICY = "warm-cold-downsampling-policy";
     private static final String NO_DOWNSAMPLING_POLICY = "no-downsampling-policy";
     private static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+    private static final double LIKELIHOOD = 0.8;
 
     /*
      * The TimeSeriesUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this.
@@ -133,7 +134,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         /*
          * We now add a number of simulated data streams to the cluster state. We mix different combinations of:
          * - time series and standard data streams & backing indices
-         * - lifecycle with or without downsampling
+         * - DLM with or without downsampling
          * - ILM with or without downsampling
          */
         updateClusterState(clusterState -> {
@@ -149,7 +150,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                 var downsamplingConfiguredBy = randomFrom(DownsampledBy.values());
                 boolean isDownsampled = downsamplingConfiguredBy != DownsampledBy.NONE && isTimeSeriesDataStream;
                 // An index/data stream can have both ILM & DLM configured; by default, ILM "wins"
-                boolean hasLifecycle = usually() || (isDownsampled && downsamplingConfiguredBy == DownsampledBy.DLM);
+                boolean hasLifecycle = likely() || (isDownsampled && downsamplingConfiguredBy == DownsampledBy.DLM);
                 boolean hasIlm = downsamplingConfiguredBy == DownsampledBy.ILM;
 
                 // Replicated data stream should be counted because ILM works independently.
@@ -188,7 +189,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     // We capture that usually time series data streams have time series indices
                     // and non-time series data streams have non-time-series indices, but it can
                     // happen the other way around too
-                    if (isTimeSeriesDataStream && (isWriteIndex || usually()) || isTimeSeriesDataStream == false && rarely()) {
+                    if (isTimeSeriesDataStream && (isWriteIndex || likely()) || isTimeSeriesDataStream == false && rarely()) {
                         settingsBuilder.put("index.mode", "time_series")
                             .put("index.time_series.start_time", FORMATTER.format(startTime))
                             .put("index.time_series.end_time", FORMATTER.format(endTime))
@@ -503,10 +504,14 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         if (downsampledBy == DownsampledBy.ILM || (downsampledBy == DownsampledBy.DLM && ovewrittenDlm)) {
             return randomFrom(DOWNSAMPLING_IN_HOT_POLICY, DOWNSAMPLING_IN_WARM_COLD_POLICY);
         }
-        if (downsampledBy == DownsampledBy.NONE && usually()) {
+        if (downsampledBy == DownsampledBy.NONE && likely()) {
             return NO_DOWNSAMPLING_POLICY;
         }
         return null;
+    }
+
+    private static boolean likely() {
+        return randomDoubleBetween(0.0, 1.0, true) < LIKELIHOOD;
     }
 
     private enum DownsampledBy {

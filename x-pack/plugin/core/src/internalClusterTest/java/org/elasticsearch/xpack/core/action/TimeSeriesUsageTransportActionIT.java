@@ -74,7 +74,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
 
     /*
      * The TimeSeriesUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this.
-     * We also need to include the DataStreamsPlugin so the data streams will be properly removed by the tear down.
+     * We also need to include the DataStreamsPlugin so the data streams will be properly removed by the tests' teardown.
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

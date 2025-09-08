@@ -117,7 +117,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         Integer upperBound
     ) {
         try {
-            String line = bufferedReader.readLine();
+            String line;
+            do {
+                line = bufferedReader.readLine();
+            } while (line.replaceAll("\\s+", "").startsWith("#"));
             String[] parts = line.replaceAll("\\s+", "").split(",");
             String check;
             while ((check = bufferedReader.readLine()) != null) {

@@ -194,6 +194,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         }
+        ensureGreen();
     }
 
     static void indexDocs(String dataStream, int numDocs) {

@@ -444,14 +444,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // postpone the resolution for ResolveRefs
             }
 
-            return new Lookup(
-                source,
-                lookup.child(),
-                tableNameExpression,
-                lookup.matchFields(),
-                localRelation,
-                lookup.getJoinOnConditions()
-            );
+            return new Lookup(source, lookup.child(), tableNameExpression, lookup.matchFields(), localRelation);
         }
 
         private LocalRelation tableMapAsRelation(Source source, Map<String, Column> mapTable) {
@@ -713,7 +706,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 matchFields.add(matchFieldChildReference);
             }
             if (modified) {
-                return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation(), l.getJoinOnConditions());
+                return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
             }
             return l;
         }

@@ -42,10 +42,6 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), isRemote, joinOnConditions);
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), false, null);
-    }
-
     public LookupJoin(
         Source source,
         LogicalPlan left,

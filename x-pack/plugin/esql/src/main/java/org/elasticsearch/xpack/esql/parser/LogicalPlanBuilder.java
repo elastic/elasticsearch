@@ -600,7 +600,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
-        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/, null);
+        return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -375,7 +376,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithPushable() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
@@ -393,7 +394,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithExistingFilter() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
@@ -434,7 +435,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testDoNotPushDownExistingFilterAgain() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
@@ -461,7 +462,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithExistingFilterCalledTwice() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
@@ -488,7 +489,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithNonPushable() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         // Non-pushable filter
@@ -503,7 +504,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithPartiallyPushableAnd() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         EsRelation left = (EsRelation) join.left();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
@@ -525,7 +526,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithOr() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression pushableCondition = greaterThanOf(c, ONE);
@@ -543,7 +544,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithNotButStillPushable() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression pushableCondition = greaterThanOf(c, ONE);
@@ -560,7 +561,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastLeftJoinWithNotNonPushable() {
-        Join join = createLeftJoin();
+        Join join = createLeftJoinOnFields();
         FieldAttribute c = (FieldAttribute) join.right().output().get(0);
 
         Expression nonPushableCondition = new IsNull(EMPTY, c);
@@ -830,7 +831,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertThat(rightFilter.condition().toString(), is("language_name > \"a\""));
     }
 
-    private Join createLeftJoin() {
+    private Join createLeftJoinOnFields() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");
         FieldAttribute c = getFieldAttribute("c");
@@ -839,5 +840,133 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b), List.of(a, b), List.of(b, c), null);
         return new Join(EMPTY, left, right, joinConfig);
+    }
+
+    private Join createLeftJoinOnExpression() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b1 = getFieldAttribute("b1");
+        FieldAttribute b2 = getFieldAttribute("b2");
+        FieldAttribute c = getFieldAttribute("c");
+        EsRelation left = relation(List.of(a, b1));
+        EsRelation right = relation(List.of(c, b2));
+        Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(a, b1, b2), List.of(b2, c), joinOnCondition);
+        return new Join(EMPTY, left, right, joinConfig);
+    }
+
+    public void testLeftJoinOnExpressionPushable() {
+        Join join = createLeftJoinOnExpression();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Pushable filter
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Filter filter = new Filter(EMPTY, join, pushableCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        // The filter should still be on top
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(pushableCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(pushableCondition, rightFilter.condition());
+    }
+
+    public void testPushDownFilterPastLeftJoinExpressionWithPartiallyPushableAnd() {
+        Join join = createLeftJoinOnExpression();
+        EsRelation left = (EsRelation) join.left();
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        Expression pushableCondition = greaterThanOf(c, ONE);
+        Expression nonPushableCondition = new IsNull(EMPTY, c);
+
+        // Partially pushable filter
+        Expression partialCondition = new And(EMPTY, pushableCondition, nonPushableCondition);
+        Filter filter = new Filter(EMPTY, join, partialCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+        Filter topFilter = as(optimized, Filter.class);
+        // The top filter condition should be the original one
+        assertEquals(partialCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+        assertEquals(left, optimizedJoin.left());
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        // Only the pushable part should be a candidate
+        assertEquals(pushableCondition, rightFilter.condition());
+    }
+
+    /**
+     *Limit[1000[INTEGER],false]
+     * \_Filter[ISNULL(language_name{f}#17)]
+     *   \_Join[LEFT,[languages{f}#8, language_code{f}#16],[languages{f}#8],[language_code{f}#16],languages{f}#8 > language_code{f
+     * }#16]
+     *     |_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     *
+     */
+    public void testDoNotPushDownIsNullFilterPastLookupJoinExpression() {
+        var plan = plan("""
+            FROM test
+            | LOOKUP JOIN languages_lookup ON languages > language_code
+            | WHERE language_name IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var join = as(filter.child(), Join.class);
+        assertThat(join.right(), instanceOf(EsRelation.class));
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Filter[ISNOTNULL(language_name{f}#21) AND language_name{f}#21 > a[KEYWORD] AND LIKE(language_name{f}#21, "*b", false)
+     *  AND COALESCE(language_name{f}#21,c[KEYWORD]) == c[KEYWORD] AND RLIKE(language_name{f}#21, "f.*", false)]
+     *   \_Join[LEFT,[languages{f}#12, language_code{f}#20],[languages{f}#12],[language_code{f}#20],languages{f}#12 == language_code
+     * {f}#20]
+     *     |_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_Filter[ISNOTNULL(language_name{f}#21) AND language_name{f}#21 > a[KEYWORD] AND LIKE(language_name{f}#21, "*b", false)
+     *  AND RLIKE(language_name{f}#21, "f.*", false)]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     */
+    public void testPushDownLookupJoinExpressionMultipleWhere() {
+        var plan = plan("""
+            FROM test
+            | LOOKUP JOIN languages_lookup ON languages <= language_code
+            | WHERE language_name IS NOT NULL
+            | WHERE language_name > "a"
+            | WHERE language_name LIKE "*b"
+            | WHERE COALESCE(language_name, "c") == "c"
+            | WHERE language_name RLIKE "f.*"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var topFilter = as(limit.child(), Filter.class);
+
+        // Verify the top-level filter contains all 5 original conditions combined
+        Set<String> expectedAllFilters = Set.of(
+            "language_name IS NOT NULL",
+            "language_name > \"a\"",
+            "language_name LIKE \"*b\"",
+            "COALESCE(language_name, \"c\") == \"c\"",
+            "language_name RLIKE \"f.*\""
+        );
+
+        Set<String> actualAllFilters = new HashSet<>(Predicates.splitAnd(topFilter.condition()).stream().map(Object::toString).toList());
+        assertEquals(expectedAllFilters, actualAllFilters);
+
+        // Verify the join is below the top-level filter
+        var join = as(topFilter.child(), Join.class);
+
+        // Verify a new filter with only the pushable predicates has been pushed to the right side of the join
+        var rightFilter = as(join.right(), Filter.class);
+        Set<String> expectedPushedFilters = Set.of(
+            "language_name IS NOT NULL",
+            "language_name > \"a\"",
+            "language_name LIKE \"*b\"",
+            "language_name RLIKE \"f.*\""
+        );
+        Set<String> actualPushedFilters = new HashSet<>(
+            Predicates.splitAnd(rightFilter.condition()).stream().map(Object::toString).toList()
+        );
+        assertEquals(expectedPushedFilters, actualPushedFilters);
     }
 }

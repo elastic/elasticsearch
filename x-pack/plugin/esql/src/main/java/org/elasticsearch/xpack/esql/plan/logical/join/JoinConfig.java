@@ -35,9 +35,11 @@ public final class JoinConfig implements Writeable {
     private final Expression joinOnConditions;
 
     /**
+     * @param type        type of join
      * @param matchFields fields either from the left or right fields which decide which side is kept
      * @param leftFields  matched with the right fields
      * @param rightFields matched with the left fields
+     * @param joinOnConditions join conditions for expression based join. If null, we assume equi-join on the left/right fields
      */
     public JoinConfig(
         JoinType type,

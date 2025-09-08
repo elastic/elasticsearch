@@ -694,6 +694,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public JoinInfo visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(ctx.getText(), "JOIN ON clause only supports fields at the moment, found [{}]", ctx.getText());
+        }
         var predicates = visitList(this, ctx.comparisonExpression(), Expression.class);
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         List<Expression> joinExpressions = new ArrayList<>(predicates.size());

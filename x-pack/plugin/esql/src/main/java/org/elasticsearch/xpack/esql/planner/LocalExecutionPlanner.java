@@ -789,6 +789,11 @@ public class LocalExecutionPlanner {
             if (input == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
             }
+
+            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
+            // indices, so the call to exactAttribute looks redundant now.
+            FieldAttribute.FieldName fieldName = right.exactAttribute().fieldName();
+
             // we support 2 types of joins: Field name joins and Expression joins
             // for Field name join, we do not ship any join on expression.
             // we built the Lucene query on the field name that is passed in the MatchConfig.fieldName
@@ -800,7 +805,6 @@ public class LocalExecutionPlanner {
             // It is not acceptable to just use the left or right side of the operator because the same field can be joined multiple times
             // e.g. LOOKUP JOIN ON left_id < right_id_1 and left_id >= right_id_2
             // we want to be able to optimize this in the future and only ship the left_id once
-            FieldAttribute.FieldName fieldName = right.exactAttribute().fieldName();
             if (join.isOnJoinExpression()) {
                 fieldName = new FieldAttribute.FieldName(left.name());
             }

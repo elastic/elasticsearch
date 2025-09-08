@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -70,12 +69,12 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
+        // TODO: How to set the cluster alias here?
         return services.searchService()
             .getRewriteContext(
                 System::currentTimeMillis,
                 clusterService.state().getMinTransportVersion(),
-                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                null,
                 resolvedIndices,
                 null
             );

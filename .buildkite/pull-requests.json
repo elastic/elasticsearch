@@ -25,7 +25,8 @@
         "write"
       ],
       "allowed_list": ["elastic-renovate-prod[bot]"],
-      "set_commit_status": false,
+      "set_commit_status": true,
+      "commit_status_context": "elasticsearch-ci/validate-transport-versions",
       "build_on_commit": true,
       "build_on_comment": true,
       "trigger_comment_regex": "(run\\W+elasticsearch-ci.+)|(^\\s*((buildkite|@elastic(search)?machine)\\s*)?test\\s+this(\\s+please)?)",

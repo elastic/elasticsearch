@@ -18,11 +18,6 @@ import java.util.Set;
 
 public class CrossClusterApiKeySignerTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
-
     public void testLoadKeystore() {
         var builder = Settings.builder()
             .put("cluster.remote.my_remote.signing.keystore.alias", "wholelottakey")

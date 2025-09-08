@@ -234,7 +234,7 @@ public class CrossClusterSigningConfigurationReloaderIntegTests extends Security
     }
 
     private void writeSecureSettingsToKeyStoreAndReload(Map<String, char[]> entries) {
-        char[] keyStorePassword = randomAlphaOfLengthBetween(1, randomInt(20)).toCharArray();
+        char[] keyStorePassword = randomAlphaOfLengthBetween(1, randomIntBetween(5, 20)).toCharArray();
         internalCluster().getInstances(Environment.class).forEach(environment -> {
             final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
             entries.forEach(keyStoreWrapper::setString);

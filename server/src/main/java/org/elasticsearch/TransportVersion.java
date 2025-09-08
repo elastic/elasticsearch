@@ -108,6 +108,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * This method takes in the parameter {@code upperBound} which is the highest transport version id
      * that will be loaded by this node.
      */
+    @SuppressWarnings("checkstyle:EmptyBlock")
     public static TransportVersion fromBufferedReader(
         String component,
         String path,
@@ -117,7 +118,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         Integer upperBound
     ) {
         try {
-            String line = bufferedReader.readLine();
+            String line;
+            do {
+                line = bufferedReader.readLine();
+            } while (line.replaceAll("\\s+", "").startsWith("#"));
             String[] parts = line.replaceAll("\\s+", "").split(",");
             String check;
             while ((check = bufferedReader.readLine()) != null) {

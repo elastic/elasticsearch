@@ -354,4 +354,39 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
     }
+
+    public void testComment() {
+        byte[] data1 = "#comment\n1000000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test1 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test1), is(true));
+
+        byte[] data2 = " # comment\n1000000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test2 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test2), is(true));
+
+        byte[] data3 = "#comment\n# comment3\n1000000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test3 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
+    }
 }

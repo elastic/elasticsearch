@@ -52,15 +52,9 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
     public void validate() {
         ValidationException validationException = new ValidationException();
 
-        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT || maxChunkSize > MAX_CHUNK_SIZE_UPPER_LIMIT) {
+        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
             validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE
-                    + "["
-                    + maxChunkSize
-                    + "] must be between "
-                    + MAX_CHUNK_SIZE_LOWER_LIMIT
-                    + " and "
-                    + MAX_CHUNK_SIZE_UPPER_LIMIT
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
             );
         }
 

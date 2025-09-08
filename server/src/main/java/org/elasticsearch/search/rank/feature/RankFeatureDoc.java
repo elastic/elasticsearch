@@ -39,7 +39,7 @@ public class RankFeatureDoc extends RankDoc {
 
     public RankFeatureDoc(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_RESCORE_CHUNKS)) {
+        if (in.getTransportVersion().supports(RERANK_SNIPPETS)) {
             featureData = in.readOptionalStringCollectionAsList();
         } else {
             String featureDataString = in.readOptionalString();
@@ -58,7 +58,7 @@ public class RankFeatureDoc extends RankDoc {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_RESCORE_CHUNKS)) {
+        if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {
             out.writeOptionalStringCollection(featureData);
         } else {
             out.writeOptionalString(featureData.get(0));

@@ -90,7 +90,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         } else {
             this.failuresAllowed = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_RESCORE_CHUNKS)) {
+        if (in.getTransportVersion().supports(RERANK_SNIPPETS)) {
             this.chunkScorerConfig = in.readOptionalWriteable(ChunkScorerConfig::new);
         } else {
             this.chunkScorerConfig = null;
@@ -118,7 +118,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_RESCORE_CHUNKS)) {
+        if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {
             out.writeOptionalWriteable(chunkScorerConfig);
         }
     }

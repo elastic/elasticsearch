@@ -7,17 +7,24 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.exporter.internal.FailedExportException;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.sdk.common.Clock;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
+import io.opentelemetry.sdk.metrics.data.ExponentialHistogramBuckets;
+import io.opentelemetry.sdk.metrics.data.HistogramData;
+import io.opentelemetry.sdk.metrics.data.HistogramPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableGaugeData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableLongPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
@@ -39,6 +46,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -47,11 +55,15 @@ import java.util.concurrent.TimeUnit;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.CUMULATIVE;
 import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.DELTA;
+import static org.elasticsearch.test.rest.ObjectPath.evaluate;
 import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.MONOTONIC;
 import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.NON_MONOTONIC;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
@@ -132,12 +144,12 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        assertThat(ObjectPath.evaluate(source, "@timestamp"), isA(String.class));
-        assertThat(ObjectPath.evaluate(source, "start_timestamp"), isA(String.class));
-        assertThat(ObjectPath.evaluate(source, "_metric_names_hash"), isA(String.class));
+        assertThat(evaluate(source, "@timestamp"), isA(String.class));
+        assertThat(evaluate(source, "start_timestamp"), isA(String.class));
+        assertThat(evaluate(source, "_metric_names_hash"), isA(String.class));
         assertThat(ObjectPath.<Number>evaluate(source, "metrics.jvm\\.memory\\.total").longValue(), equalTo(totalMemory));
-        assertThat(ObjectPath.evaluate(source, "unit"), equalTo("By"));
-        assertThat(ObjectPath.evaluate(source, "scope.name"), equalTo("io.opentelemetry.example.metrics"));
+        assertThat(evaluate(source, "unit"), equalTo("By"));
+        assertThat(evaluate(source, "scope.name"), equalTo("io.opentelemetry.example.metrics"));
     }
 
     public void testIngestMetricDataViaMetricExporter() throws Exception {
@@ -149,13 +161,13 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        assertThat(ObjectPath.evaluate(source, "@timestamp"), equalTo(timestampAsString(now)));
-        assertThat(ObjectPath.evaluate(source, "start_timestamp"), equalTo(timestampAsString(now)));
-        assertThat(ObjectPath.evaluate(source, "_metric_names_hash"), isA(String.class));
+        assertThat(evaluate(source, "@timestamp"), equalTo(timestampAsString(now)));
+        assertThat(evaluate(source, "start_timestamp"), equalTo(timestampAsString(now)));
+        assertThat(evaluate(source, "_metric_names_hash"), isA(String.class));
         assertThat(ObjectPath.<Number>evaluate(source, "metrics.jvm\\.memory\\.total").longValue(), equalTo(totalMemory));
-        assertThat(ObjectPath.evaluate(source, "unit"), equalTo("By"));
-        assertThat(ObjectPath.evaluate(source, "resource.attributes.service\\.name"), equalTo("elasticsearch"));
-        assertThat(ObjectPath.evaluate(source, "scope.name"), equalTo("io.opentelemetry.example.metrics"));
+        assertThat(evaluate(source, "unit"), equalTo("By"));
+        assertThat(evaluate(source, "resource.attributes.service\\.name"), equalTo("elasticsearch"));
+        assertThat(evaluate(source, "scope.name"), equalTo("io.opentelemetry.example.metrics"));
     }
 
     public void testGroupingSameGroup() throws Exception {
@@ -196,11 +208,11 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
                 createLongGauge(TEST_RESOURCE, Attributes.empty(), "long_gauge", 42, "By", now)
             )
         );
-        Map<String, Object> metrics = ObjectPath.evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
-        assertThat(ObjectPath.evaluate(metrics, "double_gauge.type"), equalTo("double"));
-        assertThat(ObjectPath.evaluate(metrics, "double_gauge.time_series_metric"), equalTo("gauge"));
-        assertThat(ObjectPath.evaluate(metrics, "long_gauge.type"), equalTo("long"));
-        assertThat(ObjectPath.evaluate(metrics, "long_gauge.time_series_metric"), equalTo("gauge"));
+        Map<String, Object> metrics = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(metrics, "double_gauge.type"), equalTo("double"));
+        assertThat(evaluate(metrics, "double_gauge.time_series_metric"), equalTo("gauge"));
+        assertThat(evaluate(metrics, "long_gauge.type"), equalTo("long"));
+        assertThat(evaluate(metrics, "long_gauge.time_series_metric"), equalTo("gauge"));
     }
 
     public void testCounterTemporality() throws Exception {
@@ -212,11 +224,11 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
             )
         );
 
-        Map<String, Object> metrics = ObjectPath.evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
-        assertThat(ObjectPath.evaluate(metrics, "cumulative_counter.type"), equalTo("long"));
-        assertThat(ObjectPath.evaluate(metrics, "cumulative_counter.time_series_metric"), equalTo("counter"));
-        assertThat(ObjectPath.evaluate(metrics, "delta_counter.type"), equalTo("long"));
-        assertThat(ObjectPath.evaluate(metrics, "delta_counter.time_series_metric"), equalTo("gauge"));
+        Map<String, Object> metrics = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(metrics, "cumulative_counter.type"), equalTo("long"));
+        assertThat(evaluate(metrics, "cumulative_counter.time_series_metric"), equalTo("counter"));
+        assertThat(evaluate(metrics, "delta_counter.type"), equalTo("long"));
+        assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("gauge"));
     }
 
     public void testCounterMonotonicity() throws Exception {
@@ -229,18 +241,103 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
             )
         );
 
-        Map<String, Object> metrics = ObjectPath.evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
-        assertThat(ObjectPath.evaluate(metrics, "up_down_counter.type"), equalTo("long"));
-        assertThat(ObjectPath.evaluate(metrics, "up_down_counter.time_series_metric"), equalTo("gauge"));
-        assertThat(ObjectPath.evaluate(metrics, "up_down_counter_delta.type"), equalTo("long"));
-        assertThat(ObjectPath.evaluate(metrics, "up_down_counter_delta.time_series_metric"), equalTo("gauge"));
+        Map<String, Object> metrics = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(metrics, "up_down_counter.type"), equalTo("long"));
+        assertThat(evaluate(metrics, "up_down_counter.time_series_metric"), equalTo("gauge"));
+        assertThat(evaluate(metrics, "up_down_counter_delta.type"), equalTo("long"));
+        assertThat(evaluate(metrics, "up_down_counter_delta.time_series_metric"), equalTo("gauge"));
+    }
+
+    public void testExponentialHistograms() throws Exception {
+        long now = Clock.getDefault().now();
+        export(List.of(createExponentialHistogram(now, "exponential_histogram", DELTA, Attributes.empty())));
+
+        Map<String, Object> mappings = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(mappings, "exponential_histogram.type"), equalTo("histogram"));
+
+        // Get document and check values/counts array
+        ObjectPath search = search("metrics-generic.otel-default");
+        assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
+        var source = search.evaluate("hits.hits.0._source");
+        assertThat(evaluate(source, "metrics.exponential_histogram.counts"), equalTo(List.of(2, 1, 10, 1, 2)));
+        assertThat(evaluate(source, "metrics.exponential_histogram.values"), equalTo(List.of(-3.0, -1.5, 0.0, 1.5, 3.0)));
+    }
+
+    public void testExponentialHistogramsAsAggregateMetricDouble() throws Exception {
+        long now = Clock.getDefault().now();
+        export(
+            List.of(
+                createExponentialHistogram(
+                    now,
+                    "exponential_histogram_summary",
+                    DELTA,
+                    Attributes.of(
+                        AttributeKey.stringArrayKey("elasticsearch.mapping.hints"),
+                        List.of("aggregate_metric_double", "_doc_count")
+                    )
+                )
+            )
+        );
+
+        Map<String, Object> mappings = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(mappings, "exponential_histogram_summary.type"), equalTo("aggregate_metric_double"));
+
+        ObjectPath search = search("metrics-generic.otel-default");
+        assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
+        var source = search.evaluate("hits.hits.0._source");
+        assertThat(evaluate(source, "_doc_count"), equalTo(16));
+        assertThat(evaluate(source, "metrics.exponential_histogram_summary.value_count"), equalTo(16));
+        assertThat(evaluate(source, "metrics.exponential_histogram_summary.sum"), equalTo(10.0));
+    }
+
+    public void testHistogram() throws Exception {
+        long now = Clock.getDefault().now();
+        export(List.of(createHistogram(now, "histogram", DELTA, Attributes.empty())));
+
+        Map<String, Object> metrics = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(metrics, "histogram.type"), equalTo("histogram"));
+
+        // Get document and check values/counts array
+        ObjectPath search = search("metrics-generic.otel-default");
+        assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
+        var source = search.evaluate("hits.hits.0._source");
+        assertThat(evaluate(source, "metrics.histogram.counts"), equalTo(List.of(1, 2, 3, 4, 5, 6)));
+        List<Double> values = evaluate(source, "metrics.histogram.values");
+        assertThat(values, equalTo(List.of(1.0, 3.0, 5.0, 7.0, 9.0, 10.0)));
+    }
+
+    public void testHistogramAsAggregateMetricDouble() throws Exception {
+        long now = Clock.getDefault().now();
+        export(
+            List.of(
+                createHistogram(
+                    now,
+                    "histogram_summary",
+                    DELTA,
+                    Attributes.of(
+                        AttributeKey.stringArrayKey("elasticsearch.mapping.hints"),
+                        List.of("aggregate_metric_double", "_doc_count")
+                    )
+                )
+            )
+        );
+
+        Map<String, Object> metrics = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
+        assertThat(evaluate(metrics, "histogram_summary.type"), equalTo("aggregate_metric_double"));
+
+        ObjectPath search = search("metrics-generic.otel-default");
+        assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
+        var source = search.evaluate("hits.hits.0._source");
+        assertThat(evaluate(source, "_doc_count"), equalTo(21));
+        assertThat(evaluate(source, "metrics.histogram_summary.value_count"), equalTo(21));
+        assertThat(evaluate(source, "metrics.histogram_summary.sum"), equalTo(10.0));
     }
 
     private static Map<String, Object> getMapping(String target) throws IOException {
         Map<String, Object> mappings = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
             .evaluate("");
         assertThat(mappings, aMapWithSize(1));
-        Map<String, Object> mapping = ObjectPath.evaluate(mappings.values().iterator().next(), "mappings");
+        Map<String, Object> mapping = evaluate(mappings.values().iterator().next(), "mappings");
         assertThat(mapping, not(anEmptyMap()));
         return mapping;
     }
@@ -343,5 +440,67 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         public boolean isMonotonic() {
             return monotonic;
         }
+    }
+
+    private static MetricData createHistogram(long timeEpochNanos, String name, AggregationTemporality temporality, Attributes attributes) {
+        return ImmutableMetricData.createDoubleHistogram(
+            TEST_RESOURCE,
+            TEST_SCOPE,
+            name,
+            "Histogram Test",
+            "ms",
+            HistogramData.create(
+                temporality,
+                List.of(
+                    HistogramPointData.create(
+                        timeEpochNanos,
+                        timeEpochNanos,
+                        attributes,
+                        10,
+                        false,
+                        0,
+                        false,
+                        0,
+                        List.of(2.0, 4.0, 6.0, 8.0, 10.0),
+                        List.of(1L, 2L, 3L, 4L, 5L, 6L)
+                    )
+                )
+            )
+        );
+    }
+
+    private static MetricData createExponentialHistogram(
+        long timeEpochNanos,
+        String name,
+        AggregationTemporality temporality,
+        Attributes attributes
+    ) {
+        return ImmutableMetricData.createExponentialHistogram(
+            TEST_RESOURCE,
+            TEST_SCOPE,
+            name,
+            "Exponential Histogram Test",
+            "ms",
+            ImmutableExponentialHistogramData.create(
+                temporality,
+                List.of(
+                    ImmutableExponentialHistogramPointData.create(
+                        0,
+                        10,
+                        10,
+                        false,
+                        0,
+                        false,
+                        0,
+                        ExponentialHistogramBuckets.create(0, 0, List.of(1L, 2L)),
+                        ExponentialHistogramBuckets.create(0, 0, List.of(1L, 2L)),
+                        timeEpochNanos,
+                        timeEpochNanos,
+                        attributes,
+                        List.of()
+                    )
+                )
+            )
+        );
     }
 }

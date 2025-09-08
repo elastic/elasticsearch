@@ -11,14 +11,15 @@ package org.elasticsearch.logstashbridge.plugins;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.ingest.common.RecoverFailureDocumentProcessor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
-import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
 
 import java.util.Map;
 
 /**
  * An external bridge for {@link IngestCommonPlugin}
  */
-public class IngestCommonPluginBridge implements IngestPluginBridge {
+public final class IngestCommonPluginBridge implements IngestPluginBridge {
 
     public static final String APPEND_PROCESSOR_TYPE = org.elasticsearch.ingest.common.AppendProcessor.TYPE;
     public static final String BYTES_PROCESSOR_TYPE = org.elasticsearch.ingest.common.BytesProcessor.TYPE;
@@ -61,7 +62,7 @@ public class IngestCommonPluginBridge implements IngestPluginBridge {
     }
 
     @Override
-    public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
-        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorBridge.Factory::fromInternal);
+    public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
+        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorFactoryBridge::fromInternal);
     }
 }

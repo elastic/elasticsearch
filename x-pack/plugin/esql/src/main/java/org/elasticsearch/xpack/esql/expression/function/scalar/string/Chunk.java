@@ -42,7 +42,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
 
-    private static final int DEFAULT_NUM_CHUNKS = 1;
+    private static final int DEFAULT_NUM_CHUNKS = -1;
     private static final int DEFAULT_CHUNK_SIZE = 300;
 
     private final Expression field, numChunks, chunkSize;
@@ -61,7 +61,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
             optional = true,
             name = "num_chunks",
             type = { "integer" },
-            description = "The number of chunks to return. Defaults to " + DEFAULT_NUM_CHUNKS
+            description = "The number of chunks to return. Defaults to return all chunks."
         ) Expression numChunks,
         @Param(
             optional = true,
@@ -154,7 +154,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         List<String> chunks = chunker.chunk(content, settings)
             .stream()
             .map(offset -> content.substring(offset.start(), offset.end()))
-            .limit(numChunks)
+            .limit(numChunks > 0 ? numChunks : Long.MAX_VALUE)
             .toList();
 
         boolean multivalued = chunks.size() > 1;
@@ -201,9 +201,11 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         return new ChunkBytesRefEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
-            numChunks != null ? toEvaluator.apply(numChunks) 
+            numChunks != null
+                ? toEvaluator.apply(numChunks)
                 : toEvaluator.apply(new Literal(source(), DEFAULT_NUM_CHUNKS, DataType.INTEGER)),
-            chunkSize != null ? toEvaluator.apply(chunkSize) 
+            chunkSize != null
+                ? toEvaluator.apply(chunkSize)
                 : toEvaluator.apply(new Literal(source(), DEFAULT_CHUNK_SIZE, DataType.INTEGER))
         );
     }

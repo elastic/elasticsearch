@@ -171,7 +171,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -198,7 +199,8 @@ public class IngestServiceTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                }
+                },
+                mock(SamplingService.class)
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -222,7 +224,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -2567,7 +2570,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -3075,6 +3079,7 @@ public class IngestServiceTests extends ESTestCase {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
             },
+            mock(SamplingService.class),
             consumer
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
@@ -3406,7 +3411,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return featureTest.test(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
         if (randomBoolean()) {
             /*

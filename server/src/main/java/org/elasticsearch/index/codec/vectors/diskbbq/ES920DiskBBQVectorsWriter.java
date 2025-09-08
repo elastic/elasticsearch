@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
@@ -23,6 +23,8 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -42,13 +44,13 @@ import java.util.Arrays;
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(DefaultIVFVectorsWriter.class);
+public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ES920DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
 
-    public DefaultIVFVectorsWriter(
+    public ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
@@ -138,12 +140,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
             }
             onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
-            // TODO we might want to consider putting the docIds in a separate file
-            // to aid with only having to fetch vectors from slower storage when they are required
-            // keeping them in the same file indicates we pull the entire file into cache
-            idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
-            // write vectors
-            bulkWriter.writeVectors(onHeapQuantizedVectors);
+            byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ES91OSQVectorsScorer.BULK_SIZE);
+            postingsOutput.writeByte(encoding);
+            bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
+                // for vector i we write `bulk` size docs or the remaining docs
+                idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(ES91OSQVectorsScorer.BULK_SIZE, size - i), encoding, postingsOutput);
+            });
             lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
 
@@ -287,15 +289,20 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 for (int j = 0; j < size; j++) {
                     docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
                 }
+                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, ES91OSQVectorsScorer.BULK_SIZE);
+                postingsOutput.writeByte(encoding);
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
-                // TODO we might want to consider putting the docIds in a separate file
-                // to aid with only having to fetch vectors from slower storage when they are required
-                // keeping them in the same file indicates we pull the entire file into cache
-                idsWriter.writeDocIds(i -> docDeltas[i], size, postingsOutput);
                 // write vectors
-                bulkWriter.writeVectors(offHeapQuantizedVectors);
+                bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
+                    // for vector i we write `bulk` size docs or the remaining docs
+                    idsWriter.writeDocIds(
+                        d -> docDeltas[d + i],
+                        Math.min(ES91OSQVectorsScorer.BULK_SIZE, size - i),
+                        encoding,
+                        postingsOutput
+                    );
+                });
                 lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
-                // lengths.add(1);
             }
 
             if (logger.isDebugEnabled()) {
@@ -381,7 +388,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        bulkWriter.writeVectors(parentQuantizeCentroid);
+        bulkWriter.writeVectors(parentQuantizeCentroid, null);
         int offset = 0;
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
             centroidOutput.writeInt(offset);
@@ -398,7 +405,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
             final int[] centroidAssignments = centroidGroups.vectors()[i];
             childrenQuantizeCentroid.reset(idx -> centroidAssignments[idx], centroidAssignments.length);
-            bulkWriter.writeVectors(childrenQuantizeCentroid);
+            bulkWriter.writeVectors(childrenQuantizeCentroid, null);
         }
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
@@ -429,7 +436,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        bulkWriter.writeVectors(quantizedCentroids);
+        bulkWriter.writeVectors(quantizedCentroids, null);
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {
             centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(i));

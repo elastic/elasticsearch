@@ -721,7 +721,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 for (Iterator<AllocationDeciders.AllocationProblem> problemIterator = allocation.deciders()
                     .findAllocationProblems(allocation); problemIterator.hasNext();) {
                     AllocationDeciders.AllocationProblem problem = problemIterator.next();
-                    if (tryResolveAllocationProblem(problem)) {
+                    if (tryResolve(problem)) {
                         movedAShard = true;
                         break;
                     }
@@ -731,7 +731,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             } while (movedAShard);
         }
 
-        private boolean tryResolveAllocationProblem(AllocationDeciders.AllocationProblem problem) {
+        private boolean tryResolve(AllocationDeciders.AllocationProblem problem) {
             for (Iterator<ShardRouting> shardIterator = problem.preferredShardMovements(); shardIterator.hasNext();) {
                 ShardRouting shardRouting = shardIterator.next();
                 ProjectIndex index = projectIndex(shardRouting);

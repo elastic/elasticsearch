@@ -61,7 +61,7 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
     }
 
     /**
-     * Test that the geo_grid functions are disabled outside of SNAPSHOT.
+     * Test that the geo_grid functions are enabled outside of SNAPSHOT.
      */
     public void testGeoGridEnabled() {
         assertGeoGridEnabled();

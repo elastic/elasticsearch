@@ -586,15 +586,16 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 assertThat(dataProfiles, hasSize(1));
                 List<OperatorStatus> ops = dataProfiles.get(0).operators();
-                assertThat(ops, hasSize(5));
+                assertThat(ops, hasSize(6));
                 assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
                 assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
                 LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
                 assertThat(status.processedShards().size(), Matchers.lessThanOrEqualTo(3));
-                assertThat(ops.get(1).operator(), containsString("EvalOperator"));
-                assertThat(ops.get(2).operator(), containsString("ValuesSourceReaderOperator"));
-                assertThat(ops.get(3).operator(), containsString("TimeSeriesAggregationOperator"));
-                assertThat(ops.get(4).operator(), containsString("ExchangeSinkOperator"));
+                assertThat(ops.get(1).operator(), containsString("ValuesSourceReaderOperator"));
+                assertThat(ops.get(2).operator(), containsString("EvalOperator"));
+                assertThat(ops.get(3).operator(), containsString("ValuesSourceReaderOperator"));
+                assertThat(ops.get(4).operator(), containsString("TimeSeriesAggregationOperator"));
+                assertThat(ops.get(5).operator(), containsString("ExchangeSinkOperator"));
             }
         }
     }

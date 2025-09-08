@@ -17,6 +17,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.apache.lucene.util.IOConsumer;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -43,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +56,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
+    private static final int PARALLEL_THREADS = 10;
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
@@ -398,21 +402,44 @@ public class CsvTestsDataLoader {
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        List<TestDataset> datasets = availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled).stream()
+            .toList();
 
-        Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
-            load(client, dataset, logger, indexCreator);
-            loadedDatasets.add(dataset.indexName);
-        }
-        forceMerge(client, loadedDatasets, logger);
-        for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
-        }
+        executeInParallel(datasets, dataset -> createIndex(client, dataset, indexCreator), "Failed to create indices in parallel");
+
+        executeInParallel(datasets, dataset -> loadData(client, dataset, logger), "Failed to load data in parallel");
+
+        forceMerge(client, datasets.stream().map(d -> d.indexName).collect(Collectors.toSet()), logger);
+
+        executeInParallel(
+            ENRICH_POLICIES,
+            policy -> loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger),
+            "Failed to load enrich policies in parallel"
+        );
+
+    }
+
+    private static <T> void executeInParallel(List<T> items, IOConsumer<T> consumer, String errorMessage) {
+        Semaphore semaphore = new Semaphore(PARALLEL_THREADS);
+        ESTestCase.runInParallel(items.size(), i -> {
+            try {
+                semaphore.acquire();
+                consumer.accept(items.get(i));
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(errorMessage, e);
+            } finally {
+                semaphore.release();
+            }
+        });
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
         if (clusterHasSparseEmbeddingInferenceEndpoint(client) == false) {
             createSparseEmbeddingInferenceEndpoint(client);
+        }
+
+        if (clusterHasTextEmbeddingInferenceEndpoint(client) == false) {
+            createTextEmbeddingInferenceEndpoint(client);
         }
 
         if (clusterHasRerankInferenceEndpoint(client) == false) {
@@ -426,11 +453,12 @@ public class CsvTestsDataLoader {
 
     public static void deleteInferenceEndpoints(RestClient client) throws IOException {
         deleteSparseEmbeddingInferenceEndpoint(client);
+        deleteTextEmbeddingInferenceEndpoint(client);
         deleteRerankInferenceEndpoint(client);
         deleteCompletionInferenceEndpoint(client);
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    /** The semantic_text mapping type requires inference endpoints that need to be setup before creating the index. */
     public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
                   {
@@ -441,12 +469,36 @@ public class CsvTestsDataLoader {
             """);
     }
 
+    public static void createTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference", """
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                        "model": "my_model",
+                        "api_key": "abc64",
+                        "dimensions": 3,
+                        "similarity": "l2_norm",
+                        "element_type": "float"
+                    },
+                   "task_settings": { }
+                 }
+            """);
+    }
+
     public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         deleteInferenceEndpoint(client, "test_sparse_inference");
     }
 
+    public static void deleteTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_dense_inference");
+    }
+
     public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         return clusterHasInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference");
+    }
+
+    public static boolean clusterHasTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference");
     }
 
     public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
@@ -535,11 +587,13 @@ public class CsvTestsDataLoader {
         return result;
     }
 
-    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+    private static void createIndex(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
+    }
 
+    private static void loadData(RestClient client, TestDataset dataset, Logger logger) throws IOException {
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
             URL data = getResource("/data/" + dataset.dataFileName);

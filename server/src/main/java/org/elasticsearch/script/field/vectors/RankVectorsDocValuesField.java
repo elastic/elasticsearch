@@ -42,7 +42,7 @@ public abstract class RankVectorsDocValuesField extends AbstractScriptFieldFacto
     }
 
     public Element getElement() {
-        return DenseVectorFieldMapper.Element.getElement(elementType);
+        return Element.getElement(elementType);
     }
 
     /**

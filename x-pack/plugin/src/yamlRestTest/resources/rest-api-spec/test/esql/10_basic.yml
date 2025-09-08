@@ -600,6 +600,15 @@ version is not allowed:
 
 ---
 "No columns left after drop":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_no_columns]
+      reason: "plans witn no columns only recently supported"
+
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -78,6 +77,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -210,9 +210,9 @@ public class EsqlSession {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+                new ReferenceAttribute(EMPTY, null, "role", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "type", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, null, "plan", DataType.KEYWORD)
             );
             List<List<Object>> values = new ArrayList<>();
             values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
@@ -372,22 +372,32 @@ public class EsqlSession {
             return;
         }
 
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        var unresolvedPolicies = preAnalysis.enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).collect(toSet());
+        var preAnalysis = preAnalyzer.preAnalyze(parsed);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
 
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
-
-        var listener = SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l))
+        SubscribableListener. //
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
-        // first resolve the lookup indices, then the main indices
-        for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
-        }
-        listener.<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
-            .<LogicalPlan>andThen((l, result) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, result, l))
+            .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);
+    }
+
+    private void preAnalyzeLookupIndices(
+        Iterator<IndexPattern> lookupIndices,
+        PreAnalysisResult preAnalysisResult,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (lookupIndices.hasNext()) {
+            preAnalyzeLookupIndex(lookupIndices.next(), preAnalysisResult, executionInfo, listener.delegateFailureAndWrap((l, r) -> {
+                preAnalyzeLookupIndices(lookupIndices, r, executionInfo, l);
+            }));
+        } else {
+            listener.onResponse(preAnalysisResult);
+        }
     }
 
     private void preAnalyzeLookupIndex(
@@ -424,8 +434,8 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution)),
-            false
+            false,
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
 
@@ -622,26 +632,17 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        List<IndexPattern> indices = preAnalysis.indices;
-        if (indices.size() > 1) {
-            // Note: JOINs are not supported but we detect them when
-            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (indices.size() == 1) {
-            IndexPattern table = indices.getFirst();
-
-            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
-            // based only on available clusters (which could now be an empty list)
+        if (preAnalysis.index() != null) {
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
+                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
                 );
             } else {
                 boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
+                if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
                     includeAllDimensions = true;
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
@@ -655,19 +656,15 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
+                    includeAllDimensions,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
-                    }),
-                    includeAllDimensions
+                    })
                 );
             }
         } else {
-            try {
-                // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            } catch (Exception ex) {
-                listener.onFailure(ex);
-            }
+            // occurs when dealing with local relations (row a = 1)
+            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
         }
     }
 
@@ -698,7 +695,9 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                if (executionInfo.clusterInfo.isEmpty() == false) {
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                }
             }
             LogicalPlan plan = analyzedPlan(parsed, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);

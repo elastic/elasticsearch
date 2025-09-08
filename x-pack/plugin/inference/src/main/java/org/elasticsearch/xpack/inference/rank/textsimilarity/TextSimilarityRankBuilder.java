@@ -50,6 +50,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         License.OperationMode.ENTERPRISE
     );
 
+    private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;

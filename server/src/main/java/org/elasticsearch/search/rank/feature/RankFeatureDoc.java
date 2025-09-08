@@ -10,7 +10,7 @@
 package org.elasticsearch.search.rank.feature;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -26,6 +26,8 @@ import java.util.Objects;
 public class RankFeatureDoc extends RankDoc {
 
     public static final String NAME = "rank_feature_doc";
+
+    private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
 
     // TODO: update to support more than 1 fields; and not restrict to string data
     public List<String> featureData;

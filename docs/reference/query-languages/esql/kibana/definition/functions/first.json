@@ -80,6 +80,42 @@
       "params" : [
         {
           "name" : "value",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
           "type" : "long",
           "optional" : false,
           "description" : "Values to return"
@@ -111,6 +147,42 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     }
   ],
   "examples" : [

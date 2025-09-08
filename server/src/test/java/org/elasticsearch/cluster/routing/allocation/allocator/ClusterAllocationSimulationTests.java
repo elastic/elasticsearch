@@ -231,7 +231,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             }
         };
 
-        final var applierService = new ClusterApplierService("master", settings, clusterSettings, threadPool) {
+        final var applierService = new ClusterApplierService("master", clusterSettings, threadPool) {
             private final PrioritizedEsThreadPoolExecutor directExecutor = new PrioritizedEsThreadPoolExecutor(
                 "master-service",
                 1,

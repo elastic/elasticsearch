@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -637,7 +636,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         Set<Setting<?>> clusterSettings = new HashSet<>();
         clusterSettings.add(RemoteClusterSettings.REMOTE_CONNECTION_MODE);
         clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).toList());
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
 
         // Should validate successfully
         service.validate(settings, true);

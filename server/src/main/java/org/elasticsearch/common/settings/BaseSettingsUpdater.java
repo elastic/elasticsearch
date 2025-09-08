@@ -17,10 +17,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
-public abstract class BaseSettingsUpdater {
-    protected final AbstractScopedSettings scopedSettings;
+public abstract class BaseSettingsUpdater<C, T extends AbstractScopedSettings<C>> {
+    protected final T scopedSettings;
 
-    public BaseSettingsUpdater(AbstractScopedSettings scopedSettings) {
+    public BaseSettingsUpdater(T scopedSettings) {
         this.scopedSettings = scopedSettings;
     }
 

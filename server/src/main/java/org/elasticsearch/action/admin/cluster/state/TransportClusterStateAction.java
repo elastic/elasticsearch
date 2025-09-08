@@ -328,8 +328,10 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         return new ClusterStateResponse(filteredState.getClusterName(), builder.build(), false);
     }
 
-    private ReservedStateMetadata mergeReservedStateMetadata(ReservedStateMetadata clusterReservedMetadata,
-                                                             ReservedStateMetadata projectReservedMetadata) {
+    private ReservedStateMetadata mergeReservedStateMetadata(
+        ReservedStateMetadata clusterReservedMetadata,
+        ReservedStateMetadata projectReservedMetadata
+    ) {
         if (Objects.equals(clusterReservedMetadata.version(), projectReservedMetadata.version()) == false) {
             logger.warn(
                 "Reserved state metadata version is different for Metadata ({}) and the only project ({})",

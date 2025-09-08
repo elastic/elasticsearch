@@ -253,7 +253,7 @@ public class AllocationDeciders {
         var iterators = new ArrayList<Iterator<ShardRouting>>(deciders.length);
         for (AllocationDecider decider : deciders) {
             decider.getNonPreferredAllocations(routingAllocation).ifPresent(iterators::add);
-            assert iterators.size() == 1 : "when we've got more than one decider contributing we should revisit how these are combined";
+            assert iterators.size() <= 1 : "when we've got more than one decider contributing we should revisit how these are combined";
         }
         return Iterators.concat(iterators.<Iterator<ShardRouting>>toArray(Iterator[]::new));
     }

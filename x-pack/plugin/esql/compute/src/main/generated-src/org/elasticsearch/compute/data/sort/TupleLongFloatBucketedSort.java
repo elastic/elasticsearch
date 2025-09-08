@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -210,6 +209,7 @@ public class TupleLongFloatBucketedSort implements Releasable {
             blocks[offset + 1] = longBuilder.build();
         }
     }
+
     /**
      * Checks if the selected groups are all empty.
      */

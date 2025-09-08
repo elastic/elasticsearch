@@ -17,7 +17,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -48,9 +46,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -83,11 +79,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-public class Decay extends EsqlScalarFunction
-    implements
-        OptionalArgument,
-        PostAnalysisPlanVerificationAware,
-        PostOptimizationVerificationAware {
+public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
 
@@ -364,27 +356,6 @@ public class Decay extends EsqlScalarFunction
                 typeFolded
             );
             default -> throw new UnsupportedOperationException("Unsupported data typeExpr: " + valueDataType);
-        };
-    }
-
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return (LogicalPlan plan, Failures failures) -> {
-            Expression offset = (Expression) resolvedOptions.get(OFFSET);
-            Expression decay = (Expression) resolvedOptions.get(DECAY);
-            Expression type = (Expression) resolvedOptions.get(TYPE);
-
-            Map<String, Expression> constantExpressions = new HashMap<>();
-            constantExpressions.put(OFFSET, offset);
-            constantExpressions.put(DECAY, decay);
-            constantExpressions.put(TYPE, type);
-
-            // Verify options are constant foldable
-            constantExpressions.forEach((exprName, expr) -> {
-                if (Objects.nonNull(expr) && expr.foldable() == false) {
-                    failures.add(fail(expr, "Function [{}] has non-constant value [{}] [{}].", sourceText(), exprName, expr.sourceText()));
-                }
-            });
         };
     }
 

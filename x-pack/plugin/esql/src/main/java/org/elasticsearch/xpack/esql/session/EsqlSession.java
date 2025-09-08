@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -374,14 +373,14 @@ public class EsqlSession {
         }
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
         SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
             .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices.iterator(), r, executionInfo, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);
     }
@@ -633,34 +632,31 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        switch (preAnalysis.indices.size()) {
-            // occurs when dealing with local relations (row a = 1)
-            case 0 -> listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
-            case 1 -> {
-                boolean includeAllDimensions = false;
-                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
-                    includeAllDimensions = true;
-                    // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                    if (requestFilter != null) {
-                        requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
-                    } else {
-                        requestFilter = indexModeFilter;
-                    }
+        if (preAnalysis.indexPattern() != null) {
+            boolean includeAllDimensions = false;
+            // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+            if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
+                includeAllDimensions = true;
+                // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                if (requestFilter != null) {
+                    requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
+                } else {
+                    requestFilter = indexModeFilter;
                 }
-                indexResolver.resolveAsMergedMapping(
-                    preAnalysis.indices.getFirst().indexPattern(),
-                    result.fieldNames,
-                    requestFilter,
-                    includeAllDimensions,
-                    listener.delegateFailure((l, indexResolution) -> {
-                        l.onResponse(result.withIndexResolution(indexResolution));
-                    })
-                );
             }
-            // Note: JOINs are not supported but we detect them when
-            default -> listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
+            indexResolver.resolveAsMergedMapping(
+                preAnalysis.indexPattern().indexPattern(),
+                result.fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                listener.delegateFailure((l, indexResolution) -> {
+                    l.onResponse(result.withIndexResolution(indexResolution));
+                })
+            );
+        } else {
+            // occurs when dealing with local relations (row a = 1)
+            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
         }
     }
 

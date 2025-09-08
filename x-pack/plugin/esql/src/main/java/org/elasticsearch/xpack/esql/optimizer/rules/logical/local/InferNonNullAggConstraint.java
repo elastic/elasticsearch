@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.Set;
@@ -42,7 +43,7 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
     @Override
     protected LogicalPlan rule(Aggregate aggregate, LocalLogicalOptimizerContext context) {
         // only look at aggregates with default grouping
-        if (aggregate.groupings().size() > 0) {
+        if (aggregate.groupings().size() > 0 || aggregate instanceof TimeSeriesAggregate) {
             return aggregate;
         }
 

@@ -195,7 +195,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .realmRef(new RealmRef("ldap", "foo", "node1"))
             .build(false);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -301,7 +301,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 .runAs(new User("joe", randomRoles()), null);
         }
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -369,7 +369,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 .runAs(new User("joe", randomRoles()), null);
         }
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,

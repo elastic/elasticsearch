@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -258,10 +259,21 @@ public class AllocationDeciders {
 
     public interface AllocationProblem {
 
+        /**
+         * Shard movements to attempt to resolve the problem in descending priority order.
+         */
         Iterator<ShardRouting> preferredShardMovements();
 
+        /**
+         * The reason for the relocation
+         *
+         * @see RoutingChangesObserver#relocationStarted(ShardRouting, ShardRouting, String)
+         */
         String relocateReason();
 
+        /**
+         * We could prioritize them this way
+         */
         default int priority() {
             return 1;
         }

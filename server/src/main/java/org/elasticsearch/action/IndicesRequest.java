@@ -70,20 +70,10 @@ public interface IndicesRequest {
             return false;
         }
 
-        // Could this be useful?
-        default IndexResolutionMode indexResolutionMode() {
-            return IndexResolutionMode.CANONICAL;
-        }
-
         @Nullable
         default String getProjectRouting() {
             return null;
         }
-    }
-
-    enum IndexResolutionMode {
-        FLAT,
-        CANONICAL
     }
 
     // Complete marker interface, can be folded into Replaceable if necessary

@@ -372,15 +372,22 @@ public class IndicesAndAliasesResolver {
                 if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable crossProjectSearchCapableRequest
                     && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
                     assert crossProjectSearchCapableRequest.allowsRemoteIndices();
-                    var replacedForCps = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
+                    // logs* -> logs*, p1:logs*
+                    // Just make it a map or something else
+                    // Something that gives us all local expression and remote expressions with original expressions
+                    // original -> localWildcards, remoteWildcards
+                    // original -> list of projects
+                    ReplacedIndexExpressions replacedForCps = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
                         remoteClusterResolver,
                         targetProjects,
                         crossProjectSearchCapableRequest.indices()
                     );
                     if (replacedForCps != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
+                        // logs* -> logs
                         ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsForCrossProjectSearch(
+                                // logs*
                                 replacedForCps.getLocalIndices(),
                                 indicesOptions,
                                 projectMetadata,
@@ -388,6 +395,8 @@ public class IndicesAndAliasesResolver {
                                 authorizedIndices::check,
                                 indicesRequest.includeDataStreams()
                             );
+                        // logs* -> logs*, p1:logs* AND logs* -> logs
+                        // -> logs* -> logs, p1:logs*
                         replacedForCps.replaceLocalIndices(replacedExpressions);
                         crossProjectSearchCapableRequest.setReplacedIndexExpressions(replacedForCps);
                         crossProjectSearchCapableRequest.indices(replacedForCps.getAllIndicesArray());

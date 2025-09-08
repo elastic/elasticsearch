@@ -30,6 +30,7 @@ public class CrossProjectResolverUtils {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectResolverUtils.class);
 
+    // Don't shoehorn this into ReplacedIndexExpressions, instead you can just return Map<String, List<String>>
     @Nullable
     public static ReplacedIndexExpressions maybeRewriteCrossProjectResolvableRequest(
         RemoteClusterAware remoteClusterAware,
@@ -41,12 +42,13 @@ public class CrossProjectResolverUtils {
             return null;
         }
 
+        // Not true, we still need to rewrite
         if (targetProjects.isOriginOnly()) {
             logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", targetProjects.originProject());
             return null;
         }
 
-        if (targetProjects.linkedProjects().isEmpty()) {
+        if (targetProjects.originProject() == null && targetProjects.linkedProjects().isEmpty()) {
             throw new ResourceNotFoundException("no target projects for cross-project search request");
         }
 

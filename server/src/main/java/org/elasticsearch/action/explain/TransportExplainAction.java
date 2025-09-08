@@ -41,7 +41,6 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
@@ -102,12 +101,14 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             super.doExecute(task, request, l);
         });
 
+        // Set cluster alias to null because this request targets a single shard and thus there cannot be any multi-cluster resource
+        // conflicts. This is also consistent with the cluster alias value set downstream in the SearchExecutionContext used in this
+        // code path.
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        // TODO: Validate that we should pass LOCAL_CLUSTER_GROUP_KEY here
         Rewriteable.rewriteAndFetch(
             request.query(),
-            searchService.getRewriteContext(timeProvider, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolvedIndices, null),
+            searchService.getRewriteContext(timeProvider, null, resolvedIndices, null),
             rewriteListener
         );
     }

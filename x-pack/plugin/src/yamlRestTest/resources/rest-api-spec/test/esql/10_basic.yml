@@ -596,3 +596,18 @@ version is not allowed:
   - length: {values: 2}
   - match: {values.0: ["1981-01-12T15:00:00.000Z","2000-01-01T00:00:00.000Z"]}
   - match: {values.1: ["1999-12-31T20:59:00.000Z", null]}
+
+
+---
+"No columns left after drop":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test_range | keep date_1 | drop date_1 | limit 2'
+
+  - length: {columns: 0}
+  - length: {values: 2}
+  - length: {values.0: 0 }
+  - length: {values.1: 0 }

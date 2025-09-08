@@ -47,7 +47,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -93,9 +93,12 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        format = new IVFVectorsFormat(
-            random().nextInt(IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER),
-            random().nextInt(IVFVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER, IVFVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
+        format = new ES920DiskBBQVectorsFormat(
+            random().nextInt(ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
+            random().nextInt(
+                ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
+                ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER
+            )
         );
     }
 

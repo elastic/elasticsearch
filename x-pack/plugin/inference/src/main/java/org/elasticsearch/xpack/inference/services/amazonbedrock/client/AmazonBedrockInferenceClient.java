@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -91,6 +93,20 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     public Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest request)
         throws ElasticsearchException {
         var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        internalClient.converseStream(
+            request,
+            ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
+        ).exceptionally(e -> {
+            awsResponseProcessor.onError(e);
+            return null; // Void
+        });
+        return awsResponseProcessor;
+    }
+
+    @Override
+    public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(ConverseStreamRequest request)
+        throws ElasticsearchException {
+        var awsResponseProcessor = new AmazonBedrockUnifiedStreamingChatProcessor(threadPool);
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()

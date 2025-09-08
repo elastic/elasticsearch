@@ -89,6 +89,20 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
+    public void testMaxOfRate() {
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS count(max_over_time(network.total_bytes_in)) BY time_bucket = BUCKET(@timestamp, 1 minute)
+            | LIMIT 10
+            """);
+        Limit limit = as(plan, Limit.class);
+        Aggregate innerStats = as(limit.child(), Aggregate.class);
+        TimeSeriesAggregate outerStats = as(innerStats.child(), TimeSeriesAggregate.class);
+        // TODO: Add asserts about the specific aggregation details here
+        Eval eval = as(outerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+    }
+
     /**
      * This tests the "group by all" case.  With no outer (aka vertical) aggregation, we expect to get back one bucket per time series,
      * grouped by each of the dimension fields.

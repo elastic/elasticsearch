@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 6L;
-    private static final Long TIME_RANGE_SECONDS = 60L;
+    private static final Long NUM_DOCS = 2000L;
+    private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
@@ -213,6 +213,19 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         rowKey.add(Long.toString(Instant.parse((String) row.get(timestampIndex)).toEpochMilli() / 1000));
         return rowKey;
+    }
+
+    static Integer getTimestampIndex(String esqlQuery) {
+        // first we get the stats command after the pipe
+        var statsIndex = esqlQuery.indexOf("| STATS");
+        var nextPipe = esqlQuery.indexOf("|", statsIndex + 1);
+
+        var statsCommand = esqlQuery.substring(statsIndex, nextPipe);
+        // then we count the number of commas before "BY "
+        var byTbucketIndex = statsCommand.indexOf("BY ");
+        var statsPart = statsCommand.substring(0, byTbucketIndex);
+        // the number of columns is the number of commas + 1
+        return (int) statsPart.chars().filter(ch -> ch == ',').count() + 1;
     }
 
     @Override
@@ -385,8 +398,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
-        var deltaAgg = Tuple.tuple("irate", DeltaAgg.IRATE); // TODO: Re-enable irate after fixing
+        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
         var windowStr = window.v1();
@@ -409,7 +421,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<String> failedWindows = new ArrayList<>();
             var groups = groupedRows(documents, dimensions, windowSize);
             for (List<Object> row : rows) {
-                var rowKey = getRowKey(row, dimensions, 5);
+                var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
                 var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, deltaAgg.v2());
@@ -494,7 +506,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             var groups = groupedRows(documents, dimensions, windowSize);
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
-                var rowKey = getRowKey(row, dimensions, 1);
+                var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
                 var tsGroups = groupByTimeseries(groups.get(rowKey), metricName);
                 Object expectedVal = aggregatePerTimeseries(tsGroups, selectedAggs.get(0), selectedAggs.get(1));
                 Double actualVal = switch (row.get(0)) {
@@ -544,7 +556,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     public void testGroupBySubset() {
         var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
-        try (EsqlQueryResponse resp = run(String.format(Locale.ROOT, """
+        var query = String.format(Locale.ROOT, """
             TS %s
             | STATS
                 max(max_over_time(metrics.gaugel_hdd.bytes.used)),
@@ -555,11 +567,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 count(count_over_time(metrics.gaugel_hdd.bytes.used))
                 BY tbucket=bucket(@timestamp, 1 minute), %s
             | SORT tbucket
-            """, DATASTREAM_NAME, dimensionsStr))) {
+            """, DATASTREAM_NAME, dimensionsStr);
+        try (EsqlQueryResponse resp = run(query)) {
             var groups = groupedRows(documents, dimensions, 60);
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
-                var rowKey = getRowKey(row, dimensions, 6);
+                var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
                 var tsGroups = groupByTimeseries(groups.get(rowKey), "gaugel_hdd.bytes.used");
                 Function<Object, Double> toDouble = cell -> switch (cell) {
                     case Long l -> l.doubleValue();

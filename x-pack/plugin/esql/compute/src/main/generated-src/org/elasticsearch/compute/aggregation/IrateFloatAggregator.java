@@ -36,7 +36,6 @@ import org.elasticsearch.core.Releasables;
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "FLOAT_BLOCK") }
 )
 public class IrateFloatAggregator {
-
     public static FloatIrateGroupingState initGrouping(DriverContext driverContext) {
         return new FloatIrateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
@@ -119,15 +118,21 @@ public class IrateFloatAggregator {
             var state = states.get(groupId);
             if (state == null) {
                 adjustBreaker(FloatIrateState.bytesUsed(1));
-                state = new FloatIrateState(new long[] { timestamp }, new float[] { value });
+                state = new FloatIrateState(new long[] { timestamp, -1 }, new float[] { value, 0 });
                 states.set(groupId, state);
             } else {
-                if (state.entries() == 1) {
-                    adjustBreaker(FloatIrateState.bytesUsed(2));
-                    state = new FloatIrateState(new long[] { state.timestamps[0], timestamp }, new float[] { state.values[0], value });
-                    states.set(groupId, state);
-                    adjustBreaker(-FloatIrateState.bytesUsed(1)); // old state
-                }
+                // We only need the last two values, but we need to keep them sorted by timestamp.
+                if (timestamp > state.timestamps[0]) {
+                    // new timestamp is the most recent
+                    state.timestamps[1] = state.timestamps[0];
+                    state.values[1] = state.values[0];
+                    state.timestamps[0] = timestamp;
+                    state.values[0] = value;
+                } else if (timestamp > state.timestamps[1]) {
+                    // new timestamp is the second most recent
+                    state.timestamps[1] = timestamp;
+                    state.values[1] = value;
+                } // else: ignore, too old
             }
         }
 
@@ -248,7 +253,7 @@ public class IrateFloatAggregator {
                 for (int p = 0; p < positionCount; p++) {
                     final var groupId = selected.getInt(p);
                     final var state = groupId < states.size() ? states.get(groupId) : null;
-                    if (state == null || state.values.length < 2) {
+                    if (state == null || state.values.length < 2 || state.timestamps[1] == -1) {
                         rates.appendNull();
                         continue;
                     }

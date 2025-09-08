@@ -100,6 +100,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
@@ -108,6 +109,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             maxPageSize,
             limit,
             sorts,
+            estimatedPerRowSortSize,
             scoring
         );
     }

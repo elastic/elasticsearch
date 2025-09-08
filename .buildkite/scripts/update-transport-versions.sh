@@ -11,10 +11,24 @@ if ! git diff --exit-code; then
   exit 0
 fi
 
-NEW_COMMIT_MESSAGE="[CI] Update transport versions"
+NEW_COMMIT_MESSAGE="[CI] Update transport version definitions"
 
 echo "--- Generating updated transport version definitions"
-.ci/scripts/run-gradle.sh generateTransportVersionDefinition
+# Calculate backport branches based on pull request version labels
+backport_branches=$(
+  echo "${GITHUB_PR_LABELS}" \
+    | tr ',' '\n' \
+    | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" \
+    | sed -E 's/^v([0-9]+)\.([0-9]+)\.[0-9]+$/\1.\2/' \
+    | paste -sd, -
+)
+
+if [[ -z "${backport_branches}" ]]; then
+  echo "Skipping as pull request contains no version labels"
+  exit 0
+fi
+
+.ci/scripts/run-gradle.sh generateTransportVersionDefinition --backport_branches="${backport_branches}"
 
 if git diff --exit-code; then
   echo "No changes found after updating transport versions. Don't need to auto commit."

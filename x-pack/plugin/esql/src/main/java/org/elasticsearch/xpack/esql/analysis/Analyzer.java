@@ -811,7 +811,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
             for (Attribute attr : outputUnion) {
-                newOutput.add(new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType()));
+                newOutput.add(
+                    new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType(), Nullability.FALSE, null, attr.synthetic())
+                );
             }
 
             return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
@@ -1948,10 +1950,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
-
             for (Attribute attr : output) {
                 // Do not let the synthetic union type field attributes end up in the final output.
-                if (attr.synthetic() && attr instanceof FieldAttribute) {
+                if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
                 newOutput.add(attr);

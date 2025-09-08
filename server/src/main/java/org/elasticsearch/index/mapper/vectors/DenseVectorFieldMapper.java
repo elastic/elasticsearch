@@ -55,7 +55,7 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
-import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -118,8 +118,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
@@ -1552,7 +1552,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
-                int clusterSize = IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+                int clusterSize = ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
                 if (clusterSizeNode != null) {
                     clusterSize = XContentMapValues.nodeIntegerValue(clusterSizeNode);
                     if (clusterSize < MIN_VECTORS_PER_CLUSTER || clusterSize > MAX_VECTORS_PER_CLUSTER) {
@@ -2189,7 +2189,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new IVFVectorsFormat(clusterSize, IVFVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+            return new ES920DiskBBQVectorsFormat(clusterSize, ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         }
 
         @Override
@@ -2407,6 +2407,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             int k,
             int numCands,
+            Float visitPercentage,
             Float oversample,
             Query filter,
             Float similarityThreshold,
@@ -2438,6 +2439,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector.asFloatVector(),
                     k,
                     numCands,
+                    visitPercentage,
                     oversample,
                     filter,
                     similarityThreshold,
@@ -2570,6 +2572,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             int k,
             int numCands,
+            Float visitPercentage,
             Float queryOversample,
             Query filter,
             Float similarityThreshold,
@@ -2618,6 +2621,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
+                float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -2626,9 +2630,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         parentFilter,
-                        defaultVisitRatio
+                        visitRatio
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, defaultVisitRatio);
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, visitRatio);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

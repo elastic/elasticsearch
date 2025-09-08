@@ -227,9 +227,11 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
                 builder.field("phases_in_use", phasesUsedInDownsampling);
                 builder.endObject();
             }
-            builder.startObject("dlm");
-            dlmDownsamplingStats.toXContent(builder, params);
-            builder.endObject();
+            if (dlmDownsamplingStats != null) {
+                builder.startObject("dlm");
+                dlmDownsamplingStats.toXContent(builder, params);
+                builder.endObject();
+            }
             return builder.endObject();
         }
     }

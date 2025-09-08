@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.ModernSource;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -37,7 +38,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private BytesReference source;
+    private ModernSource source;
     private XContentType xContentType;
     private Mapping dynamicMappingsUpdate;
 
@@ -103,6 +104,30 @@ public class ParsedDocument {
         Mapping dynamicMappingsUpdate,
         long normalizedSize
     ) {
+        this(
+            version,
+            seqID,
+            id,
+            routing,
+            documents,
+            new ModernSource(source, xContentType),
+            xContentType,
+            dynamicMappingsUpdate,
+            normalizedSize
+        );
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        ModernSource source,
+        XContentType xContentType,
+        Mapping dynamicMappingsUpdate,
+        long normalizedSize
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -142,7 +167,11 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public BytesReference source() {
+    public BytesReference bytesSource() {
+        return this.source.originalSourceBytes();
+    }
+
+    public ModernSource source() {
         return this.source;
     }
 
@@ -151,8 +180,7 @@ public class ParsedDocument {
     }
 
     public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+        this.source = new ModernSource(source, xContentType);
     }
 
     /**

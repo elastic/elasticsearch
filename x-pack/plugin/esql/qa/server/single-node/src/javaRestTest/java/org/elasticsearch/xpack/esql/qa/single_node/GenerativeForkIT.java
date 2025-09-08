@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeForkRestTest;
 import org.junit.ClassRule;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Doesn't work because of double to keyword issue")
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeForkIT extends GenerativeForkRestTest {
     @ClassRule

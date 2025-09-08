@@ -33,15 +33,18 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.CharConversionException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.CharBuffer;
 
 public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
+    private Token currentToken;
 
     public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config.registry(), config.deprecationHandler(), config.restApiVersion());
         this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
+        this.currentToken = convertToken(parser.currentToken());
     }
 
     @Override
@@ -87,7 +90,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public Token nextToken() throws IOException {
         try {
-            return convertToken(parser.nextToken());
+            return (currentToken = convertToken(parser.nextToken()));
         } catch (IOException e) {
             throw handleParserException(e);
         }
@@ -109,7 +112,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public Token currentToken() {
-        return convertToken(parser.getCurrentToken());
+        return currentToken;
     }
 
     @Override
@@ -159,6 +162,19 @@ public class JsonXContentParser extends AbstractXContentParser {
             }
         }
         return new Text(text());
+    }
+
+    @Override
+    public boolean optimizedTextToStream(OutputStream out) throws IOException {
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
+        }
+        // TODO: Probably change to ByteBuffer as this can do a partial write that needs to be reset in case of failure.
+        if (parser instanceof ESUTF8StreamJsonParser esParser) {
+            return esParser.writeUTF8TextToStream(out);
+        } else {
+            return super.optimizedTextToStream(out);
+        }
     }
 
     private void throwOnNoText() {

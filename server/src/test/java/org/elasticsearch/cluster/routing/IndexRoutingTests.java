@@ -464,7 +464,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         return switch (between(0, 3)) {
-            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 0 -> indexRouting.indexShard(id, routing, null, (BytesReference) null);
             case 1 -> indexRouting.updateShard(id, routing);
             case 2 -> indexRouting.deleteShard(id, routing);
             case 3 -> indexRouting.getShard(id, routing);
@@ -705,7 +705,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new HashMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            var shard = initialRouting.indexShard("dummy", routing, null, (BytesReference) null);
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }
@@ -785,7 +785,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new TreeMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            var shard = initialRouting.indexShard("dummy", routing, null, (BytesReference) null);
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }

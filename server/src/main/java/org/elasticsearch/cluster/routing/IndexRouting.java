@@ -23,19 +23,26 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentParserFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.ingest.ESONIndexed;
+import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
@@ -99,6 +107,8 @@ public abstract class IndexRouting {
      * a document with the provided parameters.
      */
     public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source);
+
+    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource);
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -228,6 +238,11 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int indexShard(String id, String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
+            return indexShard(id, routing, sourceType, (BytesReference) null);
+        }
+
+        @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
@@ -308,6 +323,7 @@ public abstract class IndexRouting {
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
         private final boolean addIdWithRoutingHash;
+        private final Function<XContentParser, Map<String, Object>> parserFilter;
         private int hash = Integer.MAX_VALUE;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -322,6 +338,7 @@ public abstract class IndexRouting {
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(routingPaths), null, true);
+            parserFilter = XContentParserFilter.filter(routingPaths.toArray(new String[0]));
         }
 
         public boolean matchesField(String fieldName) {
@@ -347,6 +364,28 @@ public abstract class IndexRouting {
             hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             int shardId = hashToShardId(hash);
             return (rerouteWritesIfResharding(shardId));
+        }
+
+        @Override
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, ESONIndexed.ESONObject structuredSource) {
+            assert Transports.assertNotTransportThread("parsing the _source can get slow");
+            checkNoRouting(routing);
+            try (
+                ESONXContentParser esonxContentParser = structuredSource.esonFlat()
+                    .parser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.IGNORE_DEPRECATIONS, sourceType);
+                XContentParser parser = new MapXContentParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    parserFilter.apply(esonxContentParser),
+                    sourceType
+                )
+            ) {
+                hash = hashSource(parser).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+                int shardId = hashToShardId(hash);
+                return (rerouteWritesIfResharding(shardId));
+            } catch (IOException | ParsingException e) {
+                throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
+            }
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -378,18 +417,22 @@ public abstract class IndexRouting {
         }
 
         private Builder hashSource(XContentType sourceType, BytesReference source) {
-            Builder b = builder();
             try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
-                parser.nextToken(); // Move to first token
-                if (parser.currentToken() == null) {
-                    throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
-                }
-                parser.nextToken();
-                b.extractObject(null, parser);
-                ensureExpectedToken(null, parser.nextToken(), parser);
+                return hashSource(parser);
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
+        }
+
+        private Builder hashSource(XContentParser parser) throws IOException {
+            Builder b = builder();
+            parser.nextToken(); // Move to first token
+            if (parser.currentToken() == null) {
+                throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
+            }
+            parser.nextToken();
+            b.extractObject(null, parser);
+            ensureExpectedToken(null, parser.nextToken(), parser);
             return b;
         }
 

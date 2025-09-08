@@ -12,12 +12,15 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -430,6 +433,44 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testParserCompleteObjectFiltering() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("array", Arrays.asList(1, Map.of("field", "value", "field2", "value2")));
+
+        MapXContentParser parser = new MapXContentParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS,
+            map,
+            XContentType.JSON
+        );
+        Map<String, Object> filteredMap = XContentParserFilter.filter(parser, new String[] { "obj" });
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).get("field").toString(), equalTo("value"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).get("field2").toString(), equalTo("value2"));
+
+        filteredMap = XContentMapValues.filter(map, new String[] { "obj" }, new String[] { "*.field2" });
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).get("field").toString(), equalTo("value"));
+
+        filteredMap = XContentMapValues.filter(map, new String[] { "array" }, new String[] {});
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((List<?>) filteredMap.get("array")).size(), equalTo(2));
+        assertThat((Integer) ((List<?>) filteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(1)).size(), equalTo(2));
+
+        filteredMap = XContentMapValues.filter(map, new String[] { "array" }, new String[] { "*.field2" });
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((List<?>) filteredMap.get("array")), hasSize(2));
+        assertThat((Integer) ((List<?>) filteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(1)).size(), equalTo(1));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(1)).get("field").toString(), equalTo("value"));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testFilterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
@@ -458,6 +499,46 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(((Map<String, Object>) filteredMap.get("obj")), hasKey("field"));
         assertThat(filteredMap, hasKey("n_obj"));
         assertThat(((Map<String, Object>) filteredMap.get("n_obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("n_obj")), hasKey("n_field"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testParserFilterIncludesUsingStarPrefix() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("n_obj", Map.of("n_field", "value", "n_field2", "value2"));
+
+        MapXContentParser parser = new MapXContentParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS,
+            map,
+            XContentType.JSON
+        );
+        Map<String, Object> filteredMap = XContentParserFilter.filter(parser, new String[] { "*.field2" });
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(filteredMap, hasKey("obj"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")), hasKey("field2"));
+
+        // only objects
+        parser = new MapXContentParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, map, XContentType.JSON);
+        filteredMap = XContentParserFilter.filter(parser, new String[] { "*.*" });
+        assertThat(filteredMap.size(), equalTo(2));
+        assertThat(filteredMap, hasKey("obj"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat(filteredMap, hasKey("n_obj"));
+        assertThat(((Map<String, Object>) filteredMap.get("n_obj")).size(), equalTo(2));
+
+        parser = new MapXContentParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, map, XContentType.JSON);
+        filteredMap = XContentParserFilter.filter(parser, new String[] { "*" });
+        assertThat(filteredMap.size(), equalTo(3));
+        assertThat(filteredMap, hasKey("field"));
+        assertThat(filteredMap, hasKey("obj"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")), hasKey("field"));
+        assertThat(filteredMap, hasKey("n_obj"));
+        assertThat(((Map<String, Object>) filteredMap.get("n_obj")).size(), equalTo(2));
         assertThat(((Map<String, Object>) filteredMap.get("n_obj")), hasKey("n_field"));
     }
 

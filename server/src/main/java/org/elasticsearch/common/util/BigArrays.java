@@ -16,6 +16,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -470,6 +472,7 @@ public class BigArrays {
 
     @Nullable
     final PageCacheRecycler recycler;
+    final BytesRefRecycler bytesRefRecycler;
     @Nullable
     private final CircuitBreakerService breakerService;
     @Nullable
@@ -491,6 +494,7 @@ public class BigArrays {
     ) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
+        this.bytesRefRecycler = recycler != null ? new BytesRefRecycler(recycler) : BytesRefRecycler.NON_RECYCLING_INSTANCE;
         this.breakerService = breakerService;
         if (breakerService != null) {
             breaker = breakerService.getBreaker(breakerName);
@@ -586,6 +590,10 @@ public class BigArrays {
             }
         }
         return array;
+    }
+
+    public RecyclerBytesStreamOutput newRecyclerStreamOutput() {
+        return new RecyclerBytesStreamOutput(bytesRefRecycler);
     }
 
     /**

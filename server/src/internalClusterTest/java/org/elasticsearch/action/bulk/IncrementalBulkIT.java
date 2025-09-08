@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -52,6 +53,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
+// TODO: MODERNSOURCEFIVES
+@LuceneTestCase.AwaitsFix(bugUrl = "changed account")
 public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override

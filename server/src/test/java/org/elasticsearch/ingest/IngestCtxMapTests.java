@@ -347,10 +347,19 @@ public class IngestCtxMapTests extends ESTestCase {
         Map<String, Object> source = Map.of("index", "id");
 
         map = new IngestCtxMap(source, new IngestDocMetadata(Map.of("_version", 5L), null));
-        assertThat(map.getSource(), sameInstance(source));
+
+        Map<String, Object> underlying = map.getSource();
+        if (underlying instanceof MapStructuredSource structuredSource) {
+            underlying = structuredSource.map();
+        }
+        assertThat(underlying, sameInstance(source));
 
         map = new IngestCtxMap(null, null, 10L, null, null, null, source);
-        assertThat(map.getSource(), sameInstance(source));
+        underlying = map.getSource();
+        if (underlying instanceof MapStructuredSource structuredSource) {
+            underlying = structuredSource.map();
+        }
+        assertThat(underlying, sameInstance(source));
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

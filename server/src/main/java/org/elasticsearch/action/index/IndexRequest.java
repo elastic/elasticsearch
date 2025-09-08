@@ -38,8 +38,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.ESONFlat;
+import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -98,7 +99,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private BytesReference source;
+    private ModernSource modernSource;
 
     private OpType opType = OpType.INDEX;
 
@@ -165,7 +166,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            modernSource = in.readOptional(ModernSource::new);
+        } else {
+            BytesReference bytesReference = in.readBytesReference();
+            modernSource = new ModernSource(bytesReference);
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -250,7 +256,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (source == null) {
+        if (modernSource == null) {
             validationException = addValidationError("source is missing", validationException);
         }
         if (contentType == null) {
@@ -412,15 +418,32 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        return source;
+        return modernSource == null ? null : modernSource.originalSourceBytes();
+    }
+
+    public ModernSource modernSource() {
+        return modernSource;
+    }
+
+    public int sourceSize() {
+        return modernSource == null ? 0 : modernSource.originalSourceSize();
+    }
+
+    public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
+        this.modernSource = new ModernSource(contentType, modernSource.originalSourceSize(), ESONIndexed.flatten(esonSource));
+    }
+
+    public void ensureStructureSource() {
+        modernSource.ensureStructured();
+    }
+
+    public ESONFlat structuredSource() {
+        return modernSource.structuredSource();
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false, contentType).v2();
-    }
-
-    public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
-        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
+        // TODO: Improve and remove need to do the bytes.
+        return XContentHelper.convertToMap(modernSource.originalSourceBytes(), false, contentType).v2();
     }
 
     /**
@@ -537,8 +560,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
+        this.modernSource = new ModernSource(Objects.requireNonNull(source), xContentType);
         return this;
     }
 
@@ -769,7 +792,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeBytesReference(source);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STRUCTURED_SOURCE)) {
+            out.writeOptionalWriteable(modernSource);
+        } else {
+            out.writeBytesReference(modernSource == null ? null : modernSource.originalSourceBytes());
+        }
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());
@@ -821,13 +848,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public String toString() {
         String sSource = "_na_";
         try {
-            if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+            if (modernSource.originalSourceSize() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
                 sSource = "n/a, actual length: ["
-                    + ByteSizeValue.ofBytes(source.length()).toString()
+                    + ByteSizeValue.ofBytes(modernSource.originalSourceSize()).toString()
                     + "], max length: "
                     + ByteSizeValue.ofBytes(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
-                sSource = XContentHelper.convertToJson(source, false);
+                sSource = XContentHelper.convertToJson(modernSource.originalSourceBytes(), false);
             }
         } catch (Exception e) {
             // ignore
@@ -862,7 +889,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (source == null ? 0 : source.length());
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (modernSource == null ? 0 : modernSource.originalSourceSize());
     }
 
     @Override
@@ -917,7 +944,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        if (modernSource.isStructured()) {
+            if (indexRouting instanceof IndexRouting.ExtractFromSource) {
+                return indexRouting.indexShard(id, routing, contentType, ESONIndexed.fromFlat(modernSource.structuredSource()));
+            } else {
+                return indexRouting.indexShard(id, routing, contentType, (BytesReference) null);
+            }
+        } else {
+            return indexRouting.indexShard(id, routing, contentType, source());
+        }
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

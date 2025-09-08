@@ -725,7 +725,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         movedAShard = true;
                         break;
                     }
-                    logger.debug("Unable to resolve allocation problem [{}], will try next time", problem);
+                    logger.debug("Unable to resolve [{}]", problem);
                 }
                 // TODO: Update cluster info
             } while (movedAShard);

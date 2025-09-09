@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -35,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
@@ -44,22 +42,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected final T originalQuery;
     protected final Map<String, InferenceResults> inferenceResultsMap;
 
-    /**
-     * Per-index map of inference field info
-     * Outer map:
-     *   Key: index name
-     *   Value: Inference field info map
-     * Inner map:
-     *   Key: Inference field name
-     *   Value: Inference field info
-     */
-    protected final Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap;
-
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
         this.inferenceResultsMap = null;
-        this.inferenceFieldInfoMap = null;
     }
 
     @SuppressWarnings("unchecked")
@@ -67,17 +53,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         super(in);
         this.originalQuery = (T) in.readNamedWriteable(QueryBuilder.class);
         this.inferenceResultsMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)));
-        this.inferenceFieldInfoMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readImmutableMap(InferenceFieldInfo::new)));
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
-        Map<String, InferenceResults> inferenceResultsMap,
-        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
+        Map<String, InferenceResults> inferenceResultsMap
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
-        this.inferenceFieldInfoMap = inferenceFieldInfoMap;
     }
 
     protected abstract Map<String, Float> getFields();
@@ -86,10 +69,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext);
 
-    protected abstract QueryBuilder copy(
-        Map<String, InferenceResults> inferenceResultsMap,
-        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
-    );
+    protected abstract QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap);
 
     protected abstract QueryBuilder queryFields(
         Map<String, Float> inferenceFields,
@@ -111,7 +91,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(originalQuery);
         out.writeOptional((o, v) -> o.writeMap(v, StreamOutput::writeNamedWriteable), inferenceResultsMap);
-        out.writeOptional((o1, v1) -> o1.writeMap(v1, (o2, v2) -> o2.writeMap(v2, StreamOutput::writeWriteable)), inferenceFieldInfoMap);
     }
 
     @Override
@@ -126,14 +105,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected boolean doEquals(InterceptedInferenceQueryBuilder<T> other) {
-        return Objects.equals(originalQuery, other.originalQuery)
-            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
-            && Objects.equals(inferenceFieldInfoMap, other.inferenceFieldInfoMap);
+        return Objects.equals(originalQuery, other.originalQuery) && Objects.equals(inferenceResultsMap, other.inferenceResultsMap);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap, inferenceFieldInfoMap);
+        return Objects.hash(originalQuery, inferenceResultsMap);
     }
 
     @Override
@@ -159,24 +136,20 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     private QueryBuilder doRewriteBuildQuery(QueryRewriteContext indexMetadataContext) {
-        String indexName = indexMetadataContext.getFullyQualifiedIndex().getName();
-        Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = inferenceFieldInfoMap.getOrDefault(indexName, Map.of());
-
-        Map<String, Float> inferenceFieldsToQuery = indexInferenceFieldInfoMap.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getWeight()));
-
-        Map<String, Float> nonInferenceFieldsToQuery = new HashMap<>(getFields());
-        if (useDefaultFields() && nonInferenceFieldsToQuery.isEmpty()) {
-            nonInferenceFieldsToQuery = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
+        Map<String, Float> queryFields = getFields();
+        if (useDefaultFields() && queryFields.isEmpty()) {
+            queryFields = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
         }
+
+        Map<String, Float> inferenceFieldsToQuery = getInferenceFieldsMap(indexMetadataContext, queryFields, resolveWildcards());
+        Map<String, Float> nonInferenceFieldsToQuery = new HashMap<>(queryFields);
         nonInferenceFieldsToQuery.keySet().removeAll(inferenceFieldsToQuery.keySet());
 
         return queryFields(inferenceFieldsToQuery, nonInferenceFieldsToQuery, indexMetadataContext);
     }
 
     private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (this.inferenceResultsMap != null && this.inferenceFieldInfoMap != null) {
+        if (this.inferenceResultsMap != null) {
             return this;
         }
 
@@ -189,13 +162,11 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         coordinatorNodeValidate(resolvedIndices);
 
-        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap = new HashMap<>();
         Set<String> inferenceIds = getInferenceIdsForFields(
             resolvedIndices.getConcreteLocalIndicesMetadata().values(),
             getFields(),
             resolveWildcards(),
-            useDefaultFields(),
-            inferenceFieldInfoMap
+            useDefaultFields()
         );
 
         // TODO: Check for supported CCS mode here (once we support CCS)
@@ -234,73 +205,74 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             }
         }
 
-        return copy(inferenceResultsMap, inferenceFieldInfoMap);
+        return copy(inferenceResultsMap);
     }
 
     private static Set<String> getInferenceIdsForFields(
         Collection<IndexMetadata> indexMetadataCollection,
         Map<String, Float> fields,
         boolean resolveWildcards,
-        boolean useDefaultFields,
-        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
+        boolean useDefaultFields
     ) {
         Set<String> inferenceIds = new HashSet<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            // To support CCS, we will need to add a prefix to the index name to differentiate local cluster indices
-            // from remote cluster indices
-            // TODO: Add that now in preparation for CCS support?
-            final String indexName = indexMetadata.getIndex().getName();
             final Map<String, Float> indexQueryFields = (useDefaultFields && fields.isEmpty())
                 ? getDefaultFields(indexMetadata.getSettings())
                 : fields;
 
             Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
-            Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = new HashMap<>();
-            for (Map.Entry<String, Float> entry : indexQueryFields.entrySet()) {
-                String indexQueryField = entry.getKey();
-                Float weight = entry.getValue();
-
+            for (String indexQueryField : indexQueryFields.keySet()) {
                 if (indexInferenceFields.containsKey(indexQueryField)) {
                     // No wildcards in field name
                     InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(indexQueryField);
                     inferenceIds.add(inferenceFieldMetadata.getSearchInferenceId());
-                    addToInnerInferenceFieldsInfoMap(
-                        indexInferenceFieldInfoMap,
-                        inferenceFieldMetadata.getName(),
-                        inferenceFieldMetadata.getSearchInferenceId(),
-                        weight
-                    );
                     continue;
                 }
                 if (resolveWildcards) {
                     if (Regex.isMatchAllPattern(indexQueryField)) {
-                        indexInferenceFields.values().forEach(ifm -> {
-                            inferenceIds.add(ifm.getSearchInferenceId());
-                            addToInnerInferenceFieldsInfoMap(indexInferenceFieldInfoMap, ifm.getName(), ifm.getSearchInferenceId(), weight);
-                        });
+                        indexInferenceFields.values().forEach(ifm -> inferenceIds.add(ifm.getSearchInferenceId()));
                     } else if (Regex.isSimpleMatchPattern(indexQueryField)) {
                         indexInferenceFields.values()
                             .stream()
                             .filter(ifm -> Regex.simpleMatch(indexQueryField, ifm.getName()))
-                            .forEach(ifm -> {
-                                inferenceIds.add(ifm.getSearchInferenceId());
-                                addToInnerInferenceFieldsInfoMap(
-                                    indexInferenceFieldInfoMap,
-                                    ifm.getName(),
-                                    ifm.getSearchInferenceId(),
-                                    weight
-                                );
-                            });
+                            .forEach(ifm -> inferenceIds.add(ifm.getSearchInferenceId()));
                     }
                 }
-            }
-
-            if (indexInferenceFieldInfoMap.isEmpty() == false) {
-                inferenceFieldInfoMap.put(indexName, indexInferenceFieldInfoMap);
             }
         }
 
         return inferenceIds;
+    }
+
+    private static Map<String, Float> getInferenceFieldsMap(
+        QueryRewriteContext indexMetadataContext,
+        Map<String, Float> queryFields,
+        boolean resolveWildcards
+    ) {
+        Map<String, Float> inferenceFieldsToQuery = new HashMap<>();
+        Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadataContext.getMappingLookup().inferenceFields();
+        for (Map.Entry<String, Float> entry : queryFields.entrySet()) {
+            String queryField = entry.getKey();
+            Float weight = entry.getValue();
+
+            if (indexInferenceFields.containsKey(queryField)) {
+                // No wildcards in field name
+                addToInferenceFieldsMap(inferenceFieldsToQuery, queryField, weight);
+                continue;
+            }
+            if (resolveWildcards) {
+                if (Regex.isMatchAllPattern(queryField)) {
+                    indexInferenceFields.keySet().forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
+                } else if (Regex.isSimpleMatchPattern(queryField)) {
+                    indexInferenceFields.keySet()
+                        .stream()
+                        .filter(f -> Regex.simpleMatch(queryField, f))
+                        .forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
+                }
+            }
+        }
+
+        return inferenceFieldsToQuery;
     }
 
     private static Map<String, Float> getDefaultFields(Settings settings) {
@@ -308,61 +280,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
 
-    private static void addToInnerInferenceFieldsInfoMap(
-        Map<String, InferenceFieldInfo> innerInferenceFieldInfoMap,
-        String field,
-        String inferenceId,
-        Float weight
-    ) {
-        innerInferenceFieldInfoMap.compute(
-            field,
-            (k, v) -> v == null ? new InferenceFieldInfo(inferenceId, weight) : v.updateWeight(weight)
-        );
-    }
-
-    protected static class InferenceFieldInfo implements Writeable {
-        private final String inferenceId;
-        private Float weight;
-
-        protected InferenceFieldInfo(String inferenceId, Float weight) {
-            this.inferenceId = inferenceId;
-            this.weight = weight;
-        }
-
-        protected InferenceFieldInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readFloat());
-        }
-
-        protected InferenceFieldInfo updateWeight(Float weight) {
-            this.weight = this.weight * weight;
-            return this;
-        }
-
-        public String getInferenceId() {
-            return inferenceId;
-        }
-
-        public Float getWeight() {
-            return weight;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(inferenceId);
-            out.writeFloat(weight);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            InferenceFieldInfo that = (InferenceFieldInfo) o;
-            return Float.compare(weight, that.weight) == 0 && Objects.equals(inferenceId, that.inferenceId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(inferenceId, weight);
-        }
+    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
+        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 }

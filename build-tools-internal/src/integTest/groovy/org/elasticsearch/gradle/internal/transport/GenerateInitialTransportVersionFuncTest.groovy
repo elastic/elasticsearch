@@ -56,14 +56,21 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         assertNoChanges();
     }
 
-    def "new minor creates a new upper bound"() {
+    def "new minor also creates next upper bound"() {
+        given:
+        // version properties will be updated by release automation before running initial version generation
+        versionPropertiesFile.text = versionPropertiesFile.text.replace("9.2.0", "9.3.0")
+
         when:
-        def result = runGenerateAndValidateTask("--release-version", "9.3.0").build()
+        System.out.println("Running generation initial task")
+        def result = runGenerateAndValidateTask("--release-version", "9.2.0").build()
+        System.out.println("Done running generation task")
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertUnreferableDefinition("initial_9.3.0", "8124000")
-        assertUpperBound("9.3", "initial_9.3.0,8124000")
+        assertUnreferableDefinition("initial_9.2.0", "8124000")
+        assertUpperBound("9.2", "initial_9.2.0,8124000")
+        assertUpperBound("9.3", "initial_9.2.0,8124000")
     }
 
     def "patch updates existing upper bound"() {
@@ -81,6 +88,6 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         def result = runGenerateTask("--release-version", "9.3.7").buildAndFail()
 
         then:
-        assertGenerateFailure(result, "Upper bound file 9.3 does not exist for patch version 9.3.7")
+        assertGenerateFailure(result, "Missing upper bound 9.3 for release version 9.3.7")
     }
 }

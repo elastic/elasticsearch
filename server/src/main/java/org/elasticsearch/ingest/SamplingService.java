@@ -405,12 +405,7 @@ public class SamplingService implements ClusterStateListener {
         final ProjectId projectId;
         final String indexName;
 
-        DeleteSampleConfigTask(
-            ProjectId projectId,
-            String indexName,
-            TimeValue ackTimeout,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
+        DeleteSampleConfigTask(ProjectId projectId, String indexName, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
             super(ackTimeout, listener);
             this.projectId = projectId;
             this.indexName = indexName;

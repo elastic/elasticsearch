@@ -144,81 +144,92 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         QueryRewriteContext indexMetadataContext = queryRewriteContext.convertToIndexMetadataContext();
         if (indexMetadataContext != null) {
             // We are performing an index metadata rewrite on the data node
-            String indexName = indexMetadataContext.getFullyQualifiedIndex().getName();
-            Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = inferenceFieldInfoMap.getOrDefault(indexName, Map.of());
-
-            Map<String, Float> inferenceFieldsToQuery = indexInferenceFieldInfoMap.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getWeight()));
-
-            Map<String, Float> nonInferenceFieldsToQuery = new HashMap<>(getFields());
-            if (useDefaultFields() && nonInferenceFieldsToQuery.isEmpty()) {
-                nonInferenceFieldsToQuery = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
-            }
-            nonInferenceFieldsToQuery.keySet().removeAll(inferenceFieldsToQuery.keySet());
-
-            return queryFields(inferenceFieldsToQuery, nonInferenceFieldsToQuery, indexMetadataContext);
+            return doRewriteBuildQuery(indexMetadataContext);
         }
 
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         if (resolvedIndices != null) {
             // We are preforming a coordinator node rewrite
-            if (this.inferenceResultsMap != null && this.inferenceFieldInfoMap != null) {
-                return this;
-            }
-
-            // Validate early to prevent partial failures
-            coordinatorNodeValidate(resolvedIndices);
-
-            Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap = new HashMap<>();
-            Set<String> inferenceIds = getInferenceIdsForFields(
-                resolvedIndices.getConcreteLocalIndicesMetadata().values(),
-                getFields(),
-                resolveWildcards(),
-                useDefaultFields(),
-                inferenceFieldInfoMap
-            );
-
-            // TODO: Check for supported CCS mode here (once we support CCS)
-
-            // NOTE: This logic only works when ccs_minimize_roundtrips=true. It assumes that the remote cluster will perform a new
-            // coordinator node rewrite, which will re-intercept the query and determine if a semantic text field is being queried.
-            // When ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field, it will result in the remote
-            // data node receiving the naked original query, which will in turn result in an error about an unsupported field type.
-            // Should we always wrap the query in a InterceptedQueryBuilder so that we can handle this case more gracefully?
-            if (inferenceIds.isEmpty()) {
-                // Not querying a semantic text field
-                return originalQuery;
-            }
-
-            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    originalQuery.getName()
-                        + " query does not support cross-cluster search when querying a ["
-                        + SemanticTextFieldMapper.CONTENT_TYPE
-                        + "] field"
-                );
-            }
-
-            String inferenceIdOverride = getInferenceIdOverride();
-            if (inferenceIdOverride != null) {
-                inferenceIds = Set.of(inferenceIdOverride);
-            }
-
-            // If the query is null, there's nothing to generate embeddings for. This can happen if pre-computed embeddings are provided
-            // by the user.
-            String query = getQuery();
-            Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
-            if (query != null) {
-                for (String inferenceId : inferenceIds) {
-                    SemanticQueryBuilder.registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
-                }
-            }
-
-            return copy(inferenceResultsMap, inferenceFieldInfoMap);
+            return doRewriteGetInferenceResults(queryRewriteContext);
         }
 
         return this;
+    }
+
+    private QueryBuilder doRewriteBuildQuery(QueryRewriteContext indexMetadataContext) {
+        String indexName = indexMetadataContext.getFullyQualifiedIndex().getName();
+        Map<String, InferenceFieldInfo> indexInferenceFieldInfoMap = inferenceFieldInfoMap.getOrDefault(indexName, Map.of());
+
+        Map<String, Float> inferenceFieldsToQuery = indexInferenceFieldInfoMap.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getWeight()));
+
+        Map<String, Float> nonInferenceFieldsToQuery = new HashMap<>(getFields());
+        if (useDefaultFields() && nonInferenceFieldsToQuery.isEmpty()) {
+            nonInferenceFieldsToQuery = getDefaultFields(indexMetadataContext.getIndexSettings().getSettings());
+        }
+        nonInferenceFieldsToQuery.keySet().removeAll(inferenceFieldsToQuery.keySet());
+
+        return queryFields(inferenceFieldsToQuery, nonInferenceFieldsToQuery, indexMetadataContext);
+    }
+
+    private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
+        if (this.inferenceResultsMap != null && this.inferenceFieldInfoMap != null) {
+            return this;
+        }
+
+        // TODO: BwC hook here
+
+        // Validate early to prevent partial failures
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        coordinatorNodeValidate(resolvedIndices);
+
+        Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap = new HashMap<>();
+        Set<String> inferenceIds = getInferenceIdsForFields(
+            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+            getFields(),
+            resolveWildcards(),
+            useDefaultFields(),
+            inferenceFieldInfoMap
+        );
+
+        // TODO: Check for supported CCS mode here (once we support CCS)
+
+        // NOTE: This logic only works when ccs_minimize_roundtrips=true. It assumes that the remote cluster will perform a new
+        // coordinator node rewrite, which will re-intercept the query and determine if a semantic text field is being queried.
+        // When ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field, it will result in the remote
+        // data node receiving the naked original query, which will in turn result in an error about an unsupported field type.
+        // Should we always wrap the query in a InterceptedQueryBuilder so that we can handle this case more gracefully?
+        if (inferenceIds.isEmpty()) {
+            // Not querying a semantic text field
+            return originalQuery;
+        }
+
+        if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+            throw new IllegalArgumentException(
+                originalQuery.getName()
+                    + " query does not support cross-cluster search when querying a ["
+                    + SemanticTextFieldMapper.CONTENT_TYPE
+                    + "] field"
+            );
+        }
+
+        String inferenceIdOverride = getInferenceIdOverride();
+        if (inferenceIdOverride != null) {
+            inferenceIds = Set.of(inferenceIdOverride);
+        }
+
+        // If the query is null, there's nothing to generate embeddings for. This can happen if pre-computed embeddings are provided
+        // by the user.
+        String query = getQuery();
+        Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
+        if (query != null) {
+            for (String inferenceId : inferenceIds) {
+                SemanticQueryBuilder.registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
+            }
+        }
+
+        return copy(inferenceResultsMap, inferenceFieldInfoMap);
     }
 
     private static Set<String> getInferenceIdsForFields(

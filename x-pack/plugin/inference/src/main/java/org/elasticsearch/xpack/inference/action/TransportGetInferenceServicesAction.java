@@ -135,9 +135,12 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
                     }
 
                     var config = ElasticInferenceService.createConfiguration(authorizationModel.getAuthorizedTaskTypes());
-                    if (requestedTaskType != null && authorizationModel.getAuthorizedTaskTypes().contains(requestedTaskType)) {
-                        serviceConfigs.add(config);
+                    if (requestedTaskType != null && authorizationModel.getAuthorizedTaskTypes().contains(requestedTaskType) == false) {
+                        delegate.onResponse(serviceConfigs);
+                        return;
                     }
+
+                    serviceConfigs.add(config);
                     serviceConfigs.sort(Comparator.comparing(InferenceServiceConfiguration::getService));
                     delegate.onResponse(serviceConfigs);
                 }

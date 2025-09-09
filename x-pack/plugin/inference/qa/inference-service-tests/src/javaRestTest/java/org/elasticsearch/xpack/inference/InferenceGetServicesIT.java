@@ -27,7 +27,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        // Ensure the mock EIS server has an authorized response ready
+        // Ensure the mock EIS server has an authorized response ready before each test because each test will
+        // use the services API which makes a call to EIS
         mockEISServer.enqueueAuthorizeAllModelsResponse();
     }
 
@@ -138,9 +139,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
-        var a = providersFor(TaskType.COMPLETION);
         assertThat(
-            a,
+            providersFor(TaskType.COMPLETION),
             containsInAnyOrder(
                 List.of(
                     "ai21",

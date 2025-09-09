@@ -15,7 +15,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.ReadAdvice;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -212,6 +213,7 @@ public class HierarchicalKMeans {
         }
     }
 
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void recurseOffHeap(
         OffHeapFloatVectorValues vectors,
         int[] centroidVectorCount,
@@ -249,8 +251,8 @@ public class HierarchicalKMeans {
                             clusterAndSplit(slice, targetSize, depth + 1)
                         );
                     } finally {
-                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpVectorNames[adjustedCentroid]);
-                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpDocNames[adjustedCentroid]);
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, tmpVectorNames[adjustedCentroid]);
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, tmpDocNames[adjustedCentroid]);
                         tmpVectorNames[adjustedCentroid] = null;
                         tmpDocNames[adjustedCentroid] = null;
                     }
@@ -280,8 +282,8 @@ public class HierarchicalKMeans {
         } finally {
             for (int i = 0; i < tmpVectorNames.length; i++) {
                 if (tmpVectorNames[i] != null) {
-                    IOUtils.deleteFilesIgnoringExceptions(directory, tmpVectorNames[i]);
-                    IOUtils.deleteFilesIgnoringExceptions(directory, tmpDocNames[i]);
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, tmpVectorNames[i]);
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, tmpDocNames[i]);
                 }
             }
         }
@@ -299,6 +301,7 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void createTmpFiles(
         OffHeapFloatVectorValues vectors,
         int[] centroidVectorCount,
@@ -336,12 +339,12 @@ public class HierarchicalKMeans {
             if (success == false) {
                 for (String tmpName : vectorsTmpName) {
                     if (tmpName != null) {
-                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpName);
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, tmpName);
                     }
                 }
                 for (String tmpName : docTempName) {
                     if (tmpName != null) {
-                        IOUtils.deleteFilesIgnoringExceptions(directory, tmpName);
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, tmpName);
                     }
                 }
             }

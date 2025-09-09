@@ -194,32 +194,31 @@ final class RequestXContent {
                         namedParams.add(currentParam);
                     }
                 } else {
-                    paramValue = null;
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        paramValue = p.text();
-                        type = DataType.KEYWORD;
-                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                        XContentParser.NumberType numberType = p.numberType();
-                        if (numberType == XContentParser.NumberType.INT) {
-                            paramValue = p.intValue();
-                            type = DataType.INTEGER;
-                        } else if (numberType == XContentParser.NumberType.LONG) {
-                            paramValue = p.longValue();
-                            type = DataType.LONG;
-                        } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            paramValue = p.doubleValue();
-                            type = DataType.DOUBLE;
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        DataType currentType = null;
+                        List<Object> paramValues = new ArrayList<>();
+                        while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
+                            if (currentType == null) {
+                                currentType = valueAndDataType.type;
+                            } else if (currentType != valueAndDataType.type) {
+                                errors.add(
+                                    new XContentParseException(
+                                        loc,
+                                        "Unnamed parameter has values from different types, found "
+                                            + currentType
+                                            + " and "
+                                            + valueAndDataType.type
+                                    )
+                                );
+                            }
+                            paramValues.add(valueAndDataType.value);
                         }
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        paramValue = p.booleanValue();
-                        type = DataType.BOOLEAN;
-                    } else if (token == XContentParser.Token.VALUE_NULL) {
-                        type = DataType.NULL;
+                        unNamedParams.add(new QueryParam(null, paramValues, currentType, VALUE));
                     } else {
-                        errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
+                        ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
+                        unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));
                     }
-                    currentParam = new QueryParam(null, paramValue, type, VALUE);
-                    unNamedParams.add(currentParam);
                 }
             }
         }
@@ -241,6 +240,39 @@ final class RequestXContent {
             );
         }
         return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
+    }
+
+    private record ParamValueAndType(Object value, DataType type) {}
+
+    private static ParamValueAndType parseSingleParamValue(XContentParser p, List<XContentParseException> errors) throws IOException {
+        Object paramValue = null;
+        DataType type = null;
+        XContentParser.Token token = p.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            paramValue = p.text();
+            type = DataType.KEYWORD;
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            XContentParser.NumberType numberType = p.numberType();
+            if (numberType == XContentParser.NumberType.INT) {
+                paramValue = p.intValue();
+                type = DataType.INTEGER;
+            } else if (numberType == XContentParser.NumberType.LONG) {
+                paramValue = p.longValue();
+                type = DataType.LONG;
+            } else if (numberType == XContentParser.NumberType.DOUBLE) {
+                paramValue = p.doubleValue();
+                type = DataType.DOUBLE;
+            }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            paramValue = p.booleanValue();
+            type = DataType.BOOLEAN;
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            type = DataType.NULL;
+        } else {
+            XContentLocation loc = p.getTokenLocation();
+            errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
+        }
+        return new ParamValueAndType(paramValue, type);
     }
 
     private static void checkParamNameValidity(String name, List<XContentParseException> errors, XContentLocation loc) {

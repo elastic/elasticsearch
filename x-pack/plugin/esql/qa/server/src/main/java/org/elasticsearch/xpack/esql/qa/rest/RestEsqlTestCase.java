@@ -692,19 +692,62 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         Map<String, Object> responseMap = runEsql(
             RequestObjectBuilder.jsonBuilder()
-                .query("row a = ?n1 | eval s = ?n2")
-                .params("[{\"n1\" : [\"a1\", \"a2\"]}, {\"n2\" : [1, 2]}]")
+                .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e, f = ?f")
+                .params(
+                    "[{\"a\" : [\"a1\", \"a2\"]}, {\"b\" : [1, 2]}, {\"c\": [true, false]}, {\"d\": [1.1, 2.2]},"
+                        + " {\"e\": [1674835275193, 1674835275193]}, {\"f\": [null, null]}]"
+                )
         );
         System.out.println(responseMap);
 
         ListMatcher values = matchesList().item(
-            matchesList().item(matchesList().item("a1").item("a2")).item(matchesList().item(1).item(2))
+            matchesList().item(matchesList().item("a1").item("a2"))
+                .item(matchesList().item(1).item(2))
+                .item(matchesList().item(true).item(false))
+                .item(matchesList().item(1.1).item(2.2))
+                .item(matchesList().item(1674835275193L).item(1674835275193L))
+                .item(null) // constant null block, no multi-value
         );
 
         assertResultMap(
             responseMap,
             matchesList().item(matchesMap().entry("name", "a").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "s").entry("type", "integer")),
+                .item(matchesMap().entry("name", "b").entry("type", "integer"))
+                .item(matchesMap().entry("name", "c").entry("type", "boolean"))
+                .item(matchesMap().entry("name", "d").entry("type", "double"))
+                .item(matchesMap().entry("name", "e").entry("type", "long"))
+                .item(matchesMap().entry("name", "f").entry("type", "null")),
+            values
+        );
+    }
+
+    public void testArrayValuesAllowedInUnnamedParams() throws IOException {
+        assumeTrue("multivalues for params", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
+
+        Map<String, Object> responseMap = runEsql(
+            RequestObjectBuilder.jsonBuilder()
+                .query("row a = ? | eval b = ?, c = ?, d = ?, e = ?, f = ?")
+                .params("[[\"a1\", \"a2\"], [1, 2], [true, false], [1.1, 2.2], [1674835275193, 1674835275193], [null, null]]")
+        );
+        System.out.println(responseMap);
+
+        ListMatcher values = matchesList().item(
+            matchesList().item(matchesList().item("a1").item("a2"))
+                .item(matchesList().item(1).item(2))
+                .item(matchesList().item(true).item(false))
+                .item(matchesList().item(1.1).item(2.2))
+                .item(matchesList().item(1674835275193L).item(1674835275193L))
+                .item(null)
+        );
+
+        assertResultMap(
+            responseMap,
+            matchesList().item(matchesMap().entry("name", "a").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "b").entry("type", "integer"))
+                .item(matchesMap().entry("name", "c").entry("type", "boolean"))
+                .item(matchesMap().entry("name", "d").entry("type", "double"))
+                .item(matchesMap().entry("name", "e").entry("type", "long"))
+                .item(matchesMap().entry("name", "f").entry("type", "null")),
             values
         );
     }

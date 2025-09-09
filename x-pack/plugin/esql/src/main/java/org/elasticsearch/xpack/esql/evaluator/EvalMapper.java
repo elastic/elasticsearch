@@ -273,7 +273,18 @@ public final class EvalMapper {
                 if (multiValue.isEmpty()) {
                     return blockFactory.newConstantNullBlock(positions);
                 }
-                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
+                ElementType type = ElementType.NULL;
+                for (Object elem : multiValue) {
+                    if (elem != null) {
+                        type = ElementType.fromJava(elem.getClass());
+                        break;
+                    }
+                }
+                if (type == ElementType.NULL) {
+                    // all values are null
+                    return blockFactory.newConstantNullBlock(positions);
+                }
+                var wrapper = BlockUtils.wrapperFor(blockFactory, type, positions);
                 for (int i = 0; i < positions; i++) {
                     wrapper.accept(multiValue);
                 }

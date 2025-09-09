@@ -237,7 +237,11 @@ public class CrossClusterApiKeySigner {
                 Optional.ofNullable(SIGNATURE_ALGORITHM_BY_TYPE.get(privateKey.getAlgorithm()))
                     .orElseThrow(
                         () -> new IllegalArgumentException(
-                            "Unsupported Key Type [" + privateKey.getAlgorithm() + "] for [" + privateKey + "]"
+                            "Unsupported Key Type ["
+                                + privateKey.getAlgorithm()
+                                + "] in private key for ["
+                                + certificate.getSubjectX500Principal()
+                                + "]"
                         )
                     ),
                 calculateFingerprint(certificate)

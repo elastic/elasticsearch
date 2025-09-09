@@ -15,6 +15,8 @@ import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -36,7 +38,7 @@ public class BinaryComparisonQueryList extends QueryList {
     public BinaryComparisonQueryList(
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
-        Block block,
+        Block leftHandSideBlock,
         EsqlBinaryComparison binaryComparison,
         ClusterService clusterService,
         AliasFilter aliasFilter,
@@ -46,15 +48,16 @@ public class BinaryComparisonQueryList extends QueryList {
             field,
             searchExecutionContext,
             aliasFilter,
-            block,
+            leftHandSideBlock,
             new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value")
         );
         // swap left and right if the field is on the right
         // We get a filter in the form left_expr >= right_expr
         // here we will swap it to right_expr <= left_expr
-        // and later in doGetQuery we will replace left_expr with the value from the block
+        // and later in doGetQuery we will replace left_expr with the value from the leftHandSideBlock
+        // We do that because binaryComparison expects the field to be on the left and the literal on the right to be translatable
         this.binaryComparison = (EsqlBinaryComparison) binaryComparison.swapLeftAndRight();
-        this.blockValueReader = QueryList.createBlockValueReader(block);
+        this.blockValueReader = QueryList.createBlockValueReader(leftHandSideBlock);
         this.searchExecutionContext = searchExecutionContext;
         lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(searchExecutionContext)),
@@ -78,9 +81,13 @@ public class BinaryComparisonQueryList extends QueryList {
                 new Literal(binaryComparison.right().source(), value, binaryComparison.right().dataType())
             );
         try {
-            return comparison.asQuery(lucenePushdownPredicates, TranslatorHandler.TRANSLATOR_HANDLER)
-                .toQueryBuilder()
-                .toQuery(searchExecutionContext);
+            if (TranslationAware.Translatable.YES.equals(comparison.translatable(lucenePushdownPredicates))) {
+                return comparison.asQuery(lucenePushdownPredicates, TranslatorHandler.TRANSLATOR_HANDLER)
+                    .toQueryBuilder()
+                    .toQuery(searchExecutionContext);
+            } else {
+                throw new EsqlIllegalArgumentException("Cannot translate join condition: " + binaryComparison);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Error while building query for join on filter:", e);
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,6 +67,9 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
 
 /**
  * A caching layer on a local node to minimize network roundtrips to the remote blob store.
@@ -1274,6 +1278,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater,
                     ActionListener<Void> completionListener
                 ) throws IOException {
+                    LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
+                    String blobFileExtension = luceneFilesExtensions != null
+                        ? luceneFilesExtensions.getExtension()
+                        : NON_LUCENE_EXTENSION_TO_RECORD;
                     writer.fillCacheRange(
                         channel,
                         channelPos,
@@ -1284,7 +1292,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         completionListener.map(unused -> {
                             var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                            blobCacheMetrics.getCacheMissCounter().incrementBy(1L, Map.of());
+                            blobCacheMetrics.getCacheMissCounter().incrementBy(1L, Map.of(LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
+                                blobFileExtension));
                             return null;
                         })
                     );

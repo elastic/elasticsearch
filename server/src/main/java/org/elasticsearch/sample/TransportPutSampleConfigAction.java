@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -123,7 +124,6 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
         public static final ParseField TIME_TO_LIVE_FIELD = new ParseField("time_to_live");
         public static final ParseField CONDITION_FIELD = new ParseField("condition");
 
-        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<SamplingConfigCustomMetadata, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
             args -> new SamplingConfigCustomMetadata(
@@ -243,6 +243,25 @@ public class TransportPutSampleConfigAction extends AcknowledgedTransportMasterN
 
         public static SamplingConfigCustomMetadata fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other instanceof SamplingConfigCustomMetadata otherConfig) {
+                return Objects.equals(indexName, otherConfig.indexName)
+                    && rate == otherConfig.rate
+                    && Objects.equals(maxSamples, otherConfig.maxSamples)
+                    && Objects.equals(maxSize, otherConfig.maxSize)
+                    && Objects.equals(timeToLive, otherConfig.timeToLive)
+                    && Objects.equals(condition, otherConfig.condition);
+            } else {
+                return false;
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexName, rate, maxSamples, maxSize, timeToLive, condition);
         }
     }
 }

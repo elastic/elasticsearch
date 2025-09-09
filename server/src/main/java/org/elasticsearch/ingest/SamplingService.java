@@ -13,8 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -48,16 +50,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.ingest.ConditionalProcessor.FUNCTIONS;
 
-public class SamplingService {
+public class SamplingService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
     private final ScriptService scriptService;
     private final LongSupplier relativeNanoTimeSupplier;
     private final MasterServiceTaskQueue<UpdateSampleConfigTask> updateSamplingConfigTaskQueue;
+    private final MasterServiceTaskQueue<DeleteSampleConfigTask> deleteSamplingConfigTaskQueue;
     private final Map<String, SampleInfo> samples = new HashMap<>();
 
     public SamplingService(ScriptService scriptService, ClusterService clusterService, LongSupplier relativeNanoTimeSupplier) {
@@ -95,6 +99,34 @@ public class SamplingService {
             Priority.NORMAL,
             updateSampleConfigExecutor
         );
+        ClusterStateTaskExecutor<DeleteSampleConfigTask> deleteSampleConfigExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                DeleteSampleConfigTask deleteSamplingConfigTask,
+                ClusterState clusterState
+            ) {
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(deleteSamplingConfigTask.projectId);
+                TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(
+                    TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME
+                );
+                if (samplingConfig != null) {
+                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                    projectMetadataBuilder.removeCustom(TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME);
+                    ClusterState updatedClusterState = ClusterState.builder(clusterState)
+                        .putProjectMetadata(projectMetadataBuilder)
+                        .build();
+                    return new Tuple<>(updatedClusterState, deleteSamplingConfigTask);
+                } else {
+                    return null; // someone beat us to it. This seems like a bad plan TODO
+                }
+            }
+        };
+        this.deleteSamplingConfigTaskQueue = clusterService.createTaskQueue(
+            "delete-data-stream-mappings",
+            Priority.NORMAL,
+            deleteSampleConfigExecutor
+        );
     }
 
     public void updateSampleConfiguration(
@@ -110,19 +142,17 @@ public class SamplingService {
         ActionListener<AcknowledgedResponse> listener
     ) {
         updateSamplingConfigTaskQueue.submitTask(
-            "updating mappings on data stream",
-            new UpdateSampleConfigTask(
-                projectId,
-                index,
-                rate,
-                maxSamples,
-                maxSize,
-                timeToLive,
-                condition,
-                ackTimeout,
-                ActionListener.runBefore(listener, () -> samples.computeIfPresent(index, (s, sampleInfo) -> new SampleInfo()))
-            ),
+            "updating sampling config",
+            new UpdateSampleConfigTask(projectId, index, rate, maxSamples, maxSize, timeToLive, condition, ackTimeout, listener),
             masterNodeTimeout
+        );
+    }
+
+    public void deleteSampleConfiguration(ProjectId projectId, String index) {
+        deleteSamplingConfigTaskQueue.submitTask(
+            "deleting sampling config",
+            new DeleteSampleConfigTask(projectId, index, TimeValue.THIRTY_SECONDS, ActionListener.noop()),
+            TimeValue.THIRTY_SECONDS
         );
     }
 
@@ -149,7 +179,10 @@ public class SamplingService {
         if (samplingConfig != null) {
             String samplingIndex = samplingConfig.indexName;
             if (samplingIndex.equals(indexRequest.index())) {
-                SampleInfo sampleInfo = samples.computeIfAbsent(samplingIndex, k -> new SampleInfo());
+                SampleInfo sampleInfo = samples.computeIfAbsent(
+                    samplingIndex,
+                    k -> new SampleInfo(samplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong())
+                );
                 SampleStats stats = sampleInfo.stats;
                 stats.potentialSamples.increment();
                 try {
@@ -201,13 +234,13 @@ public class SamplingService {
                     stats.samplesRejectedForException.increment();
                     stats.lastException = e;
                     logger.info("Error performing sampling for " + samplingIndex, e);
-                    // e.printStackTrace(System.out);
                 } finally {
                     stats.timeSampling.add((relativeNanoTimeSupplier.getAsLong() - startTime));
                     logger.info("********* Stats: " + stats);
                 }
             }
         }
+        checkTTLs(projectMetadata.id()); // TODO make this happen less often?
     }
 
     public List<IndexRequest> getSamples(String index) {
@@ -240,16 +273,56 @@ public class SamplingService {
         }
     }
 
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.metadataChanged()) {
+            for (ProjectMetadata projectMetadata : event.state().metadata().projects().values()) {
+                ProjectId projectId = projectMetadata.id();
+                if (event.customMetadataChanged(projectId, TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME)) {
+                    TransportPutSampleConfigAction.SamplingConfigCustomMetadata oldSamplingConfig = event.previousState()
+                        .projectState(projectId)
+                        .metadata()
+                        .custom(TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME);
+                    TransportPutSampleConfigAction.SamplingConfigCustomMetadata newSamplingConfig = event.state()
+                        .projectState(projectId)
+                        .metadata()
+                        .custom(TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME);
+                    if (newSamplingConfig == null && oldSamplingConfig != null) {
+                        samples.remove(oldSamplingConfig.indexName);
+                    } else if (newSamplingConfig != null && newSamplingConfig.equals(oldSamplingConfig) == false) {
+                        samples.computeIfPresent(
+                            newSamplingConfig.indexName,
+                            (s, sampleInfo) -> new SampleInfo(newSamplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong())
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private void checkTTLs(ProjectId projectId) {
+        long now = relativeNanoTimeSupplier.getAsLong();
+        Set<String> indices = samples.keySet();
+        for (String index : indices) {
+            SampleInfo sampleInfo = samples.get(index);
+            if (sampleInfo.expiration < now) {
+                deleteSampleConfiguration(projectId, index);
+            }
+        }
+    }
+
     private static final class SampleInfo {
         private final List<IndexRequest> samples;
         private final SampleStats stats;
+        private final long expiration;
         private volatile Script script;
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
 
-        SampleInfo() {
+        SampleInfo(TimeValue timeToLive, long relativeNowNanos) {
             this.samples = new ArrayList<>();
             this.stats = new SampleStats();
+            this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).nanos() : timeToLive.nanos()) + relativeNowNanos;
         }
 
         public List<IndexRequest> getSamples() {
@@ -325,6 +398,22 @@ public class SamplingService {
             this.maxSize = maxSize;
             this.timeToLive = timeToLive;
             this.condition = condition;
+        }
+    }
+
+    static class DeleteSampleConfigTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        final String indexName;
+
+        DeleteSampleConfigTask(
+            ProjectId projectId,
+            String indexName,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
         }
     }
 }

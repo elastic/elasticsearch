@@ -716,6 +716,7 @@ class NodeConstruction {
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
         SamplingService samplingService = new SamplingService(scriptService, clusterService, System::nanoTime);
         modules.bindToInstance(SamplingService.class, samplingService);
+        clusterService.addListener(samplingService);
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(

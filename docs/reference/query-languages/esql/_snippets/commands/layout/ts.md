@@ -94,7 +94,7 @@ fields in `metrics` - as opposed to just `hourly` for an equivalent query using
 TS metrics | STATS RATE(search_requests) BY hourly=TBUCKET(1 hour)
 ```
 
-Including fields expect time as grouping attributes is not allowed as it'd
+Including fields except from time as grouping attributes is not allowed as it'd
 require an aggregation function to combine per-tsid values.
 ::::
 
@@ -102,17 +102,18 @@ require an aggregation function to combine per-tsid values.
 
  - Avoid mixing aggregation functions on different metrics in the same query, to
    avoid interference between different time-series. For instance, if one metric
-   is missing a value for a given `_tsid`, its aggregation may return null for a
-   given combination of dimensions, which may lead to a null result for that
-   group if the secondary function returns null on a null arg. More so, null
-   metric filtering is more efficient when the query includes a single metric.
+   is missing values for a given `_tsid`, the time-series aggregation function
+   may return null for a given combination of dimensions, which may lead to a
+   null result for that group if the secondary function returns null on a null
+   arg. More so, null metric filtering is more efficient when a query includes
+   a single metric.
  - Prefer the `TS` command for aggregations on time-series data. `FROM` is still
-   applicable for other queries, e.g. to list document contents. More so, the
-   `TS` command can't be combined with certain operation such as `FORK`, before
-   the `STATS` command is applied. That said, once `STATS` is applied, its tabular
-   output can be further processed as applicable, in line with regular
-   ES|QL processing.
- - Avoid queries without a time range filter on `@timestamp`, to prevent scanning
+   applicable, e.g. to list document contents, but it's not optimized to process
+   time-series data efficiently. More so, the  `TS` command can't be combined
+   with certain operation such as `FORK`, before the `STATS` command is applied.
+   That said, once `STATS` is applied, its tabular output can be further
+   processed as applicable, in line with regular ES|QL processing.
+ - Include a time range filter on `@timestamp`, to prevent scanning
    unnecessarily large data volumes.
 
 **Syntax**

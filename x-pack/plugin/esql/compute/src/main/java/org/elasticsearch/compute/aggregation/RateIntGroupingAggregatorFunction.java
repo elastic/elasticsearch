@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.compute.aggregation.oldrate.OldRateDoubleGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.oldrate.OldRateIntAggregator;
 import org.elasticsearch.compute.aggregation.oldrate.OldRateIntGroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
@@ -43,7 +42,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
         @Override
         public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-            return RateDoubleGroupingAggregatorFunction.intermediateStateDesc();
+            return RateIntGroupingAggregatorFunction.intermediateStateDesc();
         }
 
         @Override
@@ -52,8 +51,8 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         }
 
         @Override
-        public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateDoubleGroupingAggregatorFunction(channels, driverContext);
+        public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+            return new RateIntGroupingAggregatorFunction(channels, driverContext);
         }
 
         @Override
@@ -78,7 +77,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
-        return OldRateDoubleGroupingAggregatorFunction.intermediateStateDesc();
+        return OldRateIntGroupingAggregatorFunction.intermediateStateDesc();
     }
 
     @Override

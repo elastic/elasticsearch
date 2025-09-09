@@ -11,7 +11,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.compute.aggregation.oldrate.OldRateDoubleGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.oldrate.OldRateLongAggregator;
 import org.elasticsearch.compute.aggregation.oldrate.OldRateLongGroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
@@ -42,7 +41,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
         @Override
         public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-            return RateDoubleGroupingAggregatorFunction.intermediateStateDesc();
+            return RateLongGroupingAggregatorFunction.intermediateStateDesc();
         }
 
         @Override
@@ -77,7 +76,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
-        return OldRateDoubleGroupingAggregatorFunction.intermediateStateDesc();
+        return OldRateLongGroupingAggregatorFunction.intermediateStateDesc();
     }
 
     @Override

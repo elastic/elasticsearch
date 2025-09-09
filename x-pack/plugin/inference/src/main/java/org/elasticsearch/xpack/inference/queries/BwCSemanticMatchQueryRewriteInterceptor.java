@@ -12,13 +12,13 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
-public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
+public class BwCSemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_match_query_rewrite_interception_supported"
     );
 
-    public SemanticMatchQueryRewriteInterceptor() {}
+    public BwCSemanticMatchQueryRewriteInterceptor() {}
 
     @Override
     protected String getFieldName(QueryBuilder queryBuilder) {

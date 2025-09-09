@@ -20,7 +20,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.BwCSemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
 import org.junit.Before;
@@ -28,7 +28,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
+public class BwCSemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
@@ -130,6 +130,6 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new SemanticMatchQueryRewriteInterceptor();
+        return new BwCSemanticMatchQueryRewriteInterceptor();
     }
 }

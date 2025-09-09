@@ -31,7 +31,9 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
     GetInferenceDiagnosticsAction.NodeResponse,
     Void> {
 
-    private final HttpClientManager httpClientManager;
+    public record ClientManagers(HttpClientManager externalHttpClientManager, HttpClientManager eisMtlsHttpClientManager) {}
+
+    private final ClientManagers managers;
 
     @Inject
     public TransportGetInferenceDiagnosticsAction(
@@ -39,7 +41,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        HttpClientManager httpClientManager
+        ClientManagers managers
     ) {
         super(
             GetInferenceDiagnosticsAction.NAME,
@@ -50,7 +52,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
 
-        this.httpClientManager = Objects.requireNonNull(httpClientManager);
+        this.managers = Objects.requireNonNull(managers);
     }
 
     @Override
@@ -74,6 +76,10 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
 
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse nodeOperation(GetInferenceDiagnosticsAction.NodeRequest request, Task task) {
-        return new GetInferenceDiagnosticsAction.NodeResponse(transportService.getLocalNode(), httpClientManager.getPoolStats());
+        return new GetInferenceDiagnosticsAction.NodeResponse(
+            transportService.getLocalNode(),
+            managers.externalHttpClientManager().getPoolStats(),
+            managers.eisMtlsHttpClientManager().getPoolStats()
+        );
     }
 }

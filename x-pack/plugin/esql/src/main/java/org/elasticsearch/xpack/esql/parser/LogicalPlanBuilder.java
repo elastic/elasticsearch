@@ -86,6 +86,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -817,13 +818,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<NamedExpression> groupings = List.of(idAttr, indexAttr);
 
             MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
-            Fuse.FuseType fuseType = ctx.fuseType != null && ctx.fuseType.LINEAR() != null ? Fuse.FuseType.LINEAR : Fuse.FuseType.RRF;
+            String fuseType = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType).toUpperCase(Locale.ROOT);
 
-            if (fuseType == Fuse.FuseType.LINEAR) {
-                throw new ParsingException(source(ctx), "LINEAR fuse type is not yet supported");
+            if (fuseType.equals(Fuse.FuseType.RRF.name()) == false) {
+                throw new ParsingException(source(ctx), "Fuse type " + fuseType + " is not supported");
             }
 
-            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType, options);
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, Fuse.FuseType.RRF, options);
         };
     }
 

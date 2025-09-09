@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -128,7 +126,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
 
         options.keyFoldedMap().forEach((key, value) -> {
             if (key.equals(RrfConfig.RANK_CONSTANT)) {
-                validatePositiveDouble(failures, value, key);
+                validatePositiveNumber(failures, value, key);
             } else if (key.equals(FuseConfig.WEIGHTS)) {
                 validateWeights(value, failures);
             } else {
@@ -142,10 +140,10 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
             failures.add(new Failure(this, "expected weights to be a MapExpression, got [" + weights.sourceText() + "]"));
             return;
         }
-        ((MapExpression) weights).keyFoldedMap().forEach((key, value) -> { validatePositiveDouble(failures, value, "weight"); });
+        ((MapExpression) weights).keyFoldedMap().forEach((key, value) -> { validatePositiveNumber(failures, value, "weight"); });
     }
 
-    private void validatePositiveDouble(Failures failures, Expression value, String name) {
+    private void validatePositiveNumber(Failures failures, Expression value, String name) {
         if ((value instanceof Literal) == false) {
             failures.add(new Failure(this, "expected " + name + " to be a literal, got [" + value.sourceText() + "]"));
         }
@@ -154,18 +152,8 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
             failures.add(new Failure(this, "expected " + name + " to be numeric, got [" + value.sourceText() + "]"));
             return;
         }
-        Double numericValue = null;
-        try {
-            numericValue = EsqlDataTypeConverter.stringToDouble(value.fold(FoldContext.small()).toString());
-        } catch (InvalidArgumentException e) {
-            failures.add(
-                new Failure(
-                    this,
-                    "expected double, cannot convert [" + value.sourceText() + "] to a double, got [" + value.dataType().name() + "]"
-                )
-            );
-        }
-        if (numericValue != null && numericValue <= 0) {
+        Number numericValue = (Number) value.fold(FoldContext.small());
+        if (numericValue != null && numericValue.doubleValue() <= 0) {
             failures.add(new Failure(this, "expected " + name + " to be positive, got [" + value.sourceText() + "]"));
         }
     }

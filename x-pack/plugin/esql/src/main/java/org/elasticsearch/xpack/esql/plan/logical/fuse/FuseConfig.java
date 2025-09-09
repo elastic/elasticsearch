@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.fuse;
 
+/**
+ * Holds the options that are given to the FUSE command.
+ * The FUSE options are dependent on the FUSE method (e.g. RRF/LINEAR).
+ * Each FUSE method has its own FuseConfig implementation.
+ */
 public interface FuseConfig {
     String WEIGHTS = "weights";
 }

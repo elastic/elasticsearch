@@ -3998,7 +3998,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
-        expectError(queryPrefix + " | FUSE BLA", "line 1:80: extraneous input 'BLA' expecting <EOF>");
+        expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
 
         expectError(queryPrefix + " | FUSE WITH 1", "line 1:85: mismatched input '1' expecting '{'");
     }

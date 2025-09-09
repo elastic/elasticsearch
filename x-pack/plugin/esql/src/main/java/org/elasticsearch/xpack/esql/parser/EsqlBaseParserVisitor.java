@@ -455,12 +455,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fuseMethod}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFuseMethod(EsqlBaseParser.FuseMethodContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    * @return the visitor result

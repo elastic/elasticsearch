@@ -336,12 +336,7 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE (fuseType=fuseMethod)? fuseOptions=commandNamedParameters
-    ;
-
-fuseMethod
-    : RRF
-    | LINEAR
+    : DEV_FUSE (fuseType=identifier)? fuseOptions=commandNamedParameters
     ;
 
 setCommand

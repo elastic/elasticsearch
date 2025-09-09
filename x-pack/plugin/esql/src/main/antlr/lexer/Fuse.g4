@@ -14,9 +14,6 @@ FUSE_PIPE : PIPE -> type(PIPE), popMode;
 // explicit popMode of RP to allow FUSE in FORK branches
 FUSE_RP : RP -> type(RP), popMode, popMode;
 
-RRF : 'rrf';
-LINEAR: 'linear';
-
 FUSE_WITH: WITH -> type(WITH), popMode, pushMode(EXPRESSION_MODE);
 FUSE_COMMA: COMMA -> type(COMMA);
 FUSE_QUOTED_IDENTIFIER: QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);

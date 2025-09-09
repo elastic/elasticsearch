@@ -1455,6 +1455,11 @@ public class EsqlCapabilities {
         IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support for the Present function
+         */
+        FN_PRESENT,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */

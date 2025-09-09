@@ -63,15 +63,17 @@ public class MutableSearchResponseRefCountingTests extends ESTestCase {
 
         searchResponse.decRef(); // sr refCount -> 1
 
-        //Simulate another thread : take a resource (msr refCount -> 2)
+        // Simulate another thread : take a resource (msr refCount -> 2)
         msr.incRef();
         // close resource (msr refCount -> 1) -> closeInternal not called yet
         msr.decRef();
 
         // Build a response
-        AsyncSearchResponse resp = msr.toAsyncSearchResponse(createAsyncSearchTask(),
+        AsyncSearchResponse resp = msr.toAsyncSearchResponse(
+            createAsyncSearchTask(),
             System.currentTimeMillis() + 60_000, /*restoreResponseHeaders*/
-            false);
+            false
+        );
         try {
             assertNotNull("Expect SearchResponse when a live ref prevents close", resp.getSearchResponse());
             assertNull("No failure expected while ref is held", resp.getFailure());
@@ -84,8 +86,7 @@ public class MutableSearchResponseRefCountingTests extends ESTestCase {
         msr.decRef();
     }
 
-
-    public void testGetResponseAfterCloseReturnsGone    () throws Exception {
+    public void testGetResponseAfterCloseReturnsGone() throws Exception {
         final int totalShards = 1;
         final int skippedShards = 0;
 
@@ -112,7 +113,7 @@ public class MutableSearchResponseRefCountingTests extends ESTestCase {
         // Invoke getResponseWithHeaders and expect GONE exception
         InvocationTargetException ite = expectThrows(InvocationTargetException.class, () -> {
             AsyncSearchResponse resp = (AsyncSearchResponse) m.invoke(task);
-            if (resp != null)  {
+            if (resp != null) {
                 resp.decRef();
             }
         });

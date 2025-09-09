@@ -158,13 +158,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -211,13 +211,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -257,13 +257,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         ) {
             @Override
@@ -321,13 +321,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -391,13 +391,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
@@ -459,13 +459,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
 
@@ -628,13 +628,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                unsupportedLicenseState,
                 securityContext,
-                threadPool,
-                settings,
+                mock(CrossClusterAccessAuthenticationService.class),
+                unsupportedLicenseState,
                 mockRemoteClusterCredentialsResolver(remoteClusterAlias)
             )
         );
@@ -767,13 +767,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 authzService,
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
                 ignored -> Optional.of(
                     new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
                 )
@@ -909,13 +909,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 authzService,
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
                 ignored -> notRemoteConnection
                     ? Optional.empty()
                     : (finalNoCredential
@@ -972,13 +972,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
                 ignored -> Optional.of(
                     new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
                 )
@@ -1075,13 +1075,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                settings,
+                threadPool,
                 mock(AuthenticationService.class),
                 authzService,
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                settings,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
                 ignored -> Optional.of(
                     new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
                 )
@@ -1189,13 +1189,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                builder.build(),
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                builder.build()
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
 
@@ -1249,13 +1249,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             securityContext,
             destructiveOperations,
             new CrossClusterAccessTransportInterceptor(
-                mock(CrossClusterAccessAuthenticationService.class),
+                builder.build(),
+                threadPool,
                 mock(AuthenticationService.class),
                 mock(AuthorizationService.class),
-                mockLicenseState,
                 securityContext,
-                threadPool,
-                builder.build()
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
             )
         );
 

@@ -1168,13 +1168,13 @@ public class Security extends Plugin
         components.add(crossClusterAccessAuthcService.get());
 
         RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
-            crossClusterAccessAuthcService.get(),
+            settings,
+            threadPool,
             authcService.get(),
             authzService,
-            getLicenseState(),
             securityContext.get(),
-            threadPool,
-            settings
+            crossClusterAccessAuthcService.get(),
+            getLicenseState()
         );
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(

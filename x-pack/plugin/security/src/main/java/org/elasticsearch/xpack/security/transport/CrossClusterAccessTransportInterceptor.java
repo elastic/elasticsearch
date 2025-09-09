@@ -90,35 +90,35 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
     private final Settings settings;
 
     public CrossClusterAccessTransportInterceptor(
-        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        Settings settings,
+        ThreadPool threadPool,
         AuthenticationService authcService,
         AuthorizationService authzService,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
-        ThreadPool threadPool,
-        Settings settings
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        XPackLicenseState licenseState
     ) {
         this(
-            crossClusterAccessAuthcService,
+            settings,
+            threadPool,
             authcService,
             authzService,
-            licenseState,
             securityContext,
-            threadPool,
-            settings,
+            crossClusterAccessAuthcService,
+            licenseState,
             RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
         );
     }
 
     // package-protected for testing
     CrossClusterAccessTransportInterceptor(
-        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        Settings settings,
+        ThreadPool threadPool,
         AuthenticationService authcService,
         AuthorizationService authzService,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
-        ThreadPool threadPool,
-        Settings settings,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        XPackLicenseState licenseState,
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;

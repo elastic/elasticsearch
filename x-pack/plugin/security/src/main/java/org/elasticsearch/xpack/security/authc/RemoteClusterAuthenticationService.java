@@ -34,9 +34,7 @@ public interface RemoteClusterAuthenticationService {
     void authenticate(String action, TransportRequest request, ActionListener<Authentication> listener);
 
     /**
-     * This method is called to do a preliminary check if headers contain valid
-     * remote cluster credentials, without the overhead of full authentication
-     * processing.
+     * Called early (after transport headers were received) to authenticate a remote cluster transport request.
      *
      * @param headers map of request headers containing authentication credentials
      * @param listener callback to receive {@code null} on successful authentication,

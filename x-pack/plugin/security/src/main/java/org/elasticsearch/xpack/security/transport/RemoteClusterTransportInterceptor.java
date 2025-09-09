@@ -27,7 +27,7 @@ public interface RemoteClusterTransportInterceptor {
     TransportInterceptor.AsyncSender interceptSender(TransportInterceptor.AsyncSender sender);
 
     /**
-     * This method returns {@code true} if the {@code connection} is targeting a remote cluster.
+     * This method returns {@code true} if the outbound {@code connection} is targeting a remote cluster.
      */
     boolean isRemoteClusterConnection(Transport.Connection connection);
 
@@ -46,7 +46,7 @@ public interface RemoteClusterTransportInterceptor {
     /**
      * Returns {@code true} if any of the remote cluster access headers are in the security context.
      * This method is used to assert we don't have access headers already in the security context,
-     * before we even run remote cluster intercepts. Serves as a sanity check that we properly clear
+     * before we even run remote cluster intercepts. Serves as an integrity check that we properly clear
      * the security context between requests.
      */
     boolean hasRemoteClusterAccessHeadersInContext(SecurityContext securityContext);

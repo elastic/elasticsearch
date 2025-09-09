@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.crossclusteraccess;
+package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -31,10 +31,6 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeadersTests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -146,7 +142,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
-    public void testTryAuthenticateSuccess() throws IOException {
+    public void testAuthenticateHeadersSuccess() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
@@ -213,7 +209,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
     }
 
-    public void testTryAuthenticateFailure() throws IOException {
+    public void testAuthenticateHeadersFailure() throws IOException {
         final EncodedKeyWithId encodedCrossClusterAccessApiKeyWithId = getEncodedCrossClusterAccessApiKeyWithId();
         final EncodedKeyWithId encodedRestApiKeyWithId = getEncodedRestApiKeyWithId();
         final String nodeName = internalCluster().getRandomNodeName();

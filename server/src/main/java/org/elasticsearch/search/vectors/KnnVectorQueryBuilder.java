@@ -138,6 +138,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return PARSER.apply(parser, null);
     }
 
+    private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
+
     private final String fieldName;
     private final VectorData queryVector;
     private final Integer k;
@@ -282,7 +284,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.numCands = in.readVInt();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+        if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
             this.visitPercentage = null;
@@ -396,7 +398,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeVInt(numCands);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+        if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {

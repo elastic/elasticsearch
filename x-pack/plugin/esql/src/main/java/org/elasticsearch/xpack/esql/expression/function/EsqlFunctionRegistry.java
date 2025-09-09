@@ -482,7 +482,8 @@ public class EsqlFunctionRegistry {
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
+                def(Score.class, uni(Score::new), "score"), } };
 
     }
 
@@ -503,7 +504,6 @@ public class EsqlFunctionRegistry {
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
-                def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(ToGeohash.class, ToGeohash::new, "to_geohash"),

@@ -44,7 +44,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The irate of a counter field.",
+        description = "The irate of a counter field. irate is the per-second rate of increase between the last two data points ("
+            + "it ignores all but the last two data points in each time period). "
+            + "This function is very similar to rate, but is more responsive to recent changes in the rate of increase.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
         note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
         examples = { @Example(file = "k8s-timeseries", tag = "irate") }
@@ -133,9 +135,5 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @Override
     public String toString() {
         return "irate(" + field() + ")";
-    }
-
-    Expression timestamp() {
-        return timestamp;
     }
 }

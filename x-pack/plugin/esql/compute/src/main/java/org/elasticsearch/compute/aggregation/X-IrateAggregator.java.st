@@ -30,7 +30,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * A rate grouping aggregation definition for $type$.
- * This class is generated. Edit `X-RateAggregator.java.st` instead.
+ * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
@@ -41,7 +41,8 @@ public class Irate$Type$Aggregator {
     }
 
     public static void combine($Type$IrateGroupingState current, int groupId, $type$ value, long timestamp) {
-        current.append(groupId, timestamp, value);
+        current.ensureCapacity(groupId);
+        $Type$IrateGroupingState.append(current.states, groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
@@ -60,34 +61,24 @@ public class Irate$Type$Aggregator {
 
     private static class $Type$IrateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$IrateState.class);
-        final long[] timestamps; // descending order
-        final $type$[] values;
+        long lastTimestamp;
+        long secondLastTimestamp;
+        $type$ lastValue;
+        $type$ secondLastValue;
+        boolean hasSecond;
 
-        $Type$IrateState(int initialSize) {
-            this.timestamps = new long[initialSize];
-            this.values = new $type$[initialSize];
+        $Type$IrateState() {
+            hasSecond = false;
         }
 
-        $Type$IrateState(long[] ts, $type$[] vs) {
-            this.timestamps = ts;
-            this.values = vs;
+        $Type$IrateState(long lastTimestamp, $type$ lastValue) {
+            this.lastTimestamp = lastTimestamp;
+            this.lastValue = lastValue;
+            this.hasSecond = false;
         }
 
-        void append(long t, $type$ v) {
-            assert timestamps.length == 2 : "expected two timestamps; got " + timestamps.length;
-            assert t < timestamps[1] : "@timestamp goes backward: " + t + " >= " + timestamps[1];
-            // This method does not need to do anything because we only need the last two values
-            // and timestamps, which are already in place.
-        }
-
-        int entries() {
-            return timestamps.length;
-        }
-
-        static long bytesUsed(int entries) {
-            var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
-            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $BYTES$ * entries);
-            return BASE_RAM_USAGE + ts + vs;
+        static long bytesUsed() {
+            return BASE_RAM_USAGE;
         }
     }
 
@@ -113,94 +104,45 @@ public class Irate$Type$Aggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, $type$ value) {
-            ensureCapacity(groupId);
+        static Long append(ObjectArray<$Type$IrateState> states, int groupId, long timestamp, $type$ value) {
             var state = states.get(groupId);
             if (state == null) {
-                adjustBreaker($Type$IrateState.bytesUsed(1));
-                state = new $Type$IrateState(new long[] { timestamp, -1 }, new $type$[] { value, 0 });
+                state = new $Type$IrateState(timestamp, value);
                 states.set(groupId, state);
+                return $Type$IrateState.bytesUsed();
             } else {
                 // We only need the last two values, but we need to keep them sorted by timestamp.
-                if (timestamp > state.timestamps[0]) {
+                if (timestamp > state.lastTimestamp) {
                     // new timestamp is the most recent
-                    state.timestamps[1] = state.timestamps[0];
-                    state.values[1] = state.values[0];
-                    state.timestamps[0] = timestamp;
-                    state.values[0] = value;
-                } else if (timestamp > state.timestamps[1]) {
+                    state.secondLastTimestamp = state.lastTimestamp;
+                    state.secondLastValue = state.lastValue;
+                    state.lastTimestamp = timestamp;
+                    state.lastValue = value;
+                    state.hasSecond = true;
+                } else if (timestamp > state.secondLastTimestamp) {
                     // new timestamp is the second most recent
-                    state.timestamps[1] = timestamp;
-                    state.values[1] = value;
+                    state.secondLastTimestamp = timestamp;
+                    state.secondLastValue = value;
+                    state.hasSecond = true;
                 } // else: ignore, too old
+                return 0L;
             }
         }
 
         void combine(int groupId, LongBlock timestamps, $Type$Block values, int otherPosition) {
-            // TODO: Check this method pabloem
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
             }
             final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            var state = states.get(groupId);
-            if (state == null) {
-                adjustBreaker($Type$IrateState.bytesUsed(valueCount));
-                state = new $Type$IrateState(valueCount);
-                states.set(groupId, state);
-                // TODO: add bulk_copy to Block
-                for (int i = 0; i < valueCount; i++) {
-                    state.timestamps[i] = timestamps.getLong(firstIndex + i);
-                    state.values[i] = values.get$Type$(firstIndex + i);
-                }
-            } else {
-                adjustBreaker($Type$IrateState.bytesUsed(state.entries() + valueCount));
-                var newState = new $Type$IrateState(state.entries() + valueCount);
-                states.set(groupId, newState);
-                merge(state, newState, firstIndex, valueCount, timestamps, values);
-                adjustBreaker(-$Type$IrateState.bytesUsed(state.entries())); // old state
+            var incr = append(states, groupId, timestamps.getLong(firstIndex), values.get$Type$(firstIndex));
+            adjustBreaker(incr);
+            if (valueCount > 1) {
+                ensureCapacity(groupId);
+                incr = append(states, groupId, timestamps.getLong(firstIndex + 1), values.get$Type$(firstIndex + 1));
+                adjustBreaker(incr);
             }
-        }
-
-        void merge($Type$IrateState curr, $Type$IrateState dst, int firstIndex, int rightCount, LongBlock timestamps, $Type$Block values) {
-            int i = 0, j = 0, k = 0;
-            final int leftCount = curr.entries();
-            // We do not merge more than two entries because we only need the last two.
-            // This merge thus ends when we have two entries in dst.
-            while (i < leftCount && j < rightCount && k < 2) {
-                final var t1 = curr.timestamps[i];
-                final var t2 = timestamps.getLong(firstIndex + j);
-                if (t1 > t2) {
-                    dst.timestamps[k] = t1;
-                    dst.values[k] = curr.values[i];
-                    ++i;
-                } else {
-                    dst.timestamps[k] = t2;
-                    dst.values[k] = values.get$Type$(firstIndex + j);
-                    ++j;
-                }
-                ++k;
-            }
-        }
-
-        $Type$IrateState mergeState($Type$IrateState s1, $Type$IrateState s2) {
-            adjustBreaker($Type$IrateState.bytesUsed(2));
-            var dst = new $Type$IrateState(2);
-            int i = 0, j = 0, k = 0;
-            while (i < s1.entries() && j < s2.entries() && k < 2) {
-                if (s1.timestamps[i] > s2.timestamps[j]) {
-                    dst.timestamps[k] = s1.timestamps[i];
-                    dst.values[k] = s1.values[i];
-                    ++i;
-                } else {
-                    dst.timestamps[k] = s2.timestamps[j];
-                    dst.values[k] = s2.values[j];
-                    ++j;
-                }
-                ++k;
-            }
-            return dst;
         }
 
         @Override
@@ -227,14 +169,16 @@ public class Irate$Type$Aggregator {
                     final var state = groupId < states.size() ? states.get(groupId) : null;
                     if (state != null) {
                         timestamps.beginPositionEntry();
-                        for (long t : state.timestamps) {
-                            timestamps.appendLong(t);
+                        timestamps.appendLong(state.lastTimestamp);
+                        if (state.hasSecond) {
+                            timestamps.appendLong(state.secondLastTimestamp);
                         }
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        for ($type$ v : state.values) {
-                            values.append$Type$(v);
+                        values.append$Type$(state.lastValue);
+                        if (state.hasSecond) {
+                            values.append$Type$(state.secondLastValue);
                         }
                         values.endPositionEntry();
                     } else {
@@ -253,15 +197,16 @@ public class Irate$Type$Aggregator {
                 for (int p = 0; p < positionCount; p++) {
                     final var groupId = selected.getInt(p);
                     final var state = groupId < states.size() ? states.get(groupId) : null;
-                    if (state == null || state.values.length < 2 || state.timestamps[1] == -1) {
+                    if (state == null || state.hasSecond == false) {
                         rates.appendNull();
                         continue;
                     }
-                    int len = state.entries();
                     // When the last value is less than the previous one, we assume a reset
                     // and use the last value directly.
-                    final double ydiff = state.values[0] > state.values[1] ? state.values[0] - state.values[1] : state.values[0];
-                    final long xdiff = state.timestamps[0] - state.timestamps[1];
+                    final double ydiff = state.lastValue >= state.secondLastValue
+                        ? state.lastValue - state.secondLastValue
+                        : state.lastValue;
+                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
                     rates.appendDouble(ydiff / xdiff * 1000);
                 }
                 return rates.build();

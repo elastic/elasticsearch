@@ -284,7 +284,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             if (deltaAgg.equals(DeltaAgg.IRATE)) {
                 var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
-                var irate = (lastVal > secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - timeseries.get(
+                var irate = (lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - timeseries.get(
                     timeseries.size() - 2
                 ).v2().v1().toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
@@ -397,7 +397,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * The test checks that the count, max, min, and avg values of the rate metric - and calculates
      * the same values from the documents in the group.
      */
-    public void testRateGroupBySubset() {
+    public void testRateSomethingSomething() {
         var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();

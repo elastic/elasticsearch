@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.crossproject;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
 import java.util.Map;
 
 /**
@@ -19,27 +17,10 @@ import java.util.Map;
  *             All built-in tags are prefixed with an underscore (_).
  */
 public record ProjectTags(Map<String, String> tags) {
-
-    public ProjectTags(ProjectId projectId, String projectType, String organizationId, String projectAlias) {
-        this(
-            Map.of(
-                PROJECT_ID_TAG,
-                projectId.id(),
-                PROJECT_ALIAS,
-                projectAlias,
-                PROJECT_TYPE_TAG,
-                projectType,
-                ORGANIZATION_ID_TAG,
-                organizationId
-            )
-        );
-    }
-
-    private static final String PROJECT_ID_TAG = "_id";
-
-    private static final String PROJECT_ALIAS = "_alias";
-    private static final String PROJECT_TYPE_TAG = "_type";
-    private static final String ORGANIZATION_ID_TAG = "_organization";
+    public static final String PROJECT_ID_TAG = "_id";
+    public static final String PROJECT_ALIAS = "_alias";
+    public static final String PROJECT_TYPE_TAG = "_type";
+    public static final String ORGANIZATION_ID_TAG = "_organization";
 
     public String projectId() {
         return tags.get(PROJECT_ID_TAG);

@@ -1369,7 +1369,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                          * before overwriting it here. We can discard it after sampling.
                          */
                         IndexRequest original = copyIndexRequest(indexRequest);
-                        updateIndexRequestMetadata(original, originalDocumentMetadata);
+                        updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
                         samplingService.maybeSample(project, original, ingestDocument);
                     } catch (IOException ex) {
                         logger.warn("unable to sample data");

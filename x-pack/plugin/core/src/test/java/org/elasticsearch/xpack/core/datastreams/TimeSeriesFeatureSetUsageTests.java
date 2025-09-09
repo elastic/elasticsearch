@@ -57,7 +57,7 @@ public class TimeSeriesFeatureSetUsageTests extends AbstractWireSerializingTestC
         var dataStreamCount = instance.getTimeSeriesDataStreamCount();
         if (dataStreamCount == 0) {
             return new TimeSeriesFeatureSetUsage(
-                randomIntBetween(0, 100),
+                randomIntBetween(1, 100),
                 randomIntBetween(100, 100000),
                 TimeSeriesFeatureSetUsage.DownsamplingFeatureStats.EMPTY,
                 Map.of()

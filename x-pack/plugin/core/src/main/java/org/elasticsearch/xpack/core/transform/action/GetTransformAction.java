@@ -47,14 +47,15 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
     public static class Request extends AbstractGetResourcesRequest {
 
+        public static PageParams DEFAULT_PARAMS = PageParams.defaultParams();
         private static final int MAX_SIZE_RETURN = 1000;
 
         public Request(String id) {
-            super(id, PageParams.defaultParams(), true);
+            super(id, DEFAULT_PARAMS, true);
         }
 
         public Request() {
-            super(null, PageParams.defaultParams(), true);
+            super(null, DEFAULT_PARAMS, true);
         }
 
         public Request(StreamInput in) throws IOException {

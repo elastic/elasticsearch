@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
@@ -36,15 +37,14 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 
 import static java.util.function.Predicate.not;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
@@ -54,6 +54,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         "Found task for transform [%s], but no configuration for it. To delete this transform use DELETE with force=true.";
 
     private final ClusterService clusterService;
+    private final TransformConfigManager transformConfigManager;
 
     @Inject
     public TransportGetTransformAction(
@@ -61,10 +62,12 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        TransformServices transformServices
     ) {
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
+        this.transformConfigManager = transformServices.configManager();
     }
 
     @Override
@@ -74,19 +77,19 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         TransformNodes.warnIfNoTransformNodes(clusterState);
 
         // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
-        ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = ActionListener.wrap(r -> {
-            Set<String> transformConfigIds = r.results().stream().map(TransformConfig::getId).collect(toSet());
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
-                request.getId(),
-                clusterState
-            );
-            List<Response.Error> errors = transformTasks.stream()
-                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-                .filter(not(transformConfigIds::contains))
-                .map(transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)))
-                .collect(toList());
-            listener.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
-        }, listener::onFailure);
+        ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
+            getAllTransformIds(r, TimeValue.THIRTY_SECONDS, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
+                var errors = TransformTask.findTransformTasks(request.getId(), clusterState)
+                    .stream()
+                    .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                    .filter(not(transformConfigIds::contains))
+                    .map(
+                        transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId))
+                    )
+                    .toList();
+                ll.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
+            }));
+        });
 
         // Step 1: Search for all the transform configs matching the request.
         searchResources(request, parentTaskId, searchTransformConfigsListener);
@@ -131,7 +134,17 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
-        return searchSourceBuilder.sort("_index", SortOrder.DESC);
+        // sort by Transform's id in ASC order, matching what we will do above for the active TransformTasks
+        return searchSourceBuilder.sort("_index", SortOrder.DESC).sort(TransformField.ID.getPreferredName(), SortOrder.ASC);
+    }
+
+    private void getAllTransformIds(QueryPage<TransformConfig> queryPage, TimeValue timeout, ActionListener<Set<String>> listener) {
+        if (queryPage.count() == queryPage.results().size()) {
+            listener.onResponse(queryPage.results().stream().map(TransformConfig::getId).collect(toSet()));
+        } else {
+            // if we do not have all of our transform ids already, we have to go get them
+            transformConfigManager.getAllTransformIds(timeout, listener);
+        }
     }
 
 }

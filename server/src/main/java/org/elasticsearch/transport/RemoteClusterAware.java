@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 /**
  * Base class for services and components that utilize linked projects.
  */
-public abstract class RemoteClusterAware {
+public abstract class RemoteClusterAware implements LinkedProjectConfigService.LinkedProjectConfigListener {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 

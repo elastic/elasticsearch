@@ -63,8 +63,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     implements
         Closeable,
         ReportingService<RemoteClusterServerInfo>,
-        IndicesExpressionGrouper,
-        LinkedProjectConfigService.LinkedProjectConfigListener {
+        IndicesExpressionGrouper {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 

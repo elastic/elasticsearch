@@ -111,11 +111,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         MockTransportService.getInstance(harness.firstDataNodeName).<
             NodeUsageStatsForThreadPoolsAction
                 .NodeRequest>addRequestHandlingBehavior(
-            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-            (handler, request, channel, task) -> channel.sendResponse(
-                new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
-            )
-        );
+                    TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+                    (handler, request, channel, task) -> channel.sendResponse(
+                        new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
+                    )
+                );
         MockTransportService.getInstance(harness.secondDataNodeName)
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",

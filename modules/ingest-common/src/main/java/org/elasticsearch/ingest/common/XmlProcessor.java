@@ -914,27 +914,29 @@ public final class XmlProcessor extends AbstractProcessor {
     private SAXParserFactory selectSaxParserFactory() {
         boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
         SAXParserFactory factory;
-        
+
         if (isStrict()) {
             factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS_STRICT : XmlFactories.SAX_PARSER_FACTORY_STRICT;
             if (factory == null) {
                 throw new UnsupportedOperationException(
-                    "Strict XML parsing with" + (needsNamespaceAware ? " namespace-aware " : " ") + 
-                    "features is not supported by the current JDK. Please try without strict_parsing=true or " +
-                    "update your JDK to one that supports these XML features."
+                    "Strict XML parsing with"
+                        + (needsNamespaceAware ? " namespace-aware " : " ")
+                        + "features is not supported by the current JDK. Please try without strict_parsing=true or "
+                        + "update your JDK to one that supports these XML features."
                 );
             }
         } else {
             factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS : XmlFactories.SAX_PARSER_FACTORY;
             if (factory == null) {
                 throw new UnsupportedOperationException(
-                    "XML parsing with" + (needsNamespaceAware ? " namespace-aware " : " ") + 
-                    "features is not supported by the current JDK. Please update your JDK to one that " +
-                    "supports these XML features."
+                    "XML parsing with"
+                        + (needsNamespaceAware ? " namespace-aware " : " ")
+                        + "features is not supported by the current JDK. Please update your JDK to one that "
+                        + "supports these XML features."
                 );
             }
         }
-        
+
         return factory;
     }
 }

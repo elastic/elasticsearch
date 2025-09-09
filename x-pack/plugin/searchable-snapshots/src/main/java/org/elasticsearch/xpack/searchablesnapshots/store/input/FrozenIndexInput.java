@@ -177,7 +177,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                             return null;
                         }
                     }
-                )
+                ),
+                fileInfo.physicalName()
             );
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);

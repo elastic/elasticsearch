@@ -1462,7 +1462,12 @@ public class EsqlCapabilities {
         /**
          * Support for the Present function
          */
-        FN_PRESENT;
+        FN_PRESENT,
+
+        /**
+         * Bugfix for STATS TOP(field, 1, order) WHERE condition.
+         */
+        STATS_TOP_1_WITH_CONDITION_FIXED;
 
         private final boolean enabled;
 

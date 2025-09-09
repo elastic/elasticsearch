@@ -97,8 +97,8 @@ import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsM
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
-import org.elasticsearch.xpack.inference.queries.NewSemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
@@ -591,7 +591,7 @@ public class InferencePlugin extends Plugin
     public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
-            new NewSemanticMatchQueryRewriteInterceptor(),
+            new SemanticMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }

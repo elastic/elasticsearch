@@ -22,18 +22,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class CrossProjectSearchErrorHandler {
-    private static final Logger logger = LogManager.getLogger(CrossProjectSearchErrorHandler.class);
+public class CrossProjectSearchService {
+    private static final Logger logger = LogManager.getLogger(CrossProjectSearchService.class);
 
     private final AuthorizedProjectsSupplier supplier;
     private final RemoteClusterService remoteClusterService;
 
-    public CrossProjectSearchErrorHandler(AuthorizedProjectsSupplier supplier, RemoteClusterService remoteClusterService) {
+    public CrossProjectSearchService(AuthorizedProjectsSupplier supplier, RemoteClusterService remoteClusterService) {
         this.supplier = supplier;
         this.remoteClusterService = remoteClusterService;
     }
 
-    public boolean enabled() {
+    public boolean crossProjectMode() {
         return supplier.get() != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT;
     }
 
@@ -42,7 +42,7 @@ public class CrossProjectSearchErrorHandler {
     }
 
     private IndicesOptions getIndicesOptions(IndicesOptions indicesOptions) {
-        return enabled() ? lenientIndicesOptions(indicesOptions) : indicesOptions;
+        return crossProjectMode() ? lenientIndicesOptions(indicesOptions) : indicesOptions;
     }
 
     private static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
@@ -58,7 +58,7 @@ public class CrossProjectSearchErrorHandler {
     ) {
         logger.info("Checking if we should throw for [{}] under CPS", request.getReplacedIndexExpressions());
         // No CPS nothing to do
-        if (false == enabled()) {
+        if (false == crossProjectMode()) {
             logger.info("Skipping because we are not in CPS mode...");
             return;
         }

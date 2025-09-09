@@ -733,7 +733,7 @@ setup:
   - gte: { hits.hits.2._score: 512.0 }
 
 ---
-"Ignores default_field is a list of fields is provided":
+"Ignores default_field if a list of fields is provided":
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"

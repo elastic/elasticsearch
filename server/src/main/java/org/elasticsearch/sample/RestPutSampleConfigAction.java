@@ -60,13 +60,13 @@ public class RestPutSampleConfigAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             PutSampleConfigAction.INSTANCE,
             putSampleConfigRequest,
-            new ReindexDataStreamRestToXContentListener(channel)
+            new RestToXContentListener(channel)
         );
     }
 
-    static class ReindexDataStreamRestToXContentListener extends RestBuilderListener<AcknowledgedResponse> {
+    static class RestToXContentListener extends RestBuilderListener<AcknowledgedResponse> {
 
-        ReindexDataStreamRestToXContentListener(RestChannel channel) {
+        RestToXContentListener(RestChannel channel) {
             super(channel);
         }
 

@@ -1362,24 +1362,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (newPipelines.hasNext()) {
                     executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener, originalDocumentMetadata);
                 } else {
-                    // update the index request's source and (potentially) cache the timestamp for TSDB
-                    // Here is where we finally overwrite source. Somehow sample before this?
-                    // But also somewhere else if there are no pipelines
-                    // Can't do this in the listener though b/c the source is already gone
-                    // byte[] originalBytes;
-                    // BytesReference sourceBytesRef = indexRequest.source();
-                    // if (sourceBytesRef.hasArray()) {
-                    // originalBytes = Arrays.copyOfRange(sourceBytesRef.array(), sourceBytesRef.arrayOffset(), sourceBytesRef.arrayOffset()
-                    // + sourceBytesRef.length());
-                    // } else {
-                    // originalBytes = sourceBytesRef.toBytesRef().bytes;
-                    // }
-                    //
-                    // if sampling enabled for this index AND condition is met AND sample THEN
                     try {
-                        IndexRequest sample = copyIndexRequest(indexRequest);
-                        updateIndexRequestMetadata(sample, originalDocumentMetadata);
-                        samplingService.maybeSample(project, sample, ingestDocument);
+                        /*
+                         * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
+                         * We need both the original document and the fully updated document for sampling, so we make a copy of the original
+                         * before overwriting it here. We can discard it after sampling.
+                         */
+                        IndexRequest original = copyIndexRequest(indexRequest);
+                        updateIndexRequestMetadata(original, originalDocumentMetadata);
+                        samplingService.maybeSample(project, original, ingestDocument);
                     } catch (IOException ex) {
                         logger.warn("unable to sample data");
                     }

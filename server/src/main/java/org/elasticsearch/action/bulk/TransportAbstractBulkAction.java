@@ -51,7 +51,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -65,7 +64,6 @@ import java.util.function.LongSupplier;
  */
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
-    private final Map<String, List<IndexRequest>> samples = new HashMap<>();
     public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(9) {
         {
             add("error_trace");
@@ -314,7 +312,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             });
             return true;
         } else if (samplingService != null && firstTime) {
-            // else sample, but only if this is the first time through?
+            // else sample, but only if this is the first time through. Otherwise we had pipelines and sampled in IngestService
             for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
                 if (actionRequest instanceof IndexRequest ir) {
                     samplingService.maybeSample(project, ir);
@@ -334,10 +332,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         final Thread originalThread = Thread.currentThread();
-        // Function<IndexRequest, Void> rawDocSaver = indexRequest -> {
-        // indexRequest.source();
-        // return null;
-        // };
         getIngestService(original).executeBulkRequest(
             metadata.id(),
             original.numberOfActions(),
@@ -455,22 +449,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
 
         var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
-        boolean noPipelinesRemaining;
-        try {
-            noPipelinesRemaining = applyPipelines(
-                task,
-                bulkRequestModifier.getBulkRequest(),
-                executor,
-                wrappedListener,
-                firstTime
-            ) == false;
-        } catch (Exception e) {
-            maybeSample();
-            throw e;
-        }
-        if (noPipelinesRemaining) {
-            // we have run all pipelines, so maybe sample
-            maybeSample();
+
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, firstTime) == false) {
             doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }
@@ -525,10 +505,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
     private boolean streamsRestrictedParamsUsed(BulkRequest bulkRequest) {
         return Sets.difference(bulkRequest.requestParamsUsed(), STREAMS_ALLOWED_PARAMS).isEmpty() == false;
-    }
-
-    private void maybeSample() {
-        // Is sampling enabled for this index?
     }
 
     /**

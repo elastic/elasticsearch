@@ -488,6 +488,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/universal_profiling",
         "cluster:monitor/xpack/usage/voting_only",
         "cluster:monitor/xpack/usage/watcher",
+        "cluster:monitor/xpack/usage/time_series",
         "cluster:monitor/xpack/watcher/stats/dist",
         "cluster:monitor/xpack/watcher/watch/get",
         "cluster:monitor/xpack/watcher/watch/query",

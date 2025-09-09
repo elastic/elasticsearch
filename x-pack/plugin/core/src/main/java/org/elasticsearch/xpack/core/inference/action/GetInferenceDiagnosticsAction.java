@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -119,23 +120,37 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
     }
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
-        static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        private static final String EXTERNAL_FIELD = "external";
+        private static final String EIS_FIELD = "eis_mtls";
+        private static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
         static final String INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME = "inference_endpoint_registry";
 
-        private final ConnectionPoolStats connectionPoolStats;
+        private final ConnectionPoolStats externalConnectionPoolStats;
+        private final ConnectionPoolStats eisMtlsConnectionPoolStats;
         @Nullable
         private final Stats inferenceEndpointRegistryStats;
 
-        public NodeResponse(DiscoveryNode node, PoolStats poolStats, @Nullable Cache.Stats inferenceEndpointRegistryStats) {
+        public NodeResponse(
+            DiscoveryNode node,
+            PoolStats poolStats,
+            PoolStats eisPoolStats,
+            @Nullable Cache.Stats inferenceEndpointRegistryStats
+        ) {
             super(node);
-            connectionPoolStats = ConnectionPoolStats.of(poolStats);
+            externalConnectionPoolStats = ConnectionPoolStats.of(poolStats);
+            eisMtlsConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
             this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats != null ? Stats.of(inferenceEndpointRegistryStats) : null;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
 
-            connectionPoolStats = new ConnectionPoolStats(in);
+            externalConnectionPoolStats = new ConnectionPoolStats(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
+                eisMtlsConnectionPoolStats = new ConnectionPoolStats(in);
+            } else {
+                eisMtlsConnectionPoolStats = ConnectionPoolStats.EMPTY;
+            }
             inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)
                 ? in.readOptionalWriteable(Stats::new)
                 : null;
@@ -144,7 +159,11 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            connectionPoolStats.writeTo(out);
+            externalConnectionPoolStats.writeTo(out);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
+                eisMtlsConnectionPoolStats.writeTo(out);
+            }
             if (out.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)) {
                 out.writeOptionalWriteable(inferenceEndpointRegistryStats);
             }
@@ -152,7 +171,17 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(CONNECTION_POOL_STATS_FIELD_NAME, connectionPoolStats, params);
+            builder.startObject(EXTERNAL_FIELD);
+            {
+                builder.field(CONNECTION_POOL_STATS_FIELD_NAME, externalConnectionPoolStats, params);
+            }
+            builder.endObject();
+
+            builder.startObject(EIS_FIELD);
+            {
+                builder.field(CONNECTION_POOL_STATS_FIELD_NAME, eisMtlsConnectionPoolStats, params);
+            }
+            builder.endObject();
             if (inferenceEndpointRegistryStats != null) {
                 builder.field(INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME, inferenceEndpointRegistryStats, params);
             }
@@ -164,17 +193,22 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse response = (NodeResponse) o;
-            return Objects.equals(connectionPoolStats, response.connectionPoolStats)
+            return Objects.equals(externalConnectionPoolStats, response.externalConnectionPoolStats)
+                && Objects.equals(eisMtlsConnectionPoolStats, response.eisMtlsConnectionPoolStats)
                 && Objects.equals(inferenceEndpointRegistryStats, response.inferenceEndpointRegistryStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectionPoolStats, inferenceEndpointRegistryStats);
+            return Objects.hash(externalConnectionPoolStats, eisMtlsConnectionPoolStats, inferenceEndpointRegistryStats);
         }
 
-        ConnectionPoolStats getConnectionPoolStats() {
-            return connectionPoolStats;
+        ConnectionPoolStats getExternalConnectionPoolStats() {
+            return externalConnectionPoolStats;
+        }
+
+        ConnectionPoolStats getEisMtlsConnectionPoolStats() {
+            return eisMtlsConnectionPoolStats;
         }
 
         public Stats getInferenceEndpointRegistryStats() {
@@ -182,10 +216,11 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         }
 
         static class ConnectionPoolStats implements ToXContentObject, Writeable {
-            static final String LEASED_CONNECTIONS = "leased_connections";
-            static final String PENDING_CONNECTIONS = "pending_connections";
-            static final String AVAILABLE_CONNECTIONS = "available_connections";
-            static final String MAX_CONNECTIONS = "max_connections";
+            private static final String LEASED_CONNECTIONS = "leased_connections";
+            private static final String PENDING_CONNECTIONS = "pending_connections";
+            private static final String AVAILABLE_CONNECTIONS = "available_connections";
+            private static final String MAX_CONNECTIONS = "max_connections";
+            private static final ConnectionPoolStats EMPTY = new ConnectionPoolStats(0, 0, 0, 0);
 
             static ConnectionPoolStats of(PoolStats poolStats) {
                 return new ConnectionPoolStats(poolStats.getLeased(), poolStats.getPending(), poolStats.getAvailable(), poolStats.getMax());

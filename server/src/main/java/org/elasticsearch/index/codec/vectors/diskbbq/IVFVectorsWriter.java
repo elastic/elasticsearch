@@ -119,9 +119,27 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    // abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
-    // throws IOException;
+    /**
+     * Calculate the centroids for the given field.
+     *
+     * @param fieldInfo merging field info
+     * @param floatVectorValues the float vector values to merge
+     * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
+     * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
+     * @throws IOException if an I/O error occurs
+     */
+    abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
+        throws IOException;
 
+    /**
+     * Calculate the centroids for the given field.
+     *
+     * @param fieldInfo merging field info
+     * @param floatVectorValues the float vector values to merge
+     * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
+     * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
+     * @throws IOException if an I/O error occurs
+     */
     abstract CentroidAssignments calculateCentroids(
         FieldInfo fieldInfo,
         MergeState mergeState,
@@ -175,12 +193,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // build a float vector values with random access
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
             // build centroids
-            final CentroidAssignments centroidAssignments = calculateCentroids(
-                fieldWriter.fieldInfo,
-                null,
-                floatVectorValues,
-                globalCentroid
-            );
+            final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues, globalCentroid);
             // wrap centroids with a supplier
             final CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.centroids());
             // write posting lists

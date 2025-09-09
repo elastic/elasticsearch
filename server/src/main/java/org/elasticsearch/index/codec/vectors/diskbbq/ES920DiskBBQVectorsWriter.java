@@ -492,16 +492,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         return new CentroidGroups(kMeansResult.centroids(), vectorsPerCentroid, maxVectorsPerCentroidLength);
     }
 
-    /**
-     * Calculate the centroids for the given field.
-     * We use the {@link HierarchicalKMeans} algorithm to partition the space of all vectors across merging segments
-     *
-     * @param fieldInfo merging field info
-     * @param floatVectorValues the float vector values to merge
-     * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
-     * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
-     * @throws IOException if an I/O error occurs
-     */
+    @Override
+    CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
+        throws IOException {
+        HierarchicalKMeans kMeansResult = new HierarchicalKMeans(null, null, 0, floatVectorValues.dimension());
+        return calculateCentroids(kMeansResult, floatVectorValues, globalCentroid);
+    }
+
     @Override
     CentroidAssignments calculateCentroids(
         FieldInfo fieldInfo,
@@ -509,14 +506,24 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         FloatVectorValues floatVectorValues,
         float[] globalCentroid
     ) throws IOException {
-
-        long nanoTime = System.nanoTime();
-
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
-        CentroidAssignments centroidAssignments = buildCentroidAssignments(mergeState, floatVectorValues, vectorPerCluster);
+        HierarchicalKMeans kMeansResult = new HierarchicalKMeans(
+            mergeState.segmentInfo.dir,
+            mergeState.segmentInfo.name,
+            HierarchicalKMeans.DEFAULT_OFF_HEAP_MEMORY_MB,
+            floatVectorValues.dimension()
+        );
+        return calculateCentroids(kMeansResult, floatVectorValues, globalCentroid);
+    }
+
+    private CentroidAssignments calculateCentroids(
+        HierarchicalKMeans hierarchicalKMeans,
+        FloatVectorValues floatVectorValues,
+        float[] globalCentroid
+    ) throws IOException {
+        long nanoTime = System.nanoTime();
+        CentroidAssignments centroidAssignments = buildCentroidAssignments(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
         float[][] centroids = centroidAssignments.centroids();
-        // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
-        // preliminary tests suggest recall is good using only centroids but need to do further evaluation
         // TODO: push this logic into vector util?
         for (float[] centroid : centroids) {
             for (int j = 0; j < centroid.length; j++) {
@@ -534,22 +541,12 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         return centroidAssignments;
     }
 
-    static CentroidAssignments buildCentroidAssignments(MergeState mergeState, FloatVectorValues floatVectorValues, int vectorPerCluster)
-        throws IOException {
-        KMeansResult kMeansResult;
-        if (mergeState == null) {
-            kMeansResult = new HierarchicalKMeans(null, null, 0, floatVectorValues.dimension()).cluster(
-                floatVectorValues,
-                vectorPerCluster
-            );
-        } else {
-            kMeansResult = new HierarchicalKMeans(
-                mergeState.segmentInfo.dir,
-                mergeState.segmentInfo.name,
-                HierarchicalKMeans.DEFAULT_OFF_HEAP_MEMORY_MB,
-                floatVectorValues.dimension()
-            ).cluster(floatVectorValues, vectorPerCluster);
-        }
+    static CentroidAssignments buildCentroidAssignments(
+        HierarchicalKMeans hierarchicalKMeans,
+        FloatVectorValues floatVectorValues,
+        int vectorPerCluster
+    ) throws IOException {
+        KMeansResult kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();

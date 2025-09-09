@@ -12,12 +12,18 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 :::{include} ../_snippets/lists/grouping-functions.md
 :::
 
+The [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) command supports these grouping functions:
+
+* [`BUCKET`](../../functions-operators/grouping-functions.md#esql-bucket)
+* [`TBUCKET`](../../functions-operators/grouping-functions.md#esql-tbucket)
+
 
 :::{include} ../_snippets/functions/layout/bucket.md
 :::
 
 :::{include} ../_snippets/functions/layout/tbucket.md
 :::
+
 
 :::{note}
 The `CATEGORIZE` function requires a [platinum license](https://www.elastic.co/subscriptions).

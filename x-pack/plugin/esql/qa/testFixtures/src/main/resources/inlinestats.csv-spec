@@ -13,24 +13,110 @@ eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, 
 
 maxOfInt
 required_capability: inlinestats_v11
-// tag::max-languages[]
+
 FROM employees
 | KEEP emp_no, languages
 | INLINESTATS max_lang = MAX(languages) 
 | WHERE max_lang == languages
-// end::max-languages[]
 | SORT emp_no ASC
 | LIMIT 5
 ;
 
-// tag::max-languages-result[]
 emp_no:integer | languages:integer | max_lang:integer
          10002 |                 5 | 5
          10004 |                 5 | 5
          10011 |                 5 | 5
          10012 |                 5 | 5
          10014 |                 5 | 5
-// end::max-languages-result[]
+;
+
+docsMaxWithoutBy
+required_capability: inlinestats_v11
+// tag::max-salary-without-by[]
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINESTATS max_salary = MAX(salary) 
+// end::max-salary-without-by[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::max-salary-without-by-result[]
+emp_no:integer | languages:integer | salary:integer | max_salary:integer
+10001          |2                  |57305           |74999          
+10002          |5                  |56371           |74999          
+10003          |4                  |61805           |74999          
+10004          |5                  |36174           |74999          
+10005          |1                  |63528           |74999
+// end::max-salary-without-by-result[]
+;
+
+docsMax
+required_capability: inlinestats_v11
+// tag::max-salary[]
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINESTATS max_salary = MAX(salary) BY languages
+// end::max-salary[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::max-salary-result[]
+emp_no:integer | salary:integer | max_salary:integer | languages:integer
+10001          |57305           |73578               |2              
+10002          |56371           |66817               |5              
+10003          |61805           |74572               |4              
+10004          |36174           |66817               |5              
+10005          |63528           |73717               |1
+// end::max-salary-result[]
+;
+
+docsMultiAggsMultiGroupings
+required_capability: inlinestats_v11
+// tag::multi-agg-multi-grouping[]
+FROM employees
+| WHERE still_hired
+| KEEP emp_no, languages, salary, hire_date
+| EVAL tenure = DATE_DIFF("year", hire_date, now())
+| DROP hire_date
+| INLINESTATS avg_salary = AVG(salary), count = count(*) BY languages, tenure
+// end::multi-agg-multi-grouping[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::multi-agg-multi-grouping-result[]
+ emp_no:integer | salary:integer | avg_salary:double | count:long | languages:integer | tenure:integer
+10001           |57305           |51130.5            |2           |2                  |39
+10002           |56371           |40180.0            |3           |5                  |39
+10004           |36174           |30749.0            |2           |5                  |38
+10005           |63528           |66037.5            |2           |1                  |35
+10007           |74572           |58644.0            |2           |4                  |36
+// end::multi-agg-multi-grouping-result[]
+;
+
+docsInlinestatsWithWhere
+required_capability: inlinestats_v11
+// tag::avg-salaries-where[]
+FROM employees
+| KEEP emp_no, salary
+| INLINESTATS avg_lt_50 = ROUND(AVG(salary)) WHERE salary < 50000,
+              avg_lt_60 = ROUND(AVG(salary)) WHERE salary >=50000 AND salary < 60000,
+              avg_gt_60 = ROUND(AVG(salary)) WHERE salary >= 60000
+// end::avg-salaries-where[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::avg-salaries-where-result[]
+ emp_no:integer | salary:integer | avg_lt_50:double | avg_lt_60:double | avg_gt_60:double
+10001           |57305           |38292.0           |54221.0           |67286.0
+10002           |56371           |38292.0           |54221.0           |67286.0
+10003           |61805           |38292.0           |54221.0           |67286.0
+10004           |36174           |38292.0           |54221.0           |67286.0
+10005           |63528           |38292.0           |54221.0           |67286.0
+// end::avg-salaries-where-result[]
 ;
 
 maxOfIntByKeyword
@@ -41,7 +127,8 @@ FROM employees
 | INLINESTATS max_lang = MAX(languages) BY gender 
 | WHERE max_lang == languages
 | SORT emp_no ASC
-| LIMIT 5;
+| LIMIT 5
+;
 
 emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10002 |                 5 | 5                | F
@@ -111,7 +198,6 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 maxOfLongByCalculatedKeyword
 required_capability: inlinestats_v11
 
-// tag::longest-tenured-by-first[]
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
@@ -121,14 +207,12 @@ FROM employees
 | LIMIT 5
 ;
 
-// tag::longest-tenured-by-first-result[]
 emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_seconds:long | SUBSTRING(last_name, 0, 1):keyword
          10065 |               372660279 | Awdeh             | 372660279                   | A
          10074 |               382397583 | Bernatsky         | 382397583                   | B
          10044 |               387408356 | Casley            | 387408356                   | C
          10030 |               394597613 | Demeyer           | 394597613                   | D
          10087 |               305782871 | Eugenio           | 305782871                   | E
-// end::longest-tenured-by-first-result[]
 ;
 
 maxOfLongByCalculatedNamedKeyword
@@ -298,45 +382,36 @@ from employees
 byMultivaluedSimple
 required_capability: inlinestats_v11
 
-// tag::mv-group[]
 FROM airports
 | INLINESTATS min_scalerank=MIN(scalerank) BY type
 | EVAL type=MV_SORT(type), min_scalerank=MV_SORT(min_scalerank)
 | KEEP abbrev, type, scalerank, min_scalerank
 | WHERE abbrev == "GWL"
-// end::mv-group[]
 ;
 
-// tag::mv-group-result[]
 abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
            GWL | [mid, military] | 9                 | [2, 4]
-// end::mv-group-result[]
 ;
 
 byMultivaluedMvExpand
 required_capability: inlinestats_v11
 
-// tag::mv-expand[]
 FROM airports
 | KEEP abbrev, type, scalerank
 | MV_EXPAND type
 | INLINESTATS min_scalerank=MIN(scalerank) BY type
 | SORT min_scalerank ASC
 | WHERE abbrev == "GWL"
-// end::mv-expand[]
 ;
 
-// tag::mv-expand-result[]
 abbrev:keyword | scalerank:integer | min_scalerank:integer | type:keyword 
 GWL            |9                  |2                      |mid            
 GWL            |9                  |4                      |military
-// end::mv-expand-result[]
 ;
 
 byMvExpand
 required_capability: inlinestats_v11
 
-// tag::extreme-airports[]
 FROM airports
 | MV_EXPAND type
 | EVAL lat = ST_Y(location)
@@ -344,10 +419,8 @@ FROM airports
 | WHERE lat == most_northern OR lat == most_southern
 | SORT lat DESC
 | KEEP type, name, location
-// end::extreme-airports[]
 ;
 
-// tag::extreme-airports-result[]
  type:keyword |           name:text           | location:geo_point
           mid |             Svalbard Longyear | POINT (15.495229 78.246717)
         major |                Tromsø Langnes | POINT (18.9072624292132 69.6796790473478)
@@ -359,7 +432,6 @@ FROM airports
      military |         Santos Air Force Base | POINT (-46.3052704931003 -23.9237590410637)
         major |            Christchurch Int'l | POINT (172.538675565223 -43.4885486784104)
           mid |          Hermes Quijada Int'l | POINT (-67.7530268462675 -53.7814746058316)
-// end::extreme-airports-result[]
 ;
 
 mvMinMvExpand

@@ -10,6 +10,7 @@
 package org.elasticsearch.sample;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -21,6 +22,12 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSampleAction extends BaseRestHandler {
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestGetSampleAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
+
     @Override
     public String getName() {
         return "get_sample";
@@ -33,7 +40,10 @@ public class RestGetSampleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetSampleAction.Request getSampleRequest = new GetSampleAction.Request(new String[] { request.param("name") });
+        GetSampleAction.Request getSampleRequest = new GetSampleAction.Request(
+            projectIdResolver.getProjectId(),
+            new String[] { request.param("name") }
+        );
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetSampleAction.INSTANCE,
             getSampleRequest,

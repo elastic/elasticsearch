@@ -10,6 +10,7 @@
 package org.elasticsearch.sample;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -20,6 +21,12 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSampleStatsAction extends BaseRestHandler {
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestGetSampleStatsAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
+
     @Override
     public String getName() {
         return "get_sample_stats";
@@ -32,13 +39,10 @@ public class RestGetSampleStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetSampleStatsAction.Request getSampleRequest = new GetSampleStatsAction.Request(new String[] { request.param("name") });
-        // return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
-        // GetSampleStatsAction.INSTANCE,
-        // getSampleRequest,
-        // (ActionListener<GetSampleStatsAction.Response>) new RestToXContentListener<>(channel)
-        // );
-
+        GetSampleStatsAction.Request getSampleRequest = new GetSampleStatsAction.Request(
+            projectIdResolver.getProjectId(),
+            new String[] { request.param("name") }
+        );
         return channel -> client.execute(GetSampleStatsAction.INSTANCE, getSampleRequest, new RestToXContentListener<>(channel));
     }
 }

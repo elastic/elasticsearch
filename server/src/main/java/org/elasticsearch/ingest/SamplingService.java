@@ -66,7 +66,7 @@ public class SamplingService implements ClusterStateListener {
     private final LongSupplier relativeNanoTimeSupplier;
     private final MasterServiceTaskQueue<UpdateSampleConfigTask> updateSamplingConfigTaskQueue;
     private final MasterServiceTaskQueue<DeleteSampleConfigTask> deleteSamplingConfigTaskQueue;
-    private final Map<String, SampleInfo> samples = new HashMap<>();
+    private final Map<ProjectIndex, SampleInfo> samples = new HashMap<>();
 
     public SamplingService(ScriptService scriptService, ClusterService clusterService, LongSupplier relativeNanoTimeSupplier) {
         this.scriptService = scriptService;
@@ -180,11 +180,12 @@ public class SamplingService implements ClusterStateListener {
         TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(
             TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME
         );
+        ProjectId projectId = projectMetadata.id();
         if (samplingConfig != null) {
             String samplingIndex = samplingConfig.indexName;
             if (samplingIndex.equals(indexRequest.index())) {
                 SampleInfo sampleInfo = samples.computeIfAbsent(
-                    samplingIndex,
+                    new ProjectIndex(projectId, samplingIndex),
                     k -> new SampleInfo(samplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong())
                 );
                 SampleStats stats = sampleInfo.stats;
@@ -244,15 +245,25 @@ public class SamplingService implements ClusterStateListener {
                 }
             }
         }
-        checkTTLs(projectMetadata.id()); // TODO make this happen less often?
+        checkTTLs(); // TODO make this happen less often?
     }
 
-    public List<IndexRequest> getSamples(String index) {
-        return samples.get(index).getSamples();
+    public List<IndexRequest> getSamples(ProjectId projectId, String index) {
+        return samples.get(new ProjectIndex(projectId, index)).getSamples();
     }
 
-    public SampleStats getSampleStats(String index) {
-        return samples.get(index).stats;
+    public SampleStats getSampleStats(ProjectId projectId, String index) {
+        return samples.get(new ProjectIndex(projectId, index)).stats;
+    }
+
+    public TransportPutSampleConfigAction.SamplingConfigCustomMetadata getSampleConfig(ProjectMetadata projectMetadata, String index) {
+        TransportPutSampleConfigAction.SamplingConfigCustomMetadata sampleConfig = projectMetadata.custom(
+            TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME
+        );
+        if (sampleConfig != null && sampleConfig.indexName.equals(index)) {
+            return sampleConfig;
+        }
+        return null;
     }
 
     private boolean evaluateCondition(
@@ -296,10 +307,10 @@ public class SamplingService implements ClusterStateListener {
                         .metadata()
                         .custom(TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME);
                     if (newSamplingConfig == null && oldSamplingConfig != null) {
-                        samples.remove(oldSamplingConfig.indexName);
+                        samples.remove(new ProjectIndex(projectId, oldSamplingConfig.indexName));
                     } else if (newSamplingConfig != null && newSamplingConfig.equals(oldSamplingConfig) == false) {
                         samples.computeIfPresent(
-                            newSamplingConfig.indexName,
+                            new ProjectIndex(projectId, newSamplingConfig.indexName),
                             (s, sampleInfo) -> new SampleInfo(newSamplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong())
                         );
                     }
@@ -308,13 +319,13 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
-    private void checkTTLs(ProjectId projectId) {
+    private void checkTTLs() {
         long now = relativeNanoTimeSupplier.getAsLong();
-        Set<String> indices = samples.keySet();
-        for (String index : indices) {
-            SampleInfo sampleInfo = samples.get(index);
+        Set<ProjectIndex> projectIndices = samples.keySet();
+        for (ProjectIndex projectIndex : projectIndices) {
+            SampleInfo sampleInfo = samples.get(projectIndex);
             if (sampleInfo.expiration < now) {
-                deleteSampleConfiguration(projectId, index);
+                deleteSampleConfiguration(projectIndex.projectId, projectIndex.indexName);
             }
         }
     }
@@ -345,11 +356,11 @@ public class SamplingService implements ClusterStateListener {
 
     public static final class SampleStats implements Writeable, ToXContent {
         LongAdder potentialSamples = new LongAdder();
-        LongAdder samplesRejectedForSize = new LongAdder();
+        public LongAdder samplesRejectedForSize = new LongAdder();
         LongAdder samplesRejectedForCondition = new LongAdder();
         LongAdder samplesRejectedForRate = new LongAdder();
         LongAdder samplesRejectedForException = new LongAdder();
-        LongAdder samples = new LongAdder();
+        public LongAdder samples = new LongAdder();
         LongAdder timeSampling = new LongAdder();
         LongAdder timeEvaluatingCondition = new LongAdder();
         LongAdder timeCompilingCondition = new LongAdder();
@@ -497,4 +508,6 @@ public class SamplingService implements ClusterStateListener {
             this.indexName = indexName;
         }
     }
+
+    record ProjectIndex(ProjectId projectId, String indexName) {};
 }

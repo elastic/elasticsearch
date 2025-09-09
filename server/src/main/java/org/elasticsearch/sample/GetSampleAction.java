@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,17 +52,20 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ChunkedToXContent {
+        private final int maxSize;
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            maxSize = in.readInt();
         }
 
-        public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+        public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures, int maxSize) {
             super(clusterName, nodes, failures);
+            this.maxSize = maxSize;
         }
 
         public List<IndexRequest> getSamples() {
-            return getNodes().stream().map(n -> n.samples).filter(Objects::nonNull).flatMap(Collection::stream).toList();
+            return getNodes().stream().map(n -> n.samples).filter(Objects::nonNull).flatMap(Collection::stream).limit(maxSize).toList();
         }
 
         @Override
@@ -140,10 +144,12 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
+        private final ProjectId projectId;
         private String[] names;
 
-        public Request(String[] names) {
+        public Request(ProjectId projectId, String[] names) {
             super((String[]) null);
+            this.projectId = projectId;
             this.names = names;
         }
 
@@ -158,6 +164,10 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
                 return new ActionRequestValidationException();
             }
             return null;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         @Override
@@ -178,21 +188,29 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class NodeRequest extends AbstractTransportRequest {
+        private final ProjectId projectId;
         private final String index;
 
-        public NodeRequest(String index) {
+        public NodeRequest(ProjectId projectId, String index) {
+            this.projectId = projectId;
             this.index = index;
         }
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
+            this.projectId = ProjectId.readFrom(in);
             this.index = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            projectId.writeTo(out);
             out.writeString(index);
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public String getIndex() {

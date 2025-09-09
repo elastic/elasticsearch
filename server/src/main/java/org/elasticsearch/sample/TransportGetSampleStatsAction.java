@@ -54,12 +54,17 @@ public class TransportGetSampleStatsAction extends TransportNodesAction<Request,
     @SuppressWarnings("checkstyle:LineLength")
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        return new Response(clusterService.getClusterName(), nodeResponses, failures);
+        TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = samplingService.getSampleConfig(
+            clusterService.state().projectState(request.getProjectId()).metadata(),
+            request.indices()[0]
+        );
+        int maxSamples = samplingConfig == null ? 0 : samplingConfig.maxSamples;
+        return new Response(clusterService.getClusterName(), nodeResponses, failures, maxSamples);
     }
 
     @Override
     protected NodeRequest newNodeRequest(Request request) {
-        return new NodeRequest(request.indices()[0]);
+        return new NodeRequest(request.getProjectId(), request.indices()[0]);
     }
 
     @Override
@@ -69,8 +74,7 @@ public class TransportGetSampleStatsAction extends TransportNodesAction<Request,
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        String index = request.getIndex();
-        SamplingService.SampleStats sampleStats = samplingService.getSampleStats(index);
+        SamplingService.SampleStats sampleStats = samplingService.getSampleStats(request.getProjectId(), request.getIndex());
         return new NodeResponse(transportService.getLocalNode(), sampleStats);
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,13 +56,17 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @SuppressWarnings("checkstyle:LineLength")
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        samplingService.getSampleConfig(request.projectId, request.indices()[0]);
-        return new Response(clusterService.getClusterName(), nodeResponses, failures);
+        TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = samplingService.getSampleConfig(
+            clusterService.state().projectState(request.getProjectId()).metadata(),
+            request.indices()[0]
+        );
+        int maxSamples = samplingConfig == null ? 0 : samplingConfig.maxSamples;
+        return new Response(clusterService.getClusterName(), nodeResponses, failures, maxSamples);
     }
 
     @Override
     protected NodeRequest newNodeRequest(Request request) {
-        return new NodeRequest(request.indices()[0]);
+        return new NodeRequest(request.getProjectId(), request.indices()[0]);
     }
 
     @Override
@@ -71,8 +76,9 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
+        ProjectId projectId = request.getProjectId();
         String index = request.getIndex();
-        List<IndexRequest> samples = samplingService.getSamples(index);
+        List<IndexRequest> samples = samplingService.getSamples(projectId, index);
         return new NodeResponse(transportService.getLocalNode(), samples == null ? List.of() : samples);
     }
 }

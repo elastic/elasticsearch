@@ -1055,8 +1055,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteSynonymRuleAction());
 
         registerHandler.accept(new RestPutSampleConfigAction());
-        registerHandler.accept(new RestGetSampleAction());
-        registerHandler.accept(new RestGetSampleStatsAction());
+        registerHandler.accept(new RestGetSampleAction(projectIdResolver));
+        registerHandler.accept(new RestGetSampleStatsAction(projectIdResolver));
     }
 
     @Override

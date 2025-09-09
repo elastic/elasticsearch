@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,16 +46,44 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
     }
 
     public static class Response extends BaseNodesResponse<GetSampleStatsAction.NodeResponse> implements Writeable, ToXContentObject {
+        private final int maxSize;
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            maxSize = in.readInt();
         }
 
-        public Response(ClusterName clusterName, List<GetSampleStatsAction.NodeResponse> nodes, List<FailedNodeException> failures) {
+        public Response(
+            ClusterName clusterName,
+            List<GetSampleStatsAction.NodeResponse> nodes,
+            List<FailedNodeException> failures,
+            int maxSize
+        ) {
             super(clusterName, nodes, failures);
+            this.maxSize = maxSize;
         }
 
         public SamplingService.SampleStats getSampleStats() {
+            SamplingService.SampleStats rawStats = getRawSampleStats();
+            if (rawStats.samples.longValue() > maxSize) {
+                SamplingService.SampleStats filteredStats = new SamplingService.SampleStats().combine(rawStats);
+                System.out.println(
+                    "**** samples: "
+                        + filteredStats.samples.longValue()
+                        + ", maxSize: "
+                        + maxSize
+                        + ", rawStats.samples: "
+                        + rawStats.samples.longValue()
+                );
+                filteredStats.samples.add(maxSize - rawStats.samples.longValue());
+                filteredStats.samplesRejectedForSize.add(rawStats.samples.longValue() - maxSize);
+                return filteredStats;
+            } else {
+                return rawStats;
+            }
+        }
+
+        private SamplingService.SampleStats getRawSampleStats() {
             return getNodes().stream()
                 .map(n -> n.sampleStats)
                 .filter(Objects::nonNull)
@@ -129,10 +158,12 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
     }
 
     public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
+        private final ProjectId projectId;
         private String[] names;
 
-        public Request(String[] names) {
+        public Request(ProjectId projectId, String[] names) {
             super((String[]) null);
+            this.projectId = projectId;
             this.names = names;
         }
 
@@ -147,6 +178,10 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
                 return new ActionRequestValidationException();
             }
             return null;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         @Override
@@ -167,21 +202,29 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
     }
 
     public static class NodeRequest extends AbstractTransportRequest {
+        private final ProjectId projectId;
         private final String index;
 
-        public NodeRequest(String index) {
+        public NodeRequest(ProjectId projectId, String index) {
+            this.projectId = projectId;
             this.index = index;
         }
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
+            this.projectId = ProjectId.readFrom(in);
             this.index = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            projectId.writeTo(out);
             out.writeString(index);
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public String getIndex() {

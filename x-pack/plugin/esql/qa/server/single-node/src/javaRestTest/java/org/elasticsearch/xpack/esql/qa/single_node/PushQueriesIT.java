@@ -367,12 +367,10 @@ public class PushQueriesIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
-        Matcher<String> luceneQueryMatcher = anyOf(
-            () -> Iterators.map(
-                luceneQueryOptions.iterator(),
-                (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
-            )
-        );
+        Matcher<String> luceneQueryMatcher = anyOf(() -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> {
+            String q = s.replaceAll("%value", value).replaceAll("%different_value", differentValue);
+            return equalTo("ConstantScore(" + q + ")");
+        }));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");

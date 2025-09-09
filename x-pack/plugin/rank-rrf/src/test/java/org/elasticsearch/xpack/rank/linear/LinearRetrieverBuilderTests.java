@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class LinearRetrieverBuilderTests extends ESTestCase {
@@ -336,6 +337,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             null,
             10,
             100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
             null,
             null
         );
@@ -365,6 +367,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             null,
             10,
             100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
             null,
             null
         );

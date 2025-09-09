@@ -10,6 +10,7 @@
 package org.elasticsearch.common.network;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
@@ -222,7 +223,17 @@ public class ThreadWatchdogTests extends ESTestCase {
             settings.put(ThreadWatchdog.NETWORK_THREAD_WATCHDOG_QUIET_TIME.getKey(), timeValueMillis(quietTimeMillis));
         }
 
-        watchdog.run(settings.build(), deterministicTaskQueue.getThreadPool(), lifecycle);
+        if (randomBoolean()) {
+            watchdog.run(settings.build(), deterministicTaskQueue.getThreadPool(), lifecycle);
+        } else {
+            watchdog.run(
+                TimeValue.timeValueMillis(checkIntervalMillis),
+                TimeValue.timeValueMillis(quietTimeMillis),
+                deterministicTaskQueue.getThreadPool(),
+                lifecycle,
+                LogManager.getLogger(ThreadWatchdog.class)
+            );
+        }
 
         for (int i = 0; i < 3; i++) {
             assertAdvanceTime(deterministicTaskQueue, checkIntervalMillis);

@@ -25,58 +25,58 @@ versions << [
 
 dependencies {
   // Microsoft
-  api "com.azure:azure-core-http-netty:1.15.3"
-  api "com.azure:azure-core:1.51.0"
-  api "com.azure:azure-identity:1.13.2"
-  api "com.azure:azure-json:1.2.0"
-  api "com.azure:azure-storage-blob:12.27.1"
-  api "com.azure:azure-storage-blob-batch:12.23.1"
-  api "com.azure:azure-storage-common:12.26.1"
-  api "com.azure:azure-storage-internal-avro:12.12.1"
-  api "com.azure:azure-xml:1.1.0"
-  api "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
-  api "com.microsoft.azure:msal4j:1.16.2"
+  implementation "com.azure:azure-core-http-netty:1.15.3"
+  implementation "com.azure:azure-core:1.51.0"
+  implementation "com.azure:azure-identity:1.13.2"
+  implementation "com.azure:azure-json:1.2.0"
+  implementation "com.azure:azure-storage-blob:12.27.1"
+  implementation "com.azure:azure-storage-blob-batch:12.23.1"
+  implementation "com.azure:azure-storage-common:12.26.1"
+  implementation "com.azure:azure-storage-internal-avro:12.12.1"
+  implementation "com.azure:azure-xml:1.1.0"
+  implementation "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
+  implementation "com.microsoft.azure:msal4j:1.16.2"
 
   // Jackson
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
-  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
-  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  implementation "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
 
   // Netty
-  api "io.netty:netty-codec-dns:${versions.netty}"
-  api "io.netty:netty-codec-http2:${versions.netty}"
-  api "io.netty:netty-codec-socks:${versions.netty}"
-  api "io.netty:netty-handler-proxy:${versions.netty}"
-  api "io.netty:netty-resolver-dns:${versions.netty}"
+  implementation "io.netty:netty-codec-dns:${versions.netty}"
+  implementation "io.netty:netty-codec-http2:${versions.netty}"
+  implementation "io.netty:netty-codec-socks:${versions.netty}"
+  implementation "io.netty:netty-handler-proxy:${versions.netty}"
+  implementation "io.netty:netty-resolver-dns:${versions.netty}"
 
   // Reactor
-  api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
-  api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.4.38"
-  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
+  implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
+  implementation "io.projectreactor:reactor-core:3.4.38"
+  implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   // Others
-  api "com.fasterxml.woodstox:woodstox-core:6.7.0"
-  api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
-  api "com.nimbusds:content-type:2.3"
-  api "com.nimbusds:lang-tag:1.7"
-  api("com.nimbusds:nimbus-jose-jwt:10.0.2"){
+  implementation "com.fasterxml.woodstox:woodstox-core:6.7.0"
+  implementation "com.github.stephenc.jcip:jcip-annotations:1.0-1"
+  implementation "com.nimbusds:content-type:2.3"
+  implementation "com.nimbusds:lang-tag:1.7"
+  implementation("com.nimbusds:nimbus-jose-jwt:10.0.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
-  api("com.nimbusds:oauth2-oidc-sdk:11.22.2"){
+  implementation("com.nimbusds:oauth2-oidc-sdk:11.22.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
-  api "jakarta.activation:jakarta.activation-api:1.2.1"
-  api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
-  api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.minidev:accessors-smart:2.5.2"
-  api "net.minidev:json-smart:2.5.2"
-  api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.8"
+  implementation "jakarta.activation:jakarta.activation-api:1.2.1"
+  implementation "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
+  implementation "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
+  implementation "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
+  implementation "net.minidev:accessors-smart:2.5.2"
+  implementation "net.minidev:json-smart:2.5.2"
+  implementation "org.codehaus.woodstox:stax2-api:4.2.2"
+  implementation "org.ow2.asm:asm:9.8"
 
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"

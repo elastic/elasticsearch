@@ -54,8 +54,8 @@ configurations.testCompileClasspath {
 
 dependencies {
   // take over logging for all dependencies
-  api "org.slf4j:slf4j-api:${versions.slf4}"
-  api "org.slf4j:jcl-over-slf4j:${versions.slf4}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4}"
+  implementation "org.slf4j:jcl-over-slf4j:${versions.slf4}"
 
   // route slf4j over log4j
   // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714
@@ -63,55 +63,55 @@ dependencies {
 
   // nop all slf4j logging
   // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  api "org.slf4j:slf4j-nop:${versions.slf4}"
+  implementation "org.slf4j:slf4j-nop:${versions.slf4}"
 
   // mandatory for tika
-  api "org.apache.tika:tika-core:${versions.tika}"
-  api "org.apache.tika:tika-langdetect:${versions.tika}"
-  api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
-  api "org.apache.tika:tika-parser-html-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
-  api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
-  api "org.tukaani:xz:${versions.xz}"
-  api "commons-io:commons-io:${versions.commonsIo}"
+  implementation "org.apache.tika:tika-core:${versions.tika}"
+  implementation "org.apache.tika:tika-langdetect:${versions.tika}"
+  implementation "org.apache.tika:tika-langdetect-tika:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-html-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-xml-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-text-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-apple-module:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
+  implementation "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
+  implementation "org.tukaani:xz:${versions.xz}"
+  implementation "commons-io:commons-io:${versions.commonsIo}"
 
   // character set detection
-  api "com.googlecode.juniversalchardet:juniversalchardet:${versions.juniversalchardet}"
+  implementation "com.googlecode.juniversalchardet:juniversalchardet:${versions.juniversalchardet}"
 
   // external parser libraries
   // HTML
-  api "org.jsoup:jsoup:${versions.jsoup}"
+  implementation "org.jsoup:jsoup:${versions.jsoup}"
   // Adobe PDF
-  api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:pdfbox-io:${versions.pdfbox}"
-  api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:${versions.jempbox}"
+  implementation "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
+  implementation "org.apache.pdfbox:pdfbox-io:${versions.pdfbox}"
+  implementation "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  implementation "org.apache.pdfbox:jempbox:${versions.jempbox}"
   // OpenOffice
-  api "org.apache.poi:poi-ooxml:${versions.poi}"
-  api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
-  api "org.apache.poi:poi:${versions.poi}"
-  api "commons-codec:commons-codec:${versions.commonsCodec}"
-  api "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
-  api "org.apache.commons:commons-collections4:${versions.commonsCollections4}"
+  implementation "org.apache.poi:poi-ooxml:${versions.poi}"
+  implementation "org.apache.poi:poi-ooxml-lite:${versions.poi}"
+  implementation "org.apache.poi:poi:${versions.poi}"
+  implementation "commons-codec:commons-codec:${versions.commonsCodec}"
+  implementation "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
+  implementation "org.apache.commons:commons-collections4:${versions.commonsCollections4}"
   // MS Office
-  api "org.apache.poi:poi-scratchpad:${versions.poi}"
+  implementation "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api "org.apache.commons:commons-compress:${versions.commonsCompress}"
+  implementation "org.apache.commons:commons-compress:${versions.commonsCompress}"
   // Outlook documents
-  api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
-  api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
+  implementation "org.apache.james:apache-mime4j-core:${versions.mime4j}"
+  implementation "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api "org.apache.commons:commons-lang3:${versions.commonsLang3}"
+  implementation "org.apache.commons:commons-lang3:${versions.commonsLang3}"
   // Microsoft Word files with visio diagrams
-  api "org.apache.commons:commons-math3:${versions.commonsMath3}"
+  implementation "org.apache.commons:commons-math3:${versions.commonsMath3}"
   // POIs dependency
-  api "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
+  implementation "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
 }
 
 restResources {

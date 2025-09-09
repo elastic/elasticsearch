@@ -19,6 +19,6 @@ esplugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:grok')
-  api project(':libs:dissect')
+  implementation project(':libs:grok')
+  implementation project(':libs:dissect')
 }

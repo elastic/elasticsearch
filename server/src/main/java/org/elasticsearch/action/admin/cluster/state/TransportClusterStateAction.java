@@ -333,8 +333,8 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         ReservedStateMetadata projectReservedMetadata
     ) {
         if (Objects.equals(clusterReservedMetadata.version(), projectReservedMetadata.version()) == false) {
-            logger.warn(
-                "Reserved state metadata version is different for Metadata ({}) and the only project ({})",
+            logger.info(
+                "Reserved state metadata version is different for Metadata ({}) and the requested project ({})",
                 clusterReservedMetadata.version(),
                 projectReservedMetadata.version()
             );

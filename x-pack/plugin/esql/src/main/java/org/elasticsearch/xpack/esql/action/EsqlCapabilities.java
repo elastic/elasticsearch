@@ -1442,7 +1442,12 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot());
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+
+        /**
+         * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
+         */
+        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

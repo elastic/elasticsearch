@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -54,6 +55,11 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                     );
                 }
             }
+
+            if (p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
+                failures.add(fail(p, "Physical plan contains remote executing operation [{}] in local part", p.nodeName()));
+            }
+
             PlanConsistencyChecker.checkPlan(p, depFailures);
 
             if (failures.hasFailures() == false) {

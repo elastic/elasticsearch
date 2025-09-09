@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EnrichExec extends UnaryExec implements EstimatesRowSize, PostPhysicalOptimizationVerificationAware {
+public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EnrichExec",
@@ -225,12 +225,12 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, PostPhysi
     }
 
     @Override
-    public void postPhysicalOptimizationVerification(Failures failures) {
+    public ExecuteLocation executesOn() {
         if (mode == Enrich.Mode.REMOTE) {
-            // check that there is no FragmentedExec in the child plan - that would mean we're on the wrong side of the remote boundary
-            child().forEachDown(FragmentExec.class, f -> {
-                failures.add(Failure.fail(this, "Remote enrich cannot be performed on the coordinator side"));
-            });
+            return ExecuteLocation.REMOTE;
+        } else if (mode == Enrich.Mode.COORDINATOR) {
+            return ExecuteLocation.COORDINATOR;
         }
+        return ExecuteLocation.ANY;
     }
 }

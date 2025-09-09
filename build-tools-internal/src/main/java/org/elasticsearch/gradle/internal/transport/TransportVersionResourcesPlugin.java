@@ -93,8 +93,6 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {
                 t.setGroup(taskGroup);
                 t.setDescription("(Re)generates an initial transport version for an Elasticsearch release version");
-
-                System.out.println("Setting current version: " + currentVersion);
                 t.getCurrentVersion().set(currentVersion);
             });
         validateTask.configure(t -> t.mustRunAfter(generateInitialTask));

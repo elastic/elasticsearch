@@ -338,7 +338,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         List<QuerySearchResult> toConsume,
         List<SearchShard> processedShards,
         TopDocsStats topDocsStats,
-        MergeResult lastMerge,
+        @Nullable MergeResult lastMerge,
         int numReducePhases
     ) {
         // ensure consistent ordering

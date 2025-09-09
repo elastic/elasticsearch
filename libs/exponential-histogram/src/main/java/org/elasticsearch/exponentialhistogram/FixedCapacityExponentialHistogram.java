@@ -55,6 +55,7 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
     private double sum;
     private double min;
+    private double max;
 
     private final ExponentialHistogramCircuitBreaker circuitBreaker;
     private boolean closed = false;
@@ -83,6 +84,7 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     void reset() {
         sum = 0;
         min = Double.NaN;
+        max = Double.NaN;
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
     }
@@ -131,6 +133,15 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
     void setMin(double min) {
         this.min = min;
+    }
+
+    @Override
+    public double max() {
+        return max;
+    }
+
+    void setMax(double max) {
+        this.max = max;
     }
 
     /**

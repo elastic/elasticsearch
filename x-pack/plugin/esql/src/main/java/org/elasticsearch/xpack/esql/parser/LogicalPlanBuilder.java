@@ -44,12 +44,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -68,10 +65,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -324,8 +321,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        // Only the first STATS command in a TS query is treated as the time-series aggregation
         return input -> {
-            if (input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
+            if (input.anyMatch(p -> p instanceof Aggregate) == false
+                && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
                 return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
@@ -465,7 +464,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
-        return p -> {
+        return child -> {
             var source = source(ctx);
             Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
             Mode mode = tuple.v1();
@@ -484,9 +483,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
+
+            // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            if (mode == Mode.REMOTE) {
+                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+            }
+
             return new Enrich(
                 source,
-                p,
+                child,
                 mode,
                 Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
@@ -716,7 +721,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            checkForRemoteClusters(input, source(ctx), "FORK");
+            if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
+                checkForRemoteClusters(input, source(ctx), "FORK");
+            }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };
@@ -772,19 +779,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         return input -> {
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-            Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
+            Attribute discriminatorAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
-            List<NamedExpression> aggregates = List.of(
-                new Alias(
-                    source,
-                    MetadataAttribute.SCORE,
-                    new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN), SummationMode.COMPENSATED_LITERAL)
-                )
-            );
-            List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
+            List<NamedExpression> groupings = List.of(idAttr, indexAttr);
+            Fuse.FuseType fuseType = Fuse.FuseType.RRF;
+
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType);
         };
     }
 

@@ -1,5 +1,5 @@
 pr: 133946
-summary: Align merging defaults with Lucene's new defaults
+summary: Merging is now more aggressive by default, especially for segments under 16MB.
 area: Engine
 type: enhancement
 issues:

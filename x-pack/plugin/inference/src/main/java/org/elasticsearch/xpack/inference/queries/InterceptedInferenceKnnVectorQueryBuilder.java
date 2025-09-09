@@ -30,18 +30,18 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
-public class InterceptedInferenceKnnQueryBuilder extends InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> {
+public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "intercepted_inference_knn";
 
-    public InterceptedInferenceKnnQueryBuilder(KnnVectorQueryBuilder originalQuery) {
+    public InterceptedInferenceKnnVectorQueryBuilder(KnnVectorQueryBuilder originalQuery) {
         super(originalQuery);
     }
 
-    public InterceptedInferenceKnnQueryBuilder(StreamInput in) throws IOException {
+    public InterceptedInferenceKnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    public InterceptedInferenceKnnQueryBuilder(
+    public InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<String, InferenceResults> inferenceResultsMap
     ) {
@@ -90,7 +90,7 @@ public class InterceptedInferenceKnnQueryBuilder extends InterceptedInferenceQue
 
     @Override
     protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceKnnQueryBuilder(this, inferenceResultsMap);
+        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap);
     }
 
     @Override

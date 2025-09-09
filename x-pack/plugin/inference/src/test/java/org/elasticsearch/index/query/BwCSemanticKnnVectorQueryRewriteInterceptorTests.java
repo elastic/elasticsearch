@@ -24,14 +24,14 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.BwCSemanticKnnVectorQueryRewriteInterceptor;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
+public class BwCSemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
@@ -155,6 +155,6 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new SemanticKnnVectorQueryRewriteInterceptor();
+        return new BwCSemanticKnnVectorQueryRewriteInterceptor();
     }
 }

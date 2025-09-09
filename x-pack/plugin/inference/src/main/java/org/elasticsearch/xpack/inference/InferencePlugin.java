@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
@@ -437,6 +438,13 @@ public class InferencePlugin extends Plugin
                 InterceptedInferenceQueryBuilder.class,
                 InterceptedInferenceMatchQueryBuilder.NAME,
                 InterceptedInferenceMatchQueryBuilder::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                InterceptedInferenceQueryBuilder.class,
+                InterceptedInferenceKnnVectorQueryBuilder.NAME,
+                InterceptedInferenceKnnVectorQueryBuilder::new
             )
         );
         return entries;

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -78,6 +77,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private static final TransportVersion RESOLVE_INDEX_MODE_ADDED = TransportVersion.fromName("resolve_index_mode_added");
+    private static final TransportVersion RESOLVE_INDEX_MODE_FILTER = TransportVersion.fromName("resolve_index_mode_filter");
 
     private ResolveIndexAction() {
         super(NAME);
@@ -117,7 +117,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             super(in);
             this.names = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_FILTER)) {
+            if (in.getTransportVersion().supports(RESOLVE_INDEX_MODE_FILTER)) {
                 this.indexModes = in.readEnumSet(IndexMode.class);
             } else {
                 this.indexModes = EnumSet.noneOf(IndexMode.class);
@@ -129,7 +129,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             super.writeTo(out);
             out.writeStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_INDEX_MODE_FILTER)) {
+            if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_FILTER)) {
                 out.writeEnumSet(indexModes);
             }
         }

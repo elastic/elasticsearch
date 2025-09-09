@@ -8275,7 +8275,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT y] please add a limit"));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
     }
 
     public void testUnboundedSortJoin() {
@@ -8287,7 +8287,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT y] please add a limit"));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
     }
 
     public void testUnboundedSortWithMvExpandAndFilter() {
@@ -8302,7 +8302,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 4:3: Unbounded sort not supported yet [SORT language_name] please add a limit"));
+        assertThat(e.getMessage(), containsString("line 4:3: Unbounded SORT not supported yet [SORT language_name] please add a LIMIT"));
     }
 
     public void testUnboundedSortWithLookupJoinAndFilter() {
@@ -8317,7 +8317,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 5:3: Unbounded sort not supported yet [SORT foo] please add a limit"));
+        assertThat(e.getMessage(), containsString("line 5:3: Unbounded SORT not supported yet [SORT foo] please add a LIMIT"));
     }
 
     public void testUnboundedSortExpandFilter() {
@@ -8329,7 +8329,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT x] please add a limit"));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT x] please add a LIMIT"));
     }
 
     public void testPruneRedundantOrderBy() {

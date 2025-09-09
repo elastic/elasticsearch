@@ -129,15 +129,15 @@ public class OrderBy extends UnaryPlan
                         orderBy -> failures.add(
                             fail(
                                 inlineJoin,
-                                "inlinestats [{}] cannot yet have an unbounded sort [{}] before it : either move the sort after it,"
-                                    + " or add a limit before the sort",
+                                "INLINESTATS [{}] cannot yet have an unbounded SORT [{}] before it : either move the SORT after it,"
+                                    + " or add a LIMIT before the SORT",
                                 inlineJoin.sourceText(),
                                 orderBy.sourceText()
                             )
                         )
                     );
             } else if (p instanceof OrderBy) {
-                failures.add(fail(p, "Unbounded sort not supported yet [{}] please add a limit", p.sourceText()));
+                failures.add(fail(p, "Unbounded SORT not supported yet [{}] please add a LIMIT", p.sourceText()));
             }
         };
     }

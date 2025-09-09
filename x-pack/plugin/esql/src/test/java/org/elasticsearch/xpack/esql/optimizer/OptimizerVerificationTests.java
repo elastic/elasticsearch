@@ -441,10 +441,10 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """, analyzer);
 
         assertThat(err, is("""
-            2:3: Unbounded sort not supported yet [SORT languages] please add a limit
-            line 3:3: inlinestats [INLINESTATS count(*) BY languages] cannot yet have an unbounded sort [SORT languages] before\
-             it : either move the sort after it, or add a limit before the sort
-            line 4:3: inlinestats [INLINESTATS s = sum(salary) BY first_name] cannot yet have an unbounded sort [SORT languages]\
-             before it : either move the sort after it, or add a limit before the sort"""));
+            2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
+            line 3:3: INLINESTATS [INLINESTATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before\
+             it : either move the SORT after it, or add a LIMIT before the SORT
+            line 4:3: INLINESTATS [INLINESTATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
+             before it : either move the SORT after it, or add a LIMIT before the SORT"""));
     }
 }

@@ -15,11 +15,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -41,7 +45,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
     public void testMultiFieldsParamsRewrite() {
         final String indexName = "test-index";
         final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testInferenceFields), null, Map.of());
         final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
             parserConfig(),
             null,
@@ -166,11 +170,370 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         );
     }
 
+    public void testMultiIndexMultiFieldsParamsRewrite() {
+        String indexName = "test-index";
+        String anotherIndexName = "test-another-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            Map.of(
+                indexName,
+                List.of("semantic_field_1", "semantic_field_2"),
+                anotherIndexName,
+                List.of("semantic_field_2", "semantic_field_3")
+            ),
+            null,
+            Map.of()
+        );
+
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // No wildcards, no per-field boosting
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of("test-index"),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of("test-another-index")
+            ),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                1.0f
+            ),
+            "foo",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Non-default rank window size
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo2",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE * 2,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of("test-index"),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of("test-another-index")
+            ),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                1.0f
+            ),
+            "foo2",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // No wildcards, per-field boosting
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
+            "bar",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.5f),
+                List.of("test-index"),
+                Map.of("field_1", 1.0f, "field_2", 1.5f, "semantic_field_1", 1.0f),
+                List.of("test-another-index")
+            ),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-index")),
+                2.0f,
+                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                2.0f
+            ),
+            "bar",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Glob matching on inference and non-inference fields with per-field boosting
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "*_field_1^2.5"),
+            "baz",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "*_field_1", 2.5f), List.of()),
+            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 2.5f),
+            "baz",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Multiple boosts defined on the same field
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
+            "baz2",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f), List.of()),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                3.75f,
+                new Tuple<>("semantic_field_2", List.of("test-index")),
+                1.5f,
+                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                1.5f,
+                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                1.5f
+            ),
+            "baz2",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // All-fields wildcard
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("*"),
+            "qux",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("*", 1.0f), List.of()),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                1.0f,
+                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                1.0f
+            ),
+            "qux",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+    }
+
+    public void testMultiIndexMultiFieldsParamsRewriteWithSameInferenceIds() {
+        String indexName = "test-index";
+        String anotherIndexName = "test-another-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            Map.of(
+                indexName,
+                List.of("semantic_field_1", "semantic_field_2"),
+                anotherIndexName,
+                List.of("semantic_field_2", "semantic_field_3")
+            ),
+            null,
+            Map.of("semantic_field_2", "common_inference_id")
+        );
+
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // No wildcards, no per-field boosting
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of("test-index"),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of("test-another-index")
+            ),
+            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
+            "foo",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Non-default rank window size
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo2",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE * 2,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of("test-index"),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of("test-another-index")
+            ),
+            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
+            "foo2",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // No wildcards, per-field boosting
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
+            "bar",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.5f),
+                List.of("test-index"),
+                Map.of("field_1", 1.0f, "field_2", 1.5f, "semantic_field_1", 1.0f),
+                List.of("test-another-index")
+            ),
+            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 1.0f, new Tuple<>("semantic_field_2", List.of()), 2.0f),
+            "bar",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Glob matching on inference and non-inference fields with per-field boosting
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "*_field_1^2.5"),
+            "baz",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "*_field_1", 2.5f), List.of()),
+            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 2.5f),
+            "baz",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Multiple boosts defined on the same field
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
+            "baz2",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f), List.of()),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                3.75f,
+                new Tuple<>("semantic_field_2", List.of()),
+                1.5f,
+                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                1.5f
+            ),
+            "baz2",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // All-fields wildcard
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("*"),
+            "qux",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("*", 1.0f), List.of()),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of("test-index")),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of()),
+                1.0f,
+                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                1.0f
+            ),
+            "qux",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+    }
+
     public void testSearchRemoteIndex() {
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(
-            "local-index",
-            List.of(),
-            Map.of("remote-cluster", "remote-index")
+            Map.of("local-index", List.of()),
+            Map.of("remote-cluster", "remote-index"),
+            Map.of()
         );
         final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
             parserConfig(),
@@ -196,24 +559,38 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
     }
 
     private static ResolvedIndices createMockResolvedIndices(
-        String localIndexName,
-        List<String> inferenceFields,
-        Map<String, String> remoteIndexNames
+        Map<String, List<String>> localIndexInferenceFields,
+        Map<String, String> remoteIndexNames,
+        Map<String, String> commonInferenceIds
     ) {
-        Index index = new Index(localIndexName, randomAlphaOfLength(10));
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(0);
+        Map<Index, IndexMetadata> indexMetadata = new HashMap<>();
 
-        for (String inferenceField : inferenceFields) {
-            indexMetadataBuilder.putInferenceField(
-                new InferenceFieldMetadata(inferenceField, randomAlphaOfLengthBetween(3, 5), new String[] { inferenceField }, null)
-            );
+        for (var indexEntry : localIndexInferenceFields.entrySet()) {
+            String indexName = indexEntry.getKey();
+            List<String> inferenceFields = indexEntry.getValue();
+
+            Index index = new Index(indexName, randomAlphaOfLength(10));
+
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+
+            for (String inferenceField : inferenceFields) {
+                String inferenceId = commonInferenceIds.containsKey(inferenceField)
+                    ? commonInferenceIds.get(inferenceField)
+                    : randomAlphaOfLengthBetween(3, 5);
+
+                indexMetadataBuilder.putInferenceField(
+                    new InferenceFieldMetadata(inferenceField, inferenceId, new String[] { inferenceField }, null)
+                );
+            }
+
+            indexMetadata.put(index, indexMetadataBuilder.build());
         }
 
         Map<String, OriginalIndices> remoteIndices = new HashMap<>();
@@ -225,8 +602,8 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
 
         return new MockResolvedIndices(
             remoteIndices,
-            new OriginalIndices(new String[] { localIndexName }, IndicesOptions.DEFAULT),
-            Map.of(index, indexMetadataBuilder.build())
+            new OriginalIndices(localIndexInferenceFields.keySet().toArray(new String[0]), IndicesOptions.DEFAULT),
+            indexMetadata
         );
     }
 
@@ -238,38 +615,84 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         String expectedQuery,
         ScoreNormalizer expectedNormalizer
     ) {
-        Set<InnerRetriever> expectedInnerRetrievers = Set.of(
-            new InnerRetriever(
-                new StandardRetrieverBuilder(
-                    new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
-                        .fields(expectedNonInferenceFields)
-                ),
-                1.0f,
-                expectedNormalizer
-            ),
-            new InnerRetriever(
-                expectedInferenceFields.entrySet()
-                    .stream()
-                    .map(
-                        e -> new InnerRetriever(
-                            new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery)),
-                            e.getValue(),
-                            expectedNormalizer
-                        )
-                    )
-                    .collect(Collectors.toSet()),
-                1.0f,
-                expectedNormalizer
-            )
+        Map<Tuple<String, List<String>>, Float> inferenceFields = new HashMap<>();
+        expectedInferenceFields.forEach((key, value) -> inferenceFields.put(new Tuple<>(key, List.of()), value));
+
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            ctx,
+            Map.of(expectedNonInferenceFields, List.of()),
+            inferenceFields,
+            expectedQuery,
+            expectedNormalizer
         );
+    }
+
+    private static void assertMultiIndexMultiFieldsParamsRewrite(
+        LinearRetrieverBuilder retriever,
+        QueryRewriteContext ctx,
+        Map<Map<String, Float>, List<String>> expectedNonInferenceFields,
+        Map<Tuple<String, List<String>>, Float> expectedInferenceFields,
+        String expectedQuery,
+        ScoreNormalizer expectedNormalizer
+    ) {
+        Set<QueryBuilder> expectedLexicalQueryBuilders = expectedNonInferenceFields.entrySet().stream().map(entry -> {
+            Map<String, Float> fields = entry.getKey();
+            List<String> indices = entry.getValue();
+
+            QueryBuilder queryBuilder = new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+                .fields(fields);
+
+            if (indices.isEmpty() == false) {
+                queryBuilder = new BoolQueryBuilder().must(queryBuilder).filter(new TermsQueryBuilder("_index", indices));
+            }
+            return queryBuilder;
+        }).collect(Collectors.toSet());
+
+        Set<InnerRetriever> expectedInnerSemanticRetrievers = expectedInferenceFields.entrySet().stream().map(entry -> {
+            var groupedInferenceField = entry.getKey();
+            var fieldName = groupedInferenceField.v1();
+            var indices = groupedInferenceField.v2();
+            var weight = entry.getValue();
+            QueryBuilder queryBuilder = new MatchQueryBuilder(fieldName, expectedQuery);
+            if (indices.isEmpty() == false) {
+                queryBuilder = new BoolQueryBuilder().must(queryBuilder).filter(new TermsQueryBuilder("_index", indices));
+            }
+            return new InnerRetriever(new StandardRetrieverBuilder(queryBuilder), weight, expectedNormalizer);
+        }).collect(Collectors.toSet());
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
         assertTrue(rewritten instanceof LinearRetrieverBuilder);
-
         LinearRetrieverBuilder rewrittenLinear = (LinearRetrieverBuilder) rewritten;
-        assertEquals(retriever.rankWindowSize(), rewrittenLinear.rankWindowSize());
-        assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewrittenLinear));
+
+        boolean assertedLexical = false;
+        boolean assertedSemantic = false;
+
+        for (InnerRetriever topInnerRetriever : getInnerRetrieversAsSet(rewrittenLinear)) {
+            assertEquals(expectedNormalizer, topInnerRetriever.normalizer);
+            assertEquals(1.0f, topInnerRetriever.weight, 0.0f);
+
+            if (topInnerRetriever.retriever instanceof StandardRetrieverBuilder standardRetrieverBuilder) {
+                assertFalse("the lexical retriever is only asserted once", assertedLexical);
+                assertFalse(expectedNonInferenceFields.isEmpty());
+
+                QueryBuilder topDocsQueryBuilder = standardRetrieverBuilder.topDocsQuery();
+                if (expectedLexicalQueryBuilders.size() == 1) {
+                    assertEquals(topDocsQueryBuilder, expectedLexicalQueryBuilders.iterator().next());
+                } else {
+                    assertTrue(topDocsQueryBuilder instanceof BoolQueryBuilder);
+                    BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) topDocsQueryBuilder;
+                    assertEquals(new HashSet<>(expectedLexicalQueryBuilders), new HashSet<>(boolQueryBuilder.should()));
+                }
+                assertedLexical = true;
+            } else {
+                assertFalse("the semantic retriever is only asserted once", assertedSemantic);
+                assertFalse(expectedInferenceFields.isEmpty());
+                assertEquals(expectedInnerSemanticRetrievers, topInnerRetriever.retriever);
+                assertedSemantic = true;
+            }
+        }
     }
 
     private static Set<InnerRetriever> getInnerRetrieversAsSet(LinearRetrieverBuilder retriever) {

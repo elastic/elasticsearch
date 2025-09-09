@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -215,8 +214,9 @@ public class MultiFieldsInnerRetrieverUtils {
                     indexMetadata.getInferenceFields().get(fieldName).getInferenceId()
                 );
 
-                if (groupedWeights.containsKey(fieldAndInferenceId) && groupedWeights.get(fieldAndInferenceId).equals(weight) == false) {
-                    String conflictingIndexName = groupedIndices.get(fieldAndInferenceId).getFirst();
+                List<String> existingIndexNames = groupedIndices.get(fieldAndInferenceId);
+                if (existingIndexNames != null && groupedWeights.get(fieldAndInferenceId).equals(weight) == false) {
+                    String conflictingIndexName = existingIndexNames.getFirst();
                     throw new IllegalArgumentException(
                         "field [" + fieldName + "] has different weights in indices [" + conflictingIndexName + "] and [" + indexName + "]"
                     );
@@ -240,9 +240,9 @@ public class MultiFieldsInnerRetrieverUtils {
 
             QueryBuilder queryBuilder = new MatchQueryBuilder(fieldName, query);
 
-            // when we query more than one index, we need to filter on indexNames
-            if (indicesMetadata.size() > 1) {
-                queryBuilder = new BoolQueryBuilder().should(queryBuilder).filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indexNames));
+            // if indices does not contain all index names, we need to add a filter
+            if (indicesMetadata.size() != indexNames.size()) {
+                queryBuilder = new BoolQueryBuilder().must(queryBuilder).filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indexNames));
             }
 
             RetrieverBuilder retrieverBuilder = new StandardRetrieverBuilder(queryBuilder);
@@ -319,9 +319,7 @@ public class MultiFieldsInnerRetrieverUtils {
         String query,
         @Nullable Consumer<Float> weightValidator
     ) {
-        List<QueryBuilder> lexicalQueryBuilders = new ArrayList<>();
-        Map<String, Float> nonInferenceFields = null;
-        Boolean differentNonInferenceFields = false;
+        Map<Map<String, Float>, List<String>> groupedIndices = new HashMap<>();
 
         for (IndexMetadata indexMetadata : indicesMetadata) {
             Map<String, Float> nonInferenceFieldsForIndex = nonInferenceFieldsAndWeightsForIndex(
@@ -330,32 +328,32 @@ public class MultiFieldsInnerRetrieverUtils {
                 weightValidator
             );
 
-            if (nonInferenceFields == null) {
-                nonInferenceFields = nonInferenceFieldsForIndex;
-            } else if (nonInferenceFields.equals(nonInferenceFieldsForIndex) == false) {
-                differentNonInferenceFields = true;
-            }
-
             if (nonInferenceFieldsForIndex.isEmpty()) {
                 continue;
             }
 
-            lexicalQueryBuilders.add(
-                new BoolQueryBuilder().should(
-                    new MultiMatchQueryBuilder(query).type(MultiMatchQueryBuilder.Type.MOST_FIELDS).fields(nonInferenceFieldsForIndex)
-                ).filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexMetadata.getIndex().getName()))
-            );
+            groupedIndices.computeIfAbsent(nonInferenceFieldsForIndex, k -> new ArrayList<>()).add(indexMetadata.getIndex().getName());
         }
+
         // there are no lexical fields that need to be queried, no need to create a retriever
-        if (lexicalQueryBuilders.isEmpty()) {
+        if (groupedIndices.isEmpty()) {
             return null;
         }
 
-        // all indices query the same non inference fields, we can return a single multi_match query
-        if (differentNonInferenceFields == false) {
-            return new StandardRetrieverBuilder(
-                new MultiMatchQueryBuilder(query).type(MultiMatchQueryBuilder.Type.MOST_FIELDS).fields(nonInferenceFields)
-            );
+        List<QueryBuilder> lexicalQueryBuilders = new ArrayList<>();
+        for (var entry : groupedIndices.entrySet()) {
+            Map<String, Float> fieldsAndWeights = entry.getKey();
+            List<String> indices = entry.getValue();
+
+            QueryBuilder queryBuilder = new MultiMatchQueryBuilder(query).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+                .fields(fieldsAndWeights);
+
+            // if indices does not contain all index names, we need to add a filter
+            if (indices.size() != indicesMetadata.size()) {
+                queryBuilder = new BoolQueryBuilder().must(queryBuilder).filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
+            }
+
+            lexicalQueryBuilders.add(queryBuilder);
         }
 
         // only a single lexical query, no need to wrap in a boolean query

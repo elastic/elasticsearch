@@ -6,5 +6,7 @@ The presence of a field in the output result over time range.
 Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command in snapshot builds
 
 ```esql
-null
+TS k8s
+| WHERE cluster == "prod" AND pod == "two"
+| STATS events_received = max(present_over_time(events_received)) BY pod, time_bucket = tbucket(2 minute)
 ```

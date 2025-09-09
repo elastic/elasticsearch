@@ -3,7 +3,16 @@
 **Example**
 
 ```esql
-null
+TS k8s
+| WHERE cluster == "prod" AND pod == "two"
+| STATS events_received = max(present_over_time(events_received)) BY pod, time_bucket = tbucket(2 minute)
 ```
+
+| events_received:boolean | pod:keyword | time_bucket:datetime |
+| --- | --- | --- |
+| true | two | 2024-05-10T00:02:00.000Z |
+| true | two | 2024-05-10T00:08:00.000Z |
+| false | two | 2024-05-10T00:10:00.000Z |
+| false | two | 2024-05-10T00:12:00.000Z |
 
 

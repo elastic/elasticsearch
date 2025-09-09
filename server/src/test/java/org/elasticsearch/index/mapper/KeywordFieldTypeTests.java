@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -301,12 +302,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void test_ignore_above_index_level_setting() {
         // given
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+            .build();
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
         MappingParserContext mappingParserContext = mock(MappingParserContext.class);
         doReturn(settings).when(mappingParserContext).getSettings();
@@ -316,18 +317,18 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-                "field",
-                mock(FieldType.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                mock(NamedAnalyzer.class),
-                builder,
-                true
+            "field",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
         );
 
         // when/then
-        assertFalse(fieldType.isIgnoreAboveSet());
-        assertEquals(123, fieldType.ignoreAbove());
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(123, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given() {
@@ -358,8 +359,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertTrue(fieldType.isIgnoreAboveSet());
-        assertEquals(123, fieldType.ignoreAbove());
+        assertTrue(fieldType.ignoreAbove().isSet());
+        assertEquals(123, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_not_given() {
@@ -389,8 +390,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertFalse(fieldType.isIgnoreAboveSet());
-        assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, fieldType.ignoreAbove());
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
@@ -421,8 +422,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertFalse(fieldType.isIgnoreAboveSet());
-        assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, fieldType.ignoreAbove());
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
@@ -453,8 +454,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertFalse(fieldType.isIgnoreAboveSet());
-        assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove());
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given_as_logsdb_default_but_index_mod_is_not_logsdb() {
@@ -485,8 +486,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertTrue(fieldType.isIgnoreAboveSet());
-        assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove());
+        assertTrue(fieldType.ignoreAbove().isSet());
+        assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_configured_at_index_level() {
@@ -517,8 +518,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertFalse(fieldType.isIgnoreAboveSet());
-        assertEquals(123, fieldType.ignoreAbove());
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(123, fieldType.ignoreAbove().get());
     }
 
     public void test_isIgnoreAboveSet_returns_false_for_non_primary_constructor() {
@@ -529,10 +530,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldType fieldType4 = new KeywordFieldType("field", mock(NamedAnalyzer.class));
 
         // when/then
-        assertFalse(fieldType1.isIgnoreAboveSet());
-        assertFalse(fieldType2.isIgnoreAboveSet());
-        assertFalse(fieldType3.isIgnoreAboveSet());
-        assertFalse(fieldType4.isIgnoreAboveSet());
+        assertFalse(fieldType1.ignoreAbove().isSet());
+        assertFalse(fieldType2.ignoreAbove().isSet());
+        assertFalse(fieldType3.ignoreAbove().isSet());
+        assertFalse(fieldType4.ignoreAbove().isSet());
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {

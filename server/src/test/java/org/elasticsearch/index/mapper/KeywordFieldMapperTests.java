@@ -179,7 +179,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(
             b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper) m).fieldType().ignoreAbove())
+            m -> assertEquals(256, ((KeywordFieldMapper) m).fieldType().ignoreAbove().get())
         );
         checker.registerUpdateCheck(
             b -> b.field("split_queries_on_whitespace", true),
@@ -261,8 +261,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
 
         // then
-        assertEquals(123, mapper.fieldType().ignoreAbove());
-        assertTrue(mapper.fieldType().isIgnoreAboveSet());
+        assertEquals(123, mapper.fieldType().ignoreAbove().get());
+        assertTrue(mapper.fieldType().ignoreAbove().isSet());
     }
 
     public void test_ignore_above_index_level_setting_is_overridden_by_field_level_ignore_above_in_standard_indices() throws IOException {
@@ -295,14 +295,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper fieldMapper3 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("cheese");
 
         // then
-        assertEquals(456, fieldMapper1.fieldType().ignoreAbove());
-        assertTrue(fieldMapper1.fieldType().isIgnoreAboveSet());
+        assertEquals(456, fieldMapper1.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper1.fieldType().ignoreAbove().isSet());
 
-        assertEquals(789, fieldMapper2.fieldType().ignoreAbove());
-        assertTrue(fieldMapper2.fieldType().isIgnoreAboveSet());
+        assertEquals(789, fieldMapper2.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper2.fieldType().ignoreAbove().isSet());
 
-        assertEquals(123, fieldMapper3.fieldType().ignoreAbove());
-        assertTrue(fieldMapper3.fieldType().isIgnoreAboveSet());
+        assertEquals(123, fieldMapper3.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper3.fieldType().ignoreAbove().isSet());
     }
 
     public void test_ignore_above_index_level_setting_is_overridden_by_field_level_ignore_above_in_logsdb_indices() throws IOException {
@@ -335,14 +335,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper fieldMapper3 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("cheese");
 
         // then
-        assertEquals(456, fieldMapper1.fieldType().ignoreAbove());
-        assertTrue(fieldMapper1.fieldType().isIgnoreAboveSet());
+        assertEquals(456, fieldMapper1.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper1.fieldType().ignoreAbove().isSet());
 
-        assertEquals(789, fieldMapper2.fieldType().ignoreAbove());
-        assertTrue(fieldMapper2.fieldType().isIgnoreAboveSet());
+        assertEquals(789, fieldMapper2.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper2.fieldType().ignoreAbove().isSet());
 
-        assertEquals(123, fieldMapper3.fieldType().ignoreAbove());
-        assertTrue(fieldMapper3.fieldType().isIgnoreAboveSet());
+        assertEquals(123, fieldMapper3.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper3.fieldType().ignoreAbove().isSet());
     }
 
     public void testNullValue() throws IOException {
@@ -433,7 +433,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimension", true).field("ignore_above", 2048);
         }));
         KeywordFieldMapper field = (KeywordFieldMapper) documentMapper.mappers().getMapper("field");
-        assertEquals(2048, field.fieldType().ignoreAbove());
+        assertEquals(2048, field.fieldType().ignoreAbove().get());
     }
 
     public void testDimensionAndNormalizer() {

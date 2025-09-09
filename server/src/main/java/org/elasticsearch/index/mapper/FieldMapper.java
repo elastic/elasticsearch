@@ -1338,10 +1338,15 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer) {
-            return ignoreAboveParam(initializer, IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES);
+            return ignoreAboveParam(initializer, null, null);
         }
 
-        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, final int defaultValue) {
+        public static Parameter<Integer> ignoreAboveParam(
+            Function<FieldMapper, Integer> initializer,
+            final IndexMode indexMode,
+            final IndexVersion indexCreatedVersion
+        ) {
+            final int defaultValue = IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion);
             return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");

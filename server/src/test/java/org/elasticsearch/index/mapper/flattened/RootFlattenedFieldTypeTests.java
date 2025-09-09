@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IgnoreAbove;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
@@ -34,7 +35,15 @@ import java.util.Map;
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static RootFlattenedFieldType createDefaultFieldType(int ignoreAbove) {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, ignoreAbove);
+        return new RootFlattenedFieldType(
+            "field",
+            true,
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            IgnoreAbove.builder().value(ignoreAbove).build()
+        );
     }
 
     public void testValueForDisplay() {
@@ -61,7 +70,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            Integer.MAX_VALUE
+            IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -75,7 +84,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            Integer.MAX_VALUE
+            IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES
         );
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
@@ -86,7 +95,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            Integer.MAX_VALUE
+            IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES
         );
         assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
     }

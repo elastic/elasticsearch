@@ -8,12 +8,18 @@
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
+import org.apache.commons.math3.distribution.BetaDistribution;
+import org.apache.commons.math3.distribution.ExponentialDistribution;
+import org.apache.commons.math3.distribution.GammaDistribution;
+import org.apache.commons.math3.distribution.LogNormalDistribution;
 import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.distribution.RealDistribution;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.distribution.WeibullDistribution;
 import org.apache.commons.math3.random.Well19937c;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestCase;
 import org.elasticsearch.exponentialhistogram.QuantileAccuracyTests;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
@@ -31,29 +37,55 @@ public class ExponentialHistogramConverterAccuracyTests extends ExponentialHisto
     public static final double[] QUANTILES_TO_TEST = { 0, 0.0000001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999, 1.0 };
 
     private static final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    public static final int TDIGEST_COMPRESSION = 100;
 
-    public void testExponentialHistogramConversionAccuracy() {
-        double[] samples = QuantileAccuracyTests.generateSamples(
-            new NormalDistribution(new Well19937c(randomInt()), 100, 15),
-            between(1_000, 50_000)
-        );
-        ExponentialHistogram exponentialHistogram = createAutoReleasedHistogram(100, samples);
-        TDigest rawTDigest = TDigest.createAvlTreeDigest(arrays, 100);
-        for (double sample : samples) {
-            rawTDigest.add(sample);
+    public void testUniformDistribution() {
+        testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(randomInt()), 0, 100));
+    }
+
+    public void testNormalDistribution() {
+        testDistributionQuantileAccuracy(new NormalDistribution(new Well19937c(randomInt()), 100, 15));
+    }
+
+    public void testExponentialDistribution() {
+        testDistributionQuantileAccuracy(new ExponentialDistribution(new Well19937c(randomInt()), 10));
+    }
+
+    public void testLogNormalDistribution() {
+        testDistributionQuantileAccuracy(new LogNormalDistribution(new Well19937c(randomInt()), 0, 1));
+    }
+
+    public void testGammaDistribution() {
+        testDistributionQuantileAccuracy(new GammaDistribution(new Well19937c(randomInt()), 2, 5));
+    }
+
+    public void testBetaDistribution() {
+        testDistributionQuantileAccuracy(new BetaDistribution(new Well19937c(randomInt()), 2, 5));
+    }
+
+    public void testWeibullDistribution() {
+        testDistributionQuantileAccuracy(new WeibullDistribution(new Well19937c(randomInt()), 2, 5));
+    }
+
+    private void testDistributionQuantileAccuracy(RealDistribution distribution) {
+        double[] samples = QuantileAccuracyTests.generateSamples(distribution, between(1_000, 50_000));
+        int numBuckets = randomIntBetween(50, 100);
+        ExponentialHistogram exponentialHistogram = createAutoReleasedHistogram(numBuckets, samples);
+        ExponentialHistogramDataPoint otlpHistogram = convertToOtlpHistogram(exponentialHistogram);
+
+        double rawTDigestMaxError;
+        try (TDigest rawTDigest = TDigest.createAvlTreeDigest(arrays, TDIGEST_COMPRESSION)) {
+            for (double sample : samples) {
+                rawTDigest.add(sample);
+            }
+            rawTDigestMaxError = getMaxRelativeError(samples, rawTDigest::quantile);
         }
 
-        ExponentialHistogramDataPoint otlpHistogram = convertToOtlpHistogram(exponentialHistogram);
-        TDigest convertedTDigest = convertToTDigest(otlpHistogram);
-
-        Arrays.sort(samples);
-        getMaxRelativeError(samples, q -> ExponentialHistogramQuantile.getQuantile(exponentialHistogram, q));
-        double exponentialHistogramMaxError = getMaxRelativeError(
-            samples,
-            q -> ExponentialHistogramQuantile.getQuantile(exponentialHistogram, q)
-        );
-        double rawTDigestMaxError = getMaxRelativeError(samples, rawTDigest::quantile);
-        double convertedTDigestMaxError = getMaxRelativeError(samples, convertedTDigest::quantile);
+        double convertedTDigestMaxError;
+        try (TDigest convertedTDigest = convertToTDigest(otlpHistogram)) {
+            convertedTDigestMaxError = getMaxRelativeError(samples, convertedTDigest::quantile);
+        }
+        double exponentialHistogramMaxError = QuantileAccuracyTests.getMaximumRelativeError(samples, numBuckets);
         double combinedRelativeError = rawTDigestMaxError + exponentialHistogramMaxError;
         assertThat(convertedTDigestMaxError, lessThanOrEqualTo(combinedRelativeError * 2));
     }
@@ -103,6 +135,7 @@ public class ExponentialHistogramConverterAccuracyTests extends ExponentialHisto
     }
 
     private double getMaxRelativeError(double[] values, DoubleFunction<Double> quantileFunction) {
+        Arrays.sort(values);
         double maxError = 0;
         // Compare histogram quantiles with exact quantiles
         for (double q : QUANTILES_TO_TEST) {

@@ -276,7 +276,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
      * The error depends on the raw values put into the histogram and the number of buckets allowed.
      * This is an implementation of the error bound computation proven by Theorem 3 in the <a href="https://arxiv.org/pdf/2004.08604">UDDSketch paper</a>
      */
-    private static double getMaximumRelativeError(double[] values, int bucketCount) {
+    public static double getMaximumRelativeError(double[] values, int bucketCount) {
         HashSet<Long> usedPositiveIndices = new HashSet<>();
         HashSet<Long> usedNegativeIndices = new HashSet<>();
         int bestPossibleScale = MAX_SCALE;

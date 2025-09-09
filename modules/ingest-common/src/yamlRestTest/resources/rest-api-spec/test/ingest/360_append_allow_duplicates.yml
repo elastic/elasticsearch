@@ -1,22 +1,11 @@
 ---
 setup:
-  - requires:
-      cluster_features: [ "ingest.append.copy_from" ]
-      reason: "The copy_from option of the append processor is new"
   - do:
       ingest.put_pipeline:
         id: "test-pipeline-1"
         body: >
           {
             "processors": [
-              {
-                "append": {
-                  "if": "ctx?.templating != true",
-                  "field": "dest",
-                  "copy_from": "src",
-                  "allow_duplicates": false
-                }
-              },
               {
                 "append": {
                   "if": "ctx?.templating == true",
@@ -59,62 +48,6 @@ teardown:
       ingest.delete_pipeline:
         id: "test-pipeline-1"
         ignore: 404
-
----
-"allow_duplicates (false) removes duplicates with a present array and copy_from":
-  - do:
-      index:
-        index: test-some-index
-        id: 1
-        pipeline: test-pipeline-1
-        body: >
-          {
-            "src": [3, 3, 3],
-            "dest": [3]
-          }
-
-  - do:
-      get:
-        index: test-some-index
-        id: "1"
-  - match: { _source.dest: [3] }
-
----
-"allow_duplicates (false) removes duplicates with an empty array and copy_from":
-  - do:
-      index:
-        index: test-some-index
-        id: 1
-        pipeline: test-pipeline-1
-        body: >
-          {
-            "src": [3, 3, 3],
-            "dest": []
-          }
-
-  - do:
-      get:
-        index: test-some-index
-        id: "1"
-  - match: { _source.dest: [3] }
-
----
-"allow_duplicates (false) removes duplicates with a missing array and copy_from":
-  - do:
-      index:
-        index: test-some-index
-        id: 1
-        pipeline: test-pipeline-1
-        body: >
-          {
-            "src": [3, 3, 3]
-          }
-
-  - do:
-      get:
-        index: test-some-index
-        id: "1"
-  - match: { _source.dest: [3] }
 
 ---
 "allow_duplicates (false) removes duplicates with a present array and templating":

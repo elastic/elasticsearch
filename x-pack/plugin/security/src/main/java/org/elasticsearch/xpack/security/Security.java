@@ -418,6 +418,8 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
+import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -1168,17 +1170,24 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
+
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
+            settings,
+            threadPool,
+            authcService.get(),
+            authzService,
+            securityContext.get(),
+            crossClusterAccessAuthcService.get(),
+            getLicenseState()
+        );
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
                 threadPool,
-                authcService.get(),
-                authzService,
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                crossClusterAccessAuthcService.get(),
-                getLicenseState()
+                remoteClusterTransportInterceptor
             )
         );
 

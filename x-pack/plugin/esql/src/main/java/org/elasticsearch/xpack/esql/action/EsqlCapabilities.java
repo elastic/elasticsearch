@@ -1330,6 +1330,11 @@ public class EsqlCapabilities {
         FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
 
         /**
+         * Support for the SET command.
+         */
+        SET_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),

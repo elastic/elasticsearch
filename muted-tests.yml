@@ -516,6 +516,9 @@ tests:
 - class: org.elasticsearch.action.support.nodes.TransportNodesActionTests
   method: testConcurrentlyCompletionAndCancellation
   issue: https://github.com/elastic/elasticsearch/issues/134277
+- class: org.elasticsearch.xpack.core.datastreams.TimeSeriesFeatureSetUsageTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/134332
 
 # Examples:
 #

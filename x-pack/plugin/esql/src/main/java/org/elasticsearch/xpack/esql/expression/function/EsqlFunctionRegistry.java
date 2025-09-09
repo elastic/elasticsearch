@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
@@ -540,7 +541,8 @@ public class EsqlFunctionRegistry {
                 def(MvUnion.class, MvUnion::new, "mv_union"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") },
+                def(Split.class, Split::new, "split"),
+                def(ConfidenceInterval.class, ConfidenceInterval::new, "confidence_interval") },
             // search functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),

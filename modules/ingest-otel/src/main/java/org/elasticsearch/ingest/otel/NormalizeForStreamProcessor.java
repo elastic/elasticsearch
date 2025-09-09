@@ -50,7 +50,6 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
      */
     private static final Map<String, String> RENAME_KEYS = Map.ofEntries(
-        // PRTODO: It seems that these dotted fields are meant to be always normalized
         entry("span.id", "span_id"),
         entry("message", "body.text"),
         entry("log.level", "severity_text"),
@@ -70,14 +69,12 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         Set<String> keepKeys = new HashSet<>(Set.of("@timestamp", "attributes", "resource"));
         Set<String> renamedTopLevelFields = new HashSet<>();
         for (String value : RENAME_KEYS.values()) {
-            // if the renamed field is nested, we only need to know the top level field
-            // PRTODO: This takes the value `body.text` and converts it to just `body`. If we added a dotted field named `body.text` to the
-            //  document, then we'd miss it since we only look for `body`.
-            int dotIndex = value.indexOf('.');
-            if (dotIndex != -1) {
-                renamedTopLevelFields.add(value.substring(0, dotIndex));
-            } else {
-                renamedTopLevelFields.add(value);
+            // if the renamed field is nested, generate the full list of paths that it could be rooted under
+            String workingKey = null;
+            String[] values = value.split("\\.");
+            for (String part : values) {
+                workingKey = workingKey == null ? part : workingKey + "." + part;
+                renamedTopLevelFields.add(workingKey);
             }
         }
         keepKeys.addAll(renamedTopLevelFields);
@@ -114,7 +111,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         // handling structured messages
         Map<String, Object> body = null;
         try {
-            String message = getSourceField(document, "message", String.class, true);
+            String message = document.getFieldValue("message", String.class, true);
             if (message != null) {
                 message = message.trim();
                 if (message.startsWith("{") && message.endsWith("}")) {
@@ -167,16 +164,12 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
 
         source.put(ATTRIBUTES_KEY, newAttributes);
 
-        // PRTODO: Note directly below
         renameSpecialKeys(document);
 
         // move all top level keys except from specific ones to the "attributes" namespace
         final var sourceItr = source.entrySet().iterator();
         while (sourceItr.hasNext()) {
             final var entry = sourceItr.next();
-            // PRTODO: When we call renameSpecialKeys above in flexible mode, there is a chance that the keys we added end up as
-            //  dotted field names in the root of the document source. As such, these "keep keys" will miss those dotted fields because
-            //  they only look for the root part of the field name.
             if (KEEP_KEYS.contains(entry.getKey()) == false) {
                 newAttributes.put(entry.getKey(), entry.getValue());
                 sourceItr.remove();
@@ -251,7 +244,29 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
     }
 
     /**
-     * Renames specific ECS keys in the given document to their OpenTelemetry-compatible counterparts, based on the {@code RENAME_KEYS} map.
+     * Renames specific ECS keys in the given document to their OpenTelemetry-compatible counterparts in a way that is compatible with the
+     * current access pattern on the IngestDocument.
+     *
+     * <p>This method performs the following operations:
+     * <ul>
+     *   <li>For each key in the {@code RENAME_KEYS} map, it checks if a corresponding field exists in the document.</li>
+     *   <li>If the field exists, it removes it from the document and adds a new field with the corresponding name from the
+     *   {@code RENAME_KEYS} map and the same value.</li>
+     *   <li>If the key is nested (contains dots), it recursively removes empty parent fields after renaming.</li>
+     * </ul>
+     *
+     * @param document the document to process
+     */
+    static void renameSpecialKeys(IngestDocument document) {
+        switch (document.getCurrentAccessPatternSafe()) {
+            case CLASSIC -> renameSpecialKeysClassic(document);
+            case FLEXIBLE -> renameSpecialKeysFlexible(document);
+        }
+    }
+
+    /**
+     * Renames specific ECS keys in the given document to their OpenTelemetry-compatible counterparts using logic compatible with the
+     * {@link org.elasticsearch.ingest.IngestPipelineFieldAccessPattern#CLASSIC} access pattern and based on the {@code RENAME_KEYS} map.
      *
      * <p>This method performs the following operations:
      * <ul>
@@ -264,36 +279,30 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
      *
      * @param document the document to process
      */
-    static void renameSpecialKeys(IngestDocument document) {
+    static void renameSpecialKeysClassic(IngestDocument document) {
         RENAME_KEYS.forEach((nonOtelName, otelName) -> {
             boolean fieldExists = false;
             Object value = null;
             // first look assuming dot notation for nested fields
-            if (hasSourceField(document, nonOtelName)) {
+            if (document.hasField(nonOtelName)) {
                 fieldExists = true;
-                value = getSourceField(document, nonOtelName, Object.class, true);
-                removeSourceField(document, nonOtelName);
+                value = document.getFieldValue(nonOtelName, Object.class, true);
+                document.removeField(nonOtelName);
                 // recursively remove empty parent fields
                 int lastDot = nonOtelName.lastIndexOf('.');
                 while (lastDot > 0) {
                     String parentName = nonOtelName.substring(0, lastDot);
                     // parent should never be null and must be a map if we are here
-                    // PRTODO: Not true - in flexible mode, if nonOtelName is a kind of dotted field name, then we either removed the
-                    //  whole field, or a portion of it. For example, removing field a.b.c.d will get rid of fields named `a.b.c.d`,
-                    //  `a`.`b`.`c`.`d`, `a.b`.`c.d`, etc... This means that if we removed the field `c.d` off the end, there is still
-                    //  `a.b` at the front to remove. We'd need to call getFieldValue on each field parent combination while ignoring
-                    //  missing, removing it if empty.
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> parent = getSourceField(document, parentName, Map.class, false);
+                    Map<String, Object> parent = document.getFieldValue(parentName, Map.class, false);
                     if (parent.isEmpty()) {
-                        removeSourceField(document, parentName);
+                        document.removeField(parentName);
                     } else {
                         break;
                     }
                     lastDot = parentName.lastIndexOf('.');
                 }
             } else if (nonOtelName.contains(".")) {
-                // PRTODO: This is only really needed if we are in classic mode.
                 // look for dotted field names
                 Map<String, Object> source = document.getSource();
                 if (source.containsKey(nonOtelName)) {
@@ -302,9 +311,77 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                 }
             }
             if (fieldExists) {
-                // PRTODO: In flexible mode, this could create a dotted field name if the parent field does not exist. In classic mode
-                //  we don't have to worry because we create the parent path to the field being set.
-                setSourceField(document, otelName, value);
+                document.setFieldValue(otelName, value);
+            }
+        });
+    }
+
+    /**
+     * Renames specific ECS keys in the given document to their OpenTelemetry-compatible counterparts using logic compatible with the
+     * {@link org.elasticsearch.ingest.IngestPipelineFieldAccessPattern#FLEXIBLE} access pattern and based on the {@code RENAME_KEYS} map.
+     *
+     * <p>This method performs the following operations:
+     * <ul>
+     *   <li>For each key in the {@code RENAME_KEYS} map, it checks if a corresponding field exists in the document.</li>
+     *   <li>If the field exists, it removes it from the document and adds a new field with the corresponding name from the
+     *   {@code RENAME_KEYS} map and the same value. If a field's parent objects do not exist, it will progressively build
+     *   each parent object instead of concatenating the field names together.</li>
+     *   <li>If the key is nested (contains dots), it recursively removes empty parent fields after renaming.</li>
+     * </ul>
+     *
+     * @param document the document to process
+     */
+    static void renameSpecialKeysFlexible(IngestDocument document) {
+        RENAME_KEYS.forEach((nonOtelName, otelName) -> {
+            boolean fieldExists = false;
+            Object value = null;
+            if (document.hasField(nonOtelName)) {
+                // Dotted fields are treated the same as normalized fields in flexible mode
+                fieldExists = true;
+                value = document.getFieldValue(nonOtelName, Object.class, true);
+                document.removeField(nonOtelName);
+                // recursively remove empty parent fields
+                int lastDot = nonOtelName.lastIndexOf('.');
+                while (lastDot > 0) {
+                    String parentName = nonOtelName.substring(0, lastDot);
+                    // In flexible mode, dotted field names can be removed. Parent paths may not exist since they might be included
+                    // by the dotted field removal (e.g. For the doc {a:{b.c:1}}, removing a.b.c will not leave an a.b field because
+                    // there is no a.b field to start with.
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> parent = document.getFieldValue(parentName, Map.class, true);
+                    if (parent != null) {
+                        if (parent.isEmpty()) {
+                            document.removeField(parentName);
+                        } else {
+                            break;
+                        }
+                    }
+                    lastDot = parentName.lastIndexOf('.');
+                }
+            }
+            if (fieldExists) {
+                // Flexible mode creates dotted field names when parent fields are not present. We expect the rename keys to be
+                // normalized after processing, so we progressively build each field's parents if it's a dotted field.
+                Map<String, Object> source = document.getSource();
+                String remainingPath = otelName;
+                int dot = remainingPath.indexOf('.');
+                while (dot > 0) {
+                    // Dotted field, emulate classic mode by building out each parent object
+                    String fieldName = remainingPath.substring(0, dot);
+                    remainingPath = remainingPath.substring(dot + 1);
+                    Object existingParent = source.get(fieldName);
+                    if (existingParent instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> castAssignment = (Map<String, Object>) existingParent;
+                        source = castAssignment;
+                    } else {
+                        Map<String, Object> map = new HashMap<>();
+                        source.put(fieldName, map);
+                        source = map;
+                    }
+                    dot = remainingPath.indexOf('.');
+                }
+                source.put(remainingPath, value);
             }
         });
     }
@@ -332,21 +409,5 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         ) {
             return new NormalizeForStreamProcessor(tag, description);
         }
-    }
-
-    public static <T> T getSourceField(IngestDocument document, String fieldPath, Class<T> clazz, boolean ignoreMissing) {
-
-    }
-
-    public static boolean hasSourceField(IngestDocument document, String fieldPath) {
-
-    }
-
-    public static void setSourceField(IngestDocument document, String fieldPath, Object value) {
-
-    }
-
-    public static void removeSourceField(IngestDocument document, String fieldPath) {
-
     }
 }

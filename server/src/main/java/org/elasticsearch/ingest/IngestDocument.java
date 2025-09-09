@@ -1163,7 +1163,7 @@ public final class IngestDocument {
      * @return The access pattern for any currently executing pipelines, or {@link IngestPipelineFieldAccessPattern#CLASSIC} if no
      * pipelines are in progress for this doc for the sake of backwards compatibility
      */
-    private IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
+    public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
         return Objects.requireNonNullElse(getCurrentAccessPattern(), IngestPipelineFieldAccessPattern.CLASSIC);
     }
 

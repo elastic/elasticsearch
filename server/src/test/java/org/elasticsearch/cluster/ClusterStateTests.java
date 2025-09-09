@@ -306,18 +306,6 @@ public class ClusterStateTests extends ESTestCase {
                     },
                     "projects": [
                       {
-                        "id": "tb5W0bx765nDVIwqJPw92G",
-                        "indices": {
-                          "common-index": {
-                            "9": {
-                              "retryable": false,
-                              "description": "index metadata (api)",
-                              "levels": [ "metadata_read", "metadata_write"]
-                            }
-                          }
-                        }
-                      },
-                      {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
                         "indices": {
                           "another-index": {
@@ -336,6 +324,18 @@ public class ClusterStateTests extends ESTestCase {
                             "retryable": false,
                             "description": "project is under deletion",
                             "levels": [ "read", "write", "metadata_read", "metadata_write"]
+                          }
+                        }
+                      },
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "indices": {
+                          "common-index": {
+                            "9": {
+                              "retryable": false,
+                              "description": "index metadata (api)",
+                              "levels": [ "metadata_read", "metadata_write"]
+                            }
                           }
                         }
                       }
@@ -492,38 +492,6 @@ public class ClusterStateTests extends ESTestCase {
                     },
                     "projects": [
                       {
-                        "id": "tb5W0bx765nDVIwqJPw92G",
-                        "templates": {},
-                        "indices": {
-                          "common-index": {
-                            "version": 2,
-                            "mapping_version": 1,
-                            "settings_version": 1,
-                            "aliases_version": 1,
-                            "routing_num_shards": 3,
-                            "state": "open",
-                            "settings": {
-                              "index": {
-                                "number_of_shards": "3",
-                                "number_of_replicas": "1",
-                                "uuid": "tE62Ga40yvlmOSujUvruVw",
-                                "version": { "created": "%s" }
-                              }
-                            },
-                            "mappings": {},
-                            "aliases": [],
-                            "primary_terms": { "0":0, "1":0, "2":0 },
-                            "in_sync_allocations": { "0":[], "1":[], "2":[] },
-                            "rollover_info": {},
-                            "mappings_updated_version": %s,
-                            "system": false,
-                            "timestamp_range": { "shards":[] },
-                            "event_ingested_range": { "shards": [] }
-                          }
-                        },
-                        "index-graveyard": { "tombstones": [] }
-                      },
-                      {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
                         "templates": {},
                         "indices": {
@@ -584,6 +552,38 @@ public class ClusterStateTests extends ESTestCase {
                         "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
                         "templates": {},
                         "indices": {},
+                        "index-graveyard": { "tombstones": [] }
+                      },
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "templates": {},
+                        "indices": {
+                          "common-index": {
+                            "version": 2,
+                            "mapping_version": 1,
+                            "settings_version": 1,
+                            "aliases_version": 1,
+                            "routing_num_shards": 3,
+                            "state": "open",
+                            "settings": {
+                              "index": {
+                                "number_of_shards": "3",
+                                "number_of_replicas": "1",
+                                "uuid": "tE62Ga40yvlmOSujUvruVw",
+                                "version": { "created": "%s" }
+                              }
+                            },
+                            "mappings": {},
+                            "aliases": [],
+                            "primary_terms": { "0":0, "1":0, "2":0 },
+                            "in_sync_allocations": { "0":[], "1":[], "2":[] },
+                            "rollover_info": {},
+                            "mappings_updated_version": %s,
+                            "system": false,
+                            "timestamp_range": { "shards":[] },
+                            "event_ingested_range": { "shards": [] }
+                          }
+                        },
                         "index-graveyard": { "tombstones": [] }
                       }
                     ],
@@ -867,23 +867,24 @@ public class ClusterStateTests extends ESTestCase {
             IndexVersion.current()
         );
 
-        // We cannot guarantee the order of the routing table, so we parse & sort the generated XContent
-        final BytesReference sorted = sortRoutingTableXContent(actual);
+        // We cannot guarantee the order of the list of projects, so we parse & sort the generated XContent
+        final var map = XContentHelper.convertToMap(new BytesArray(actual), true, XContentType.JSON).v2();
+        sortMultiProjectXContent(map, "routing_table.projects");
+        sortMultiProjectXContent(map, "metadata.projects");
+        sortMultiProjectXContent(map, "blocks.projects");
+        final BytesReference sorted = XContentTestUtils.convertToXContent(map, XContentType.JSON);
         assertToXContentEquivalent(new BytesArray(expected), sorted, XContentType.JSON);
     }
 
-    @SuppressWarnings("unchecked")
-    private static BytesReference sortRoutingTableXContent(String jsonContent) throws IOException {
-        final Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(jsonContent), true, XContentType.JSON).v2();
-        final List<Map<String, Object>> routingTable = ObjectPath.eval("routing_table.projects", map);
-        assertThat("Cannot find routing table in " + map.keySet(), routingTable, notNullValue());
-        routingTable.sort(Comparator.comparing((Map<String, Object> m) -> {
+    private static void sortMultiProjectXContent(Map<String, Object> map, String field) {
+        final List<Map<String, Object>> list = ObjectPath.eval(field, map);
+        assertThat("Cannot find " + field + " in " + map.keySet(), list, notNullValue());
+        list.sort(Comparator.comparing((Map<String, Object> m) -> {
             final Object projectId = m.get("id");
             assertThat(projectId, notNullValue());
             assertThat(projectId, instanceOf(String.class));
             return (String) projectId;
         }));
-        return XContentTestUtils.convertToXContent(map, XContentType.JSON);
     }
 
     private static ClusterState buildMultiProjectClusterState(DiscoveryNode... nodes) {

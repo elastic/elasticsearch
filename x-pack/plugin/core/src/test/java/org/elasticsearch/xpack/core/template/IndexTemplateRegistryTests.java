@@ -354,7 +354,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             ComposableIndexTemplate template = entry.getValue();
             for (var project : state.metadata().projects().values()) {
                 metadataBuilder.put(
-                    metadataBuilder.getProject(project.id())
+                    metadataBuilder.createNewProjectBuilder(project.id())
                         .put(
                             entry.getKey(),
                             ComposableIndexTemplate.builder()
@@ -372,7 +372,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         }
         for (var project : state.metadata().projects().values()) {
             metadataBuilder.put(
-                metadataBuilder.getProject(project.id())
+                metadataBuilder.createNewProjectBuilder(project.id())
                     .put(DataStreamTestHelper.newInstance("logs-my_app-1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
                     .put(DataStreamTestHelper.newInstance("logs-my_app-2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
                     .put(
@@ -476,7 +476,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         final var metadataBuilder = Metadata.builder(state.metadata());
         for (var project : state.metadata().projects().values()) {
             metadataBuilder.put(
-                metadataBuilder.getProject(project.id())
+                metadataBuilder.createNewProjectBuilder(project.id())
                     .put(DataStreamTestHelper.newInstance("logs-my_app-1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
                     .put(DataStreamTestHelper.newInstance("logs-my_app-2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
                     .put(

@@ -3160,7 +3160,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             final var metadataBuilder = Metadata.builder(state.metadata());
             registeredPolicySnapshotsBuilders.forEach(
-                (projectId, builder) -> metadataBuilder.getProject(projectId).putCustom(RegisteredPolicySnapshots.TYPE, builder.build())
+                (projectId, builder) -> metadataBuilder.put(
+                    metadataBuilder.createNewProjectBuilder(projectId).putCustom(RegisteredPolicySnapshots.TYPE, builder.build())
+                )
             );
             return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).metadata(metadataBuilder).build();
         }

@@ -709,13 +709,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public Metadata.Builder remove(Metadata.Builder builder, String name) {
                 @FixForMultiProject
-                final var projectBuilder = builder.getProject(ProjectId.DEFAULT);
+                final var projectBuilder = builder.createNewProjectBuilder(ProjectId.DEFAULT);
                 if (IndexGraveyard.TYPE.equals(name)) {
                     // there must always be at least an empty graveyard
                     projectBuilder.indexGraveyard(IndexGraveyard.builder().build());
                 } else {
                     projectBuilder.removeCustom(name);
                 }
+                builder.put(projectBuilder);
                 return builder;
             }
 

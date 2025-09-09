@@ -518,11 +518,7 @@ public final class RestoreService implements ClusterStateApplier {
 
         final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
 
-        ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(projectId);
-        if (projectBuilder == null) {
-            projectBuilder = ProjectMetadata.builder(projectId);
-            metadataBuilder.put(projectBuilder);
-        }
+        ProjectMetadata.Builder projectBuilder = metadataBuilder.createNewProjectBuilder(projectId);
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
             // Update the snapshot index metadata before adding it to the metadata
@@ -540,6 +536,7 @@ public final class RestoreService implements ClusterStateApplier {
                 + explicitlyRequestedSystemIndices;
 
         projectBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore);
+        metadataBuilder.put(projectBuilder);
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed
         submitUnbatchedTask(
@@ -1434,6 +1431,7 @@ public final class RestoreService implements ClusterStateApplier {
 
             // Updating cluster state
             final Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+            final ProjectMetadata.Builder projectBuilder = mdBuilder.createNewProjectBuilder(projectId);
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             final RoutingTable.Builder rtBuilder = RoutingTable.builder(
                 allocationService.getShardRoutingRoleStrategy(),
@@ -1535,7 +1533,7 @@ public final class RestoreService implements ClusterStateApplier {
                     blocks.updateBlocks(projectId, updatedIndexMetadata);
                 }
 
-                mdBuilder.getProject(projectId).put(updatedIndexMetadata, true);
+                projectBuilder.put(updatedIndexMetadata, true);
                 final Index renamedIndex = updatedIndexMetadata.getIndex();
                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                     shards.put(
@@ -1568,11 +1566,11 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            applyDataStreamRestores(currentState, mdBuilder, projectId);
+            applyDataStreamRestores(currentState, projectBuilder, projectId);
 
             // Restore global state if needed
             if (request.includeGlobalState()) {
-                applyGlobalStateRestore(currentState, mdBuilder, projectId);
+                applyGlobalStateRestore(currentState, mdBuilder, projectBuilder);
                 fileSettingsService.handleSnapshotRestore(currentState, builder, mdBuilder, projectId);
             }
 
@@ -1586,7 +1584,8 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            updater.accept(currentState, mdBuilder.getProject(projectId));
+            updater.accept(currentState, projectBuilder);
+            mdBuilder.put(projectBuilder);
             final ClusterState updatedClusterState = builder.metadata(mdBuilder)
                 .blocks(blocks)
                 .putRoutingTable(projectId, rtBuilder.build())
@@ -1597,11 +1596,11 @@ public final class RestoreService implements ClusterStateApplier {
             return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 
-        private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder, ProjectId projectId) {
+        private void applyDataStreamRestores(ClusterState currentState, ProjectMetadata.Builder projectBuilder, ProjectId projectId) {
             final Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().getProject(projectId).dataStreams());
             updatedDataStreams.putAll(
                 dataStreamsToRestore.stream()
-                    .map(ds -> updateDataStream(ds, mdBuilder.getProject(projectId), request))
+                    .map(ds -> updateDataStream(ds, projectBuilder, request))
                     .collect(Collectors.toMap(DataStream::getName, Function.identity()))
             );
             final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(
@@ -1614,7 +1613,7 @@ public final class RestoreService implements ClusterStateApplier {
                     (key, previous) -> alias.restore(previous, request.renamePattern(), request.renameReplacement())
                 );
             }
-            mdBuilder.getProject(projectId).dataStreams(updatedDataStreams, updatedDataStreamAliases);
+            projectBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
         }
 
         private void ensureSnapshotNotDeleted(ClusterState currentState) {
@@ -1631,8 +1630,12 @@ public final class RestoreService implements ClusterStateApplier {
             }
         }
 
-        private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder, ProjectId projectId) {
-            final var projectBuilder = mdBuilder.getProject(projectId);
+        private void applyGlobalStateRestore(
+            ClusterState currentState,
+            Metadata.Builder mdBuilder,
+            ProjectMetadata.Builder projectBuilder
+        ) {
+            final var projectId = projectBuilder.getId();
             if (metadata.persistentSettings() != null) {
                 assert (deserializeProjectMetadata == false && ProjectId.DEFAULT.equals(projectId))
                     || metadata.persistentSettings().isEmpty()

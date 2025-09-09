@@ -135,9 +135,11 @@ public class ClusterStateUpdaters {
         metadataBuilder.generateClusterUuidIfNeeded();
 
         for (final ProjectMetadata projectMetadata : recoveredState.metadata().projects().values()) {
+            final var projectBuilder = metadataBuilder.createNewProjectBuilder(projectMetadata.id());
             for (final IndexMetadata indexMetadata : projectMetadata) {
-                metadataBuilder.getProject(projectMetadata.id()).put(indexMetadata, false);
+                projectBuilder.put(indexMetadata, false);
             }
+            metadataBuilder.put(projectBuilder);
         }
 
         return ClusterState.builder(currentState).blocks(blocks).metadata(metadataBuilder).build();

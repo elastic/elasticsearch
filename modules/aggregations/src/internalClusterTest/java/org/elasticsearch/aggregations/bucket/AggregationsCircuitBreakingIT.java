@@ -9,8 +9,6 @@
 
 package org.elasticsearch.aggregations.bucket;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -48,7 +46,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // Most of the settings here exist to make the search as stable and  deterministic as possible
+        // Most of the settings here exist to make the search as stable and deterministic as possible
         var settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
@@ -60,9 +58,7 @@ public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
         } else {
             // Datanode
             // To avoid OOMs
-            settings
-                .put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
-                .put(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%");
+            settings.put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), true).put(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%");
         }
         return settings.build();
     }

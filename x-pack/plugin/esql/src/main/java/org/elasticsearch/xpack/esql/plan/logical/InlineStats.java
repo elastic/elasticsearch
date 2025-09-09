@@ -11,12 +11,16 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -29,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
@@ -38,7 +43,13 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     underlying aggregate.
  * </p>
  */
-public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
+public class InlineStats extends UnaryPlan
+    implements
+        NamedWriteable,
+        SurrogateLogicalPlan,
+        TelemetryAware,
+        SortAgnostic,
+        PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -146,5 +157,20 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
 
         InlineStats other = (InlineStats) obj;
         return Objects.equals(aggregate, other.aggregate);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        Holder<Boolean> seenAggregations = new Holder<>(Boolean.FALSE);
+        child().forEachDown(c -> {
+            if (c instanceof TimeSeriesAggregate) {
+                seenAggregations.set(Boolean.TRUE);
+            }
+            if (c instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES) {
+                if (seenAggregations.get() == false) {
+                    failures.add(fail(this, "InlineStats [{}] in time-series is only allowed after an aggregation", this.sourceText()));
+                }
+            }
+        });
     }
 }

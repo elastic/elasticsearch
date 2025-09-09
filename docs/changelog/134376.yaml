@@ -1,0 +1,6 @@
+pr: 134376
+summary: "Propagate filter in TOP(field, 1, order) surrogate"
+area: ES|QL
+type: bug
+issues:
+ - 134293

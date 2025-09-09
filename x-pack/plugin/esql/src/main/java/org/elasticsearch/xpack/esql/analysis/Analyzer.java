@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -1410,9 +1409,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             b.set(STATS.ordinal());
         } else {
             plan.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof UnaryPlan up && up.child() instanceof Aggregate && p instanceof InlineStats == false) {
-                    b.set(STATS.ordinal());
-                    breakEarly.set(true);
+                if (p instanceof InlineStats) {
+                    return;
+                }
+                for (var c : p.children()) {
+                    if (c instanceof Aggregate) {
+                        b.set(STATS.ordinal());
+                        breakEarly.set(true);
+                        return;
+                    }
                 }
             });
         }

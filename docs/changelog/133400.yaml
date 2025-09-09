@@ -1,0 +1,5 @@
+pr: 133400
+summary: Add support for per-field weights in simplified RRF retriever syntax
+area: Search
+type: enhancement
+issues: []

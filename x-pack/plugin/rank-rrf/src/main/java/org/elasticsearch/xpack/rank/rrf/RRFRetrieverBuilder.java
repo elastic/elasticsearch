@@ -46,6 +46,9 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEI
  * meaning it has a set of child retrievers that each return a set of
  * top docs that will then be combined and ranked according to the rrf
  * formula.
+ *
+ * Supports both explicit retriever configuration and simplified field-based
+ * syntax with optional per-field weights (e.g., "field^2.0").
  */
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
     public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature("rrf_retriever.multi_fields_query_format_support");

@@ -129,6 +129,10 @@ setup:
 
 ---
 "Lexical match per-field boosting using the simplified format":
+  - requires:
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
+
   - do:
       headers:
         Content-Type: application/json
@@ -169,6 +173,10 @@ setup:
 
 ---
 "Semantic match per-field boosting using the simplified format":
+  - requires:
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
+
   # The mock inference services generate synthetic vectors that don't accurately represent similarity to non-identical
   # input, so it's hard to create a test that produces intuitive results. Instead, we rely on the fact that the inference
   # services generate consistent vectors (i.e. same input -> same output) to demonstrate that per-field boosting on
@@ -252,6 +260,10 @@ setup:
 
 ---
 "Basic per-field boosting using the simplified format":
+  - requires:
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
+
   - do:
       search:
         index: test-index

@@ -1,5 +1,5 @@
 pr: 134376
-summary: "Propagate filter in TOP(field, 1, order) surrogate"
+summary: "Fix ES|QL TOP 1 aggregation with condition"
 area: ES|QL
 type: bug
 issues:

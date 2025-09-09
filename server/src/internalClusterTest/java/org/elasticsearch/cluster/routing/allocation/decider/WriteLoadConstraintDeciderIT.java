@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -54,13 +54,12 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator.calculateUtilizationForWriteLoad;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
@@ -180,11 +179,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          */
 
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
-        final InternalClusterInfoService clusterInfoService = asInstanceOf(
-            InternalClusterInfoService.class,
-            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName())
-        );
-        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        refreshClusterInfo();
 
         logger.info(
             "---> Update the filter to exclude " + harness.firstDataNodeName + " so that shards will be reassigned away to the other nodes"

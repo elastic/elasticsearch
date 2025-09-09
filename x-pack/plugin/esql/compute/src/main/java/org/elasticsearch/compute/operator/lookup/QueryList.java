@@ -155,9 +155,8 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block
-     * using only the {@link ElementType} of the {@link Block} to determine the
-     * query.
+     * Returns a function that reads values from the given block. The function
+     * takes the offset of the value to read and returns the value as an {@link Object}.
      */
     public static IntFunction<Object> createBlockValueReader(Block block) {
         return switch (block.elementType()) {

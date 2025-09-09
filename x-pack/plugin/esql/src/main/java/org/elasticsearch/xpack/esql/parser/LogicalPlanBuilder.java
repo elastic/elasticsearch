@@ -93,6 +93,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -694,7 +695,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public JoinInfo visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) {
-        if (Build.current().isSnapshot() == false) {
+        if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
             throw new ParsingException(ctx.getText(), "JOIN ON clause only supports fields at the moment, found [{}]", ctx.getText());
         }
         var predicates = visitList(this, ctx.comparisonExpression(), Expression.class);

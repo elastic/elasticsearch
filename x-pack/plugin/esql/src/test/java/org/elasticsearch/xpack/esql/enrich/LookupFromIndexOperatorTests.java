@@ -175,7 +175,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
         List<MatchConfig> matchFields = new ArrayList<>();
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match" + i);
+            String matchField = "match" + i;
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
@@ -18,32 +17,32 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class MatchConfig implements Writeable {
-    private final FieldAttribute.FieldName fieldName;
+    private final String fieldName;
     private final int channel;
     private final DataType type;
 
-    public MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
+    public MatchConfig(String fieldName, int channel, DataType type) {
         this.fieldName = fieldName;
         this.channel = channel;
         this.type = type;
     }
 
-    public MatchConfig(FieldAttribute.FieldName fieldName, Layout.ChannelAndType input) {
+    public MatchConfig(String fieldName, Layout.ChannelAndType input) {
         this(fieldName, input.channel(), input.type());
     }
 
     public MatchConfig(StreamInput in) throws IOException {
-        this(new FieldAttribute.FieldName(in.readString()), in.readInt(), DataType.readFrom(in));
+        this(in.readString(), in.readInt(), DataType.readFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName.string());
+        out.writeString(fieldName);
         out.writeInt(channel);
         type.writeTo(out);
     }
 
-    public FieldAttribute.FieldName fieldName() {
+    public String fieldName() {
         return fieldName;
     }
 

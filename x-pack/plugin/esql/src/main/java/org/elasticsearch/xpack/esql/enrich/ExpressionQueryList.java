@@ -94,7 +94,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 if (left instanceof Attribute leftAttribute) {
                     boolean matched = false;
                     for (int i = 0; i < request.getMatchFields().size(); i++) {
-                        if (request.getMatchFields().get(i).fieldName().string().equals(leftAttribute.name())) {
+                        if (request.getMatchFields().get(i).fieldName().equals(leftAttribute.name())) {
                             Block block = request.getInputPage().getBlock(i);
                             Expression right = binaryComparison.right();
                             if (right instanceof Attribute rightAttribute) {

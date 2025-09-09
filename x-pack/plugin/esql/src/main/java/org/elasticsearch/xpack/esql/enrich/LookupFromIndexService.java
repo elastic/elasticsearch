@@ -35,7 +35,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -115,7 +114,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             for (int i = 0; i < request.matchFields.size(); i++) {
                 MatchConfig matchField = request.matchFields.get(i);
                 QueryList q = termQueryList(
-                    context.getFieldType(matchField.fieldName().string()),
+                    context.getFieldType(matchField.fieldName()),
                     context,
                     aliasFilter,
                     request.inputPage.getBlock(matchField.channel()),
@@ -247,7 +246,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String matchField = in.readString();
                 // For older versions, we only support a single match field.
                 matchFields = new ArrayList<>(1);
-                matchFields.add(new MatchConfig(new FieldAttribute.FieldName(matchField), 0, inputDataType));
+                matchFields.add(new MatchConfig(matchField, 0, inputDataType));
             }
             var source = Source.EMPTY;
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
@@ -320,7 +319,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             } else {
                 // older versions only support a single match field, we already checked this above when writing the datatype
                 // send the field name of the first and only match field here
-                out.writeString(matchFields.get(0).fieldName().string());
+                out.writeString(matchFields.get(0).fieldName());
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
@@ -343,7 +342,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Override
         protected String extraDescription() {
             return " ,match_fields="
-                + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "))
+                + matchFields.stream().map(MatchConfig::fieldName).collect(Collectors.joining(", "))
                 + ", right_pre_join_plan="
                 + (rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
         }

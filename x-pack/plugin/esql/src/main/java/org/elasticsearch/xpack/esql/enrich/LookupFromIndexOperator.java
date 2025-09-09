@@ -61,7 +61,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 stringBuilder.append(" input_type=")
                     .append(matchField.type())
                     .append(" match_field=")
-                    .append(matchField.fieldName().string())
+                    .append(matchField.fieldName())
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
@@ -223,7 +223,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             stringBuilder.append(" input_type=")
                 .append(matchField.type())
                 .append(" match_field=")
-                .append(matchField.fieldName().string())
+                .append(matchField.fieldName())
                 .append(" inputChannel=")
                 .append(matchField.channel());
         }

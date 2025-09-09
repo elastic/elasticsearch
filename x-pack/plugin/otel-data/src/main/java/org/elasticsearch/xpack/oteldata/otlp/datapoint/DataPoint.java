@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
+import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
@@ -167,6 +170,143 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors) {
+            return true;
+        }
+    }
+
+    record ExponentialHistogram(ExponentialHistogramDataPoint dataPoint, Metric metric) implements DataPoint {
+
+        @Override
+        public long getTimestampUnixNano() {
+            return dataPoint.getTimeUnixNano();
+        }
+
+        @Override
+        public List<KeyValue> getAttributes() {
+            return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public long getStartTimestampUnixNano() {
+            return dataPoint.getStartTimeUnixNano();
+        }
+
+        @Override
+        public String getUnit() {
+            return metric.getUnit();
+        }
+
+        @Override
+        public String getMetricName() {
+            return metric.getName();
+        }
+
+        @Override
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+            if (mappingHints.aggregateMetricDouble()) {
+                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+            } else {
+                builder.startObject();
+                builder.startArray("counts");
+                HistogramConverter.counts(dataPoint, builder::value);
+                builder.endArray();
+                builder.startArray("values");
+                HistogramConverter.centroidValues(dataPoint, builder::value);
+                builder.endArray();
+                builder.endObject();
+            }
+        }
+
+        @Override
+        public long getDocCount() {
+            return dataPoint.getCount();
+        }
+
+        @Override
+        public String getDynamicTemplate(MappingHints mappingHints) {
+            if (mappingHints.aggregateMetricDouble()) {
+                return "summary";
+            } else {
+                return "histogram";
+            }
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors) {
+            if (metric.getExponentialHistogram().getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
+                errors.add("cumulative exponential histogram metrics are not supported, ignoring " + metric.getName());
+                return false;
+            }
+            return true;
+        }
+    }
+
+    record Histogram(HistogramDataPoint dataPoint, Metric metric) implements DataPoint {
+        @Override
+        public long getTimestampUnixNano() {
+            return dataPoint.getTimeUnixNano();
+        }
+
+        @Override
+        public List<KeyValue> getAttributes() {
+            return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public long getStartTimestampUnixNano() {
+            return dataPoint.getStartTimeUnixNano();
+        }
+
+        @Override
+        public String getUnit() {
+            return metric.getUnit();
+        }
+
+        @Override
+        public String getMetricName() {
+            return metric.getName();
+        }
+
+        @Override
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+            if (mappingHints.aggregateMetricDouble()) {
+                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+            } else {
+                builder.startObject();
+                builder.startArray("counts");
+                HistogramConverter.counts(dataPoint, builder::value);
+                builder.endArray();
+                builder.startArray("values");
+                HistogramConverter.centroidValues(dataPoint, builder::value);
+                builder.endArray();
+                builder.endObject();
+            }
+        }
+
+        @Override
+        public long getDocCount() {
+            return dataPoint.getCount();
+        }
+
+        @Override
+        public String getDynamicTemplate(MappingHints mappingHints) {
+            if (mappingHints.aggregateMetricDouble()) {
+                return "summary";
+            } else {
+                return "histogram";
+            }
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors) {
+            if (metric.getHistogram().getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
+                errors.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
+                return false;
+            }
+            if (dataPoint.getBucketCountsCount() == 1 && dataPoint.getExplicitBoundsCount() == 0) {
+                errors.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
+                return false;
+            }
             return true;
         }
     }

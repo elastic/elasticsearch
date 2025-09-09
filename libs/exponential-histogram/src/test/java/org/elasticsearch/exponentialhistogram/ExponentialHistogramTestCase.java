@@ -70,7 +70,7 @@ public abstract class ExponentialHistogramTestCase extends ESTestCase {
         return result;
     }
 
-    ExponentialHistogram createAutoReleasedHistogram(int numBuckets, double... values) {
+    protected ExponentialHistogram createAutoReleasedHistogram(int numBuckets, double... values) {
         ReleasableExponentialHistogram result = ExponentialHistogram.create(numBuckets, breaker(), values);
         releaseBeforeEnd.add(result);
         return result;

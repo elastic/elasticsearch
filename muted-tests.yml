@@ -474,9 +474,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/133461
-- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
-  method: testLookupJoinOthers
-  issue: https://github.com/elastic/elasticsearch/issues/133480
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481

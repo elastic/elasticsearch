@@ -617,21 +617,11 @@ public final class IndexSettings {
                 if (startTime.toEpochMilli() > value.toEpochMilli()) {
                     throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
                 }
-
-                // The index.time_series.end_time setting can only be specified if the index.mode setting has been set to time_series
-                // This check here is specifically needed because in case of updating index settings the validation the gets executed
-                // in IndexSettings constructor when reading the index.mode setting doesn't get executed.
-                IndexMode indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode != IndexMode.TIME_SERIES) {
-                    throw new IllegalArgumentException(
-                        "[" + TIME_SERIES_END_TIME.getKey() + "] requires [index.mode=" + IndexMode.TIME_SERIES + "]"
-                    );
-                }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME, MODE);
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
                 return settings.iterator();
             }
         },

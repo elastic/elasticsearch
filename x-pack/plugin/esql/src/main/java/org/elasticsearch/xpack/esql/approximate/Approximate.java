@@ -16,10 +16,16 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
+import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -32,11 +38,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -78,29 +87,32 @@ public class Approximate {
     }
 
     /**
-     * These commands can be swapped with {@code SAMPLE} and preserve all rows.
+     * These commands preserve all rows, so can be swapped with {@code SAMPLE}.
      */
-    private static final Set<Class<? extends LogicalPlan>> SWAPPABLE_COMMANDS = Set.of(
+    private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
         Dissect.class,
         Drop.class,
+        EsqlProject.class,
         Eval.class,
         Filter.class,
+        Fork.class,
         Grok.class,
         Keep.class,
         OrderBy.class,
+        Project.class,
         Rename.class,
         Sample.class
     );
 
     /**
-     * These commands can be swapped with {@code SAMPLE} and may drop rows.
+     * These commands keep or filter rows, so can be swapped with {@code SAMPLE}.
      */
-    private static final Set<Class<? extends LogicalPlan>> FILTER_COMMANDS = Set.of(Filter.class, Sample.class);
+    private static final Set<Class<? extends LogicalPlan>> ROW_FILTERING_COMMANDS = Set.of(Filter.class, Sample.class);
 
     /**
      * Commands that cannot be used anywhere in an approximated query.
      */
-    private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(Fork.class, InlineStats.class, LookupJoin.class);
+    private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(InlineStats.class, LookupJoin.class);
 
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 10000;
@@ -152,13 +164,14 @@ public class Approximate {
             } else if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate) {
                     encounteredStats.set(true);
-                } else if (SWAPPABLE_COMMANDS.contains(plan.getClass()) == false && FILTER_COMMANDS.contains(plan.getClass()) == false) {
-                    throw new VerificationException(
-                        List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] before [STATS] cannot be approximated"))
-                    );
-                } else if (FILTER_COMMANDS.contains(plan.getClass())) {
-                    hasFilters.set(true);
-                }
+                } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false
+                    && ROW_FILTERING_COMMANDS.contains(plan.getClass()) == false) {
+                        throw new VerificationException(
+                            List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] before [STATS] cannot be approximated"))
+                        );
+                    } else if (ROW_FILTERING_COMMANDS.contains(plan.getClass())) {
+                        hasFilters.set(true);
+                    }
             }
             return plan;
         });
@@ -294,14 +307,29 @@ public class Approximate {
                     encounteredStats.set(true);
                     Expression sampleProbabilityExpr = new Literal(Source.EMPTY, sampleProbability, DataType.DOUBLE);
                     Sample sample = new Sample(Source.EMPTY, sampleProbabilityExpr, aggregate.child());
-                    plan = aggregate.replaceChild(sample);
-                    plan = plan.transformExpressionsOnlyUp(
+                    Alias sampleId = new Alias(Source.EMPTY, ".sample_id",
+                        new MvAppend(Source.EMPTY, new Literal(Source.EMPTY, 0, DataType.INTEGER), new Random(Source.EMPTY, new Literal(Source.EMPTY, 25, DataType.INTEGER))));
+                    Eval addSampleId = new Eval(
+                        Source.EMPTY,
+                        sample,
+                        List.of(sampleId)
+                    );
+                    List<Expression> groupings = new ArrayList<>(aggregate.groupings());
+                    groupings.add(new ReferenceAttribute(Source.EMPTY, null, ".sample_id", DataType.INTEGER, sampleId.nullable(), sampleId.id(), sampleId.synthetic()));
+                    LogicalPlan aggregateWithSampledId = aggregate.with(addSampleId, groupings, aggregate.aggregates()).transformExpressionsOnlyUp(
                         expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(sampleProbabilityExpr) : expr
                     );
+                    List<NamedExpression> aggregates = new ArrayList<>();
+                    for (NamedExpression aggr : aggregate.aggregates()) {
+//                        aggregates.add(new Alias(Source.EMPTY, "confidence:" + aggr.name(),
+//                            new ConfidenceInterval(Source.EMPTY, new Top(aggr.))));
+                    }
+                    plan = new Aggregate(Source.EMPTY, aggregateWithSampledId, aggregate.groupings(), aggregates);
                 }
             }
             return plan;
         });
+
 
         approximatePlan.setPreOptimized();
         return approximatePlan;

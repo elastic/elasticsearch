@@ -42,7 +42,7 @@ public class IrateFloatAggregator {
 
     public static void combine(FloatIrateGroupingState current, int groupId, float value, long timestamp) {
         current.ensureCapacity(groupId);
-        FloatIrateGroupingState.append(current.states, groupId, timestamp, value);
+        current.append(groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
@@ -62,14 +62,10 @@ public class IrateFloatAggregator {
     private static class FloatIrateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(FloatIrateState.class);
         long lastTimestamp;
-        long secondLastTimestamp;
+        long secondLastTimestamp = -1;
         float lastValue;
         float secondLastValue;
         boolean hasSecond;
-
-        FloatIrateState() {
-            hasSecond = false;
-        }
 
         FloatIrateState(long lastTimestamp, float lastValue) {
             this.lastTimestamp = lastTimestamp;
@@ -77,7 +73,7 @@ public class IrateFloatAggregator {
             this.hasSecond = false;
         }
 
-        static long bytesUsed() {
+        long bytesUsed() {
             return BASE_RAM_USAGE;
         }
     }
@@ -104,12 +100,12 @@ public class IrateFloatAggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        static Long append(ObjectArray<FloatIrateState> states, int groupId, long timestamp, float value) {
+        void append(int groupId, long timestamp, float value) {
             var state = states.get(groupId);
             if (state == null) {
                 state = new FloatIrateState(timestamp, value);
                 states.set(groupId, state);
-                return FloatIrateState.bytesUsed();
+                adjustBreaker(state.bytesUsed());
             } else {
                 // We only need the last two values, but we need to keep them sorted by timestamp.
                 if (timestamp > state.lastTimestamp) {
@@ -125,7 +121,6 @@ public class IrateFloatAggregator {
                     state.secondLastValue = value;
                     state.hasSecond = true;
                 } // else: ignore, too old
-                return 0L;
             }
         }
 
@@ -136,12 +131,10 @@ public class IrateFloatAggregator {
             }
             final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            var incr = append(states, groupId, timestamps.getLong(firstIndex), values.getFloat(firstIndex));
-            adjustBreaker(incr);
+            append(groupId, timestamps.getLong(firstIndex), values.getFloat(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                incr = append(states, groupId, timestamps.getLong(firstIndex + 1), values.getFloat(firstIndex + 1));
-                adjustBreaker(incr);
+                append(groupId, timestamps.getLong(firstIndex + 1), values.getFloat(firstIndex + 1));
             }
         }
 

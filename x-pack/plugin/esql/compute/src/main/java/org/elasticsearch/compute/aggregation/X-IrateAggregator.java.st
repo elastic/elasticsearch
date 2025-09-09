@@ -42,7 +42,7 @@ public class Irate$Type$Aggregator {
 
     public static void combine($Type$IrateGroupingState current, int groupId, $type$ value, long timestamp) {
         current.ensureCapacity(groupId);
-        $Type$IrateGroupingState.append(current.states, groupId, timestamp, value);
+        current.append(groupId, timestamp, value);
     }
 
     public static void combineIntermediate(
@@ -62,14 +62,10 @@ public class Irate$Type$Aggregator {
     private static class $Type$IrateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$IrateState.class);
         long lastTimestamp;
-        long secondLastTimestamp;
+        long secondLastTimestamp = -1;
         $type$ lastValue;
         $type$ secondLastValue;
         boolean hasSecond;
-
-        $Type$IrateState() {
-            hasSecond = false;
-        }
 
         $Type$IrateState(long lastTimestamp, $type$ lastValue) {
             this.lastTimestamp = lastTimestamp;
@@ -77,7 +73,7 @@ public class Irate$Type$Aggregator {
             this.hasSecond = false;
         }
 
-        static long bytesUsed() {
+        long bytesUsed() {
             return BASE_RAM_USAGE;
         }
     }
@@ -104,12 +100,12 @@ public class Irate$Type$Aggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        static Long append(ObjectArray<$Type$IrateState> states, int groupId, long timestamp, $type$ value) {
+        void append(int groupId, long timestamp, $type$ value) {
             var state = states.get(groupId);
             if (state == null) {
                 state = new $Type$IrateState(timestamp, value);
                 states.set(groupId, state);
-                return $Type$IrateState.bytesUsed();
+                adjustBreaker(state.bytesUsed());
             } else {
                 // We only need the last two values, but we need to keep them sorted by timestamp.
                 if (timestamp > state.lastTimestamp) {
@@ -125,7 +121,6 @@ public class Irate$Type$Aggregator {
                     state.secondLastValue = value;
                     state.hasSecond = true;
                 } // else: ignore, too old
-                return 0L;
             }
         }
 
@@ -136,12 +131,10 @@ public class Irate$Type$Aggregator {
             }
             final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            var incr = append(states, groupId, timestamps.getLong(firstIndex), values.get$Type$(firstIndex));
-            adjustBreaker(incr);
+            append(groupId, timestamps.getLong(firstIndex), values.get$Type$(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                incr = append(states, groupId, timestamps.getLong(firstIndex + 1), values.get$Type$(firstIndex + 1));
-                adjustBreaker(incr);
+                append(groupId, timestamps.getLong(firstIndex + 1), values.get$Type$(firstIndex + 1));
             }
         }
 

@@ -333,6 +333,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = def(9_117_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
+    public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_155_0_00);
     public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
 
     /*

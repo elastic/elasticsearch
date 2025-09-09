@@ -78,7 +78,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> new Entry(e.getValue(), ImmutableOpenMap.of())));
         }
-        if (in.getTransportVersion().supports(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
             projectsMarkedForDeletionGeneration = in.readVLong();
         } else {

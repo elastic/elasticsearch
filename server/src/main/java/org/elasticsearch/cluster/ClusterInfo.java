@@ -115,12 +115,12 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         } else {
             this.estimatedHeapUsages = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
             this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::new);
         } else {
             this.nodeUsageStatsForThreadPools = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
             this.shardWriteLoads = in.readImmutableMap(ShardId::new, StreamInput::readDouble);
         } else {
             this.shardWriteLoads = Map.of();
@@ -138,10 +138,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
             out.writeMap(this.nodeUsageStatsForThreadPools, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
             out.writeMap(this.shardWriteLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
         }
     }

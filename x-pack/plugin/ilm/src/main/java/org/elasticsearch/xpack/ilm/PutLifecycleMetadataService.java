@@ -123,7 +123,7 @@ public class PutLifecycleMetadataService {
     /**
      * Returns 'true' if the ILM policy is effectually the same (same policy and headers), and thus can be a no-op update.
      */
-    static boolean isNoopUpdate(
+    public static boolean isNoopUpdate(
         @Nullable LifecyclePolicyMetadata existingPolicy,
         LifecyclePolicy newPolicy,
         Map<String, String> filteredHeaders

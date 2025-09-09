@@ -28,11 +28,20 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.dataTypeEqu
  */
 public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> {
 
+    // Are we verifying the global plan (coordinator) or a local plan (data node)?
+    protected final boolean isLocal;
+
+    protected PostOptimizationPhasePlanVerifier(boolean isLocal) {
+        this.isLocal = isLocal;
+    }
+
     /** Verifies the optimized plan */
-    public Failures verify(P optimizedPlan, boolean skipRemoteEnrichVerification, List<Attribute> expectedOutputAttributes) {
+    public Failures verify(P optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
-        if (skipVerification(optimizedPlan, skipRemoteEnrichVerification)) {
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+        // This is a temporary workaround to skip verification when there is a remote enrich, due to a bug
+        if (isLocal && hasRemoteEnrich(optimizedPlan)) {
             return failures;
         }
 
@@ -47,7 +56,8 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         return failures;
     }
 
-    abstract boolean skipVerification(P optimizedPlan, boolean skipRemoteEnrichVerification);
+    // This is a temporary workaround to skip verification when there is a remote enrich, due to a bug
+    abstract boolean hasRemoteEnrich(P optimizedPlan);
 
     abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 

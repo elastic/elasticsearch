@@ -224,11 +224,10 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
 
     @Override
     public ExecuteLocation executesOn() {
-        if (mode == Enrich.Mode.REMOTE) {
-            return ExecuteLocation.REMOTE;
-        } else if (mode == Enrich.Mode.COORDINATOR) {
-            return ExecuteLocation.COORDINATOR;
-        }
-        return ExecuteLocation.ANY;
+        return switch (mode) {
+            case REMOTE -> ExecuteLocation.REMOTE;
+            case COORDINATOR -> ExecuteLocation.COORDINATOR;
+            default -> ExecuteLocation.ANY;
+        };
     }
 }

@@ -23,20 +23,23 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 /** Physical plan verifier. */
 public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
 
-    public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
+    private PhysicalVerifier(boolean isLocal) {
+        super(isLocal);
+    }
 
-    private PhysicalVerifier() {}
+    public static PhysicalVerifier getLocalVerifier() {
+        return new PhysicalVerifier(true);
+    }
+
+    public static PhysicalVerifier getGeneralVerifier() {
+        return new PhysicalVerifier(false);
+    }
 
     @Override
-    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
-        if (skipRemoteEnrichVerification) {
-            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-            var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
-            if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-                return true;
-            }
-        }
-        return false;
+    boolean hasRemoteEnrich(PhysicalPlan optimizedPlan) {
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+        var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
+        return enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE;
     }
 
     @Override
@@ -56,7 +59,8 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 }
             }
 
-            if (p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
+            // This check applies only for general physical plans (isLocal == false)
+            if (isLocal == false && p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
                 failures.add(fail(p, "Physical plan contains remote executing operation [{}] in local part", p.nodeName()));
             }
 

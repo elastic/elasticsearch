@@ -933,14 +933,14 @@
                                 "usage": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "unsigned_long"
+                                      "type": "long"
                                     }
                                   }
                                 },
                                 "limit": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "unsigned_long"
+                                      "type": "long"
                                     }
                                   }
                                 }

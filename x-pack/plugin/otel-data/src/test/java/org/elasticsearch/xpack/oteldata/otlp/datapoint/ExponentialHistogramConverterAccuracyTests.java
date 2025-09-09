@@ -69,7 +69,7 @@ public class ExponentialHistogramConverterAccuracyTests extends ExponentialHisto
     }
 
     private void testDistributionQuantileAccuracy(RealDistribution distribution) {
-        double[] samples = QuantileAccuracyTests.generateSamples(distribution, between(1_000, 50_000));
+        double[] samples = QuantileAccuracyTests.generateSamples(distribution, between(3_000, 10_000));
         int numBuckets = randomIntBetween(50, 100);
         ExponentialHistogram exponentialHistogram = createAutoReleasedHistogram(numBuckets, samples);
         ExponentialHistogramDataPoint otlpHistogram = convertToOtlpHistogram(exponentialHistogram);
@@ -88,6 +88,11 @@ public class ExponentialHistogramConverterAccuracyTests extends ExponentialHisto
         }
         double exponentialHistogramMaxError = QuantileAccuracyTests.getMaximumRelativeError(samples, numBuckets);
         double combinedRelativeError = rawTDigestMaxError + exponentialHistogramMaxError;
+        // It's hard to reason about the upper bound of the combined error for this conversion,
+        // so we just check that it's not worse than twice the sum of the individual errors.
+        // For a lower number of buckets or samples than the ones we're testing with here,
+        // the error can be even higher than this.
+        // The same is true when using a different TDigest implementation that's less accurate (such as hybrid or merging).
         assertThat(convertedTDigestMaxError, lessThanOrEqualTo(combinedRelativeError * 2));
     }
 

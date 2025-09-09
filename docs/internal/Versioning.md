@@ -1,7 +1,7 @@
 Versioning Elasticsearch
 ========================
 
-Elasticsearch is a complicated product and is run in many different scenarios.
+Elasticsearch is a complicated product, and is run in many different scenarios.
 A single version number is not sufficient to cover the whole of the product,
 instead we need different concepts to provide versioning capabilities
 for different aspects of Elasticsearch, depending on their scope, updatability,
@@ -13,8 +13,8 @@ This is the version number used for published releases of Elasticsearch,
 and the Elastic stack. This takes the form _major.minor.patch_,
 with a corresponding version id.
 
-Use of this version number should be avoided, as it does not apply to
-some scenarios, and use of a release version will break Elasticsearch nodes.
+Uses of this version number should be avoided, as it does not apply to
+some scenarios, and use of release version will break Elasticsearch nodes.
 
 The release version is accessible in code through `Build.current().version()`,
 but it **should not** be assumed that this is a semantic version number,

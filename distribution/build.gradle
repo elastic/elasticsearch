@@ -20,7 +20,7 @@ import org.elasticsearch.gradle.transform.FilteringJarTransform
 import java.nio.file.Files
 import java.nio.file.Path
 
-import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuildNumber
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild
 
 plugins {
   id 'base'
@@ -250,13 +250,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.repositories'
 
   if (buildParams.runtimeJava.preRelease) {
-    Integer buildNumber = Integer.getInteger("runtime.java.build")
     String preReleaseType = buildParams.runtimeJava.preReleaseType
     def runtimeJavaMajorVersion = Integer.parseInt(buildParams.runtimeJavaVersion.get().getMajorVersion())
-    if (buildNumber == null) {
-      buildNumber = findLatestPreReleaseBuildNumber(runtimeJavaMajorVersion, preReleaseType);
-    }
-    String preReleaseVersionString = String.format("%d-%s+%d", runtimeJavaMajorVersion, preReleaseType, buildNumber);
+    String preReleaseVersionString = String.format("%d-%s+%d", runtimeJavaMajorVersion, preReleaseType, buildParams.runtimeJava.buildNumber)
 
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->

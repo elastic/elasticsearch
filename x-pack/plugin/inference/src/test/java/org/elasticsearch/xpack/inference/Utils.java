@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPONSE_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -71,15 +72,24 @@ public final class Utils {
         return clusterService;
     }
 
-    public static ScalingExecutorBuilder inferenceUtilityPool() {
-        return new ScalingExecutorBuilder(
-            UTILITY_THREAD_POOL_NAME,
-            1,
-            4,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.utility_thread_pool"
-        );
+    public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
+        return new ScalingExecutorBuilder[] {
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            ),
+            new ScalingExecutorBuilder(
+                INFERENCE_RESPONSE_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
+            ) };
     }
 
     public static void storeSparseModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {

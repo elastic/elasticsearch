@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -344,6 +345,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         assert mutableSearchResponse != null;
         checkCancellation();
         AsyncSearchResponse asyncSearchResponse;
+        if (mutableSearchResponse.tryIncRef() == false) {
+            throw new ElasticsearchStatusException("async-search result, no longer available", RestStatus.GONE);
+        }
         try {
             asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
         } catch (Exception e) {
@@ -353,6 +357,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 e
             );
             asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
+        } finally {
+            mutableSearchResponse.decRef();
         }
         return asyncSearchResponse;
     }
@@ -381,7 +387,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     @Override
     public void close() {
-        Releasables.close(searchResponse);
+        searchResponse.decRef();
     }
 
     class Listener extends SearchProgressActionListener {

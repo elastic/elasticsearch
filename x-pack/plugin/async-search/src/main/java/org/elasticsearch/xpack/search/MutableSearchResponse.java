@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * creating an async response concurrently. This limits the number of final reduction that can
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
-class MutableSearchResponse implements Releasable {
+class MutableSearchResponse extends AbstractRefCounted {
     private int totalShards;
     private int skippedShards;
     private Clusters clusters;
@@ -85,6 +86,7 @@ class MutableSearchResponse implements Releasable {
      * @param threadContext The thread context to retrieve the final response headers.
      */
     MutableSearchResponse(ThreadContext threadContext) {
+        super();
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
@@ -487,14 +489,17 @@ class MutableSearchResponse implements Releasable {
     }
 
     @Override
-    public synchronized void close() {
+    protected synchronized void closeInternal() {
         if (finalResponse != null) {
             finalResponse.decRef();
+            finalResponse = null;
         }
         if (clusterResponses != null) {
             for (SearchResponse clusterResponse : clusterResponses) {
                 clusterResponse.decRef();
             }
+            clusterResponses.clear();
+            clusterResponses = null;
         }
     }
 }

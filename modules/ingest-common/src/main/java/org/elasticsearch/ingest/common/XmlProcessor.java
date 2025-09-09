@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.XmlUtils;
@@ -56,20 +58,27 @@ import javax.xml.xpath.XPathFactory;
 public final class XmlProcessor extends AbstractProcessor {
 
     public static final String TYPE = "xml";
+    private static final Logger logger = LogManager.getLogger(XmlProcessor.class);
 
     private static final XPathFactory XPATH_FACTORY = XPathFactory.newInstance();
 
     // Pre-compiled pattern to detect namespace prefixes
     private static final Pattern NAMESPACE_PATTERN = Pattern.compile("\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*");
 
-    // Pre-configured secure XML parser factories using XmlUtils
-    private static final SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
-    private static final SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
-    private static final SAXParserFactory SAX_PARSER_FACTORY_STRICT = createSecureSaxParserFactoryStrict();
-    private static final SAXParserFactory SAX_PARSER_FACTORY_NS_STRICT = createSecureSaxParserFactoryNamespaceAwareStrict();
+    /**
+     * Lazily-initialized XML factories to avoid node startup failures if the JDK doesn't support required functionality.
+     * This inner class will only be loaded when XML processing is actually used.
+     */
+    private static class XmlFactories {
+        // Pre-configured secure XML parser factories using XmlUtils
+        static final SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
+        static final SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
+        static final SAXParserFactory SAX_PARSER_FACTORY_STRICT = createSecureSaxParserFactoryStrict();
+        static final SAXParserFactory SAX_PARSER_FACTORY_NS_STRICT = createSecureSaxParserFactoryNamespaceAwareStrict();
 
-    // Pre-configured secure document builder factory for DOM creation
-    private static final DocumentBuilderFactory DOM_FACTORY = createSecureDocumentBuilderFactory();
+        // Pre-configured secure document builder factory for DOM creation
+        static final DocumentBuilderFactory DOM_FACTORY = createSecureDocumentBuilderFactory();
+    }
 
     private final String field;
     private final String targetField;
@@ -578,7 +587,7 @@ public final class XmlProcessor extends AbstractProcessor {
                     // Use pre-configured secure DOM factory
                     // Since we build DOM programmatically (createElementNS/createElement),
                     // the factory's namespace awareness doesn't affect our usage
-                    DocumentBuilder builder = DOM_FACTORY.newDocumentBuilder();
+                    DocumentBuilder builder = XmlFactories.DOM_FACTORY.newDocumentBuilder();
                     domDocument = builder.newDocument();
                 } catch (Exception e) {
                     throw new org.xml.sax.SAXException("Failed to create DOM document", e);
@@ -814,7 +823,8 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setNamespaceAware(false);
             return factory;
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+            logger.warn("Cannot configure secure XML parsing features - XML processor may not work correctly", e);
+            return null;
         }
     }
 
@@ -828,7 +838,8 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setNamespaceAware(true);
             return factory;
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+            logger.warn("Cannot configure secure namespace-aware XML parsing features - XML processor may not work correctly", e);
+            return null;
         }
     }
 
@@ -841,16 +852,13 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setValidating(false);
             factory.setNamespaceAware(false);
 
-            // Try to enable strict parsing features (optional - may not be supported)
-            try {
-                factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
-            } catch (Exception e) {
-                // Strict parsing features are optional - continue without them if not supported
-            }
+            // Try to enable strict parsing features (may not be supported on all JDKs)
+            factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
 
             return factory;
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+            logger.warn("Cannot configure secure strict XML parsing features - XML processor may not work correctly", e);
+            return null;
         }
     }
 
@@ -863,16 +871,13 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setValidating(false);
             factory.setNamespaceAware(true);
 
-            // Try to enable strict parsing features (optional - may not be supported)
-            try {
-                factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
-            } catch (Exception e) {
-                // Strict parsing features are optional - continue without them if not supported
-            }
+            // Try to enable strict parsing features (may not be supported on all JDKs)
+            factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
 
             return factory;
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+            logger.warn("Cannot configure secure strict namespace-aware XML parsing features - XML processor may not work correctly", e);
+            return null;
         }
     }
 
@@ -888,7 +893,8 @@ public final class XmlProcessor extends AbstractProcessor {
             factory.setValidating(false);  // Override validation for DOM creation
             return factory;
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot configure secure XML parsing features", e);
+            logger.warn("Cannot configure secure DOM builder factory - XML processor may not work correctly", e);
+            return null;
         }
     }
 
@@ -903,13 +909,32 @@ public final class XmlProcessor extends AbstractProcessor {
      * </ul>
      *
      * @return the appropriate SAX parser factory for the current configuration
+     * @throws UnsupportedOperationException if the required XML factory is not available
      */
     private SAXParserFactory selectSaxParserFactory() {
         boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
+        SAXParserFactory factory;
+        
         if (isStrict()) {
-            return needsNamespaceAware ? SAX_PARSER_FACTORY_NS_STRICT : SAX_PARSER_FACTORY_STRICT;
+            factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS_STRICT : XmlFactories.SAX_PARSER_FACTORY_STRICT;
+            if (factory == null) {
+                throw new UnsupportedOperationException(
+                    "Strict XML parsing with" + (needsNamespaceAware ? " namespace-aware " : " ") + 
+                    "features is not supported by the current JDK. Please try without strict_parsing=true or " +
+                    "update your JDK to one that supports these XML features."
+                );
+            }
         } else {
-            return needsNamespaceAware ? SAX_PARSER_FACTORY_NS : SAX_PARSER_FACTORY;
+            factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS : XmlFactories.SAX_PARSER_FACTORY;
+            if (factory == null) {
+                throw new UnsupportedOperationException(
+                    "XML parsing with" + (needsNamespaceAware ? " namespace-aware " : " ") + 
+                    "features is not supported by the current JDK. Please update your JDK to one that " +
+                    "supports these XML features."
+                );
+            }
         }
+        
+        return factory;
     }
 }

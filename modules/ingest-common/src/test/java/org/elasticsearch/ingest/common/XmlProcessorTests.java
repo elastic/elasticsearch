@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for {@link XmlProcessor}. These tests ensure feature parity and test coverage.
  */
-@SuppressWarnings("unchecked")
 public class XmlProcessorTests extends ESTestCase {
 
     private static final String XML_FIELD = "xmldata";
@@ -172,7 +171,8 @@ public class XmlProcessorTests extends ESTestCase {
 
         processor.execute(ingestDocument);
 
-        List<String> allBars = ingestDocument.getFieldValue("all_bars", List.class);
+        @SuppressWarnings("unchecked")
+        List<String> allBars = (List<String>) ingestDocument.getFieldValue("all_bars", List.class);
         List<String> expectedBars = List.of("first", "second", "third");
         assertThat(allBars, equalTo(expectedBars));
     }

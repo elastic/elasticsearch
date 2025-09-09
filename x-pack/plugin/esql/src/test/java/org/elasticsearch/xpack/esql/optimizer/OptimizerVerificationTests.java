@@ -431,6 +431,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testDanglingOrderByInInlineStats() {
+        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
         var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test"));
 
         var err = error("""

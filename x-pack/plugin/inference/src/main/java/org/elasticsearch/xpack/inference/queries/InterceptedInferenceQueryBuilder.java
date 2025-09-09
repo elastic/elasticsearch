@@ -84,6 +84,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     protected abstract String getQuery();
 
+    protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext);
+
     protected abstract QueryBuilder copy(
         Map<String, InferenceResults> inferenceResultsMap,
         Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap
@@ -178,7 +180,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             return this;
         }
 
-        // TODO: BwC hook here
+        QueryBuilder rewrittenBwC = doRewriteBwC(queryRewriteContext);
+        if (rewrittenBwC != this) {
+            return rewrittenBwC;
+        }
 
         // Validate early to prevent partial failures
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();

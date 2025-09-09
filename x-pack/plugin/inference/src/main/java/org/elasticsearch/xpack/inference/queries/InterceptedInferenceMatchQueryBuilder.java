@@ -49,6 +49,12 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+        // TODO: Implement BwC support
+        return this;
+    }
+
+    @Override
     protected QueryBuilder copy(
         Map<String, InferenceResults> inferenceResultsMap,
         Map<String, Map<String, InferenceFieldInfo>> inferenceFieldInfoMap

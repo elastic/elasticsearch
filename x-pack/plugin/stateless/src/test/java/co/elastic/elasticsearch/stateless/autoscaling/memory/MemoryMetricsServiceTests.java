@@ -86,22 +86,10 @@ import static org.hamcrest.Matchers.lessThan;
 public class MemoryMetricsServiceTests extends ESTestCase {
 
     private static final Index INDEX = new Index("test-index-001", "e0adaff5-8ac4-4bb8-a8d1-adfde1a064cc");
-    private static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
-        Settings.EMPTY,
-        Sets.addToCopy(
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-            MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
-            MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
-            MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
-            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
-            MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
-            MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
-            MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING
-        )
-    );
 
     private static ExecutorService executorService;
 
+    private ClusterSettings clusterSettings;
     private MemoryMetricsService service;
 
     @BeforeClass
@@ -116,9 +104,22 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     @Before
     public void init() {
+        clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
+                MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+                MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+                MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+                MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+                MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+                MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING
+            )
+        );
         service = new MemoryMetricsService(
             System::nanoTime,
-            CLUSTER_SETTINGS,
+            clusterSettings,
             ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
             MeterRegistry.NOOP
         );
@@ -236,7 +237,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         long currentTime = System.nanoTime();
         MemoryMetricsService customService = new MemoryMetricsService(
             () -> currentTime,
-            CLUSTER_SETTINGS,
+            clusterSettings,
             ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
             MeterRegistry.NOOP
         );
@@ -513,7 +514,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
         final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
-        CLUSTER_SETTINGS.applySettings(
+        clusterSettings.applySettings(
             Settings.builder().put(MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio).build()
         );
         var shardMetrics = service.getShardMemoryMetrics();
@@ -702,7 +703,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     public void testIndexingMemoryRequirements() {
         var fakeClock = new AtomicLong();
         var projectType = randomFrom(ProjectType.values());
-        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, projectType, MeterRegistry.NOOP);
+        service = new MemoryMetricsService(fakeClock::get, clusterSettings, projectType, MeterRegistry.NOOP);
         final var indexingTierMemoryMetricsBeforeIndexRequirements = service.getIndexingTierMemoryMetrics();
 
         assertThat(indexingTierMemoryMetricsBeforeIndexRequirements, is(equalTo(service.getSearchTierMemoryMetrics())));
@@ -750,7 +751,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         var node0EphemeralId = node0.getEphemeralId();
         var node1 = DiscoveryNodeUtils.create("node1");
         var node1EphemeralId = node1.getEphemeralId();
-        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()), MeterRegistry.NOOP);
+        service = new MemoryMetricsService(fakeClock::get, clusterSettings, randomFrom(ProjectType.values()), MeterRegistry.NOOP);
 
         assertThat(service.mergeMemoryEstimation(), equalTo(0L));
 
@@ -840,7 +841,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0");
         var node0EphemeralId = node0.getEphemeralId();
         var node1 = DiscoveryNodeUtils.create("node1");
-        service = new MemoryMetricsService(fakeClock::get, CLUSTER_SETTINGS, randomFrom(ProjectType.values()), MeterRegistry.NOOP);
+        service = new MemoryMetricsService(fakeClock::get, clusterSettings, randomFrom(ProjectType.values()), MeterRegistry.NOOP);
         final var clusterState1 = ClusterState.builder(new ClusterName("test"))
             .nodes(DiscoveryNodes.builder().add(node0).add(node1).localNodeId("node1").masterNodeId("node1"))
             .version(randomLongBetween(0, 1000))

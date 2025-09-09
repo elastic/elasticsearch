@@ -216,7 +216,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
 
-        final var settings = Settings.EMPTY;
+        final var settings = Settings.builder()
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+            .build();
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         final var masterService = new MasterService(

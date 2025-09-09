@@ -167,6 +167,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -8986,5 +8987,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
         Bucket bucket = as(Alias.unwrap(eval.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testDecayOriginMustBeLiteral() {
+        assumeTrue("requires DECAY_FUNCTION capability enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
+
+        var query = """
+            FROM employees
+            | EVAL decay_result = decay(salary, salary, 10, {"offset": 5, "decay": 0.5, "type": "linear"})
+            | KEEP decay_result
+            | LIMIT 5""";
+
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> logicalOptimizer.optimize(defaultAnalyzer().analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)))
+        );
+        assertThat(e.getMessage(), containsString("has non-literal value [origin]"));
+    }
+
+    public void testDecayScaleMustBeLiteral() {
+        assumeTrue("requires DECAY_FUNCTION capability enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
+
+        var query = """
+            FROM employees
+            | EVAL decay_result = decay(salary, 10, salary, {"offset": 5, "decay": 0.5, "type": "linear"})
+            | KEEP decay_result
+            | LIMIT 5""";
+
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> logicalOptimizer.optimize(defaultAnalyzer().analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)))
+        );
+        assertThat(e.getMessage(), containsString("has non-literal value [scale]"));
     }
 }

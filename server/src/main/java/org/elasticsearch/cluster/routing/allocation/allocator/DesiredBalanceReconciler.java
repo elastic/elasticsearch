@@ -661,7 +661,7 @@ public class DesiredBalanceReconciler {
                     continue;
                 }
                 final var decision = canAllocateDecider.apply(shardRouting, node);
-                logger.info("relocate {} to {}: {}", shardRouting, nodeId, decision);
+                logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
 
                 // Assign shards to the YES nodes first. This way we might delay moving shards to NOT_PREFERRED nodes until after shards are
                 // first moved away. The DesiredBalance could be moving shards away from a hot node as well as moving shards to it, and it's

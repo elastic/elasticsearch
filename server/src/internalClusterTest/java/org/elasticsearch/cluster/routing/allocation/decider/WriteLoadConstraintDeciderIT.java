@@ -218,7 +218,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             throw error;
         }
     }
-    
+
     /**
      * Tests that {@link AllocationDecider#canRemain} returning {@link Decision.Type#NO} for a {@code NodeX} will ignore a
      * {@link AllocationDecider#canAllocate} response of {@link Decision.Type#NOT_PREFERRED} from a {@code NodeY} and reassign the shard

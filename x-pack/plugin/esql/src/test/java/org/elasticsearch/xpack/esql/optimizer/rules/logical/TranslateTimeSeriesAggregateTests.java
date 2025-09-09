@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -76,6 +77,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
      * }</pre>
      */
     public void testMaxOverTime() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | STATS count(max_over_time(network.cost)) BY time_bucket = BUCKET(@timestamp, 1 minute)
@@ -90,6 +92,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
     }
 
     public void testMaxOfRate() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | STATS count(max_over_time(network.total_bytes_in)) BY time_bucket = BUCKET(@timestamp, 1 minute)
@@ -108,6 +111,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
      * grouped by each of the dimension fields.
      */
     public void testNoOuterAggregation() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | STATS max_over_time(network.cost) by time_bucket = BUCKET(@timestamp, 1 minute)

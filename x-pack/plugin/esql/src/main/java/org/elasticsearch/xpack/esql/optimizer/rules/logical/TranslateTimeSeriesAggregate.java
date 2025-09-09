@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -153,7 +155,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        // NOCOMMIT I think the null check here is to skip already processed time series aggregates
         if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
             return translate(ts);
         } else {
@@ -166,11 +167,22 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
+        boolean hasTopLevelOverTimeAggs = false;
         var internalNames = new InternalNames();
         for (NamedExpression agg : aggregate.aggregates()) {
-            // NOCOMMIT The aggregations are Aliases, and the time bucket grouping is a Reference Attribute
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
+                if (af instanceof TimeSeriesAggregateFunction) {
+                    hasTopLevelOverTimeAggs = true;
+                }
+                // NOCOMMIT TODO: If af is a time series agg, do the group by all behavior
+                /*
+                This transformation does several things
+                    - extract the inner TimeSeriesAggregateFunction and get its perTimeSeriesAggregation equivalent
+                    - Save that aggregation in timeSeriesAggs to later build a new Aggregate node from
+                    - Replace the aggregate sub-function of af with a reference to the extracted aggregation.  This changes
+                      outerAgg to be operating on the output of a previous step, rather than on a sub-expression
+                 */
                 Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
                     changed.set(Boolean.TRUE);
                     if (tsAgg instanceof Rate) {
@@ -184,9 +196,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                     });
                     return newAgg.toAttribute();
                 });
+
                 if (changed.get()) {
+                    // In this branch, we found a time series aggregation, and are constructing a vertical aggregation around it
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
                 } else {
+                    // This case deals with a non-time series agg by splitting it into two partial steps
                     var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af.field(), af));
                     var fromPartial = new FromPartial(agg.source(), toPartial.toAttribute(), af);
                     firstPassAggs.add(toPartial);
@@ -198,8 +213,11 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             // no time-series aggregations, run a regular aggregation instead.
             return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), aggregate.aggregates());
         }
+
+        // Collect time series specific grouping fields from the leaf relation
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
+        Set<Attribute> dimensions = new HashSet<>();
         aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
                 if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
@@ -207,6 +225,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 }
                 if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
                     timestamp.set(attr);
+                }
+                if (attr.isDimension()) {
+                    dimensions.add(attr);
                 }
             }
         });
@@ -216,11 +237,13 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         if (timestamp.get() == null) {
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");
         }
+
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
+        // Extract the time grouping from the rest of the groupings.
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
                 // We need two branches here because the TBUCKET translation rule runs after this rule
@@ -239,6 +262,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
+
+        // NOCOMMIT - TODO: Presumably somewhere in here, I need to add the dimension groups
+        // Construct the groupings for the new aggregations
         for (Expression group : aggregate.groupings()) {
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
@@ -246,15 +272,18 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             final Attribute g = (Attribute) group;
             final NamedExpression newFinalGroup;
             if (timeBucket != null && g.id().equals(timeBucket.id())) {
+                // Add the time bucket grouping to both the inner and outer aggregations
                 newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
             } else {
-                // NOCOMMIT What on earth is this branch?
+                // Pass all the second pass groupings through the first pass aggregation via a values agg
+                // NOCOMMIT TODO: Skip this for the group by all case
                 newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
                 firstPassAggs.add(newFinalGroup);
             }
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
+
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
@@ -269,6 +298,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 return new EsRelation(r.source(), r.indexPattern(), indexMode, r.indexNameWithModes(), r.output());
             }
         });
+
         final var firstPhase = new TimeSeriesAggregate(
             newChild.source(),
             newChild,

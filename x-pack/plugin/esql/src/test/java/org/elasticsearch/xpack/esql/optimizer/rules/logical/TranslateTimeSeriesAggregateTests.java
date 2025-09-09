@@ -95,7 +95,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
-            | STATS count(max_over_time(network.total_bytes_in)) BY time_bucket = BUCKET(@timestamp, 1 minute)
+            | STATS max(rate(network.total_bytes_in)) BY time_bucket = BUCKET(@timestamp, 1 minute)
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);

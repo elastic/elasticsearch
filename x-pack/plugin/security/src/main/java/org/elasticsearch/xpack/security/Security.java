@@ -220,6 +220,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
@@ -606,8 +607,6 @@ public class Security extends Plugin
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<CrossClusterAccessAuthenticationService> crossClusterAccessAuthcService = new SetOnce<>();
-    private final SetOnce<CrossClusterApiKeySigner> crossClusterApiKeySigner = new SetOnce<>();
-    private final SetOnce<CrossClusterApiKeySignerReloader> crossClusterApiKeySignerReloader = new SetOnce<>();
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
@@ -1169,16 +1168,14 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
-        crossClusterApiKeySigner.set(new CrossClusterApiKeySigner(environment));
-        components.add(crossClusterApiKeySigner.get());
-        crossClusterApiKeySignerReloader.set(
-            new CrossClusterApiKeySignerReloader(
-                resourceWatcherService,
-                clusterService.getClusterSettings(),
-                crossClusterApiKeySigner.get()
-            )
+        var crossClusterApiKeySigner = new CrossClusterApiKeySigner(environment);
+        components.add(crossClusterApiKeySigner);
+        var crossClusterApiKeySignerReloader = new CrossClusterApiKeySignerReloader(
+            resourceWatcherService,
+            clusterService.getClusterSettings(),
+            crossClusterApiKeySigner
         );
-        components.add(crossClusterApiKeySignerReloader.get());
+        components.add(crossClusterApiKeySignerReloader);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1189,8 +1186,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
-                getLicenseState(),
-                crossClusterApiKeySigner.get()
+                getLicenseState()
             )
         );
 

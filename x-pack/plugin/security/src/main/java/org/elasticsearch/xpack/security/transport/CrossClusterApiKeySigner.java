@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -46,7 +45,6 @@ public class CrossClusterApiKeySigner {
     private final Logger logger = LogManager.getLogger(getClass());
     private final Environment environment;
     private static final Map<String, String> SIGNATURE_ALGORITHM_BY_TYPE = Map.of("RSA", "SHA256withRSA", "EC", "SHA256withECDSA");
-
     private final Map<String, SigningConfig> signingConfigByClusterAlias = new ConcurrentHashMap<>();
 
     public CrossClusterApiKeySigner(Environment environment) {
@@ -125,9 +123,9 @@ public class CrossClusterApiKeySigner {
     }
 
     private void loadSigningConfigs() {
-        this.environment.settings().getGroups(RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX, true).forEach((alias, settings) -> {
-            loadSigningConfig(alias, settings, false);
-        });
+        this.environment.settings()
+            .getGroups("cluster.remote.", true)
+            .forEach((alias, settings) -> { loadSigningConfig(alias, settings, false); });
     }
 
     /**
@@ -157,7 +155,12 @@ public class CrossClusterApiKeySigner {
         Settings settingsSource = updateSecureSettings ? currentSettings : newSettings;
 
         SecureSettings secureSettings = Settings.builder().put(secureSettingsSource, true).getSecureSettings();
-        return Settings.builder().put(settingsSource, false).setSecureSettings(secureSettings).build();
+
+        var builder = Settings.builder().put(settingsSource, false);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return builder.build();
     }
 
     void reloadSigningConfigs(Set<String> clusterAliases) {

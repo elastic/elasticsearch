@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.transport.RemoteClusterSettings;
 
 import java.util.List;
 
@@ -24,7 +23,7 @@ public class CrossClusterApiKeySignerSettings {
     static final String KEYSTORE_ALIAS_SUFFIX = "keystore.alias";
 
     static final Setting.AffixSetting<String> SIGNING_KEYSTORE_ALIAS = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX,
         key -> Setting.simpleString(key, newKey -> {
 
@@ -32,19 +31,19 @@ public class CrossClusterApiKeySignerSettings {
     );
 
     static final Setting.AffixSetting<String> SIGNING_KEYSTORE_PATH = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEYSTORE_PATH,
         key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
     );
 
     static final Setting.AffixSetting<SecureString> SIGNING_KEYSTORE_SECURE_PASSWORD = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD,
         key -> SecureSetting.secureString(key, null)
     );
 
     static final Setting.AffixSetting<String> SIGNING_KEYSTORE_ALGORITHM = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEYSTORE_ALGORITHM,
         key -> Setting.simpleString(
             key,
@@ -56,31 +55,31 @@ public class CrossClusterApiKeySignerSettings {
     );
 
     static final Setting.AffixSetting<String> SIGNING_KEYSTORE_TYPE = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEYSTORE_TYPE,
         key -> Setting.simpleString(key, "", Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
     );
 
     static final Setting.AffixSetting<SecureString> SIGNING_KEYSTORE_SECURE_KEY_PASSWORD = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD,
         key -> SecureSetting.secureString(key, null)
     );
 
     static final Setting.AffixSetting<String> SIGNING_KEY_PATH = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEY,
         key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
     );
 
     static final Setting.AffixSetting<SecureString> SIGNING_KEY_SECURE_PASSPHRASE = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.KEY_SECURE_PASSPHRASE,
         key -> SecureSetting.secureString(key, null)
     );
 
     static final Setting.AffixSetting<String> SIGNING_CERT_PATH = Setting.affixKeySetting(
-        RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX,
+        "cluster.remote.",
         SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.CERTIFICATE,
         key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
     );

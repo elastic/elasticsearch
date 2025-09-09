@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -54,7 +53,7 @@ public final class CrossClusterApiKeySignerReloader implements ReloadableSecurit
     ) {
         this.apiKeySigner = apiKeySigner;
         clusterSettings.addAffixGroupUpdateConsumer(getDynamicSettings(), (key, val) -> {
-            apiKeySigner.loadSigningConfig(key, val.getByPrefix(RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX + key + "."), false);
+            apiKeySigner.loadSigningConfig(key, val.getByPrefix("cluster.remote." + key + "."), false);
             logger.info("Updated signing configuration for [{}] due to updated cluster settings", key);
             watchDependentFilesForClusterAliases(
                 apiKeySigner::reloadSigningConfigs,
@@ -131,14 +130,13 @@ public final class CrossClusterApiKeySignerReloader implements ReloadableSecurit
             // closed. Since the secure settings will potentially be used later when the signing config is used to sign headers, the
             // settings need to be retrieved from the keystore and cached
             Settings cachedSettings = Settings.builder().setSecureSettings(extractSecureSettings(settings, getSecureSettings())).build();
-            cachedSettings.getGroups(RemoteClusterSettings.REMOTE_CLUSTER_SETTINGS_PREFIX, true)
-                .forEach((clusterAlias, settingsForCluster) -> {
-                    // Only update signing config if settings were found, since empty config means config deletion
-                    if (settingsForCluster.isEmpty() == false) {
-                        apiKeySigner.loadSigningConfig(clusterAlias, settingsForCluster, true);
-                        logger.info("Updated signing configuration for [{}] due to reload of secure settings", clusterAlias);
-                    }
-                });
+            cachedSettings.getGroups("cluster.remote.", true).forEach((clusterAlias, settingsForCluster) -> {
+                // Only update signing config if settings were found, since empty config means config deletion
+                if (settingsForCluster.isEmpty() == false) {
+                    apiKeySigner.loadSigningConfig(clusterAlias, settingsForCluster, true);
+                    logger.info("Updated signing configuration for [{}] due to reload of secure settings", clusterAlias);
+                }
+            });
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading signing configuration after reload of secure settings", e);
         }

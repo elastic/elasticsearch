@@ -126,7 +126,8 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             actualModelId,
             "api-key",
             new RateLimitSettings(100),
-            new ThinkingConfig(256)
+            new ThinkingConfig(256),
+            null
         );
 
         var manager = new GenericRequestManager<>(

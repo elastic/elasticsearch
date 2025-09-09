@@ -14,6 +14,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
@@ -36,13 +37,44 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
     private static final String AUTH_HEADER_VALUE = "Bearer foo";
 
     public void testCreateRequest_Default() throws IOException {
+        var requestMap = testCreateRequest(null);
+        assertThat(requestMap, aMapWithSize(1));
+        assertThat(
+            requestMap,
+            equalTo(Map.of("contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", "Hello Gemini!"))))))
+        );
+
+    }
+
+    public void testCreateRequest_Anthropic() throws IOException {
+        var requestMap = testCreateRequest(GoogleModelGardenProvider.ANTHROPIC);
+        assertThat(requestMap, aMapWithSize(4));
+        assertThat(
+            requestMap,
+            equalTo(
+                Map.of(
+                    "stream",
+                    true,
+                    "max_tokens",
+                    10,
+                    "messages",
+                    List.of(Map.of("role", "user", "content", "Hello Gemini!")),
+                    "anthropic_version",
+                    "vertex-2023-10-16"
+                )
+            )
+        );
+
+    }
+
+    private static Map<String, Object> testCreateRequest(GoogleModelGardenProvider googleModelGardenProvider) throws IOException {
         var modelId = "gemini-pro";
         var projectId = "test-project";
         var location = "us-central1";
 
         var messages = List.of("Hello Gemini!");
 
-        var request = createRequest(projectId, location, modelId, messages, null, null, null);
+        var request = createRequest(projectId, location, modelId, messages, null, null, null, googleModelGardenProvider);
         var httpRequest = request.createHttpRequest();
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
@@ -60,13 +92,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
-        assertThat(
-            requestMap,
-            equalTo(Map.of("contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", messages.getFirst()))))))
-        );
-
+        return entityAsMap(httpPost.getEntity().getContent());
     }
 
     public static GoogleVertexAiUnifiedChatCompletionRequest createRequest(
@@ -76,7 +102,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
         List<String> messages,
         @Nullable String apiKey,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable ThinkingConfig thinkingConfig
+        @Nullable ThinkingConfig thinkingConfig,
+        @Nullable GoogleModelGardenProvider provider
     ) {
         var model = GoogleVertexAiChatCompletionModelTests.createCompletionModel(
             projectId,
@@ -84,7 +111,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
             modelId,
             Objects.requireNonNullElse(apiKey, "default-api-key"),
             Objects.requireNonNullElse(rateLimitSettings, new RateLimitSettings(100)),
-            thinkingConfig
+            thinkingConfig,
+            provider
         );
         var unifiedChatInput = new UnifiedChatInput(messages, "user", true);
 

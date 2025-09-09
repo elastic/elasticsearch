@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -43,7 +44,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_MODEL_ID,
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
-            EMPTY_THINKING_CONFIG
+            EMPTY_THINKING_CONFIG,
+            null
         );
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
@@ -75,7 +77,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_MODEL_ID,
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
-            EMPTY_THINKING_CONFIG
+            EMPTY_THINKING_CONFIG,
+            null
         );
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
@@ -120,7 +123,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_MODEL_ID,
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
-            new ThinkingConfig(123)
+            new ThinkingConfig(123),
+            null
         );
         int newThinkingBudget = 456;
         Map<String, Object> taskSettings = new HashMap<>(
@@ -145,7 +149,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_MODEL_ID,
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
-            originalThinkingConfig
+            originalThinkingConfig,
+            null
         );
         Map<String, Object> taskSettings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>()));
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
@@ -165,13 +170,14 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         String modelId,
         String apiKey,
         RateLimitSettings rateLimitSettings,
-        ThinkingConfig thinkingConfig
+        ThinkingConfig thinkingConfig,
+        GoogleModelGardenProvider provider
     ) {
         return new GoogleVertexAiChatCompletionModel(
             "google-vertex-ai-chat-test-id",
             TaskType.CHAT_COMPLETION,
             "google_vertex_ai",
-            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, null, null, null, rateLimitSettings),
+            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, null, null, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
         );

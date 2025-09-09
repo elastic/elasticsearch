@@ -107,7 +107,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
             @Override
             public void add(int positionOffset, IntVector groupIds) {
-                LongVector valuesVector = valuesBlock.asVector();
+                var valuesVector = valuesBlock.asVector();
                 if (valuesVector != null) {
                     addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
                 } else {
@@ -247,7 +247,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 var buffer = buffers.getAndSet(groupId, null);
                 if (buffer != null) {
                     try (buffer) {
-                        processBuffer(groupId, buffer);
+                        flushBufferToOldRate(buffer, groupId);
                     }
                 }
             }
@@ -275,7 +275,36 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         Releasables.close(oldRate);
     }
 
-    void processBuffer(int groupId, Buffer buffer) {
+    private static class Slice {
+        int start;
+        long timestamp;
+        final int end;
+        final Buffer buffer;
+
+        Slice(Buffer buffer, int start, int end) {
+            this.buffer = buffer;
+            this.start = start;
+            this.end = end;
+            this.timestamp = buffer.timestamps.get(start);
+        }
+
+        boolean exhausted() {
+            return start >= end;
+        }
+
+        int next() {
+            int index = start++;
+            if (start < end) {
+                timestamp = buffer.timestamps.get(start);
+            }
+            return index;
+        }
+    }
+
+    /**
+     * Flushes the buffering data points to the old rate state.
+     */
+    void flushBufferToOldRate(Buffer buffer, int groupId) {
         if (buffer.totalCount == 1) {
             try (
                 var ts = driverContext.blockFactory().newConstantLongVector(buffer.timestamps.get(0), 1);
@@ -285,44 +314,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             }
             return;
         }
-        class Slice {
-            int start;
-            long timestamp;
-            final int end;
-
-            Slice(int start, int end) {
-                this.start = start;
-                this.end = end;
-                this.timestamp = buffer.timestamps.get(start);
-            }
-
-            boolean exhausted() {
-                return start >= end;
-            }
-
-            int next() {
-                int index = start++;
-                if (start < end) {
-                    timestamp = buffer.timestamps.get(start);
-                }
-                return index;
-            }
-        }
-
-        PriorityQueue<Slice> pq = new PriorityQueue<>(buffer.sliceOffsets.length + 1) {
-            @Override
-            protected boolean lessThan(Slice a, Slice b) {
-                return a.timestamp > b.timestamp; // want the latest timestamp first
-            }
-        };
-        {
-            int startOffset = 0;
-            for (int sliceOffset : buffer.sliceOffsets) {
-                pq.add(new Slice(startOffset, sliceOffset));
-                startOffset = sliceOffset;
-            }
-            pq.add(new Slice(startOffset, buffer.totalCount));
-        }
+        var pq = buffer.mergeQueue();
         // first
         final long lastTimestamp;
         final long lastValue;
@@ -337,7 +329,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             lastTimestamp = buffer.timestamps.get(position);
             lastValue = buffer.values.get(position);
         }
-        long prevValue = lastValue;
+        var prevValue = lastValue;
         double reset = 0;
         int position = -1;
         while (pq.size() > 0) {
@@ -372,6 +364,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         }
     }
 
+    // TODO: copied from old rate - simplify this or explain why we need it?
     private double dv(double v0, double v1) {
         return v0 > v1 ? v1 : v1 - v0;
     }
@@ -388,7 +381,15 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         return state;
     }
 
-    static class Buffer implements Releasable {
+    /**
+     * Buffers data points in two arrays: one for timestamps and one for values, partitioned into multiple slices.
+     * Each slice is sorted in descending order of timestamp. A new slice is created when a data point has a
+     * timestamp greater than the last point of the current slice. Since each page is sorted by descending timestamp,
+     * we only need to compare the first point of the new page with the last point of the current slice to decide
+     * if a new slice is needed. During merging, a priority queue is used to iterate through the slices, selecting
+     * the slice with the greatest timestamp.
+     */
+    static final class Buffer implements Releasable {
         private LongArray timestamps;
         private LongArray values;
         private int totalCount;
@@ -415,6 +416,22 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 sliceOffsets = ArrayUtil.growExact(sliceOffsets, sliceOffsets.length + 1);
                 sliceOffsets[sliceOffsets.length - 1] = totalCount;
             }
+        }
+
+        PriorityQueue<Slice> mergeQueue() {
+            PriorityQueue<Slice> pq = new PriorityQueue<>(this.sliceOffsets.length + 1) {
+                @Override
+                protected boolean lessThan(Slice a, Slice b) {
+                    return a.timestamp > b.timestamp; // want the latest timestamp first
+                }
+            };
+            int startOffset = 0;
+            for (int sliceOffset : sliceOffsets) {
+                pq.add(new Slice(this, startOffset, sliceOffset));
+                startOffset = sliceOffset;
+            }
+            pq.add(new Slice(this, startOffset, totalCount));
+            return pq;
         }
 
         @Override

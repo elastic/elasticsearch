@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,7 +24,6 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.SerializableStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -124,12 +124,12 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
         private final ConnectionPoolStats connectionPoolStats;
         @Nullable
-        private final SerializableStats inferenceEndpointRegistryStats;
+        private final Stats inferenceEndpointRegistryStats;
 
-        public NodeResponse(DiscoveryNode node, PoolStats poolStats, SerializableStats inferenceEndpointRegistryStats) {
+        public NodeResponse(DiscoveryNode node, PoolStats poolStats, @Nullable Cache.Stats inferenceEndpointRegistryStats) {
             super(node);
             connectionPoolStats = ConnectionPoolStats.of(poolStats);
-            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
+            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats != null ? Stats.of(inferenceEndpointRegistryStats) : null;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -137,7 +137,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
             connectionPoolStats = new ConnectionPoolStats(in);
             inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)
-                ? in.readOptionalNamedWriteable(SerializableStats.class)
+                ? in.readOptionalWriteable(Stats::new)
                 : null;
         }
 
@@ -146,7 +146,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             super.writeTo(out);
             connectionPoolStats.writeTo(out);
             if (out.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)) {
-                out.writeOptionalNamedWriteable(inferenceEndpointRegistryStats);
+                out.writeOptionalWriteable(inferenceEndpointRegistryStats);
             }
         }
 
@@ -177,7 +177,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             return connectionPoolStats;
         }
 
-        public SerializableStats getInferenceEndpointRegistryStats() {
+        public Stats getInferenceEndpointRegistryStats() {
             return inferenceEndpointRegistryStats;
         }
 
@@ -260,6 +260,37 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
             int getMaxConnections() {
                 return maxConnections;
+            }
+        }
+
+        public record Stats(long hits, long misses, long evictions) implements ToXContentObject, Writeable {
+
+            private static final String CACHE_HITS = "cache_hits";
+            private static final String CACHE_MISSES = "cache_misses";
+            private static final String CACHE_EVICTIONS = "cache_evictions";
+
+            public Stats(StreamInput in) throws IOException {
+                this(in.readLong(), in.readLong(), in.readLong());
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeLong(hits);
+                out.writeLong(misses);
+                out.writeLong(evictions);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject()
+                    .field(CACHE_HITS, hits)
+                    .field(CACHE_MISSES, misses)
+                    .field(CACHE_EVICTIONS, evictions)
+                    .endObject();
+            }
+
+            public static Stats of(Cache.Stats cacheStats) {
+                return new Stats(cacheStats.getHits(), cacheStats.getMisses(), cacheStats.getEvictions());
             }
         }
     }

@@ -96,7 +96,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
                 .stream()
                 .map(ProjectMetadata::id)
                 .filter(id -> event.customMetadataChanged(id, InvalidateCacheMetadata.NAME))
-                .peek(id -> log.trace("Trained model cache invalidated on node [{}]", () -> event.state().nodes().getLocalNodeId()))
+                .peek(id -> log.trace("Inference endpoint cache on node [{}]", () -> event.state().nodes().getLocalNodeId()))
                 .forEach(inferenceEndpointRegistry::invalidateAll)
         );
     }
@@ -117,7 +117,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
 
     @Override
     protected ClusterBlockException checkBlock(ClearInferenceEndpointCacheAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     public static class Request extends AcknowledgedRequest<ClearInferenceEndpointCacheAction.Request> {

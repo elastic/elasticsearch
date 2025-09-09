@@ -8,20 +8,22 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.List;
 
-public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSerializingTestCase<GetInferenceDiagnosticsAction.Response> {
+public class GetInferenceDiagnosticsActionResponseTests extends AbstractBWCWireSerializationTestCase<
+    GetInferenceDiagnosticsAction.Response> {
 
     public static GetInferenceDiagnosticsAction.Response createRandom() {
         List<GetInferenceDiagnosticsAction.NodeResponse> responses = randomList(
@@ -37,13 +39,7 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSeri
         var poolStats = new PoolStats(1, 2, 3, 4);
         var entity = new GetInferenceDiagnosticsAction.Response(
             ClusterName.DEFAULT,
-            List.of(
-                new GetInferenceDiagnosticsAction.NodeResponse(
-                    node,
-                    poolStats,
-                    new GetInferenceDiagnosticsActionNodeResponseTests.TestStats(5)
-                )
-            ),
+            List.of(new GetInferenceDiagnosticsAction.NodeResponse(node, poolStats, new Cache.Stats(5, 6, 7))),
             List.of()
         );
 
@@ -53,7 +49,7 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSeri
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"id":{"connection_pool_stats":{"leased_connections":1,"pending_connections":2,"available_connections":3,""" + """
-            "max_connections":4},"inference_endpoint_registry":{"count":5}}}"""));
+            "max_connections":4},"inference_endpoint_registry":{"cache_hits":5,"cache_misses":6,"cache_evictions":7}}}"""));
     }
 
     @Override
@@ -76,7 +72,17 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractWireSeri
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return GetInferenceDiagnosticsActionNodeResponseTests.registryWithTestStats();
+    protected GetInferenceDiagnosticsAction.Response mutateInstanceForVersion(
+        GetInferenceDiagnosticsAction.Response instance,
+        TransportVersion version
+    ) {
+        return new GetInferenceDiagnosticsAction.Response(
+            instance.getClusterName(),
+            instance.getNodes()
+                .stream()
+                .map(nodeResponse -> GetInferenceDiagnosticsActionNodeResponseTests.mutateNodeResponseForVersion(nodeResponse, version))
+                .toList(),
+            instance.failures()
+        );
     }
 }

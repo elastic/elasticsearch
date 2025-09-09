@@ -16,20 +16,14 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.SerializableStats;
 
-import java.io.IOException;
-import java.util.stream.StreamSupport;
-
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_ENDPOINT_CACHE_ENABLED;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_ENDPOINT_CACHE_EXPIRY;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_ENDPOINT_CACHE_WEIGHT;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * A registry that assembles and caches Inference Endpoints, {@link Model}, for reuse.
@@ -39,7 +33,33 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_ENDPOI
  */
 public class InferenceEndpointRegistry {
 
+    private static final Setting<Boolean> INFERENCE_ENDPOINT_CACHE_ENABLED = Setting.boolSetting(
+        "xpack.inference.endpoint.cache.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static final Setting<Integer> INFERENCE_ENDPOINT_CACHE_WEIGHT = Setting.intSetting(
+        "xpack.inference.endpoint.cache.weight",
+        25,
+        Setting.Property.NodeScope
+    );
+
+    private static final Setting<TimeValue> INFERENCE_ENDPOINT_CACHE_EXPIRY = Setting.timeSetting(
+        "xpack.inference.endpoint.cache.expiry_time",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueHours(1),
+        Setting.Property.NodeScope
+    );
+
+    public static Collection<? extends Setting<?>> getSettingsDefinitions() {
+        return List.of(INFERENCE_ENDPOINT_CACHE_ENABLED, INFERENCE_ENDPOINT_CACHE_WEIGHT, INFERENCE_ENDPOINT_CACHE_EXPIRY);
+    }
+
     private static final Logger log = LogManager.getLogger(InferenceEndpointRegistry.class);
+    private static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final ProjectResolver projectResolver;
@@ -70,7 +90,7 @@ public class InferenceEndpointRegistry {
         var key = new InferenceIdAndProject(inferenceEntityId, projectResolver.getProjectId());
         var cachedModel = cacheEnabled ? cache.get(key) : null;
         if (cachedModel != null) {
-            log.debug("Retrieved [{}] from cache.", inferenceEntityId);
+            log.trace("Retrieved [{}] from cache.", inferenceEntityId);
             listener.onResponse(cachedModel);
         } else {
             loadFromIndex(key, listener);
@@ -78,12 +98,13 @@ public class InferenceEndpointRegistry {
     }
 
     void invalidateAll(ProjectId projectId) {
-        // copy to an interim list because cache.keys() does not allow inline mutations
         if (cacheEnabled) {
-            StreamSupport.stream(cache.keys().spliterator(), false)
-                .filter(key -> key.projectId.equals(projectId))
-                .toList()
-                .forEach(cache::invalidate);
+            var cacheKeys = cache.keys().iterator();
+            while (cacheKeys.hasNext()) {
+                if (cacheKeys.next().projectId.equals(projectId)) {
+                    cacheKeys.remove();
+                }
+            }
         }
     }
 
@@ -112,8 +133,8 @@ public class InferenceEndpointRegistry {
         }));
     }
 
-    public Stats stats() {
-        return cacheEnabled ? new Stats(cache.stats()) : Stats.EMPTY;
+    public Cache.Stats stats() {
+        return cacheEnabled ? cache.stats() : EMPTY;
     }
 
     public boolean cacheEnabled() {
@@ -121,50 +142,4 @@ public class InferenceEndpointRegistry {
     }
 
     private record InferenceIdAndProject(String inferenceEntityId, ProjectId projectId) {}
-
-    public record Stats(Cache.Stats stats) implements SerializableStats {
-        public static final String NAME = "inference_endpoint_registry_stats";
-        private static final String CACHE_HITS = "cache_hits";
-        private static final String CACHE_MISSES = "cache_misses";
-        private static final String CACHE_EVICTIONS = "cache_evictions";
-
-        private static final Stats EMPTY = new Stats(new Cache.Stats(0, 0, 0));
-
-        public Stats(StreamInput in) throws IOException {
-            this(new Cache.Stats(in.readLong(), in.readLong(), in.readLong()));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(stats.getHits());
-            out.writeLong(stats.getMisses());
-            out.writeLong(stats.getEvictions());
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                .field(CACHE_HITS, stats.getHits())
-                .field(CACHE_MISSES, stats.getMisses())
-                .field(CACHE_EVICTIONS, stats.getEvictions())
-                .endObject();
-        }
-
-        public long hits() {
-            return stats.getHits();
-        }
-
-        public long misses() {
-            return stats.getMisses();
-        }
-
-        public long evictions() {
-            return stats.getEvictions();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
 }

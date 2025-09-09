@@ -59,13 +59,13 @@ public class InferenceEndpointRegistryTests extends ESSingleNodeTestCase {
     }
 
     public void testGetModel() {
-        var expectedEndpoint = storeGoodEndpoint("1");
+        var expectedEndpoint = storeWorkingEndpoint("1");
         var actualEndpoint = getEndpoint("1");
         assertThat(actualEndpoint, equalTo(expectedEndpoint));
         assertThat(getEndpoint("1"), sameInstance(actualEndpoint));
     }
 
-    private Model storeGoodEndpoint(String id) {
+    private Model storeWorkingEndpoint(String id) {
         var expectedEndpoint = new AbstractTestInferenceService.TestServiceModel(
             id,
             TaskType.SPARSE_EMBEDDING,

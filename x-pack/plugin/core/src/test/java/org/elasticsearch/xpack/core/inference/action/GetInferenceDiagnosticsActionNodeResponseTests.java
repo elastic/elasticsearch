@@ -13,17 +13,12 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.SerializableStats;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.List;
 
 public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceDiagnosticsAction.NodeResponse> {
@@ -31,18 +26,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         var randomPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
 
-        return new GetInferenceDiagnosticsAction.NodeResponse(node, randomPoolStats, new TestStats(randomInt()));
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return registryWithTestStats();
-    }
-
-    public static NamedWriteableRegistry registryWithTestStats() {
-        return new NamedWriteableRegistry(
-            List.of(new NamedWriteableRegistry.Entry(SerializableStats.class, TestStats.NAME, TestStats::new))
-        );
+        return new GetInferenceDiagnosticsAction.NodeResponse(node, randomPoolStats, randomCacheStats());
     }
 
     @Override
@@ -70,7 +54,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
                     connPoolStats.getAvailableConnections(),
                     connPoolStats.getMaxConnections()
                 ),
-                randomTestStats()
+                randomCacheStats()
             );
             case 1 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
@@ -80,7 +64,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
                     connPoolStats.getAvailableConnections(),
                     connPoolStats.getMaxConnections()
                 ),
-                randomTestStats()
+                randomCacheStats()
             );
             case 2 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
@@ -90,7 +74,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
                     randomInt(),
                     connPoolStats.getMaxConnections()
                 ),
-                randomTestStats()
+                randomCacheStats()
             );
             case 3 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
@@ -100,41 +84,25 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
                     connPoolStats.getAvailableConnections(),
                     randomInt()
                 ),
-                randomTestStats()
+                randomCacheStats()
             );
             default -> throw new UnsupportedEncodingException(Strings.format("Encountered unsupported case %s", select));
         };
     }
 
-    public static SerializableStats randomTestStats() {
-        return new TestStats(randomInt());
-    }
-
-    public record TestStats(int count) implements SerializableStats {
-        public static final String NAME = "test_stats";
-
-        public TestStats(StreamInput in) throws IOException {
-            this(in.readInt());
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(count);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("count", count).endObject();
-        }
+    private static Cache.Stats randomCacheStats() {
+        return new Cache.Stats(randomLong(), randomLong(), randomLong());
     }
 
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse mutateInstanceForVersion(
+        GetInferenceDiagnosticsAction.NodeResponse instance,
+        TransportVersion version
+    ) {
+        return mutateNodeResponseForVersion(instance, version);
+    }
+
+    public static GetInferenceDiagnosticsAction.NodeResponse mutateNodeResponseForVersion(
         GetInferenceDiagnosticsAction.NodeResponse instance,
         TransportVersion version
     ) {

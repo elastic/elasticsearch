@@ -201,27 +201,6 @@ public class InferencePlugin extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
-    public static final Setting<Boolean> INFERENCE_ENDPOINT_CACHE_ENABLED = Setting.boolSetting(
-        "xpack.inference.cache.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> INFERENCE_ENDPOINT_CACHE_WEIGHT = Setting.intSetting(
-        "xpack.inference.cache.weight",
-        25,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> INFERENCE_ENDPOINT_CACHE_EXPIRY = Setting.timeSetting(
-        "xpack.inference.cache.expiry_time",
-        TimeValue.timeValueMinutes(15),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueHours(1),
-        Setting.Property.NodeScope
-    );
-
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
 
     public static final String NAME = "inference";
@@ -568,9 +547,7 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
-        settings.add(INFERENCE_ENDPOINT_CACHE_ENABLED);
-        settings.add(INFERENCE_ENDPOINT_CACHE_EXPIRY);
-        settings.add(INFERENCE_ENDPOINT_CACHE_WEIGHT);
+        settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }

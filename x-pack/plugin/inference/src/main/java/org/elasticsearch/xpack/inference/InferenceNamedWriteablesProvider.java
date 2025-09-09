@@ -20,7 +20,6 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.xpack.core.inference.SerializableStats;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettin
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
-import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
@@ -604,13 +602,6 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticRerankerServiceSettings.NAME,
                 ElasticRerankerServiceSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                SerializableStats.class,
-                InferenceEndpointRegistry.Stats.NAME,
-                InferenceEndpointRegistry.Stats::new
             )
         );
         namedWriteables.add(

@@ -115,13 +115,11 @@ public class ClearInferenceEndpointCacheActionTests extends ESSingleNodeTestCase
         ).actionGet(TIMEOUT);
     }
 
-    private InferenceEndpointRegistry.Stats cacheStats() {
+    private GetInferenceDiagnosticsAction.NodeResponse.Stats cacheStats() {
         var diagnostics = client().execute(GetInferenceDiagnosticsAction.INSTANCE, new GetInferenceDiagnosticsAction.Request())
             .actionGet(TIMEOUT);
 
         assertThat(diagnostics.getNodes(), hasSize(1));
-        return diagnostics.getNodes().getFirst().getInferenceEndpointRegistryStats() instanceof InferenceEndpointRegistry.Stats stats
-            ? stats
-            : null;
+        return diagnostics.getNodes().getFirst().getInferenceEndpointRegistryStats();
     }
 }

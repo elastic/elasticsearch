@@ -1330,6 +1330,11 @@ public class EsqlCapabilities {
         FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
 
         /**
+         * Support for the SET command.
+         */
+        SET_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1452,7 +1457,12 @@ public class EsqlCapabilities {
         /**
          * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
          */
-        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot());
+        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the Present function
+         */
+        FN_PRESENT;
 
         private final boolean enabled;
 

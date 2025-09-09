@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.metrics.internal.data.ImmutableSumData;
 import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -234,6 +235,81 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(metrics, "up_down_counter.time_series_metric"), equalTo("gauge"));
         assertThat(ObjectPath.evaluate(metrics, "up_down_counter_delta.type"), equalTo("long"));
         assertThat(ObjectPath.evaluate(metrics, "up_down_counter_delta.time_series_metric"), equalTo("gauge"));
+    }
+
+    public void testTsidForBulkIsSame() throws Exception {
+        // This test is to ensure that the _tsid is the same when indexing via a bulk request or OTLP.
+        long now = Clock.getDefault().now();
+
+        export(
+            List.of(
+                createDoubleGauge(
+                    TEST_RESOURCE,
+                    Attributes.builder()
+                        .put("string", "foo")
+                        .put("string_array", "foo", "bar", "baz")
+                        .put("boolean", true)
+                        .put("long", 42L)
+                        .put("double", 42.0)
+                        .put("host.ip", "127.0.0.1")
+                        .build(),
+                    "metric",
+                    42,
+                    "By",
+                    now
+                )
+            )
+        );
+        BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
+        hasher.addString("metric");
+        String metricNamesHash = Long.toHexString(hasher.digestHash().hashCode());
+        // Index the same metric via a bulk request
+        Request bulkRequest = new Request("POST", "metrics-generic.otel-default/_bulk?refresh");
+        bulkRequest.setJsonEntity(
+            "{\"create\":{}}\n"
+                + """
+                    {
+                        "@timestamp": $time,
+                        "start_timestamp": $time,
+                        "data_stream": {
+                            "type": "metrics",
+                            "dataset": "generic.otel",
+                            "namespace": "default"
+                        },
+                        "_metric_names_hash": "$metric_names_hash",
+                        "metrics": {
+                            "metric": 42.0
+                        },
+                        "attributes": {
+                            "string": "foo",
+                            "string_array": ["foo", "bar", "baz"],
+                            "boolean": true,
+                            "long": 42,
+                            "double": 42.0,
+                            "host.ip": "127.0.0.1"
+                        },
+                        "resource": {
+                            "attributes": {
+                                "service.name": "elasticsearch"
+                            }
+                        },
+                        "scope": {
+                            "name": "io.opentelemetry.example.metrics"
+                        },
+                        "unit": "By"
+                    }
+                    """.replace("\n", "")
+                    .replace("$time", Long.toString(TimeUnit.NANOSECONDS.toMillis(now) + 1))
+                    .replace("$metric_names_hash", metricNamesHash)
+                + "\n"
+        );
+        assertThat(ObjectPath.createFromResponse(client().performRequest(bulkRequest)).evaluate("errors"), equalTo(false));
+
+        ObjectPath searchResponse = ObjectPath.createFromResponse(
+            client().performRequest(new Request("GET", "metrics-generic.otel-default/_search?docvalue_fields=_tsid"))
+        );
+        assertThat(searchResponse.evaluate("hits.total.value"), equalTo(2));
+        assertThat(searchResponse.evaluate("hits.hits.0.fields._tsid"), equalTo(searchResponse.evaluate("hits.hits.1.fields._tsid")));
     }
 
     private static Map<String, Object> getMapping(String target) throws IOException {

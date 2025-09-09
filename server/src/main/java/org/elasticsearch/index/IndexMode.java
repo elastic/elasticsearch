@@ -66,7 +66,6 @@ public enum IndexMode {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             validateRoutingPathSettings(settings);
-            validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -248,7 +247,6 @@ public enum IndexMode {
     LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            validateTimeSeriesSettings(settings);
             var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
             if (setting.equals(Boolean.FALSE)) {
                 validateRoutingPathSettings(settings);
@@ -408,11 +406,6 @@ public enum IndexMode {
 
     private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-    }
-
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
 
     private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {

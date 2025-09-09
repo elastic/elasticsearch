@@ -525,7 +525,7 @@ public class EsqlFunctionRegistry {
                 def(Hamming.class, Hamming::new, "v_hamming"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlDecode.class, UrlDecode::new, "url_decode"),
-                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time")} };
+                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -10,10 +10,10 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -22,6 +22,7 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
+import java.util.Properties;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
@@ -30,8 +31,13 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+        project.getPluginManager().apply(VersionPropertiesPlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
+
+        Properties versions = (Properties) project.getExtensions().getByName(VersionPropertiesPlugin.VERSIONS_EXT);
+        Version currentVersion = Version.fromString(versions.getProperty("elasticsearch"));
+
         var resourceRoot = getResourceRoot(project);
 
         String taskGroup = "Transport Versions";
@@ -82,11 +88,17 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getIncrement().convention(1000);
-                Version esVersion = VersionProperties.getElasticsearchVersion();
-                t.getCurrentUpperBoundName().convention(esVersion.getMajor() + "." + esVersion.getMinor());
+                t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
             });
-
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
+
+        var generateInitialTask = project.getTasks()
+            .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {
+                t.setGroup(taskGroup);
+                t.setDescription("(Re)generates an initial transport version for an Elasticsearch release version");
+                t.getCurrentVersion().set(currentVersion);
+            });
+        validateTask.configure(t -> t.mustRunAfter(generateInitialTask));
     }
 
     private static String getResourceRoot(Project project) {

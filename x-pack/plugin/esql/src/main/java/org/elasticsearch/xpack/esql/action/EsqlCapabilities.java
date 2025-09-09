@@ -1452,7 +1452,12 @@ public class EsqlCapabilities {
         /**
          * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
          */
-        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot());
+        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the Present function
+         */
+        FN_PRESENT;
 
         private final boolean enabled;
 

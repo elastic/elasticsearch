@@ -406,10 +406,13 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.sample.GetSampleAction;
+import org.elasticsearch.sample.GetSampleStatsAction;
 import org.elasticsearch.sample.PutSampleConfigAction;
 import org.elasticsearch.sample.RestGetSampleAction;
+import org.elasticsearch.sample.RestGetSampleStatsAction;
 import org.elasticsearch.sample.RestPutSampleConfigAction;
 import org.elasticsearch.sample.TransportGetSampleAction;
+import org.elasticsearch.sample.TransportGetSampleStatsAction;
 import org.elasticsearch.sample.TransportPutSampleConfigAction;
 import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
@@ -821,6 +824,7 @@ public class ActionModule extends AbstractModule {
 
         actions.register(PutSampleConfigAction.INSTANCE, TransportPutSampleConfigAction.class);
         actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
+        actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -1052,6 +1056,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestPutSampleConfigAction());
         registerHandler.accept(new RestGetSampleAction());
+        registerHandler.accept(new RestGetSampleStatsAction());
     }
 
     @Override

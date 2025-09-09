@@ -10,7 +10,6 @@
 package org.elasticsearch.sample;
 
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,16 +24,16 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.sample.GetSampleAction.NodeRequest;
-import static org.elasticsearch.sample.GetSampleAction.NodeResponse;
-import static org.elasticsearch.sample.GetSampleAction.Request;
-import static org.elasticsearch.sample.GetSampleAction.Response;
+import static org.elasticsearch.sample.GetSampleStatsAction.NodeRequest;
+import static org.elasticsearch.sample.GetSampleStatsAction.NodeResponse;
+import static org.elasticsearch.sample.GetSampleStatsAction.Request;
+import static org.elasticsearch.sample.GetSampleStatsAction.Response;
 
-public class TransportGetSampleAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
+public class TransportGetSampleStatsAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
     private final SamplingService samplingService;
 
     @Inject
-    public TransportGetSampleAction(
+    public TransportGetSampleStatsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -42,7 +41,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
         SamplingService samplingService
     ) {
         super(
-            GetSampleAction.NAME,
+            GetSampleStatsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
@@ -55,7 +54,6 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @SuppressWarnings("checkstyle:LineLength")
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        samplingService.getSampleConfig(request.projectId, request.indices()[0]);
         return new Response(clusterService.getClusterName(), nodeResponses, failures);
     }
 
@@ -72,7 +70,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         String index = request.getIndex();
-        List<IndexRequest> samples = samplingService.getSamples(index);
-        return new NodeResponse(transportService.getLocalNode(), samples == null ? List.of() : samples);
+        SamplingService.SampleStats sampleStats = samplingService.getSampleStats(index);
+        return new NodeResponse(transportService.getLocalNode(), sampleStats);
     }
 }

@@ -26,6 +26,9 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -40,6 +43,7 @@ import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -247,6 +251,10 @@ public class SamplingService implements ClusterStateListener {
         return samples.get(index).getSamples();
     }
 
+    public SampleStats getSampleStats(String index) {
+        return samples.get(index).stats;
+    }
+
     private boolean evaluateCondition(
         IngestDocument ingestDocument,
         Script script,
@@ -335,7 +343,7 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
-    private static final class SampleStats {
+    public static final class SampleStats implements Writeable, ToXContent {
         LongAdder potentialSamples = new LongAdder();
         LongAdder samplesRejectedForSize = new LongAdder();
         LongAdder samplesRejectedForCondition = new LongAdder();
@@ -346,6 +354,25 @@ public class SamplingService implements ClusterStateListener {
         LongAdder timeEvaluatingCondition = new LongAdder();
         LongAdder timeCompilingCondition = new LongAdder();
         Exception lastException = null;
+
+        public SampleStats() {}
+
+        public SampleStats(StreamInput in) throws IOException {
+            potentialSamples.add(in.readLong());
+            samplesRejectedForSize.add(in.readLong());
+            samplesRejectedForCondition.add(in.readLong());
+            samplesRejectedForRate.add(in.readLong());
+            samplesRejectedForException.add(in.readLong());
+            samples.add(in.readLong());
+            timeSampling.add(in.readLong());
+            timeEvaluatingCondition.add(in.readLong());
+            timeCompilingCondition.add(in.readLong());
+            if (in.readBoolean()) {
+                lastException = in.readException();
+            } else {
+                lastException = null;
+            }
+        }
 
         @Override
         public String toString() {
@@ -367,6 +394,65 @@ public class SamplingService implements ClusterStateListener {
                 + (timeEvaluatingCondition.longValue() / 1000000)
                 + ", timeCompilingCondition: "
                 + (timeCompilingCondition.longValue() / 1000000);
+        }
+
+        public SampleStats combine(SampleStats other) {
+            SampleStats result = new SampleStats();
+            result.potentialSamples.add(this.potentialSamples.longValue());
+            result.potentialSamples.add(other.potentialSamples.longValue());
+            result.samplesRejectedForSize.add(this.samplesRejectedForSize.longValue());
+            result.samplesRejectedForSize.add(other.samplesRejectedForSize.longValue());
+            result.samplesRejectedForCondition.add(this.samplesRejectedForCondition.longValue());
+            result.samplesRejectedForCondition.add(other.samplesRejectedForCondition.longValue());
+            result.samplesRejectedForRate.add(this.samplesRejectedForRate.longValue());
+            result.samplesRejectedForRate.add(other.samplesRejectedForRate.longValue());
+            result.samplesRejectedForException.add(this.samplesRejectedForException.longValue());
+            result.samplesRejectedForException.add(other.samplesRejectedForException.longValue());
+            result.samples.add(this.samples.longValue());
+            result.samples.add(other.samples.longValue());
+            result.timeSampling.add(this.timeSampling.longValue());
+            result.timeSampling.add(other.timeSampling.longValue());
+            result.timeEvaluatingCondition.add(this.timeEvaluatingCondition.longValue());
+            result.timeEvaluatingCondition.add(other.timeEvaluatingCondition.longValue());
+            result.timeCompilingCondition.add(this.timeCompilingCondition.longValue());
+            result.timeCompilingCondition.add(other.timeCompilingCondition.longValue());
+            result.lastException = this.lastException != null ? this.lastException : other.lastException;
+            return result;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("potentialSamples", potentialSamples.longValue());
+            builder.field("samplesRejectedForSize", samplesRejectedForSize.longValue());
+            builder.field("samplesRejectedForCondition", samplesRejectedForCondition.longValue());
+            builder.field("samplesRejectedForRate", samplesRejectedForRate.longValue());
+            builder.field("samplesRejectedForException", samplesRejectedForException.longValue());
+            builder.field("samples", samples.longValue());
+            builder.field("timeSampling", (timeSampling.longValue() / 1000000));
+            builder.field("timeEvaluatingCondition", (timeEvaluatingCondition.longValue() / 1000000));
+            builder.field("timeCompilingCondition", (timeCompilingCondition.longValue() / 1000000));
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(potentialSamples.longValue());
+            out.writeLong(samplesRejectedForSize.longValue());
+            out.writeLong(samplesRejectedForCondition.longValue());
+            out.writeLong(samplesRejectedForRate.longValue());
+            out.writeLong(samplesRejectedForException.longValue());
+            out.writeLong(samples.longValue());
+            out.writeLong(timeSampling.longValue());
+            out.writeLong(timeEvaluatingCondition.longValue());
+            out.writeLong(timeCompilingCondition.longValue());
+            if (lastException == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeException(lastException);
+            }
         }
     }
 
@@ -405,12 +491,7 @@ public class SamplingService implements ClusterStateListener {
         final ProjectId projectId;
         final String indexName;
 
-        DeleteSampleConfigTask(
-            ProjectId projectId,
-            String indexName,
-            TimeValue ackTimeout,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
+        DeleteSampleConfigTask(ProjectId projectId, String indexName, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
             super(ackTimeout, listener);
             this.projectId = projectId;
             this.indexName = indexName;

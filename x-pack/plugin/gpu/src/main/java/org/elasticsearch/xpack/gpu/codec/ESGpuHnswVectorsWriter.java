@@ -150,9 +150,9 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         flatVectorWriter.flush(maxDoc, sortMap);
         for (FieldWriter field : fields) {
             if (sortMap == null) {
-                writeField(field);
+                flushField(field);
             } else {
-                writeSortingField(field, sortMap);
+                flushSortingField(field, sortMap);
             }
         }
     }
@@ -185,40 +185,27 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private void writeField(FieldWriter fieldWriter) throws IOException {
-
-        // if (dataType == CuVSMatrix.DataType.FLOAT) {
+    /**
+     * For FlatFieldVectorWriter we only need to support float[] during flush: during indexing users provide floats[], and pass floats to
+     * FlatFieldVectorWriter, even when we have a BYTE dataType (i.e. an "int8_hnsw" type).
+     * During merging, we use quantized data, so we need to support byte[] too (see {@link ESGpuHnswVectorsWriter#mergeOneField}),
+     * but not here.
+     * That's how our other current formats work: use floats during indexing, and quantized data to build graph during merging.
+     */
+    private void flushField(FieldWriter fieldWriter) throws IOException {
         float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        final CuVSMatrix dataset = vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors);
-        try {
+        try (CuVSMatrix dataset = vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors)) {
             writeFieldInternal(fieldWriter.fieldInfo, dataset, vectors.length);
-        } finally {
-            if (dataset != null) {
-                dataset.close();
-            }
         }
-        // } else {
-        // throw new UnsupportedOperationException("BYTE is still unsupported");
-        // }
     }
 
-    private void writeSortingField(FieldWriter fieldWriter, Sorter.DocMap sortMap) throws IOException {
+    private void flushSortingField(FieldWriter fieldWriter, Sorter.DocMap sortMap) throws IOException {
         // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
         // We can now treat them as a simple, sorted list of vectors.
-
-        // if (dataType == CuVSMatrix.DataType.FLOAT) {
         float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        final CuVSMatrix dataset = vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors);
-        try {
+        try (CuVSMatrix dataset = vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors)) {
             writeFieldInternal(fieldWriter.fieldInfo, dataset, vectors.length);
-        } finally {
-            if (dataset != null) {
-                dataset.close();
-            }
         }
-        // } else {
-        // throw new UnsupportedOperationException("BYTE is still unsupported");
-        // }
     }
 
     private void writeFieldInternal(FieldInfo fieldInfo, CuVSMatrix dataset, int datasetSize) throws IOException {
@@ -430,18 +417,27 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                     dataset = DatasetUtils.getInstance()
                         .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                 } else {
-                    var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+                    logger.debug(
+                        () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
+                    );
+
                     // Read vector-by-vector
+                    var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+
+                    // During merging, we use quantized data, so we need to support byte[] too.
+                    // That's how our current formats work: use floats during indexing, and quantized data to build a graph during merging.
                     if (dataType == CuVSMatrix.DataType.FLOAT) {
                         float[] vector = new float[fieldInfo.getVectorDimension()];
                         for (int i = 0; i < numVectors; ++i) {
                             input.readFloats(vector, 0, fieldInfo.getVectorDimension());
+                            builder.addVector(vector);
                         }
                     } else {
                         assert dataType == CuVSMatrix.DataType.BYTE;
                         byte[] vector = new byte[fieldInfo.getVectorDimension()];
                         for (int i = 0; i < numVectors; ++i) {
                             input.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                            builder.addVector(vector);
                         }
                     }
                     dataset = builder.build();

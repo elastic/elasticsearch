@@ -40,7 +40,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -60,14 +59,11 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * Benchmark for many different kinds of aggregator and groupings.
@@ -408,7 +404,7 @@ public class AggregatorBenchmark {
                         LongBlock lValues = (LongBlock) values;
                         for (int g = 0; g < availableGroups; g++) {
                             long group = g;
-                            long expected = 0;//LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * opCount;
+                            long expected = 0;// LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * opCount;
                             if (lValues.getLong(g) != expected) {
                                 throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                             }
@@ -418,7 +414,7 @@ public class AggregatorBenchmark {
                         DoubleBlock dValues = (DoubleBlock) values;
                         for (int g = 0; g < availableGroups; g++) {
                             long group = g;
-                            long expected = 0;//LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * opCount;
+                            long expected = 0;// LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).sum() * opCount;
                             if (dValues.getDouble(g) != expected) {
                                 throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
                             }
@@ -553,20 +549,21 @@ public class AggregatorBenchmark {
                         LongArrayBlock longArrayBlock = (LongArrayBlock) block;
                         List<Long> val = IntStream.range(0, TOP_LIMIT).mapToLong(i -> longArrayBlock.getLong(i)).boxed().toList();
                         List<Long> expected = LongStream.range(0, TOP_LIMIT).map(v -> v / 10).boxed().toList();
-//                        if (val.equals(expected) == false) {
-//                            throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
-//                        }
+                        // if (val.equals(expected) == false) {
+                        // throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
+                        // }
                     }
                     case DOUBLES -> {
                         DoubleArrayBlock doubleArrayBlock = (DoubleArrayBlock) block;
                         List<Double> val = IntStream.range(0, TOP_LIMIT).mapToDouble(i -> doubleArrayBlock.getDouble(i)).boxed().toList();
                         List<Double> expected = LongStream.range(0, TOP_LIMIT).mapToDouble(i -> i / 10).boxed().toList();
-//                        if (val.equals(expected) == false) {
-//                            throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
-//                        }
+                        // if (val.equals(expected) == false) {
+                        // throw new AssertionError(prefix + "expected [" + expected + "] but was [" + val + "]");
+                        // }
                     }
                     default -> throw new IllegalStateException("Unexpected aggregation type: " + dataType);
-                };
+                }
+                ;
             }
             default -> throw new IllegalArgumentException("bad op " + op);
         }

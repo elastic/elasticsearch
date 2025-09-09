@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -297,6 +296,38 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             terms = ft.getTerms(reader, "prefix-" + "x".repeat(IndexWriter.MAX_TERM_LENGTH), randomBoolean(), null);
             reader.close();
         }
+    }
+
+    public void test_ignore_above_index_level_setting() {
+        // given
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+                "field",
+                mock(FieldType.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                mock(NamedAnalyzer.class),
+                builder,
+                true
+        );
+
+        // when/then
+        assertFalse(fieldType.isIgnoreAboveSet());
+        assertEquals(123, fieldType.ignoreAbove());
     }
 
     public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given() {

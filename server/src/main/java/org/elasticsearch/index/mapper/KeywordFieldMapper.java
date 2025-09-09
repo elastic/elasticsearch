@@ -220,7 +220,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 name,
                 mappingParserContext.getIndexAnalyzers(),
                 mappingParserContext.scriptCompiler(),
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                IGNORE_ABOVE_DEFAULT_STANDARD_INDICES,
                 mappingParserContext.getIndexSettings().getIndexVersionCreated(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.getIndexSettings().getIndexSortConfig(),
@@ -228,6 +228,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 false,
                 mappingParserContext.getIndexSettings().sourceKeepMode()
             );
+            if (IGNORE_ABOVE_SETTING.exists(mappingParserContext.getSettings())) {
+                this.ignoreAbove.setValue(IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()));
+            }
         }
 
         Builder(

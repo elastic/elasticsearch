@@ -243,6 +243,108 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
+    public void test_ignore_above_index_level_setting() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build(),
+            mapping(b -> {
+                b.startObject("field");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        // when
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+
+        // then
+        assertEquals(123, mapper.fieldType().ignoreAbove());
+        assertTrue(mapper.fieldType().isIgnoreAboveSet());
+    }
+
+    public void test_ignore_above_index_level_setting_is_overridden_by_field_level_ignore_above_in_standard_indices() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build(),
+            mapping(b -> {
+                b.startObject("potato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 456);
+                b.endObject();
+
+                b.startObject("tomato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 789);
+                b.endObject();
+
+                b.startObject("cheese");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        // when
+        final KeywordFieldMapper fieldMapper1 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        final KeywordFieldMapper fieldMapper2 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("tomato");
+        final KeywordFieldMapper fieldMapper3 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("cheese");
+
+        // then
+        assertEquals(456, fieldMapper1.fieldType().ignoreAbove());
+        assertTrue(fieldMapper1.fieldType().isIgnoreAboveSet());
+
+        assertEquals(789, fieldMapper2.fieldType().ignoreAbove());
+        assertTrue(fieldMapper2.fieldType().isIgnoreAboveSet());
+
+        assertEquals(123, fieldMapper3.fieldType().ignoreAbove());
+        assertTrue(fieldMapper3.fieldType().isIgnoreAboveSet());
+    }
+
+    public void test_ignore_above_index_level_setting_is_overridden_by_field_level_ignore_above_in_logsdb_indices() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build(),
+            mapping(b -> {
+                b.startObject("potato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 456);
+                b.endObject();
+
+                b.startObject("tomato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 789);
+                b.endObject();
+
+                b.startObject("cheese");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        // when
+        final KeywordFieldMapper fieldMapper1 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        final KeywordFieldMapper fieldMapper2 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("tomato");
+        final KeywordFieldMapper fieldMapper3 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("cheese");
+
+        // then
+        assertEquals(456, fieldMapper1.fieldType().ignoreAbove());
+        assertTrue(fieldMapper1.fieldType().isIgnoreAboveSet());
+
+        assertEquals(789, fieldMapper2.fieldType().ignoreAbove());
+        assertTrue(fieldMapper2.fieldType().isIgnoreAboveSet());
+
+        assertEquals(123, fieldMapper3.fieldType().ignoreAbove());
+        assertTrue(fieldMapper3.fieldType().isIgnoreAboveSet());
+    }
+
     public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));

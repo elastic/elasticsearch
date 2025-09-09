@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -69,15 +70,16 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        // TODO: How to set the cluster alias and CCS minimize round-trips here?
+        // Set the cluster alias to the local cluster and CCS minimize round-trips to false since ES|QL does not perform a remote cluster
+        // coordinator node rewrite
         return services.searchService()
             .getRewriteContext(
                 System::currentTimeMillis,
                 clusterState.getMinTransportVersion(),
-                null,
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 resolvedIndices,
                 null,
-                null
+                false
             );
     }
 

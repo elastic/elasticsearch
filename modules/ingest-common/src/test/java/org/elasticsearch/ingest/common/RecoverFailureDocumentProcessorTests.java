@@ -9,9 +9,13 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.action.bulk.FailureStoreDocumentConverter;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,7 +31,7 @@ public class RecoverFailureDocumentProcessorTests extends ESTestCase {
         originalSource.put("field1", "value1");
         originalSource.put("field2", "value2");
 
-        IngestDocument failureDoc = createFailureDoc("current-index", "original-index", "routing-value", null, originalSource, true);
+        IngestDocument failureDoc = createFailureDoc("routing-value", null, originalSource, true);
         RecoverFailureDocumentProcessor processor = new RecoverFailureDocumentProcessor("test", "test");
 
         IngestDocument result = processor.execute(failureDoc);
@@ -38,107 +42,106 @@ public class RecoverFailureDocumentProcessorTests extends ESTestCase {
         assertThat(result.getFieldValue("field2", String.class), equalTo("value2"));
 
         // Verify error and document fields are removed
-        assertThat(result.getSource(), not(hasKey("error")));
-        assertThat(result.getSource(), not(hasKey("document")));
+        assertThat(result.getSource(), not(hasKey(RecoverFailureDocumentProcessor.ERROR_FIELD)));
+        assertThat(result.getSource(), not(hasKey(RecoverFailureDocumentProcessor.DOCUMENT_FIELD)));
 
         // Verify metadata is restored
-        assertThat(result.getFieldValue("_index", String.class), equalTo("original-index"));
-        assertThat(result.getFieldValue("_routing", String.class), equalTo("routing-value"));
+        assertThat(result.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class), equalTo("original-index"));
+        assertThat(result.getFieldValue(IngestDocument.Metadata.ROUTING.getFieldName(), String.class), equalTo("routing-value"));
 
         // Verify pre-recovery data is stored in the ingest-metadata
-        assertThat(result.getIngestMetadata(), hasKey("pre_recovery"));
+        assertThat(result.getIngestMetadata(), hasKey(RecoverFailureDocumentProcessor.PRE_RECOVERY_FIELD));
         @SuppressWarnings("unchecked")
-        Map<String, Object> preRecoveryData = (Map<String, Object>) result.getIngestMetadata().get("pre_recovery");
+        Map<String, Object> preRecoveryData = (Map<String, Object>) result.getIngestMetadata()
+            .get(RecoverFailureDocumentProcessor.PRE_RECOVERY_FIELD);
         assertThat(preRecoveryData, notNullValue());
 
         // Verify pre-recovery contains the original failure state
-        assertThat(preRecoveryData, hasKey("_index"));
-        assertThat(preRecoveryData.get("_index"), equalTo("current-index"));
-        assertThat(preRecoveryData, hasKey("error"));
-        assertThat(preRecoveryData.get("error"), equalTo("simulated failure"));
-        assertThat(preRecoveryData, hasKey("document"));
+        assertThat(preRecoveryData, hasKey(IngestDocument.Metadata.INDEX.getFieldName()));
+        assertThat(preRecoveryData.get(IngestDocument.Metadata.INDEX.getFieldName()), equalTo("current-index"));
+        assertThat(preRecoveryData, hasKey(RecoverFailureDocumentProcessor.ERROR_FIELD));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorMap = (Map<String, Object>) preRecoveryData.get(RecoverFailureDocumentProcessor.ERROR_FIELD);
+        assertThat(errorMap, notNullValue());
+        assertThat(errorMap.get("type"), equalTo("exception"));
+        assertThat(errorMap.get("message"), equalTo("simulated failure"));
+        assertThat(preRecoveryData, hasKey(RecoverFailureDocumentProcessor.DOCUMENT_FIELD));
 
         // Verify document field in pre-recovery has source removed
         @SuppressWarnings("unchecked")
-        Map<String, Object> preRecoveryDocument = (Map<String, Object>) preRecoveryData.get("document");
-        assertThat(preRecoveryDocument, not(hasKey("source")));
-        assertThat(preRecoveryDocument, hasKey("index"));
-        assertThat(preRecoveryDocument, hasKey("routing"));
+        Map<String, Object> preRecoveryDocument = (Map<String, Object>) preRecoveryData.get(RecoverFailureDocumentProcessor.DOCUMENT_FIELD);
+        assertThat(preRecoveryDocument, not(hasKey(RecoverFailureDocumentProcessor.SOURCE_FIELD)));
+        assertThat(preRecoveryDocument, hasKey(RecoverFailureDocumentProcessor.INDEX_FIELD));
+        assertThat(preRecoveryDocument, hasKey(RecoverFailureDocumentProcessor.ROUTING_FIELD));
     }
 
     public void testExecuteWithOriginalId() throws Exception {
         Map<String, Object> originalSource = new HashMap<>();
         originalSource.put("data", "test");
 
-        IngestDocument failureDoc = createFailureDoc(
-            "current-index",
-            "original-index",
-            "routing-value",
-            "original-doc-id",
-            originalSource,
-            true
-        );
+        IngestDocument failureDoc = createFailureDoc("routing-value", "original-doc-id", originalSource, true);
         RecoverFailureDocumentProcessor processor = new RecoverFailureDocumentProcessor("test", "test");
 
         IngestDocument result = processor.execute(failureDoc);
 
         // Verify the original ID is copied over
-        assertThat(result.getFieldValue("_id", String.class), equalTo("original-doc-id"));
+        assertThat(result.getFieldValue(IngestDocument.Metadata.ID.getFieldName(), String.class), equalTo("original-doc-id"));
 
         // Verify pre-recovery data contains the original current ID
         @SuppressWarnings("unchecked")
-        Map<String, Object> preRecoveryData = (Map<String, Object>) result.getIngestMetadata().get("pre_recovery");
-        assertThat(preRecoveryData.get("_id"), equalTo("test-id"));
+        Map<String, Object> preRecoveryData = (Map<String, Object>) result.getIngestMetadata()
+            .get(RecoverFailureDocumentProcessor.PRE_RECOVERY_FIELD);
+        assertThat(preRecoveryData.get(IngestDocument.Metadata.ID.getFieldName()), equalTo("test-id"));
     }
 
-    public void testExecuteWithMissingErrorField() {
+    public void testExecuteWithMissingErrorField() throws Exception {
         Map<String, Object> originalSource = new HashMap<>();
         originalSource.put("field1", "value1");
 
-        IngestDocument docWithoutError = createFailureDoc("current-index", "original-index", null, null, originalSource, false);
+        IngestDocument docWithoutError = createFailureDoc(null, null, originalSource, false);
         RecoverFailureDocumentProcessor processor = new RecoverFailureDocumentProcessor("test", "test");
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(docWithoutError));
-        assertThat(exception.getMessage(), equalTo("field [error] not present as part of path [error]"));
+        assertThat(exception.getMessage(), equalTo(RecoverFailureDocumentProcessor.MISSING_ERROR_ERROR_MSG));
     }
 
     public void testExecuteWithMissingDocumentField() {
         Map<String, Object> sourceAndMetadata = new HashMap<>();
-        sourceAndMetadata.put("_index", "current-index");
-        sourceAndMetadata.put("error", "simulated failure");
-        sourceAndMetadata.put("_version", 1L);
+        sourceAndMetadata.put(IngestDocument.Metadata.INDEX.getFieldName(), "current-index");
+        sourceAndMetadata.put(RecoverFailureDocumentProcessor.ERROR_FIELD, "simulated failure");
+        sourceAndMetadata.put(IngestDocument.Metadata.VERSION.getFieldName(), 1L);
         // Missing document field
 
         IngestDocument doc = new IngestDocument(sourceAndMetadata, new HashMap<>());
         RecoverFailureDocumentProcessor processor = new RecoverFailureDocumentProcessor("test", "test");
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(doc));
-        assertThat(exception.getMessage(), equalTo("field [document] not present as part of path [document]"));
+        assertThat(exception.getMessage(), equalTo(RecoverFailureDocumentProcessor.MISSING_DOCUMENT_ERROR_MSG));
     }
 
     public void testExecuteWithMissingSourceField() {
         Map<String, Object> sourceAndMetadata = new HashMap<>();
-        sourceAndMetadata.put("_index", "current-index");
-        sourceAndMetadata.put("error", "simulated failure");
+        sourceAndMetadata.put(IngestDocument.Metadata.INDEX.getFieldName(), "current-index");
+        sourceAndMetadata.put(RecoverFailureDocumentProcessor.ERROR_FIELD, "simulated failure");
 
         // Document without a source field
         Map<String, Object> documentWrapper = new HashMap<>();
-        documentWrapper.put("index", "original-index");
-        sourceAndMetadata.put("document", documentWrapper);
-        sourceAndMetadata.put("_version", 1L);
+        documentWrapper.put(RecoverFailureDocumentProcessor.INDEX_FIELD, "original-index");
+        sourceAndMetadata.put(RecoverFailureDocumentProcessor.DOCUMENT_FIELD, documentWrapper);
+        sourceAndMetadata.put(IngestDocument.Metadata.VERSION.getFieldName(), 1L);
 
         IngestDocument doc = new IngestDocument(sourceAndMetadata, new HashMap<>());
         RecoverFailureDocumentProcessor processor = new RecoverFailureDocumentProcessor("test", "test");
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(doc));
-        assertThat(exception.getMessage(), equalTo("field [source] not present as part of path [document.source]"));
+        assertThat(exception.getMessage(), equalTo(RecoverFailureDocumentProcessor.MISSING_SOURCE_ERROR_MSG));
     }
 
     public void testExecuteWithNullMetadataFields() throws Exception {
         Map<String, Object> originalSource = new HashMap<>();
         originalSource.put("field1", "value1");
 
-        IngestDocument failureDoc = createFailureDocWithNullMetadata("current-index", originalSource);
+        IngestDocument failureDoc = createFailureDocWithNullMetadata(originalSource);
         RecoverFailureDocumentProcessor processor = new RecoverFailureDocumentProcessor("test", "test");
 
         IngestDocument result = processor.execute(failureDoc);
@@ -146,8 +149,10 @@ public class RecoverFailureDocumentProcessorTests extends ESTestCase {
         // Verify source is recovered
         assertThat(result.getFieldValue("field1", String.class), equalTo("value1"));
 
-        // Verify null metadata fields are not set (existing behavior should be preserved)
-        // The processor only sets fields when they are not null
+        // Verify metadata fields are not overwritten by null values (existing behavior should be preserved)
+        // The processor only updates fields when the failure source fields are not null
+        assertThat(result.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class), equalTo("current-index"));
+        assertThat(result.getFieldValue(IngestDocument.Metadata.ID.getFieldName(), String.class), equalTo("test-id"));
     }
 
     public void testExecuteCompletelyReplacesSource() throws Exception {
@@ -155,7 +160,7 @@ public class RecoverFailureDocumentProcessorTests extends ESTestCase {
         originalSource.put("original_field", "original_value");
 
         // Create a failure doc with extra fields in the current source
-        IngestDocument failureDoc = createFailureDoc("current-index", "original-index", null, null, originalSource, true);
+        IngestDocument failureDoc = createFailureDoc(null, null, originalSource, true);
         failureDoc.setFieldValue("extra_field", "should_be_removed");
         failureDoc.setFieldValue("another_field", "also_removed");
 
@@ -170,12 +175,13 @@ public class RecoverFailureDocumentProcessorTests extends ESTestCase {
         // Verify extra fields are completely removed
         assertThat(result.getSource(), not(hasKey("extra_field")));
         assertThat(result.getSource(), not(hasKey("another_field")));
-        assertThat(result.getSource(), not(hasKey("error")));
-        assertThat(result.getSource(), not(hasKey("document")));
+        assertThat(result.getSource(), not(hasKey(RecoverFailureDocumentProcessor.ERROR_FIELD)));
+        assertThat(result.getSource(), not(hasKey(RecoverFailureDocumentProcessor.DOCUMENT_FIELD)));
 
         // Verify pre-recovery data contains the extra fields
         @SuppressWarnings("unchecked")
-        Map<String, Object> preRecoveryData = (Map<String, Object>) result.getIngestMetadata().get("pre_recovery");
+        Map<String, Object> preRecoveryData = (Map<String, Object>) result.getIngestMetadata()
+            .get(RecoverFailureDocumentProcessor.PRE_RECOVERY_FIELD);
         assertThat(preRecoveryData, hasKey("extra_field"));
         assertThat(preRecoveryData, hasKey("another_field"));
     }
@@ -186,62 +192,65 @@ public class RecoverFailureDocumentProcessorTests extends ESTestCase {
     }
 
     private static IngestDocument createFailureDoc(
-        String currentIndex,
-        String originalIndex,
         String routing,
         String originalId,
         Map<String, Object> originalSource,
         boolean containsError
-    ) {
-        Map<String, Object> sourceAndMetadata = new HashMap<>();
-        // current metadata
-        sourceAndMetadata.put("_index", currentIndex);
-        sourceAndMetadata.put("_id", "test-id");
-        sourceAndMetadata.put("_version", 1L);
-
-        // failure wrapper
-        Map<String, Object> documentWrapper = new HashMap<>();
-        documentWrapper.put("index", originalIndex);
+    ) throws IOException {
+        String currentIndex = "current-index";
+        String originalIndex = "original-index";
+        // Build the original IndexRequest
+        IndexRequest originalRequest = new IndexRequest(originalIndex).source(originalSource);
         if (routing != null) {
-            documentWrapper.put("routing", routing);
+            originalRequest.routing(routing);
         }
         if (originalId != null) {
-            documentWrapper.put("id", originalId);
+            originalRequest.id(originalId);
         }
-        documentWrapper.put("source", originalSource);
-
-        if (containsError) {
-            sourceAndMetadata.put("error", "simulated failure");
+        // Simulate a failure if requested
+        Exception failure = containsError ? new Exception("simulated failure") : null;
+        FailureStoreDocumentConverter converter = new FailureStoreDocumentConverter();
+        IndexRequest failureRequest;
+        if (failure == null) {
+            // If no error, manually create a doc with missing error field for negative test
+            Map<String, Object> sourceAndMetadata = new HashMap<>();
+            sourceAndMetadata.put(IngestDocument.Metadata.INDEX.getFieldName(), currentIndex);
+            Map<String, Object> docMap = new HashMap<>();
+            docMap.put(RecoverFailureDocumentProcessor.INDEX_FIELD, originalIndex);
+            if (routing != null) docMap.put(RecoverFailureDocumentProcessor.ROUTING_FIELD, routing);
+            if (originalId != null) docMap.put(RecoverFailureDocumentProcessor.ID_FIELD, originalId);
+            docMap.put(RecoverFailureDocumentProcessor.SOURCE_FIELD, originalSource);
+            sourceAndMetadata.put(RecoverFailureDocumentProcessor.DOCUMENT_FIELD, docMap);
+            sourceAndMetadata.put(IngestDocument.Metadata.VERSION.getFieldName(), 1L);
+            return new IngestDocument(sourceAndMetadata, new HashMap<>());
         }
-
-        sourceAndMetadata.put("document", documentWrapper);
-
-        // no special ingest-metadata
-        Map<String, Object> ingestMetadata = new HashMap<>();
-
-        return new IngestDocument(sourceAndMetadata, ingestMetadata);
+        failureRequest = converter.transformFailedRequest(originalRequest, failure, currentIndex);
+        // Extract the source map from the failureRequest
+        Map<String, Object> failureSource = XContentHelper.convertToMap(failureRequest.source(), false, failureRequest.getContentType())
+            .v2();
+        // Add metadata fields
+        failureSource.put(IngestDocument.Metadata.INDEX.getFieldName(), currentIndex);
+        failureSource.put(IngestDocument.Metadata.ID.getFieldName(), "test-id");
+        failureSource.put(IngestDocument.Metadata.VERSION.getFieldName(), 1L);
+        return new IngestDocument(failureSource, new HashMap<>());
     }
 
-    private static IngestDocument createFailureDocWithNullMetadata(String currentIndex, Map<String, Object> originalSource) {
-        Map<String, Object> sourceAndMetadata = new HashMap<>();
-        // current metadata
-        sourceAndMetadata.put("_index", currentIndex);
-        sourceAndMetadata.put("_id", "test-id");
-        sourceAndMetadata.put("_version", 1L);
+    private static IngestDocument createFailureDocWithNullMetadata(Map<String, Object> originalSource) throws IOException {
+        String currentIndex = "current-index";
 
-        // failure wrapper with null metadata
-        Map<String, Object> documentWrapper = new HashMap<>();
-        documentWrapper.put("index", null);
-        documentWrapper.put("routing", null);
-        documentWrapper.put("id", null);
-        documentWrapper.put("source", originalSource);
-
-        sourceAndMetadata.put("error", "simulated failure");
-        sourceAndMetadata.put("document", documentWrapper);
-
-        // no special ingest-metadata
-        Map<String, Object> ingestMetadata = new HashMap<>();
-
-        return new IngestDocument(sourceAndMetadata, ingestMetadata);
+        // Build the original IndexRequest with null metadata fields
+        IndexRequest originalRequest = new IndexRequest((String) null).source(originalSource);
+        // Simulate a failure
+        Exception failure = new Exception("simulated failure");
+        FailureStoreDocumentConverter converter = new FailureStoreDocumentConverter();
+        IndexRequest failureRequest = converter.transformFailedRequest(originalRequest, failure, currentIndex);
+        // Extract the source map from the failureRequest
+        Map<String, Object> failureSource = XContentHelper.convertToMap(failureRequest.source(), false, failureRequest.getContentType())
+            .v2();
+        // Add metadata fields
+        failureSource.put(IngestDocument.Metadata.INDEX.getFieldName(), currentIndex);
+        failureSource.put(IngestDocument.Metadata.ID.getFieldName(), "test-id");
+        failureSource.put(IngestDocument.Metadata.VERSION.getFieldName(), 1L);
+        return new IngestDocument(failureSource, new HashMap<>());
     }
 }

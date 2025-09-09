@@ -16,8 +16,6 @@ The Recover Failure Document processor performs the following operations:
 * Restores the original document id from `document._id` to the document metadata
 * Restores the original index name from `document.index` to the document metadata
 * Restores the original routing value from `document.routing` to the document metadata (if present)
-* Removes the failure-related fields (`error` and `document`) from the document
-* Places all original source fields back at the root level of the document
 
 $$$recover_failure_document-options$$$
 

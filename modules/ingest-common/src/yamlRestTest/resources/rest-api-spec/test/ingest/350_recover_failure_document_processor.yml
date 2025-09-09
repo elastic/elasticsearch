@@ -147,7 +147,7 @@ teardown:
                 # Missing "document" field should cause an exception
 
   - match: { docs.0.error.type: "illegal_argument_exception" }
-  - match: { docs.0.error.reason: "field [document] not present as part of path [document]" }
+  - match: { docs.0.error.reason: "failure store document has unexpected structure, missing required [document] field" }
 
 ---
 "Test recover_failure_document processor error handling - missing source field":
@@ -165,4 +165,4 @@ teardown:
                   # Missing "source" field should cause an exception
 
   - match: { docs.0.error.type: "illegal_argument_exception" }
-  - match: { docs.0.error.reason: "field [source] not present as part of path [document.source]" }
+  - match: { docs.0.error.reason: "failure store document has unexpected structure, missing required [document.source] field" }

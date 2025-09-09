@@ -26,6 +26,21 @@ import java.util.Map;
  */
 public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
 
+    public static final String PRE_RECOVERY_FIELD = "pre_recovery";
+    public static final String DOCUMENT_FIELD = "document";
+    public static final String SOURCE_FIELD = "source";
+    public static final String SOURCE_FIELD_PATH = DOCUMENT_FIELD + "." + SOURCE_FIELD;
+    public static final String ID_FIELD = "id";
+    public static final String INDEX_FIELD = "index";
+    public static final String ROUTING_FIELD = "routing";
+    public static final String ERROR_FIELD = "error";
+
+    public static final String MISSING_DOCUMENT_ERROR_MSG =
+        "failure store document has unexpected structure, missing required [document] field";
+    public static final String MISSING_SOURCE_ERROR_MSG =
+        "failure store document has unexpected structure, missing required [document.source] field";
+    public static final String MISSING_ERROR_ERROR_MSG = "failure store document has unexpected structure, missing required [error] field";
+
     public static final String TYPE = "recover_failure_document";
 
     RecoverFailureDocumentProcessor(String tag, String description) {
@@ -35,42 +50,42 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
     @Override
     @SuppressWarnings("unchecked")
     public IngestDocument execute(IngestDocument document) throws Exception {
-        if (document.hasField("document") == false) {
-            throw new IllegalArgumentException("field [document] not present as part of path [document]");
+        if (document.hasField(DOCUMENT_FIELD) == false) {
+            throw new IllegalArgumentException(MISSING_DOCUMENT_ERROR_MSG);
         }
 
-        if (document.hasField("document.source") == false) {
-            throw new IllegalArgumentException("field [source] not present as part of path [document.source]");
+        if (document.hasField(SOURCE_FIELD_PATH) == false) {
+            throw new IllegalArgumentException(MISSING_SOURCE_ERROR_MSG);
         }
 
-        if (document.hasField("error") == false) {
-            throw new IllegalArgumentException("field [error] not present as part of path [error]");
+        if (document.hasField(ERROR_FIELD) == false) {
+            throw new IllegalArgumentException(MISSING_ERROR_ERROR_MSG);
         }
 
         // store pre-recovery data in ingest metadata
         storePreRecoveryData(document);
 
         // Get the nested 'document' field, which holds the original document and metadata.
-        Map<String, Object> failedDocument = (Map<String, Object>) document.getFieldValue("document", Map.class);
+        Map<String, Object> failedDocument = (Map<String, Object>) document.getFieldValue(DOCUMENT_FIELD, Map.class);
 
         // Copy the original index, routing, and id back to the document's metadata.
-        String originalIndex = (String) failedDocument.get("index");
+        String originalIndex = (String) failedDocument.get(INDEX_FIELD);
         if (originalIndex != null) {
-            document.setFieldValue("_index", originalIndex);
+            document.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), originalIndex);
         }
 
-        String originalRouting = (String) failedDocument.get("routing");
+        String originalRouting = (String) failedDocument.get(ROUTING_FIELD);
         if (originalRouting != null) {
-            document.setFieldValue("_routing", originalRouting);
+            document.setFieldValue(IngestDocument.Metadata.ROUTING.getFieldName(), originalRouting);
         }
 
-        String originalId = (String) failedDocument.get("id");
+        String originalId = (String) failedDocument.get(ID_FIELD);
         if (originalId != null) {
-            document.setFieldValue("_id", originalId);
+            document.setFieldValue(IngestDocument.Metadata.ID.getFieldName(), originalId);
         }
 
         // Get the original document's source.
-        Map<String, Object> originalSource = (Map<String, Object>) failedDocument.get("source");
+        Map<String, Object> originalSource = (Map<String, Object>) failedDocument.get(SOURCE_FIELD);
 
         // Overwrite the _source with original source contents.
         Map<String, Object> source = document.getSource();
@@ -107,12 +122,12 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
 
         // Copy everything from the current document
         sourceAndMetadataMap.forEach((key, value) -> {
-            if ("document".equals(key) && value instanceof Map) {
+            if (DOCUMENT_FIELD.equals(key) && value instanceof Map) {
                 // For the document field, copy everything except source
                 @SuppressWarnings("unchecked")
                 Map<String, Object> docMap = (Map<String, Object>) value;
                 Map<String, Object> docCopy = new HashMap<>(docMap);
-                docCopy.remove("source");
+                docCopy.remove(SOURCE_FIELD);
                 preRecoveryData.put(key, docCopy);
             } else {
                 // Copy all other fields as-is
@@ -121,6 +136,6 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
         });
 
         // Store directly in ingest metadata
-        document.getIngestMetadata().put("pre_recovery", preRecoveryData);
+        document.getIngestMetadata().put(PRE_RECOVERY_FIELD, preRecoveryData);
     }
 }

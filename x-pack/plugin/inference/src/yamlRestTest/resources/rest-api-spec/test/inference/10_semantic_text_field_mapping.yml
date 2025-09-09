@@ -550,6 +550,9 @@ setup:
 
 ---
 "Field caps with semantic query does not fail":
+  - requires:
+      cluster_features: "semantic_query.filter_field_caps_fix"
+      reason: "fixed bug with semantic query filtering in field_caps (#116106)"
   # We need at least one document present to exercise can-match phase
   - do:
       index:

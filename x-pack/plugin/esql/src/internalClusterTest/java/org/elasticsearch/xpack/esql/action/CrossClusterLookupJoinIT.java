@@ -40,11 +40,6 @@ import static org.hamcrest.Matchers.not;
 // @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
 
-    @Before
-    public void checkEnabled() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-    }
-
     public void testLookupJoinAcrossClusters() throws IOException {
         setupClustersAndLookups();
 

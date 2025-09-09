@@ -32,11 +32,6 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
         return false;
     }
 
-    @Before
-    public void checkEnabled() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-    }
-
     public void testLookupFail() throws IOException {
         setupClusters(3);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);

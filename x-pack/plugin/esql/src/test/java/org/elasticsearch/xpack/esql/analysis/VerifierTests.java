@@ -2354,22 +2354,6 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testRemoteLookupJoinIsSnapshot() {
-        // TODO: remove when we allow remote joins in release builds
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-        assertTrue(Build.current().isSnapshot());
-    }
-
-    public void testRemoteLookupJoinIsDisabled() {
-        // TODO: remove when we allow remote joins in release builds
-        assumeFalse("Remote LOOKUP JOIN enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
-        );
-        assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
-    }
-
     public void testDecayFunctionNullArgs() {
         assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
 

@@ -1389,6 +1389,11 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
+         * Decay function for custom scoring
+         */
+        DECAY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * FIRST and LAST aggregate functions.
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),
@@ -1443,6 +1448,11 @@ public class EsqlCapabilities {
          * FORK with remote indices
          */
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+
+        /**
+         * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
+         */
+        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
          * Fix management of plans with no columns

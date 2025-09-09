@@ -23,6 +23,11 @@ options {
 import Expression,
        Join;
 
+statements
+    : {this.isDevVersion()}? setCommand+ singleStatement EOF
+    | singleStatement EOF
+    ;
+
 singleStatement
     : query EOF
     ;
@@ -338,3 +343,12 @@ fuseMethod
     : RRF
     | LINEAR
     ;
+
+setCommand
+    : SET setField SEMICOLON
+    ;
+
+setField
+    : identifier ASSIGN constant
+    ;
+

@@ -12,7 +12,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -209,12 +208,12 @@ public final class LuceneSliceQueue {
                 PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
                 partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                 List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
-                Weight weight = weight(ctx, query, scoreMode);
+                var rewrittenQueryAndTag = new QueryAndTags(query, queryAndExtra.tags);
                 boolean queryHead = true;
                 for (List<PartialLeafReaderContext> group : groups) {
                     if (group.isEmpty() == false) {
                         final int slicePosition = nextSliceId++;
-                        slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
+                        slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, scoreMode, rewrittenQueryAndTag));
                         queryHead = false;
                     }
                 }
@@ -313,16 +312,6 @@ public final class LuceneSliceQueue {
                 return PartitioningStrategy.SHARD;
             }
             return autoStrategy.apply(query);
-        }
-    }
-
-    static Weight weight(ShardContext ctx, Query query, ScoreMode scoreMode) {
-        var searcher = ctx.searcher();
-        try {
-            Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-            return searcher.createWeight(actualQuery, scoreMode, 1);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

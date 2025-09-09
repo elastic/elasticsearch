@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -81,7 +82,8 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 clusterService,
                 actionFilters,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                null
+                null,
+                AuthorizedProjectsSupplier.DEFAULT
             );
 
             IllegalArgumentException ex = expectThrows(

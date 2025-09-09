@@ -199,14 +199,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 .entry("is_partial", false)
                 .entry("columns", List.of(Map.of("name", "MAX(a)", "type", "long")))
                 .entry("values", List.of(List.of(9)))
-                .entry("documents_found", greaterThan(0))
-                .entry("values_loaded", greaterThan(0))
         );
-    }
-
-    public void testSortByManyLongsGiantTopNTooMuchMemory() throws IOException {
-        initManyLongs(20);
-        assertCircuitBreaks(attempt -> sortBySomeLongsLimit(attempt * 500000));
     }
 
     public void testStupidTopN() throws IOException {

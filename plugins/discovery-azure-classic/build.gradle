@@ -23,23 +23,23 @@ def localVersions = versions + [
 ]
 
 dependencies {
-  api "com.microsoft.azure:azure-svc-mgmt-compute:${localVersions.azure}"
-  api "com.microsoft.azure:azure-core:${localVersions.azure}"
-  api "org.apache.httpcomponents:httpclient:${localVersions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${localVersions.httpcore}"
-  api "commons-logging:commons-logging:${localVersions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${localVersions.log4j}"
-  api "commons-codec:commons-codec:${localVersions.commonscodec}"
-  api "commons-lang:commons-lang:2.6"
-  api 'javax.mail:mail:1.4.5'
-  api 'javax.inject:javax.inject:1'
-  api "com.sun.jersey:jersey-client:${localVersions.jersey}"
-  api "com.sun.jersey:jersey-core:${localVersions.jersey}"
-  api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
+  implementation "com.microsoft.azure:azure-svc-mgmt-compute:${localVersions.azure}"
+  implementation "com.microsoft.azure:azure-core:${localVersions.azure}"
+  implementation "org.apache.httpcomponents:httpclient:${localVersions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${localVersions.httpcore}"
+  implementation "commons-logging:commons-logging:${localVersions.commonslogging}"
+  implementation "org.apache.logging.log4j:log4j-1.2-api:${localVersions.log4j}"
+  implementation "commons-codec:commons-codec:${localVersions.commonscodec}"
+  implementation "commons-lang:commons-lang:2.6"
+  implementation 'javax.mail:mail:1.4.5'
+  implementation 'javax.inject:javax.inject:1'
+  implementation "com.sun.jersey:jersey-client:${localVersions.jersey}"
+  implementation "com.sun.jersey:jersey-core:${localVersions.jersey}"
+  implementation 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  implementation 'javax.xml.bind:jaxb-api:2.2.2'
 
   runtimeOnly "joda-time:joda-time:2.10.10"
 }

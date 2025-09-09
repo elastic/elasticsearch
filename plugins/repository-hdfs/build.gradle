@@ -60,18 +60,18 @@ configurations {
 }
 
 dependencies {
-  api("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
   implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
-  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api 'commons-cli:commons-cli:1.5.0'
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'commons-io:commons-io:2.16.1'
-  api 'org.apache.commons:commons-lang3:3.11'
-  api 'javax.servlet:javax.servlet-api:3.1.0'
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  implementation "commons-logging:commons-logging:${versions.commonslogging}"
+  implementation "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  implementation 'commons-cli:commons-cli:1.5.0'
+  implementation "commons-codec:commons-codec:${versions.commonscodec}"
+  implementation 'commons-io:commons-io:2.16.1'
+  implementation 'org.apache.commons:commons-lang3:3.11'
+  implementation 'javax.servlet:javax.servlet-api:3.1.0'
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
   //  https://github.com/elastic/elasticsearch/issues/93714
   //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")

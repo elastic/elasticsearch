@@ -1292,8 +1292,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         completionListener.map(unused -> {
                             var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                            blobCacheMetrics.getCacheMissCounter().incrementBy(1L, Map.of(LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
-                                blobFileExtension));
+                            blobCacheMetrics.getCacheMissCounter()
+                                .incrementBy(1L, Map.of(LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY, blobFileExtension));
                             return null;
                         })
                     );

@@ -52,7 +52,8 @@ public class ToGeohash extends AbstractConvertFunction {
         description = """
             Converts an input value to a `geohash` value.
             A string will only be successfully converted if it respects the
-            `geohash` format.""",
+            `geohash` format, as described for the
+            [geohash grid aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "to_geohash")
     )
     public ToGeohash(

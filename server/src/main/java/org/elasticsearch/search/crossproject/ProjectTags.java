@@ -15,7 +15,8 @@ import java.util.Map;
 
 /**
  * Project tags used for cross-project search routing.
- * @param tags the map of tags -- contains both built-in and user-defined tags. All built-in tags are prefixed with an underscore (_).
+ * @param tags the map of tags -- contains both built-in (Elastic-supplied) and custom user-defined tags.
+ *             All built-in tags are prefixed with an underscore (_).
  */
 public record ProjectTags(Map<String, String> tags) {
 

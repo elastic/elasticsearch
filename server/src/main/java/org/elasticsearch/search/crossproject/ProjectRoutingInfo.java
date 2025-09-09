@@ -13,17 +13,15 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 
 /**
  * Information about a project used for routing in cross-project search.
- *
- * @param projectId       the unique identifier of the project
- * @param isOriginProject true if this is the origin project where the search request was received, false if this is a linked project
- * @param projectTags    the tags associated with the project, used for routing and filtering
  */
-public record ProjectRoutingInfo(ProjectId projectId, boolean isOriginProject, ProjectTags projectTags) {
-    public String projectType() {
-        return projectTags.projectType();
-    }
-
-    public String organizationId() {
-        return projectTags.organizationId();
+public record ProjectRoutingInfo(
+    ProjectId projectId,
+    String projectType,
+    String projectAlias,
+    String organizationId,
+    ProjectTags projectTags
+) {
+    public ProjectRoutingInfo(ProjectId projectId, ProjectTags projectTags) {
+        this(projectId, projectTags.projectType(), projectTags.projectAlias(), projectTags.organizationId(), projectTags);
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -327,11 +326,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertFalse(fieldType.ignoreAbove().isSet());
+        assertTrue(fieldType.ignoreAbove().isSet());
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given() {
+    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_given() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -363,7 +362,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_not_given() {
+    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_not_given() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -394,7 +393,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
+    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -426,7 +425,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
+    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -458,7 +457,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_given_as_logsdb_default_but_index_mod_is_not_logsdb() {
+    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_given_as_logsdb_default_but_index_mod_is_not_logsdb() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -490,7 +489,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_configured_at_index_level() {
+    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_configured_at_index_level() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -518,11 +517,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when/then
-        assertFalse(fieldType.ignoreAbove().isSet());
+        assertTrue(fieldType.ignoreAbove().isSet());
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_isIgnoreAboveSet_returns_false_for_non_primary_constructor() {
+    public void test_ignore_above_isSet_returns_false_for_non_primary_constructor() {
         // given
         KeywordFieldType fieldType1 = new KeywordFieldType("field");
         KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class));

@@ -29,7 +29,7 @@ public record IgnoreAbove(Integer value, int defaultValue) {
     }
 
     public boolean isSet() {
-        return value != defaultValue;
+        return value != null && value != defaultValue;
     }
 
     public boolean isIgnored(final String s) {

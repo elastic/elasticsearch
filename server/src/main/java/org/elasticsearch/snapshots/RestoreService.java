@@ -368,8 +368,8 @@ public final class RestoreService implements ClusterStateApplier {
      * @param repository     the repository to restore from
      * @param request        restore request
      * @param repositoryData current repository data for the repository to restore from
-     * @param updater        handler that allows callers to make modifications to {@link ProjectMetadata} in the same cluster state update as the
-     *                       restore operation
+     * @param updater        handler that allows callers to make modifications to {@link ProjectMetadata} in the same cluster state update
+     *                       as the restore operation
      * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */

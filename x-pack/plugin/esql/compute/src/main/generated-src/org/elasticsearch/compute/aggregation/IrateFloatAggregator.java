@@ -129,12 +129,13 @@ public class IrateFloatAggregator {
             if (valueCount == 0) {
                 return;
             }
-            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
+            final int firstTs = timestamps.getFirstValueIndex(otherPosition);
+            final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstIndex), values.getFloat(firstIndex));
+            append(groupId, timestamps.getLong(firstTs), values.getFloat(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstIndex + 1), values.getFloat(firstIndex + 1));
+                append(groupId, timestamps.getLong(firstTs + 1), values.getFloat(firstIndex + 1));
             }
         }
 

@@ -129,12 +129,13 @@ public class Irate$Type$Aggregator {
             if (valueCount == 0) {
                 return;
             }
-            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
+            final int firstTs = timestamps.getFirstValueIndex(otherPosition);
+            final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstIndex), values.get$Type$(firstIndex));
+            append(groupId, timestamps.getLong(firstTs), values.get$Type$(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstIndex + 1), values.get$Type$(firstIndex + 1));
+                append(groupId, timestamps.getLong(firstTs + 1), values.get$Type$(firstIndex + 1));
             }
         }
 

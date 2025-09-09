@@ -129,12 +129,13 @@ public class IrateLongAggregator {
             if (valueCount == 0) {
                 return;
             }
-            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
+            final int firstTs = timestamps.getFirstValueIndex(otherPosition);
+            final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstIndex), values.getLong(firstIndex));
+            append(groupId, timestamps.getLong(firstTs), values.getLong(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstIndex + 1), values.getLong(firstIndex + 1));
+                append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1));
             }
         }
 

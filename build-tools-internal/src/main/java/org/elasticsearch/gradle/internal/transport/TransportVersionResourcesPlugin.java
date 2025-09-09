@@ -10,22 +10,17 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Copy;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 import java.util.Properties;
-
-import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 

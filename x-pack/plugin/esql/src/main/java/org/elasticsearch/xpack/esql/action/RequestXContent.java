@@ -176,58 +176,22 @@ final class RequestXContent {
                                 classification = getParamClassification(keyName.toString(), errors, loc);
                                 if (classification != null) {
                                     paramValue = value.get(keyName);
-                                    checkParamValueValidity(classification, paramValue, loc, errors);
+                                    checkParamValueValidity(entry, classification, paramValue, loc, errors);
                                 }
                             }
-                        } else {// parameter specifies as a value only
+                        } else {// parameter specifies a single or multi value
                             paramValue = entry.getValue();
                             classification = VALUE;
-                            if (paramValue instanceof List) {
-                                type = null;
-                                List<Object> values = new ArrayList<>();
-                                for (Object currentValue : (List<?>) paramValue) {
-                                    checkParamValueValidity(classification, currentValue, loc, errors);
-                                    DataType currentType = DataType.fromJava(currentValue);
-                                    if (currentType == null) {
-                                        errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
-                                        break;
-                                    } else if ((type != null) && (type != currentType)) {
-                                        errors.add(
-                                            new XContentParseException(
-                                                loc,
-                                                paramName
-                                                    + " parameter has values from different types, found "
-                                                    + type
-                                                    + " and "
-                                                    + currentType
-                                            )
-                                        );
-                                        break;
-                                    }
-                                    type = currentType;
-                                    values.add(currentValue);
-                                }
-                                currentParam = new QueryParam(
-                                    paramName,
-                                    values,
-                                    (classification == VALUE) ? type : DataType.NULL,
-                                    classification
-                                );
-                                namedParams.add(currentParam);
-                            } else {
-                                type = DataType.fromJava(paramValue);
-                                if (type == null) {
-                                    errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
-                                }
-                                currentParam = new QueryParam(
-                                    paramName,
-                                    paramValue,
-                                    (classification == VALUE) ? type : DataType.NULL,
-                                    classification
-                                );
-                                namedParams.add(currentParam);
-                            }
+                            checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
+                        type = DataType.fromJava(paramValue);
+                        currentParam = new QueryParam(
+                            paramName,
+                            paramValue,
+                            (classification == VALUE) ? type : DataType.NULL,
+                            classification
+                        );
+                        namedParams.add(currentParam);
                     }
                 } else {
                     paramValue = null;
@@ -350,11 +314,50 @@ final class RequestXContent {
     }
 
     private static void checkParamValueValidity(
+        Map.Entry<String, Object> entry,
         ParserUtils.ParamClassification classification,
         Object value,
         XContentLocation loc,
         List<XContentParseException> errors
     ) {
+        if (value instanceof List<?> valueList) {
+            if (classification != VALUE) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        entry + " parameter is multivalued, only " + VALUE.name() + " parameters can be multivalued"
+                    )
+                );
+                return;
+            }
+            // Multivalued field
+            DataType type = null;
+            for (Object currentValue : valueList) {
+                checkParamValueValidity(entry, classification, currentValue, loc, errors);
+                DataType currentType = DataType.fromJava(currentValue);
+                if ((type != null) && (type != currentType)) {
+                    errors.add(
+                        new XContentParseException(
+                            loc,
+                            entry.getKey()
+                                + " parameter has values from different types, found "
+                                + type
+                                + " and "
+                                + currentType
+                        )
+                    );
+                    break;
+                }
+                type = currentType;
+            }
+            return;
+        }
+
+        DataType type = DataType.fromJava(value);
+        if (type == null) {
+            errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
+        }
+
         // If a param is an "identifier" or a "pattern", validate it is a string.
         // If a param is a "pattern", validate it contains *.
         if (classification == IDENTIFIER || classification == PATTERN) {

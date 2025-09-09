@@ -166,7 +166,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String paramsString = """
             ,"params":[
              {"_n1": ["8.15.0", "8.19.0"]}, {"_n2": ["x", "y"]}, {"_n3": [true, false]}, {"_n4": [1.0, 1.1, 1.2]},
-             {"_n5": [-799810013, 0, 799810013]}, {"_n6": [null, null, null]},
+             {"_n5": [-799810013, 0, 799810013]}, {"_n6": [null, null, null]}
              ] }""";
 
         List<QueryParam> params = List.of(
@@ -383,42 +383,35 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
-        assertThat(
-            e1.getCause().getMessage(),
-            containsString(
-                "[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; "
-                    + "[2:38] [n2] has multiple param attributes [identifier, pattern], "
-                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[2:38] [v2] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[3:1] [n3] has multiple param attributes [identifier, pattern], "
-                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[3:1] [v3] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[3:51] [n4] has multiple param attributes [pattern, value], "
-                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[3:51] [v4.1] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[4:1] n5={value={a5=v5}} is not supported as a parameter; "
-                    + "[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter, "
-                    + "a valid value for IDENTIFIER parameter is a string; "
-                    + "[4:36] n6={identifier={a6.1=v6.1, a6.2=v6.2}} is not supported as a parameter; "
-                    + "[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[5:1] n8={value=[x, y]} is not supported as a parameter; "
-                    + "[5:34] [[x, y]] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[5:34] n9={identifier=[x, y]} is not supported as a parameter; "
-                    + "[5:72] [[x*, y*]] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[5:72] n10={pattern=[x*, y*]} is not supported as a parameter; "
-                    + "[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[6:31] [true] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[6:94] [v14] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}]"
-            )
-        );
+        String message = e1.getCause().getMessage();
+        assertThat(message, containsString("[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; "));
+        assertThat(message, containsString("[2:38] [n2] has multiple param attributes [identifier, pattern],"));
+        assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
+        assertThat(message, containsString("[2:38] [v2] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(message, containsString("[3:1] [n3] has multiple param attributes [identifier, pattern],"));
+        assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
+        assertThat(message, containsString("[3:1] [v3] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(message, containsString("[3:51] [n4] has multiple param attributes [pattern, value],"));
+        assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
+        assertThat(message, containsString("[3:51] [v4.1] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(message, containsString("[4:1] n5={value={a5=v5}} is not supported as a parameter;"));
+        assertThat(message, containsString("[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter,"));
+        assertThat(message, containsString("a valid value for IDENTIFIER parameter is a string;"));
+        assertThat(message, containsString("[4:36] n6={identifier={a6.1=v6.1, a6.2=v6.2}} is not supported as a parameter;"));
+        assertThat(message, containsString("[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
+        assertThat(message, containsString("[5:34] n9={identifier=[x, y]} parameter is multivalued, only VALUE parameters can be multivalued;"));
+        assertThat(message, containsString("[5:72] n10={pattern=[x*, y*]} parameter is multivalued, only VALUE parameters can be multivalued;"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(message, containsString("[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;"));
+        assertThat(message, containsString("[6:31] [true] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(message, containsString("[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;"));
+        assertThat(message, containsString("[6:94] [v14] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(message, containsString("[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}"));
     }
 
     // Test for https://github.com/elastic/elasticsearch/issues/110028

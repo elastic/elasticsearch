@@ -193,6 +193,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -519,7 +520,8 @@ public class EsqlFunctionRegistry {
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") } };
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -158,7 +158,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         if (changedDefinitions.isEmpty()) {
             return "";
         } else {
-            String changedDefinitionName = changedDefinitions.getFirst();
+            String changedDefinitionName = changedDefinitions.get(0);
             if (referencedNames.contains(changedDefinitionName)) {
                 return changedDefinitionName;
             } else {
@@ -226,7 +226,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
         if (upperBound.name().equals(getCurrentUpperBoundName().get())) {
             // this is the upper bound of the current branch, so use the primary id
-            return existingDefinition.ids().getFirst();
+            return existingDefinition.ids().get(0);
         }
         // the upper bound is for a non-current branch, so find the id with the same base
         for (TransportVersionId id : existingDefinition.ids()) {

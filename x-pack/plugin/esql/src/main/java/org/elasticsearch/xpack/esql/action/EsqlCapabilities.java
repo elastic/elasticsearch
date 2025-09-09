@@ -1457,7 +1457,13 @@ public class EsqlCapabilities {
         /**
          * Support for the Present function
          */
-        FN_PRESENT;
+        FN_PRESENT,
+
+        /**
+         * Fix management of plans with no columns
+         * https://github.com/elastic/elasticsearch/issues/120272
+         */
+        FIX_NO_COLUMNS;
 
         private final boolean enabled;
 

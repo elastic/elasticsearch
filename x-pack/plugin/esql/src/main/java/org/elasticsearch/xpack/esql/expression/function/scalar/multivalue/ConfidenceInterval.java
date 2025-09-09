@@ -148,7 +148,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         NormalDistribution norm = new NormalDistribution(0, 1);
 
-        double z0 = norm.inverseCumulativeProbability(norm.cumulativeProbability((bestEstimate - mm) / sm));
+        double z0 = (bestEstimate - mm) / sm;
         double dz = norm.inverseCumulativeProbability((1 + 0.95) / 2);  // for 95% confidence interval
         double zl = z0 - dz;
         double zu = z0 + dz;

@@ -48,7 +48,13 @@ public class Present extends AggregateFunction implements ToAggregator {
                 description = "To check for the presence inside a group use `PRESENT()` and `BY` clauses",
                 file = "present",
                 tag = "present-by"
-            ) }
+            ),
+            @Example(
+                description = "To check for the presence and return 1 when it's true and 0 when it's false",
+                file = "present",
+                tag = "present-as-integer"
+            )
+        }
     )
     public Present(
         Source source,

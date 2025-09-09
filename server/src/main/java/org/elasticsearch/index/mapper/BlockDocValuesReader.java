@@ -1126,7 +1126,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     private static class ByteDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
         ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            super(docValues, dims, indexVersion, new byte[dims]);
+            this(docValues, dims, indexVersion, dims);
+        }
+
+        protected ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion, int readScratchSize) {
+            super(docValues, dims, indexVersion, new byte[readScratchSize]);
         }
 
         @Override
@@ -1145,24 +1149,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class BitDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
+    private static class BitDenseVectorFromBinary extends ByteDenseVectorFromBinary {
         BitDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            super(docValues, dims, indexVersion, new byte[dims / Byte.SIZE]);
+            super(docValues, dims, indexVersion, dims / Byte.SIZE);
         }
 
         @Override
         public String toString() {
             return "BitDenseVectorFromBinary.Bytes";
-        }
-
-        protected void writeScratchToBuilder(byte[] scratch, BlockLoader.FloatBuilder builder) {
-            for (byte value : scratch) {
-                builder.appendFloat(value);
-            }
-        }
-
-        protected void decodeDenseVector(BytesRef bytesRef, byte[] scratch) {
-            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
         }
     }
 

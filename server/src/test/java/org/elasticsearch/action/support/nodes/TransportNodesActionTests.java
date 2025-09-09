@@ -63,6 +63,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 
@@ -378,19 +379,14 @@ public class TransportNodesActionTests extends ESTestCase {
     public void testConcurrentlyCompletionAndCancellation() throws InterruptedException {
         final var action = getTestTransportNodesAction();
 
-        final CountDownLatch onCancelledLatch = new CountDownLatch(1);
-        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
-            @Override
-            protected void onCancelled() {
-                onCancelledLatch.countDown();
-            }
-        };
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
 
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
         action.execute(cancellableTask, new TestNodesRequest(), future);
 
         final List<TestNodeResponse> nodeResponses = new ArrayList<>();
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        // Complete all but the last request for racing completion with cancellation
         for (int i = 0; i < capturedRequests.length - 1; i++) {
             final var capturedRequest = capturedRequests[i];
             nodeResponses.add(completeOneRequest(capturedRequest));
@@ -398,9 +394,10 @@ public class TransportNodesActionTests extends ESTestCase {
 
         final var raceBarrier = new CyclicBarrier(3);
         final var completedLatch = new CountDownLatch(1);
+        final var lastNodeResponseRef = new AtomicReference<TestNodeResponse>();
         final Thread completeThread = new Thread(() -> {
             safeAwait(raceBarrier);
-            nodeResponses.add(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
+            lastNodeResponseRef.set(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
             completedLatch.countDown();
         });
         final Thread cancelThread = new Thread(() -> {
@@ -421,9 +418,12 @@ public class TransportNodesActionTests extends ESTestCase {
             assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
             assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
             assertTrue(cancellableTask.isCancelled());
-            safeAwait(onCancelledLatch); // wait for the latch, the listener for releasing node responses is called before it
-            safeAwait(completedLatch); // Wait till all responses are gathered
+            // All previously captured responses are released due to cancellation
             assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+            // Wait for the last response to be gathered and assert it is also released by either the concurrent cancellation or
+            // not tracked in onItemResponse at all due to already cancelled
+            safeAwait(completedLatch);
+            assertFalse(lastNodeResponseRef.get().hasReferences());
         }
 
         completeThread.join(10_000);

@@ -390,13 +390,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * Build a {@link SourceOperator.SourceOperatorFactory} that counts documents in the search index.
      */
-    public LuceneCountOperator.Factory countSource(LocalExecutionPlannerContext context, QueryBuilder queryBuilder, Expression limit) {
+    public LuceneCountOperator.Factory countSource(
+        LocalExecutionPlannerContext context,
+        QueryBuilder queryBuilder,
+        List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags,
+        Expression limit
+    ) {
         return new LuceneCountOperator.Factory(
             shardContexts,
-            querySupplier(queryBuilder),
+            querySupplier(queryBuilderAndTags),
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
-            List.of(),
+            List.of(ElementType.LONG),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }

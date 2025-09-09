@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -140,7 +141,11 @@ public class Driver implements Releasable, Describable {
         this.description = description;
         this.activeOperators = new ArrayList<>();
         this.activeOperators.add(source);
-        this.activeOperators.addAll(intermediateOperators);
+        List<Operator> list = intermediateOperators.stream().filter(e -> e instanceof EvalOperator == false).toList();
+        if (source instanceof LuceneOperator) {
+            list = list.stream().filter(e -> e instanceof HashAggregationOperator == false).toList();
+        }
+        this.activeOperators.addAll(list);
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;

@@ -373,7 +373,23 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
+        // FIXME(gal, NOCOMMIT) hacky mc hack face
+        if (false) {
+            return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
+        }
+        EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(
+            context,
+            null,
+            esQueryExec.queryBuilderAndTags(),
+            esQueryExec.limit()
+        );
+
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(esQueryExec.outputSet());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
     private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
@@ -388,7 +404,12 @@ public class LocalExecutionPlanner {
         EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, stat.filter(statsQuery.query()), statsQuery.limit());
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(
+            context,
+            stat.filter(statsQuery.query()),
+            null,
+            statsQuery.limit()
+        );
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());

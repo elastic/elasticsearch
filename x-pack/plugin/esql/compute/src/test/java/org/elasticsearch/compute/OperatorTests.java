@@ -405,8 +405,8 @@ public class OperatorTests extends MapperServiceTestCase {
                 HashAggregationOperator.HashAggregationOperatorFactory aggFactory =
                     new HashAggregationOperator.HashAggregationOperatorFactory(
                         List.of(new BlockHash.GroupSpec(2, ElementType.LONG)),
-                        AggregatorMode.FINAL,
-                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(0, 1))),
+                        AggregatorMode.INTERMEDIATE,
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(0, 1))),
                         Integer.MAX_VALUE,
                         null
                     );

@@ -343,6 +343,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private QueryBuilder queryWithoutTag() {
         QueryBuilder queryWithoutTag;
+
         if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
             return null;
         } else if (queryBuilderAndTags.size() == 1) {

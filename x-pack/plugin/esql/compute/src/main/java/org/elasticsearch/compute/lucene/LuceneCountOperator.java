@@ -86,6 +86,7 @@ public class LuceneCountOperator extends LuceneOperator {
         int limit
     ) {
         super(shardRefCounters, driverContext.blockFactory(), Integer.MAX_VALUE, sliceQueue);
+        // FIXME(gal, NOCOMMIT) there should be some kind of assertion between the length of tag types and tags in the slice
         this.tagTypes = tagTypes;
         this.remainingDocs = limit;
         this.driverContext = driverContext;
@@ -207,12 +208,15 @@ public class LuceneCountOperator extends LuceneOperator {
                 }
             }
 
-            blocks[0] = countBuilder.build().asBlock();
-            blocks[1] = blockFactory.newConstantBooleanBlockWith(true, tagsToState.size());
+            // by
+            // FIXME(gal, NOCOMMIT) hack
             for (b = 0; b < builders.length; b++) {
-                blocks[2 + b] = builders[b].builder().build();
-                builders[b++] = null;
+                blocks[b] = builders[b].builder().build();
+                builders[b] = null;
             }
+            assert b == blocks.length - 2;
+            blocks[b++] = countBuilder.build().asBlock(); // count
+            blocks[b] = blockFactory.newConstantBooleanBlockWith(true, tagsToState.size()); // seen
             Page page = new Page(tagsToState.size(), blocks);
             blocks = null;
             return page;

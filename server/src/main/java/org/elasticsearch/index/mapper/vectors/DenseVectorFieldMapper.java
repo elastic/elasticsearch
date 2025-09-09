@@ -10,8 +10,6 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -26,8 +24,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
@@ -53,9 +49,11 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES920HnswComposableKnnVectorsFormat;
+import org.elasticsearch.index.codec.vectors.MaxDimOverridingKnnVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
@@ -1717,7 +1715,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, confidenceInterval, 4, true);
+            return new ES920HnswComposableKnnVectorsFormat(
+                new ES814ScalarQuantizedVectorsFormat(confidenceInterval, 4, true),
+                m,
+                efConstruction
+            );
         }
 
         @Override
@@ -1865,7 +1867,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, confidenceInterval, 7, false);
+            return new ES920HnswComposableKnnVectorsFormat(
+                new ES814ScalarQuantizedVectorsFormat(confidenceInterval, 7, false),
+                m,
+                efConstruction
+            );
         }
 
         @Override
@@ -2846,36 +2852,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * @return the custom kNN vectors format that is configured for this field or
      * {@code null} if the default format should be used.
      */
-    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
+    public KnnVectorsFormat getKnnVectorsFormatForField() {
         final KnnVectorsFormat format;
         if (indexOptions == null) {
-            // TODO THIS DUMB WRAPPER BELOW BREAKS THIS
-            return new ES920HnswComposableKnnVectorsFormat(new ES815BitFlatVectorsFormat(), 16, 100);
+            format = new ES920HnswComposableKnnVectorsFormat(new ES815BitFlatVectorsFormat(), 16, 100);
         } else {
             format = indexOptions.getVectorsFormat(fieldType().element.elementType());
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
-        return new KnnVectorsFormat(format.getName()) {
-            @Override
-            public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-                return format.fieldsWriter(state);
-            }
-
-            @Override
-            public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-                return format.fieldsReader(state);
-            }
-
-            @Override
-            public int getMaxDimensions(String fieldName) {
-                return MAX_DIMS_COUNT;
-            }
-
-            @Override
-            public String toString() {
-                return format.toString();
-            }
-        };
+        return new MaxDimOverridingKnnVectorsFormat(format, MAX_DIMS_COUNT);
     }
 
     @Override

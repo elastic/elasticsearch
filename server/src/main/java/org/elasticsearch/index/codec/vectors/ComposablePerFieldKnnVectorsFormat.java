@@ -38,6 +38,7 @@ import org.apache.lucene.internal.hppc.ObjectCursor;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -99,7 +100,7 @@ public abstract class ComposablePerFieldKnnVectorsFormat extends KnnVectorsForma
 
     @Override
     public int getMaxDimensions(String fieldName) {
-        return 4096;
+        return DenseVectorFieldMapper.MAX_DIMS_COUNT;
     }
 
     /**
@@ -157,8 +158,12 @@ public abstract class ComposablePerFieldKnnVectorsFormat extends KnnVectorsForma
                 throw new IllegalStateException("invalid null KnnVectorsFormat for field=\"" + field.name + "\"");
             }
             final String formatName;
+            KnnVectorsFormat possibleComposable = format;
+            if (possibleComposable instanceof MaxDimOverridingKnnVectorsFormat wrapped) {
+                possibleComposable = wrapped.getDelegate();
+            }
             // We expect the provided format to be the fully composed writer, with all values set
-            if (format instanceof ComposableKnnVectorsFormat composableFormat) {
+            if (possibleComposable instanceof ComposableKnnVectorsFormat composableFormat) {
                 logger.info(
                     "composable format for field [{}] [{}] [{}]",
                     field.name,

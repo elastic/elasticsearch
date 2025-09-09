@@ -1,0 +1,8 @@
+pr: 133946
+summary: Align merging defaults with Lucene's new defaults
+area: Engine
+type: enhancement
+issues:
+ - 120624
+ - 129764
+ - 130328

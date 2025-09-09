@@ -326,7 +326,6 @@ public class TransportVersions {
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_9_1 = def(9_112_0_01);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_4 = def(9_112_0_07);
     public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
@@ -342,7 +341,6 @@ public class TransportVersions {
     public static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = def(9_124_0_00);
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_155_0_00);
     public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
 

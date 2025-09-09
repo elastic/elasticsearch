@@ -1462,7 +1462,17 @@ public class EsqlCapabilities {
         /**
          * Support present_over_time aggregation that gets evaluated per time-series
          */
-        PRESENT_OVER_TIME(Build.current().isSnapshot());
+        PRESENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the Absent function
+         */
+        FN_ABSENT,
+
+        /**
+         * Support absent_over_time aggregation that gets evaluated per time-series
+         */
+        ABSENT_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

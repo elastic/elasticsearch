@@ -2068,6 +2068,28 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeWithInlineStats() {
+        assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
+        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assertEquals(
+            "1:37: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
+                + "INLINESTATS [INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
+            error("FROM test | INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
+        );
+
+        assertEquals("""
+            3:35: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
+            INLINESTATS [INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)]
+            line 2:91: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
+            line 2:32: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
+            INLINESTATS [INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
+            c2 = CATEGORIZE(first_name)]""", error("""
+            FROM test
+            | INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
+            | INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)
+            """));
+    }
+
     public void testChangePoint() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));

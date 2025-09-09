@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.LoadedSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -178,82 +179,13 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING, IPINFO_TOKEN_SETTING));
+            this.cachedSecureSettings = LoadedSecureSettings.toLoadedSecureSettings(
+                settings,
+                List.of(MAXMIND_LICENSE_KEY_SETTING, IPINFO_TOKEN_SETTING)
+            );
         } catch (GeneralSecurityException e) {
             // rethrow as a runtime exception, there's logging higher up the call chain around ReloadablePlugin
             throw new ElasticsearchException("Exception while reloading enterprise geoip download task executor", e);
         }
     }
-
-    /**
-     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The {@code Setting} argument has to have the
-     * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
-     * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
-     * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
-     *
-     * @param source               A {@code Settings} object with its {@code SecureSettings} open/available.
-     * @param securePluginSettings The list of settings to copy.
-     * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
-     */
-    private static SecureSettings extractSecureSettings(Settings source, List<Setting<?>> securePluginSettings)
-        throws GeneralSecurityException {
-        // get the secure settings out
-        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
-        // filter and cache them...
-        final Map<String, SecureSettingValue> innerMap = new HashMap<>();
-        if (sourceSecureSettings != null && securePluginSettings != null) {
-            for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-                for (final Setting<?> secureSetting : securePluginSettings) {
-                    if (secureSetting.match(settingKey)) {
-                        innerMap.put(
-                            settingKey,
-                            new SecureSettingValue(
-                                sourceSecureSettings.getString(settingKey),
-                                sourceSecureSettings.getSHA256Digest(settingKey)
-                            )
-                        );
-                    }
-                }
-            }
-        }
-        return new SecureSettings() {
-            @Override
-            public boolean isLoaded() {
-                return true;
-            }
-
-            @Override
-            public SecureString getString(String setting) {
-                return innerMap.get(setting).value();
-            }
-
-            @Override
-            public Set<String> getSettingNames() {
-                return innerMap.keySet();
-            }
-
-            @Override
-            public InputStream getFile(String setting) {
-                throw new UnsupportedOperationException("A cached SecureSetting cannot be a file");
-            }
-
-            @Override
-            public byte[] getSHA256Digest(String setting) {
-                return innerMap.get(setting).sha256Digest();
-            }
-
-            @Override
-            public void close() throws IOException {}
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                throw new UnsupportedOperationException("A cached SecureSetting cannot be serialized");
-            }
-        };
-    }
-
-    /**
-     * A single-purpose record for the internal implementation of extractSecureSettings
-     */
-    private record SecureSettingValue(SecureString value, byte[] sha256Digest) {}
 }

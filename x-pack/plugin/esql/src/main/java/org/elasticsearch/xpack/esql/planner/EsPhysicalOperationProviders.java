@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesFieldExtractExec;
@@ -294,9 +295,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean scoring = esQueryExec.hasScoring();
         if ((sorts != null && sorts.isEmpty() == false)) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
+            long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
+                estimatedPerRowSortSize += EstimatesRowSize.estimateSize(sort.resulType());
             }
+            /*
+             * In the worst case Lucene's TopN keeps each value in memory twice. Once
+             * for the actual sort and once for the top doc. In the best case they share
+             * references to the same underlying data, but we're being a bit paranoid here.
+             */
+            estimatedPerRowSortSize *= 2;
             // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
             // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
@@ -307,6 +316,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(rowEstimatedSize),
                 limit,
                 sortBuilders,
+                estimatedPerRowSortSize,
                 scoring
             );
         } else {

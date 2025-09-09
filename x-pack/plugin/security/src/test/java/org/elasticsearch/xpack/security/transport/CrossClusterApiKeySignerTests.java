@@ -13,9 +13,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
-import java.util.Set;
-
 public class CrossClusterApiKeySignerTests extends ESTestCase {
 
     public void testLoadKeystore() {
@@ -59,44 +56,6 @@ public class CrossClusterApiKeySignerTests extends ESTestCase {
         var signer = new CrossClusterApiKeySigner(TestEnvironment.newEnvironment(builder.build()));
 
         assertNull(signer.sign("my_remote", "a_header"));
-    }
-
-    public void testGetDependentFilesToClusterAliases() {
-        var builder = Settings.builder()
-            .put("cluster.remote.my_remote1.signing.keystore.alias", "wholelottakey")
-            .put("cluster.remote.my_remote2.signing.keystore.alias", "wholelottakey")
-            .put(
-                "cluster.remote.my_remote3.signing.certificate",
-                getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")
-            )
-            .put("cluster.remote.my_remote3.signing.key", getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.key"))
-            .put(
-                "cluster.remote.my_remote4.signing.certificate",
-                getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")
-            )
-            .put("cluster.remote.my_remote4.signing.key", getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.key"))
-            .put("path.home", createTempDir())
-            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
-        addKeyStorePathToBuilder("my_remote1", builder);
-        addKeyStorePathToBuilder("my_remote2", builder);
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote1.signing.keystore.secure_password", "secretpassword");
-        secureSettings.setString("cluster.remote.my_remote2.signing.keystore.secure_password", "secretpassword");
-        builder.setSecureSettings(secureSettings);
-        var signer = new CrossClusterApiKeySigner(TestEnvironment.newEnvironment(builder.build()));
-        assertNotNull(signer.sign(randomFrom("my_remote1", "my_remote2", "my_remote3", "my_remote4"), "a_header"));
-
-        assertEquals(
-            Map.of(
-                getDataPath("/org/elasticsearch/xpack/security/signature/signing." + (inFipsJvm() ? "bcfks" : "jks")),
-                Set.of("my_remote1", "my_remote2"),
-                getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt"),
-                Set.of("my_remote3", "my_remote4"),
-                getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.key"),
-                Set.of("my_remote3", "my_remote4")
-            ),
-            signer.getDependentFilesToClusterAliases()
-        );
     }
 
     private void addKeyStorePathToBuilder(String remoteCluster, Settings.Builder builder) {

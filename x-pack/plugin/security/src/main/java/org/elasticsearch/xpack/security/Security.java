@@ -418,7 +418,7 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerReloader;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -1167,14 +1167,18 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
-        var crossClusterApiKeySigner = new CrossClusterApiKeySigner(environment);
-        components.add(crossClusterApiKeySigner);
-        var crossClusterApiKeySignerReloader = new CrossClusterApiKeySignerReloader(
+
+        var crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
+            environment,
             resourceWatcherService,
-            clusterService.getClusterSettings(),
-            crossClusterApiKeySigner
+            clusterService.getClusterSettings()
         );
         components.add(crossClusterApiKeySignerReloader);
+
+        var crossClusterApiKeySigner = new CrossClusterApiKeySigner(environment);
+        crossClusterApiKeySignerReloader.setApiKeySigner(crossClusterApiKeySigner);
+        components.add(crossClusterApiKeySigner);
+
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,

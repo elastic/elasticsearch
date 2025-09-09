@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigne
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_PATH;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_SECURE_PASSPHRASE;
 
-public class CrossClusterSigningConfigurationReloaderIntegTests extends SecurityIntegTestCase {
+public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTestCase {
 
     public void testAddAndRemoveClusterConfigsRuntime() throws Exception {
         addAndRemoveClusterConfigsRuntime(randomClusterAliases(), clusterAlias -> {

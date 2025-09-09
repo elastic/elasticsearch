@@ -42,9 +42,10 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigne
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SETTINGS_PART_SIGNING;
 
 public class CrossClusterApiKeySigner {
+    private static final Map<String, String> SIGNATURE_ALGORITHM_BY_TYPE = Map.of("RSA", "SHA256withRSA", "EC", "SHA256withECDSA");
+
     private final Logger logger = LogManager.getLogger(getClass());
     private final Environment environment;
-    private static final Map<String, String> SIGNATURE_ALGORITHM_BY_TYPE = Map.of("RSA", "SHA256withRSA", "EC", "SHA256withECDSA");
     private final Map<String, SigningConfig> signingConfigByClusterAlias = new ConcurrentHashMap<>();
 
     public CrossClusterApiKeySigner(Environment environment) {
@@ -52,16 +53,8 @@ public class CrossClusterApiKeySigner {
         loadSigningConfigs();
     }
 
-    public Map<Path, Set<String>> getDependentFilesToClusterAliases() {
-        return signingConfigByClusterAlias.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().dependentFiles != null)
-            .flatMap(entry -> entry.getValue().dependentFiles.stream().map(path -> Map.entry(path, entry.getKey())))
-            .collect(Collectors.groupingBy(Map.Entry::getKey, Collectors.mapping(Map.Entry::getValue, Collectors.toSet())));
-    }
-
-    public void loadSigningConfig(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
-        signingConfigByClusterAlias.compute(clusterAlias, (key, currentSigningConfig) -> {
+    SigningConfig loadSigningConfig(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
+        return signingConfigByClusterAlias.compute(clusterAlias, (key, currentSigningConfig) -> {
             var effectiveSettings = buildEffectiveSettings(
                 currentSigningConfig != null ? currentSigningConfig.settings : null,
                 settings,
@@ -122,10 +115,15 @@ public class CrossClusterApiKeySigner {
         }
     }
 
+    // visible for testing
+    Map<String, SigningConfig> getSigningConfigByClusterAlias() {
+        return signingConfigByClusterAlias;
+    }
+
     private void loadSigningConfigs() {
         this.environment.settings()
             .getGroups("cluster.remote.", true)
-            .forEach((alias, settings) -> { loadSigningConfig(alias, settings, false); });
+            .forEach((alias, settings) -> loadSigningConfig(alias, settings, false));
     }
 
     /**
@@ -161,10 +159,6 @@ public class CrossClusterApiKeySigner {
             builder.setSecureSettings(secureSettings);
         }
         return builder.build();
-    }
-
-    void reloadSigningConfigs(Set<String> clusterAliases) {
-        clusterAliases.forEach(alias -> loadSigningConfig(alias, null, true));
     }
 
     private X509KeyPair buildKeyPair(SslKeyConfig keyConfig) {
@@ -251,6 +245,6 @@ public class CrossClusterApiKeySigner {
         }
     }
 
-    private record SigningConfig(@Nullable X509KeyPair keyPair, @Nullable Collection<Path> dependentFiles, Settings settings) {}
+    record SigningConfig(@Nullable X509KeyPair keyPair, @Nullable Collection<Path> dependentFiles, Settings settings) {}
 
 }

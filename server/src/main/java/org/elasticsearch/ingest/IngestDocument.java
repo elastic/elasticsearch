@@ -875,7 +875,7 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value, ignoreEmptyValues);
+                    appendValues(list, value, allowDuplicates, ignoreEmptyValues);
                     map.put(leafKey, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
@@ -893,7 +893,7 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value, ignoreEmptyValues);
+                    appendValues(list, value, allowDuplicates, ignoreEmptyValues);
                     map.put(leafKey, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
@@ -947,15 +947,16 @@ public final class IngestDocument {
             list.add(maybeList);
         }
         if (allowDuplicates) {
-            appendValues(list, value, ignoreEmptyValues);
+            innerAppendValues(list, value, ignoreEmptyValues);
             return list;
         } else {
             // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
-            return appendValuesWithoutDuplicates(list, value, ignoreEmptyValues) ? list : maybeList;
+            return innerAppendValuesWithoutDuplicates(list, value, ignoreEmptyValues) ? list : maybeList;
         }
     }
 
-    private static void appendValues(List<Object> list, Object value, boolean ignoreEmptyValues) {
+    // helper method for use in appendValues above, please do not call this directly except from that method
+    private static void innerAppendValues(List<Object> list, Object value, boolean ignoreEmptyValues) {
         if (value instanceof List<?> l) {
             if (ignoreEmptyValues) {
                 l.forEach((v) -> {
@@ -971,7 +972,8 @@ public final class IngestDocument {
         }
     }
 
-    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value, boolean ignoreEmptyValues) {
+    // helper method for use in appendValues above, please do not call this directly except from that method
+    private static boolean innerAppendValuesWithoutDuplicates(List<Object> list, Object value, boolean ignoreEmptyValues) {
         boolean valuesWereAppended = false;
         if (value instanceof List<?> valueList) {
             for (Object val : valueList) {

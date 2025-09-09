@@ -262,7 +262,7 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:9.1.3 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

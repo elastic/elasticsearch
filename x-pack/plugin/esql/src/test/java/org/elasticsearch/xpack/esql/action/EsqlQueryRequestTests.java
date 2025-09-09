@@ -384,7 +384,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         String message = e1.getCause().getMessage();
-        assertThat(message, containsString("[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; "));
+        assertThat(
+            message,
+            containsString("[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; ")
+        );
         assertThat(message, containsString("[2:38] [n2] has multiple param attributes [identifier, pattern],"));
         assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
         assertThat(message, containsString("[2:38] [v2] is not a valid value for PATTERN parameter,"));
@@ -401,17 +404,39 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(message, containsString("[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter,"));
         assertThat(message, containsString("a valid value for IDENTIFIER parameter is a string;"));
         assertThat(message, containsString("[4:36] n6={identifier={a6.1=v6.1, a6.2=v6.2}} is not supported as a parameter;"));
-        assertThat(message, containsString("[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
-        assertThat(message, containsString("[5:34] n9={identifier=[x, y]} parameter is multivalued, only VALUE parameters can be multivalued;"));
-        assertThat(message, containsString("[5:72] n10={pattern=[x*, y*]} parameter is multivalued, only VALUE parameters can be multivalued;"));
+        assertThat(
+            message,
+            containsString("[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;")
+        );
+        assertThat(
+            message,
+            containsString("[5:34] n9={identifier=[x, y]} parameter is multivalued, only VALUE parameters can be multivalued;")
+        );
+        assertThat(
+            message,
+            containsString("[5:72] n10={pattern=[x*, y*]} parameter is multivalued, only VALUE parameters can be multivalued;")
+        );
         assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
-        assertThat(message, containsString("[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;"));
+        assertThat(
+            message,
+            containsString("[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;")
+        );
         assertThat(message, containsString("[6:31] [true] is not a valid value for PATTERN parameter,"));
         assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
-        assertThat(message, containsString("[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;"));
+        assertThat(
+            message,
+            containsString(
+                "[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;"
+            )
+        );
         assertThat(message, containsString("[6:94] [v14] is not a valid value for PATTERN parameter,"));
         assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
-        assertThat(message, containsString("[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}"));
+        assertThat(
+            message,
+            containsString(
+                "[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}"
+            )
+        );
     }
 
     // Test for https://github.com/elastic/elasticsearch/issues/110028

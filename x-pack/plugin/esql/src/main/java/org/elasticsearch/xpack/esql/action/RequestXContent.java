@@ -339,11 +339,7 @@ final class RequestXContent {
                     errors.add(
                         new XContentParseException(
                             loc,
-                            entry.getKey()
-                                + " parameter has values from different types, found "
-                                + type
-                                + " and "
-                                + currentType
+                            entry.getKey() + " parameter has values from different types, found " + type + " and " + currentType
                         )
                     );
                     break;

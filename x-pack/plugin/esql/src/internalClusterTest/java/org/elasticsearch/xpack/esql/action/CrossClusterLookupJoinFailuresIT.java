@@ -14,7 +14,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;

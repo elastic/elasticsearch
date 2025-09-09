@@ -42,7 +42,7 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:h3")
   implementation project('arrow')
 

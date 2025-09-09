@@ -64,26 +64,47 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000);
 
     public GoogleVertexAiChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this(
-            in.readOptionalString(),
-            in.readOptionalString(),
-            in.readOptionalString(),
-            ServiceUtils.createOptionalUri(in.readString()),
-            ServiceUtils.createOptionalUri(in.readString()),
-            in.readOptionalEnum(GoogleModelGardenProvider.class),
-            new RateLimitSettings(in)
-        );
+        var version = in.getTransportVersion();
+        String projectIdFromStreamInput;
+        String locationFromStreamInput;
+        String modelIdFromStreamInput;
+        URI uriFromStreamInput = null;
+        URI streamingUriFromStreamInput = null;
+        GoogleModelGardenProvider providerFromStreamInput = null;
+
+        if (isBeforeModelGarden(version)) {
+            projectIdFromStreamInput = in.readString();
+            locationFromStreamInput = in.readString();
+            modelIdFromStreamInput = in.readString();
+        } else {
+            projectIdFromStreamInput = in.readOptionalString();
+            locationFromStreamInput = in.readOptionalString();
+            modelIdFromStreamInput = in.readOptionalString();
+            uriFromStreamInput = ServiceUtils.createOptionalUri(in.readOptionalString());
+            streamingUriFromStreamInput = ServiceUtils.createOptionalUri(in.readOptionalString());
+            providerFromStreamInput = in.readOptionalEnum(GoogleModelGardenProvider.class);
+        }
+        RateLimitSettings rateLimitSettingsFromStreamInput = new RateLimitSettings(in);
+
+        this.projectId = (projectIdFromStreamInput == null || projectIdFromStreamInput.isEmpty()) ? null : projectIdFromStreamInput;
+        this.location = locationFromStreamInput == null || locationFromStreamInput.isEmpty() ? null : locationFromStreamInput;
+        this.modelId = modelIdFromStreamInput == null || modelIdFromStreamInput.isEmpty() ? null : modelIdFromStreamInput;
+        this.uri = uriFromStreamInput;
+        this.streamingUri = streamingUriFromStreamInput;
+        this.provider = providerFromStreamInput;
+        this.rateLimitSettings = rateLimitSettingsFromStreamInput;
+
     }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (projectId != null) {
+        if (projectId != null && projectId.isEmpty() == false) {
             builder.field(PROJECT_ID, projectId);
         }
-        if (location != null) {
+        if (location != null && location.isEmpty() == false) {
             builder.field(LOCATION, location);
         }
-        if (modelId != null) {
+        if (modelId != null && modelId.isEmpty() == false) {
             builder.field(MODEL_ID, modelId);
         }
         if (uri != null) {
@@ -211,18 +232,29 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(projectId);
-        out.writeOptionalString(location);
-        out.writeOptionalString(modelId);
+        TransportVersion version = out.getTransportVersion();
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19)) {
+        boolean isBeforeModelGarden = isBeforeModelGarden(version);
+
+        if (isBeforeModelGarden) {
+            out.writeString(Objects.requireNonNullElse(projectId, ""));
+            out.writeString(Objects.requireNonNullElse(location, ""));
+            out.writeString(Objects.requireNonNullElse(modelId, ""));
+        } else {
+            out.writeOptionalString(projectId);
+            out.writeOptionalString(location);
+            out.writeOptionalString(modelId);
             out.writeOptionalString(uri != null ? uri.toString() : null);
             out.writeOptionalString(streamingUri != null ? streamingUri.toString() : null);
             out.writeOptionalEnum(provider);
         }
 
         rateLimitSettings.writeTo(out);
+    }
+
+    private static boolean isBeforeModelGarden(TransportVersion version) {
+        return version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)
+            && version.isPatchFrom(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19) == false;
     }
 
     @Override

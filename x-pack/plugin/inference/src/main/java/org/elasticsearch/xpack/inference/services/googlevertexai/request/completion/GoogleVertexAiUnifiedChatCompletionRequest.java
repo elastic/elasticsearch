@@ -42,7 +42,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         ToXContentObject requestEntity;
         switch (model.getServiceSettings().provider()) {
             case ANTHROPIC -> requestEntity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
-            default -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            case null, default -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
                 unifiedChatInput,
                 model.getTaskSettings().thinkingConfig()
             );

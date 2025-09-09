@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
@@ -31,19 +33,40 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     }
 
     @Override
-    protected GoogleVertexAiChatCompletionServiceSettings createTestInstance() {
-        try {
+    protected GoogleVertexAiChatCompletionServiceSettings mutateInstanceForVersion(
+        GoogleVertexAiChatCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        if (version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)
+            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19) == false)) {
             return new GoogleVertexAiChatCompletionServiceSettings(
-                randomString(),
-                randomString(),
-                randomString(),
-                new URI(randomString()),
-                new URI(randomString()),
-                GoogleModelGardenProvider.ANTHROPIC,
-                new RateLimitSettings(randomIntBetween(1, 1000))
+                instance.projectId(),
+                instance.location(),
+                instance.modelId(),
+                null,
+                null,
+                null,
+                instance.rateLimitSettings()
             );
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+        } else {
+            return instance;
         }
+    }
+
+    @Override
+    protected GoogleVertexAiChatCompletionServiceSettings createTestInstance() {
+        return createRandom();
+    }
+
+    private static GoogleVertexAiChatCompletionServiceSettings createRandom() {
+        return new GoogleVertexAiChatCompletionServiceSettings(
+            randomString(),
+            randomString(),
+            randomString(),
+            createOptionalUri(randomOptionalString()),
+            createOptionalUri(randomOptionalString()),
+            randomFrom(GoogleModelGardenProvider.ANTHROPIC, null),
+            new RateLimitSettings(randomIntBetween(1, 1000))
+        );
     }
 }

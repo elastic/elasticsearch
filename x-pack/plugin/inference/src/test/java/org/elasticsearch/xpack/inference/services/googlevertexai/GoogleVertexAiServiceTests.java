@@ -990,7 +990,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                "project_id": {
                                    "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Project",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -999,7 +999,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                "location": {
                                    "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -1017,7 +1017,34 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                "model_id": {
                                    "description": "ID of the LLM you're using.",
                                    "label": "Model ID",
-                                   "required": true,
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                               },
+                               "provider": {
+                                   "description": "The Google Model Garden Provider ID.",
+                                   "label": "Provider",
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                               },
+                               "streaming_url": {
+                                   "description": "The Streaming URL endpoint to use for the requests.",
+                                   "label": "Streaming URL",
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                               },
+                               "url": {
+                                   "description": "The Non-Streaming URL endpoint to use for the requests.",
+                                   "label": "Non-Streaming URL",
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",

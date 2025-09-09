@@ -67,14 +67,6 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
             SamplingService.SampleStats rawStats = getRawSampleStats();
             if (rawStats.samples.longValue() > maxSize) {
                 SamplingService.SampleStats filteredStats = new SamplingService.SampleStats().combine(rawStats);
-                System.out.println(
-                    "**** samples: "
-                        + filteredStats.samples.longValue()
-                        + ", maxSize: "
-                        + maxSize
-                        + ", rawStats.samples: "
-                        + rawStats.samples.longValue()
-                );
                 filteredStats.samples.add(maxSize - rawStats.samples.longValue());
                 filteredStats.samplesRejectedForSize.add(rawStats.samples.longValue() - maxSize);
                 return filteredStats;

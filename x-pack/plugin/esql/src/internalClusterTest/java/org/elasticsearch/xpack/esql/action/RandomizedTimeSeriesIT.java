@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -301,6 +302,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         // Ensure it will be a TSDB data stream
         settingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.randomIntBetween(1, 5));
         settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
         settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);

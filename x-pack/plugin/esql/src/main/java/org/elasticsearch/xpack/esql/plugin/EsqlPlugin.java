@@ -258,6 +258,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
             PhysicalSettings.DEFAULT_DATA_PARTITIONING,
             PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            PhysicalSettings.LUCENE_TOPN_LIMIT,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD

@@ -281,7 +281,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
-        if ((sorts != null && sorts.isEmpty() == false)) {
+        if (sorts != null && sorts.isEmpty() == false && limit < physicalSettings.luceneTopNLimit()) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {

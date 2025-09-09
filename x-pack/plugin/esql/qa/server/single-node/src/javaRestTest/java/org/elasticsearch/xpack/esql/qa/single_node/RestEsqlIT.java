@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
 import org.hamcrest.Matchers;
@@ -538,6 +539,74 @@ public class RestEsqlIT extends RestEsqlTestCase {
         );
     }
 
+    public void testSmallTopNProfile() throws IOException {
+        testTopNProfile(false);
+    }
+
+    public void testGiantTopNProfile() throws IOException {
+        testTopNProfile(true);
+    }
+
+    private void testTopNProfile(boolean giant) throws IOException {
+        indexTimestampData(1);
+
+        int size = between(1, PhysicalSettings.LUCENE_TOPN_LIMIT.get(Settings.EMPTY).intValue() - 1);
+        if (giant) {
+            size += PhysicalSettings.LUCENE_TOPN_LIMIT.get(Settings.EMPTY).intValue();
+        }
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | KEEP value | SORT value ASC | LIMIT " + size);
+
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        builder.profile(true);
+        builder.pragmasOk();
+
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < 1000; i++) {
+            values = values.item(List.of(i));
+        }
+        assertResultMap(
+            result,
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
+            matchesList().item(matchesMap().entry("name", "value").entry("type", "long")),
+            values
+        );
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            fixTypesOnProfile(p);
+            assertThat(p, commonProfile());
+            List<String> sig = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                sig.add(checkOperatorProfile(o));
+            }
+            String description = p.get("description").toString();
+            switch (description) {
+                case "data" -> assertMap(
+                    sig,
+                    giant
+                        ? matchesList().item("LuceneSourceOperator")
+                            .item("ValuesSourceReaderOperator")
+                            .item("ProjectOperator")
+                            .item("ExchangeSinkOperator")
+                        : matchesList().item("LuceneTopNSourceOperator")
+                            .item("ValuesSourceReaderOperator")
+                            .item("ProjectOperator")
+                            .item("ExchangeSinkOperator")
+                );
+                case "node_reduce" -> assertThat(sig, matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"));
+                case "final" -> assertMap(
+                    sig,
+                    matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("ProjectOperator").item("OutputOperator")
+                );
+                default -> throw new IllegalArgumentException("can't match " + description);
+            }
+        }
+    }
+
     public void testForceSleepsProfile() throws IOException {
         assumeTrue("requires pragmas", Build.current().isSnapshot());
 
@@ -940,7 +1009,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_received", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("ram_used", instanceOf(String.class))
-                .entry("ram_bytes_used", greaterThan(0));
+                .entry("ram_bytes_used", greaterThan(0))
+                .entry("receive_nanos", greaterThan(0))
+                .entry("emit_nanos", greaterThan(0));
             case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("current", greaterThan(0))
@@ -951,7 +1022,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("slice_min", 0)
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("ConstantScore(*:*)"))
-                .entry("slice_index", 0);
+                .entry("slice_index", 0)
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));

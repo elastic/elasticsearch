@@ -158,21 +158,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("hosts").get();
     }
 
-    public void testSimpleMetrics() {
-        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
-        client().admin().indices().prepareRefresh("hosts").get();
-        try (EsqlQueryResponse resp = run("TS hosts | STATS load=avg(cpu) BY host | SORT host")) {
-            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-            assertThat(rows, hasSize(sortedGroups.size()));
-            for (int i = 0; i < rows.size(); i++) {
-                List<Object> r = rows.get(i);
-                String pod = (String) r.get(1);
-                assertThat(pod, equalTo(sortedGroups.get(i)));
-                List<Double> values = docs.stream().filter(d -> d.host.equals(pod)).map(d -> d.cpu).toList();
-                double avg = values.stream().mapToDouble(n -> n).sum() / values.size();
-                assertThat((double) r.get(0), equalTo(avg));
-            }
-        }
+    public void testWithoutStats() {
         try (EsqlQueryResponse resp = run("TS hosts | SORT @timestamp DESC, host | KEEP @timestamp, host, cpu | LIMIT 5")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             List<Doc> topDocs = docs.stream()
@@ -188,6 +174,34 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(topDocs.get(i).timestamp, equalTo(timestamp));
                 assertThat(topDocs.get(i).host, equalTo(pod));
                 assertThat(topDocs.get(i).cpu, equalTo(cpu));
+            }
+        }
+    }
+
+    public void testImplicitAggregate() {
+        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
+        client().admin().indices().prepareRefresh("hosts").get();
+        try (EsqlQueryResponse resp = run("TS hosts | STATS load=avg(cpu) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sortedGroups.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                List<Object> r = rows.get(i);
+                String pod = (String) r.get(1);
+                assertThat(pod, equalTo(sortedGroups.get(i)));
+                Map<String, Doc> selected = new HashMap<>();
+                for (Doc doc : docs) {
+                    if (doc.host.equals(pod) == false) {
+                        continue;
+                    }
+                    selected.compute(doc.cluster, (k, v) -> v == null || doc.timestamp > v.timestamp ? doc : v);
+                }
+                double sum = selected.values().stream().mapToDouble(d -> d.cpu).sum();
+                double avg = sum / selected.size();
+                assertThat((double) r.get(0), equalTo(avg));
+            }
+            try (EsqlQueryResponse resp2 = run("TS hosts | STATS load=avg(last_over_time(cpu)) BY host | SORT host")) {
+                List<List<Object>> rows2 = EsqlTestUtils.getValuesList(resp2);
+                assertThat(rows2, equalTo(rows));
             }
         }
     }
@@ -248,27 +262,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             final double avg = rates.isEmpty() ? 0.0 : rates.stream().mapToDouble(d -> d).sum() / rates.size();
             assertThat((double) values.get(0).get(1), closeTo(avg, 0.1));
         }
-        try (var resp = run("TS hosts | STATS max(rate(request_count)), min(rate(request_count)), min(cpu), max(cpu)")) {
+        try (var resp = run("TS hosts | STATS max(rate(request_count)), min(rate(request_count))")) {
             assertThat(
                 resp.columns(),
                 equalTo(
                     List.of(
                         new ColumnInfoImpl("max(rate(request_count))", "double", null),
-                        new ColumnInfoImpl("min(rate(request_count))", "double", null),
-                        new ColumnInfoImpl("min(cpu)", "double", null),
-                        new ColumnInfoImpl("max(cpu)", "double", null)
+                        new ColumnInfoImpl("min(rate(request_count))", "double", null)
                     )
                 )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
-            assertThat(values.get(0), hasSize(4));
+            assertThat(values.get(0), hasSize(2));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).max().orElse(0.0), 0.1));
             assertThat((double) values.get(0).get(1), closeTo(rates.stream().mapToDouble(d -> d).min().orElse(0.0), 0.1));
-            double minCpu = docs.stream().mapToDouble(d -> d.cpu).min().orElse(Long.MAX_VALUE);
-            double maxCpu = docs.stream().mapToDouble(d -> d.cpu).max().orElse(Long.MIN_VALUE);
-            assertThat((double) values.get(0).get(2), closeTo(minCpu, 0.1));
-            assertThat((double) values.get(0).get(3), closeTo(maxCpu, 0.1));
         }
     }
 

@@ -223,7 +223,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                             .build()
                     );
 
-                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    return new InferenceServiceConfiguration.Builder().setService(NAME).setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();

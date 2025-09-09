@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -22,6 +23,13 @@ import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStat
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
 
     @BeforeClass
     public static void init() {
@@ -130,8 +138,9 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
+        var a = providersFor(TaskType.COMPLETION);
         assertThat(
-            providersFor(TaskType.COMPLETION),
+            a,
             containsInAnyOrder(
                 List.of(
                     "ai21",

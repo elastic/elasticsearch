@@ -7,18 +7,27 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,17 +35,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+
 public class TransportGetInferenceServicesAction extends HandledTransportAction<
     GetInferenceServicesAction.Request,
     GetInferenceServicesAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetInferenceServicesAction.class);
+
     private final InferenceServiceRegistry serviceRegistry;
+    private final ElasticInferenceServiceAuthorizationRequestHandler eisAuthorizationRequestHandler;
+    private final Sender eisSender;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportGetInferenceServicesAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        InferenceServiceRegistry serviceRegistry
+        ThreadPool threadPool,
+        InferenceServiceRegistry serviceRegistry,
+        ElasticInferenceServiceAuthorizationRequestHandler eisAuthorizationRequestHandler,
+        Sender sender
     ) {
         super(
             GetInferenceServicesAction.NAME,
@@ -46,6 +65,9 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.serviceRegistry = serviceRegistry;
+        this.eisAuthorizationRequestHandler = eisAuthorizationRequestHandler;
+        this.eisSender = sender;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -69,27 +91,78 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             .entrySet()
             .stream()
             .filter(
-                service -> service.getValue().hideFromConfigurationApi() == false
+                // exclude EIS here because the hideFromConfigurationApi() is not supported
+                service -> service.getValue().name().equals(ElasticInferenceService.NAME) == false
+                    && service.getValue().hideFromConfigurationApi() == false
                     && service.getValue().supportedTaskTypes().contains(requestedTaskType)
             )
             .sorted(Comparator.comparing(service -> service.getValue().name()))
             .collect(Collectors.toCollection(ArrayList::new));
 
-        getServiceConfigurationsForServices(filteredServices, listener.delegateFailureAndWrap((delegate, configurations) -> {
-            delegate.onResponse(new GetInferenceServicesAction.Response(configurations));
-        }));
+        getServiceConfigurationsForServicesAndEis(listener, filteredServices, requestedTaskType);
     }
 
     private void getAllServiceConfigurations(ActionListener<GetInferenceServicesAction.Response> listener) {
         var availableServices = serviceRegistry.getServices()
             .entrySet()
             .stream()
-            .filter(service -> service.getValue().hideFromConfigurationApi() == false)
+            .filter(
+                // exclude EIS here because the hideFromConfigurationApi() is not supported
+                service -> service.getValue().name().equals(ElasticInferenceService.NAME) == false
+                    && service.getValue().hideFromConfigurationApi() == false
+            )
             .sorted(Comparator.comparing(service -> service.getValue().name()))
             .collect(Collectors.toCollection(ArrayList::new));
-        getServiceConfigurationsForServices(availableServices, listener.delegateFailureAndWrap((delegate, configurations) -> {
-            delegate.onResponse(new GetInferenceServicesAction.Response(configurations));
-        }));
+
+        getServiceConfigurationsForServicesAndEis(listener, availableServices, null);
+    }
+
+    private void getServiceConfigurationsForServicesAndEis(
+        ActionListener<GetInferenceServicesAction.Response> listener,
+        ArrayList<Map.Entry<String, InferenceService>> availableServices,
+        @Nullable TaskType requestedTaskType
+    ) {
+        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authModelListener -> {
+            // Executing on a separate thread because there's a chance the authorization call needs to do some initialization for the Sender
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> getEisAuthorization(authModelListener, eisSender));
+        }).<List<InferenceServiceConfiguration>>andThen((configurationListener, authorizationModel) -> {
+
+            ActionListener<List<InferenceServiceConfiguration>> mergeEisConfigListener = configurationListener.delegateFailureAndWrap(
+                (delegate, serviceConfigs) -> {
+                    if (authorizationModel.isAuthorized() == false) {
+                        delegate.onResponse(serviceConfigs);
+                        return;
+                    }
+
+                    var config = ElasticInferenceService.createConfiguration(authorizationModel.getAuthorizedTaskTypes());
+                    if (requestedTaskType != null && authorizationModel.getAuthorizedTaskTypes().contains(requestedTaskType)) {
+                        serviceConfigs.add(config);
+                    }
+                    serviceConfigs.sort(Comparator.comparing(InferenceServiceConfiguration::getService));
+                    delegate.onResponse(serviceConfigs);
+                }
+            );
+
+            getServiceConfigurationsForServices(availableServices, mergeEisConfigListener);
+        })
+            .addListener(
+                listener.delegateFailureAndWrap(
+                    (delegate, configurations) -> delegate.onResponse(new GetInferenceServicesAction.Response(configurations))
+                )
+            );
+    }
+
+    private void getEisAuthorization(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
+        var disabledServiceListener = listener.delegateResponse((delegate, e) -> {
+            logger.warn(
+                "Failed to retrieve authorization information from the "
+                    + "Elastic Inference Service while determining service configurations. Marking service as disabled.",
+                e
+            );
+            delegate.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
+        });
+
+        eisAuthorizationRequestHandler.getAuthorization(disabledServiceListener, sender);
     }
 
     private void getServiceConfigurationsForServices(
@@ -101,7 +174,7 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             for (var service : services) {
                 serviceConfigurations.add(service.getValue().getConfiguration());
             }
-            listener.onResponse(serviceConfigurations.stream().toList());
+            listener.onResponse(serviceConfigurations);
         } catch (Exception e) {
             listener.onFailure(e);
         }

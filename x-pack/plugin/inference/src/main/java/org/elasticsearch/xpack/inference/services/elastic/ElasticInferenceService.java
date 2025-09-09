@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -284,7 +283,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return authorizationHandler.supportedStreamingTasks();
+        return EnumSet.of(TaskType.CHAT_COMPLETION);
     }
 
     @Override
@@ -462,7 +461,12 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public InferenceServiceConfiguration getConfiguration() {
-        return authorizationHandler.getConfiguration();
+        // This shouldn't be called because the configuration changes based on the authorization
+        // Instead, retrieve the authorization directly from the EIS gateway and use the static method
+        // ElasticInferenceService.Configuration#createConfiguration() to create a configuration based on the authorization response
+        throw new UnsupportedOperationException(
+            "The EIS configuration changes depending on authorization, requests should be made directly to EIS instead"
+        );
     }
 
     @Override
@@ -472,7 +476,11 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public boolean hideFromConfigurationApi() {
-        return authorizationHandler.hideFromConfigurationApi();
+        // This shouldn't be called because the configuration changes based on the authorization
+        // Instead, retrieve the authorization directly from the EIS gateway and use the response to determine if EIS is authorized
+        throw new UnsupportedOperationException(
+            "The EIS configuration changes depending on authorization, requests should be made directly to EIS instead"
+        );
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -656,62 +664,45 @@ public class ElasticInferenceService extends SenderService {
         return new TraceContext(traceParent, traceState);
     }
 
-    public static class Configuration {
+    public static InferenceServiceConfiguration createConfiguration(EnumSet<TaskType> enabledTaskTypes) {
+        var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-        private final EnumSet<TaskType> enabledTaskTypes;
-        private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+        configurationMap.put(
+            MODEL_ID,
+            new SettingsConfiguration.Builder(
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+            ).setDescription("The name of the model to use for the inference task.")
+                .setLabel("Model ID")
+                .setRequired(true)
+                .setSensitive(false)
+                .setUpdatable(false)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build()
+        );
 
-        public Configuration(EnumSet<TaskType> enabledTaskTypes) {
-            this.enabledTaskTypes = enabledTaskTypes;
-            configuration = initConfiguration();
-        }
+        configurationMap.put(
+            MAX_INPUT_TOKENS,
+            new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
+                "Allows you to specify the maximum number of tokens per input."
+            )
+                .setLabel("Maximum Input Tokens")
+                .setRequired(false)
+                .setSensitive(false)
+                .setUpdatable(false)
+                .setType(SettingsConfigurationFieldType.INTEGER)
+                .build()
+        );
 
-        private LazyInitializable<InferenceServiceConfiguration, RuntimeException> initConfiguration() {
-            return new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
+        configurationMap.putAll(
+            RateLimitSettings.toSettingsConfiguration(
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+            )
+        );
 
-                configurationMap.put(
-                    MODEL_ID,
-                    new SettingsConfiguration.Builder(
-                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
-                    ).setDescription("The name of the model to use for the inference task.")
-                        .setLabel("Model ID")
-                        .setRequired(true)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-
-                configurationMap.put(
-                    MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
-                        "Allows you to specify the maximum number of tokens per input."
-                    )
-                        .setLabel("Maximum Input Tokens")
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.INTEGER)
-                        .build()
-                );
-
-                configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(
-                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
-                    )
-                );
-
-                return new InferenceServiceConfiguration.Builder().setService(NAME)
-                    .setName(SERVICE_NAME)
-                    .setTaskTypes(enabledTaskTypes)
-                    .setConfigurations(configurationMap)
-                    .build();
-            });
-        }
-
-        public InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
-        }
+        return new InferenceServiceConfiguration.Builder().setService(NAME)
+            .setName(SERVICE_NAME)
+            .setTaskTypes(enabledTaskTypes)
+            .setConfigurations(configurationMap)
+            .build();
     }
 }

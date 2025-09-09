@@ -91,6 +91,7 @@ public class IngestDocumentTests extends ESTestCase {
         list2.add("bar");
         list2.add("baz");
         document.put("list2", list2);
+        document.put("list3", new ArrayList<>());
         document.put(DOUBLE_ARRAY_FIELD, DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray());
         document.put(
             DOUBLE_DOUBLE_ARRAY_FIELD,
@@ -120,6 +121,7 @@ public class IngestDocumentTests extends ESTestCase {
                             {
                                 add(null);
                                 add("");
+                                add(new ArrayList<>(List.of("a")));
                             }
                         }
                     )
@@ -138,6 +140,7 @@ public class IngestDocumentTests extends ESTestCase {
         document.put("dotted.bar.baz", true);
         document.put("dotted.foo.bar.baz", new HashMap<>(Map.of("qux.quux", true)));
         document.put("dotted.bar.baz_null", null);
+        document.put("dotted.empty.array", new ArrayList<>());
 
         this.document = new IngestDocument("index", "id", 1, null, null, document);
     }
@@ -187,6 +190,92 @@ public class IngestDocumentTests extends ESTestCase {
      */
     private void doWithRandomAccessPattern(Consumer<IngestDocument> action) throws Exception {
         doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), action);
+    }
+
+    private void assertPathValid(IngestDocument doc, String path) {
+        // The fields being checked do not exist, so they all return false when running hasField
+        assertFalse(doc.hasField(path));
+    }
+
+    private void assertPathInvalid(IngestDocument doc, String path, String errorMessage) {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> doc.hasField(path));
+        assertThat(expected.getMessage(), equalTo(errorMessage));
+    }
+
+    public void testPathParsingLogic() throws Exception {
+        // Force a blank document for this test
+        document = new IngestDocument("index", "id", 1, null, null, new HashMap<>());
+
+        doWithRandomAccessPattern((doc) -> {
+            assertPathInvalid(doc, null, "path cannot be null nor empty");
+            assertPathInvalid(doc, "", "path cannot be null nor empty");
+            assertPathValid(doc, "a");
+            assertPathValid(doc, "ab");
+            assertPathValid(doc, "abc");
+            assertPathValid(doc, "a.b");
+            assertPathValid(doc, "a.b.c");
+            // Trailing empty strings are trimmed by field path parsing logic
+            assertPathValid(doc, "a.");
+            assertPathValid(doc, "a..");
+            assertPathValid(doc, "a...");
+            // Empty field names are not allowed in the beginning or middle of the path though
+            assertPathInvalid(doc, ".a.b", "fieldName cannot be empty");
+            assertPathInvalid(doc, "a..b", "fieldName cannot be empty");
+        });
+
+        doWithAccessPattern(CLASSIC, (doc) -> {
+            // Classic allows number fields because they are treated as either field names or array indices depending on context
+            assertPathValid(doc, "a.0");
+            // Classic allows square brackets because it is not part of it's syntax
+            assertPathValid(doc, "a[0]");
+            assertPathValid(doc, "a[]");
+            assertPathValid(doc, "a][");
+            assertPathValid(doc, "[");
+            assertPathValid(doc, "a[");
+            assertPathValid(doc, "[a");
+            assertPathValid(doc, "]");
+            assertPathValid(doc, "a]");
+            assertPathValid(doc, "]a");
+            assertPathValid(doc, "[]");
+            assertPathValid(doc, "][");
+            assertPathValid(doc, "[a]");
+            assertPathValid(doc, "]a[");
+            assertPathValid(doc, "[]a");
+            assertPathValid(doc, "][a");
+        });
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            // Flexible allows number fields because they are treated only as field names
+            assertPathValid(doc, "a.0");
+            // Flexible has specific handling of square brackets
+            assertPathValid(doc, "a[0]");
+            assertPathInvalid(doc, "a[]", "[] is not an integer, cannot be used as an index as part of path [a[]]");
+            assertPathInvalid(doc, "a][", "path [a][] is not valid");
+            assertPathInvalid(doc, "[", "path [[] is not valid");
+            assertPathInvalid(doc, "a[", "path [a[] is not valid");
+            assertPathInvalid(doc, "[a", "path [[a] is not valid");
+            assertPathInvalid(doc, "]", "path []] is not valid");
+            assertPathInvalid(doc, "a]", "path [a]] is not valid");
+            assertPathInvalid(doc, "]a", "path []a] is not valid");
+            assertPathInvalid(doc, "[]", "path [[]] is not valid");
+            assertPathInvalid(doc, "][", "path [][] is not valid");
+            assertPathInvalid(doc, "[a]", "path [[a]] is not valid");
+            assertPathInvalid(doc, "]a[", "path []a[] is not valid");
+            assertPathInvalid(doc, "[]a", "path [[]a] is not valid");
+            assertPathInvalid(doc, "][a", "path [][a] is not valid");
+
+            assertPathValid(doc, "a[0].b");
+            assertPathValid(doc, "a[0].b[1]");
+            assertPathValid(doc, "a[0].b[1].c");
+            assertPathValid(doc, "a[0].b[1].c[2]");
+            assertPathValid(doc, "a[0][1].c[2]");
+            assertPathValid(doc, "a[0].b[1][2]");
+            assertPathValid(doc, "a[0][1][2]");
+
+            assertPathInvalid(doc, "a[0][", "path [a[0][] is not valid");
+            assertPathInvalid(doc, "a[0]]", "path [a[0]]] is not valid");
+            assertPathInvalid(doc, "a[0]blahblah", "path [a[0]blahblah] is not valid");
+        });
     }
 
     public void testSimpleGetFieldValue() throws Exception {
@@ -355,28 +444,16 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListGetFieldValue() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> assertThat(doc.getFieldValue("list.0.field", String.class), equalTo("value")));
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.getFieldValue("list.0.field", String.class));
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.0.field] is not valid"));
-            illegalArgument = expectThrows(
-                IllegalArgumentException.class,
-                () -> doc.getFieldValue("dots.arrays.dotted.objects.0.foo", String.class)
-            );
-            assertThat(illegalArgument.getMessage(), equalTo("path [dots.arrays.dotted.objects.0.foo] is not valid"));
+            assertThat(doc.getFieldValue("list[0].field", String.class), equalTo("value"));
+            assertThat(doc.getFieldValue("dots.arrays.dotted.objects[0].foo", String.class), equalTo("bar"));
         });
     }
 
     public void testListGetFieldValueNull() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> assertThat(doc.getFieldValue("list.1", String.class), nullValue()));
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.getFieldValue("list.1", String.class));
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.1] is not valid"));
-            illegalArgument = expectThrows(
-                IllegalArgumentException.class,
-                () -> doc.getFieldValue("dots.arrays.dotted.other.0", String.class)
-            );
-            assertThat(illegalArgument.getMessage(), equalTo("path [dots.arrays.dotted.other.0] is not valid"));
+            assertThat(doc.getFieldValue("list[1]", String.class), nullValue());
+            assertThat(doc.getFieldValue("dots.arrays.dotted.other[0]", String.class), nullValue());
         });
     }
 
@@ -386,17 +463,27 @@ public class IngestDocumentTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test.field]"));
         }
+        // Flexible arrays do not support the name.0 indexing format that classic does, it only supports name[0]
         try {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("list.test.field", String.class));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("list.0.field", String.class));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.test.field] is not valid"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot resolve [0] from object of type [java.util.ArrayList] as part of path [list.0.field]")
+            );
         }
         try {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("dots.arrays.dotted.strings.test.field", String.class));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("list[test].field", String.class));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [dots.arrays.dotted.strings.test.field] is not valid"));
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test].field]"));
+        }
+        try {
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("dots.arrays.dotted.strings[test].field", String.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(
+                e.getMessage(),
+                equalTo("[test] is not an integer, cannot be used as an index as part of path [dots.arrays.dotted.strings[test].field]")
+            );
         }
     }
 
@@ -407,16 +494,17 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10.field]"));
         }
         try {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("list.10.field", String.class));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("list[10].field", String.class));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.10.field] is not valid"));
+            assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list[10].field]"));
         }
         try {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("dots.arrays.dotted.strings.10", String.class));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.getFieldValue("dots.arrays.dotted.strings[10]", String.class));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [dots.arrays.dotted.strings.10] is not valid"));
+            assertThat(
+                e.getMessage(),
+                equalTo("[10] is out of bounds for array with length [4] as part of path [dots.arrays.dotted.strings[10]]")
+            );
         }
     }
 
@@ -541,26 +629,28 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListHasField() throws Exception {
         assertTrue(document.hasField("list.0.field"));
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
-            // Until then, traversing arrays in the hasFields method returns false
+            // Integer field names are never treated as array indices in flexible.
+            // They will return false from hasField because they do not find a field named "0" in a list field
             assertFalse(doc.hasField("dots.arrays.dotted.strings.0"));
             assertFalse(doc.hasField("dots.arrays.dotted.objects.0"));
             assertFalse(doc.hasField("dots.arrays.dotted.objects.0.foo"));
+            // Square bracket syntax is needed to check array indices
+            assertTrue(doc.hasField("dots.arrays.dotted.strings[0]"));
+            assertTrue(doc.hasField("dots.arrays.dotted.objects[0]"));
+            assertTrue(doc.hasField("dots.arrays.dotted.objects[0].foo"));
         });
     }
 
     public void testListHasFieldNull() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> assertTrue(doc.hasField("list.1")));
-        // TODO: Flexible will have a new notation for list indexing - For now it does not locate indexed fields
-        doWithAccessPattern(FLEXIBLE, (doc) -> assertFalse(doc.hasField("list.1")));
-        doWithAccessPattern(FLEXIBLE, (doc) -> assertFalse(doc.hasField("dots.arrays.dotted.other.0")));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertTrue(doc.hasField("list[1]")));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertTrue(doc.hasField("dots.arrays.dotted.other[0]")));
     }
 
     public void testListHasFieldIndexOutOfBounds() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> assertFalse(doc.hasField("list.10")));
-        // TODO: Flexible will have a new notation for list indexing - For now it does not locate indexed fields
-        doWithAccessPattern(FLEXIBLE, (doc) -> assertFalse(doc.hasField("list.10")));
-        doWithAccessPattern(FLEXIBLE, (doc) -> assertFalse(doc.hasField("dots.arrays.dotted.strings.10")));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertFalse(doc.hasField("list[10]")));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertFalse(doc.hasField("dots.arrays.dotted.strings[10]")));
     }
 
     public void testListHasFieldIndexOutOfBounds_fail() throws Exception {
@@ -573,11 +663,12 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         });
         doWithAccessPattern(FLEXIBLE, doc -> {
-            assertFalse(doc.hasField("list.0", true));
-            assertFalse(doc.hasField("list.1", true));
-            // TODO: Flexible will have a new notation for list indexing - we fail fast, and currently don't check the bounds
-            assertFalse(doc.hasField("list.2", true));
-            assertFalse(doc.hasField("list.10", true));
+            assertTrue(doc.hasField("list[0]", true));
+            assertTrue(doc.hasField("list[1]", true));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> assertFalse(doc.hasField("list[2]", true)));
+            assertThat(e.getMessage(), equalTo("[2] is out of bounds for array with length [2] as part of path [list[2]]"));
+            e = expectThrows(IllegalArgumentException.class, () -> assertFalse(doc.hasField("list[10]", true)));
+            assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list[10]]"));
         });
     }
 
@@ -676,6 +767,10 @@ public class IngestDocumentTests extends ESTestCase {
             doc.setFieldValue("dotted.foo", "foo");
             assertThat(doc.getSourceAndMetadata().get("dotted.foo"), instanceOf(String.class));
             assertThat(doc.getSourceAndMetadata().get("dotted.foo"), equalTo("foo"));
+
+            // Dotted integer field names are always treated as field names, never as array indices
+            doc.setFieldValue("dotted.bar.0", "zero");
+            assertThat(doc.getSourceAndMetadata().get("dotted.bar.0"), equalTo("zero"));
         });
     }
 
@@ -760,6 +855,34 @@ public class IngestDocumentTests extends ESTestCase {
                 e.getMessage(),
                 equalTo("cannot set [new] with parent object of type [java.lang.String] as part of path [fizz.buzz.new]")
             );
+        }
+    }
+
+    public void testSetFieldValueOnNonExistingParentArray() throws Exception {
+        doWithAccessPattern(CLASSIC, (doc) -> {
+            doc.setFieldValue("classic.array.0.new", "bar");
+            Object object = doc.getSourceAndMetadata().get("classic");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> classic = (Map<String, Object>) object;
+            object = classic.get("array");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> array = (Map<String, Object>) object;
+            object = array.get("0");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> zero = (Map<String, Object>) object;
+            object = zero.get("new");
+            assertThat(object, instanceOf(String.class));
+            assertThat(object, equalTo("bar"));
+        });
+
+        try {
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("dotted.array[0].new", "bar"));
+            fail("add field should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [dotted.array] not present as part of path [dotted.array[0].new]"));
         }
     }
 
@@ -1019,6 +1142,21 @@ public class IngestDocumentTests extends ESTestCase {
         });
     }
 
+    public void testAppendFieldValuesToEmptyList() throws Exception {
+        doWithAccessPattern(CLASSIC, (doc) -> {
+            doc.appendFieldValue("list3", List.of("a", "b", "c"));
+            Object emptyArrayField = doc.getSourceAndMetadata().get("list3");
+            assertThat(emptyArrayField, instanceOf(List.class));
+            assertThat(emptyArrayField, equalTo(List.of("a", "b", "c")));
+        });
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            doc.appendFieldValue("dotted.empty.array", List.of("a", "b", "c"));
+            Object emptyArrayField = doc.getSourceAndMetadata().get("dotted.empty.array");
+            assertThat(emptyArrayField, instanceOf(List.class));
+            assertThat(emptyArrayField, equalTo(List.of("a", "b", "c")));
+        });
+    }
+
     public void testAppendFieldValueConvertStringToList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("fizz.buzz", "new_value");
@@ -1199,13 +1337,28 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(innerList.get(0), equalTo("item1"));
             assertThat(innerList.get(1), equalTo("item2"));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(
-                IllegalArgumentException.class,
-                () -> doc.appendFieldValue("dots.arrays.dotted.strings.0", "a1")
-            );
-            assertThat(illegalArgument.getMessage(), equalTo("path [dots.arrays.dotted.strings.0] is not valid"));
+            doc.appendFieldValue("dots.arrays.dotted.strings[0]", "a1");
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dots = (Map<String, Object>) object;
+            object = dots.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.strings");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(4));
+            object = list.get(0);
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<String> innerList = (List<String>) object;
+            assertThat(innerList.size(), equalTo(2));
+            assertThat(innerList.get(0), equalTo("a"));
+            assertThat(innerList.get(1), equalTo("a1"));
         });
     }
 
@@ -1231,13 +1384,30 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(innerList.get(2), equalTo("item3"));
             assertThat(innerList.get(3), equalTo("item4"));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(
-                IllegalArgumentException.class,
-                () -> doc.appendFieldValue("dots.arrays.dotted.strings.0", List.of("a1", "a2", "a3"))
-            );
-            assertThat(illegalArgument.getMessage(), equalTo("path [dots.arrays.dotted.strings.0] is not valid"));
+            doc.appendFieldValue("dots.arrays.dotted.strings[0]", List.of("a1", "a2", "a3"));
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) object;
+            object = map.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.strings");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(4));
+            object = list.get(0);
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<String> innerList = (List<String>) object;
+            assertThat(innerList.size(), equalTo(4));
+            assertThat(innerList.get(0), equalTo("a"));
+            assertThat(innerList.get(1), equalTo("a1"));
+            assertThat(innerList.get(2), equalTo("a2"));
+            assertThat(innerList.get(3), equalTo("a3"));
         });
     }
 
@@ -1265,10 +1435,28 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(innerInnerList.get(0), equalTo("item1"));
             assertThat(innerInnerList.get(1), equalTo("new_value"));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.appendFieldValue("fizz.list.0.0", "new_value"));
-            assertThat(illegalArgument.getMessage(), equalTo("path [fizz.list.0.0] is not valid"));
+            doc.appendFieldValue("dots.arrays.dotted.strings[0]", "a1");
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dots = (Map<String, Object>) object;
+            object = dots.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.strings");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(4));
+            object = list.get(0);
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> innerList = (List<Object>) object;
+            assertThat(innerList.size(), equalTo(2));
+            assertThat(innerList.get(0), equalTo("a"));
+            assertThat(innerList.get(1), equalTo("a1"));
         });
     }
 
@@ -1298,13 +1486,34 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(innerInnerList.get(2), equalTo("item3"));
             assertThat(innerInnerList.get(3), equalTo("item4"));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(
-                IllegalArgumentException.class,
-                () -> doc.appendFieldValue("fizz.list.0.0", List.of("item2", "item3", "item4"))
-            );
-            assertThat(illegalArgument.getMessage(), equalTo("path [fizz.list.0.0] is not valid"));
+            doc.appendFieldValue("dots.arrays.dotted.other[2][0]", List.of("a1", "a2", "a3"));
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dots = (Map<String, Object>) object;
+            object = dots.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.other");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(3));
+            object = list.get(2);
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> innerList = (List<Object>) object;
+            object = innerList.get(0);
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<String> innerInnerList = (List<String>) object;
+            assertThat(innerInnerList.size(), equalTo(4));
+            assertThat(innerInnerList.get(0), equalTo("a"));
+            assertThat(innerInnerList.get(1), equalTo("a1"));
+            assertThat(innerInnerList.get(2), equalTo("a2"));
+            assertThat(innerInnerList.get(3), equalTo("a3"));
         });
     }
 
@@ -1322,13 +1531,26 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(list.get(0), equalTo(Map.of("field", "value")));
             assertThat(list.get(1), equalTo(Map.of("item2", "value2")));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(
-                IllegalArgumentException.class,
-                () -> doc.appendFieldValue("list.0", Map.of("item2", "value2"))
-            );
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.0] is not valid"));
+            doc.appendFieldValue("dots.arrays.dotted.objects[0]", Map.of("bar", "baz"));
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dots = (Map<String, Object>) object;
+            object = dots.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.objects");
+            assertThat(object, instanceOf(List.class));
+            List<?> list = (List<?>) object;
+            assertThat(list.size(), equalTo(2));
+            assertThat(list.get(0), instanceOf(List.class));
+            assertThat(list.get(1), instanceOf(Map.class));
+            list = (List<?>) list.get(0);
+            assertThat(list.size(), equalTo(2));
+            assertThat(list.get(0), equalTo(Map.of("foo", "bar")));
+            assertThat(list.get(1), equalTo(Map.of("bar", "baz")));
         });
     }
 
@@ -1344,10 +1566,24 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(list.get(0), nullValue());
             assertThat(list.get(1), equalTo("new_value"));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.appendFieldValue("list.1", "new_value"));
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.1] is not valid"));
+            doc.appendFieldValue("dots.arrays.dotted.other[0]", "new_value");
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dots = (Map<String, Object>) object;
+            object = dots.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.other");
+            assertThat(object, instanceOf(List.class));
+            List<?> list = (List<?>) object;
+            assertThat(list.get(0), instanceOf(List.class));
+            list = (List<?>) list.get(0);
+            assertThat(list.size(), equalTo(2));
+            assertThat(list.get(0), nullValue());
+            assertThat(list.get(1), equalTo("new_value"));
         });
     }
 
@@ -1393,10 +1629,15 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(list.get(0), equalTo(Map.of("field", "value")));
             assertThat(list.get(1), equalTo("value"));
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.setFieldValue("list.1", "value"));
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.1] is not valid"));
+            doc.setFieldValue("list[1]", "value");
+            Object object = doc.getSourceAndMetadata().get("list");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(2));
+            assertThat(list.get(0), equalTo(Map.of("field", "value")));
+            assertThat(list.get(1), equalTo("value"));
         });
     }
 
@@ -1411,10 +1652,15 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(list.get(0), equalTo(Map.of("field", "new_value")));
             assertThat(list.get(1), nullValue());
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.setFieldValue("list.0.field", "new_value"));
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.0.field] is not valid"));
+            doc.setFieldValue("list[0].field", "new_value");
+            Object object = doc.getSourceAndMetadata().get("list");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(2));
+            assertThat(list.get(0), equalTo(Map.of("field", "new_value")));
+            assertThat(list.get(1), nullValue());
         });
     }
 
@@ -1434,13 +1680,31 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list.test", "value"));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.test] is not valid"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot resolve [test] from object of type [java.util.ArrayList] as part of path [list.test]")
+            );
         }
 
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list.test.field", "new_value"));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.test.field] is not valid"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot resolve [test] from object of type [java.util.ArrayList] as part of path [list.test.field]")
+            );
+        }
+
+        try {
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list[test]", "value"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test]]"));
+        }
+
+        try {
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list[test].field", "new_value"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test].field]"));
         }
     }
 
@@ -1458,15 +1722,21 @@ public class IngestDocumentTests extends ESTestCase {
         }
 
         try {
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list.10", "value"));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list[10]", "value"));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.10] is not valid"));
+            assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list[10]]"));
         }
 
         try {
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list.10.field", "value"));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("list[10].field", "value"));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.10.field] is not valid"));
+            assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list[10].field]"));
+        }
+
+        try {
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.setFieldValue("dotted.empty.array[0]", "value"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[0] is out of bounds for array with length [0] as part of path [dotted.empty.array[0]]"));
         }
     }
 
@@ -1480,38 +1750,40 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testRemoveField() throws Exception {
+        int originalDocSize = document.getSourceAndMetadata().size();
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("foo");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 1));
             assertThat(doc.getSourceAndMetadata().containsKey("foo"), equalTo(false));
             doc.removeField("_index");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 2));
             assertThat(doc.getSourceAndMetadata().containsKey("_index"), equalTo(false));
             doc.removeField("_source.fizz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 3));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
             assertThat(doc.getIngestMetadata().size(), equalTo(2));
             doc.removeField("_ingest.timestamp");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 3));
             assertThat(doc.getIngestMetadata().size(), equalTo(1));
             doc.removeField("_ingest.pipeline");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 3));
             assertThat(doc.getIngestMetadata().size(), equalTo(0));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.removeField("dotted.bar.baz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(11));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 4));
             assertThat(doc.getSourceAndMetadata().containsKey("dotted.bar.baz"), equalTo(false));
         });
     }
 
     public void testRemoveFieldIgnoreMissing() throws Exception {
+        int originalDocSize = document.getSourceAndMetadata().size();
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("foo", randomBoolean());
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 1));
             assertThat(doc.getSourceAndMetadata().containsKey("foo"), equalTo(false));
             doc.removeField("_index", randomBoolean());
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 2));
             assertThat(doc.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         });
 
@@ -1528,7 +1800,7 @@ public class IngestDocumentTests extends ESTestCase {
             case 1 -> {
                 // Different error messages for each access pattern when trying to remove an element from a list incorrectly
                 doWithAccessPattern(CLASSIC, (doc) -> {
-                    doc.setFieldValue("fizz.some", List.of("foo", "bar"));
+                    doc.setFieldValue("fizz.some", new ArrayList<>(List.of("foo", "bar")));
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
                         () -> doc.removeField("fizz.some.nonsense", false)
@@ -1539,12 +1811,15 @@ public class IngestDocumentTests extends ESTestCase {
                     );
                 });
                 doWithAccessPattern(FLEXIBLE, (doc) -> {
-                    doc.setFieldValue("fizz.other", List.of("foo", "bar"));
+                    doc.setFieldValue("fizz.other", new ArrayList<>(List.of("foo", "bar")));
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
                         () -> doc.removeField("fizz.other.nonsense", false)
                     );
-                    assertThat(e.getMessage(), is("path [fizz.other.nonsense] is not valid"));
+                    assertThat(
+                        e.getMessage(),
+                        is("cannot resolve [nonsense] from object of type [java.util.ArrayList] as part of path [fizz.other.nonsense]")
+                    );
                 });
             }
             case 2 -> {
@@ -1572,9 +1847,10 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testRemoveInnerField() throws Exception {
+        int originalDocSize = document.getSourceAndMetadata().size();
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) doc.getSourceAndMetadata().get("fizz");
@@ -1583,22 +1859,22 @@ public class IngestDocumentTests extends ESTestCase {
 
             doc.removeField("fizz.foo_null");
             assertThat(map.size(), equalTo(2));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
             doc.removeField("fizz.1");
             assertThat(map.size(), equalTo(1));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
             doc.removeField("fizz.list");
             assertThat(map.size(), equalTo(0));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.removeField("dots.foo.bar.baz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().get("dots"), instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> dots = (Map<String, Object>) doc.getSourceAndMetadata().get("dots");
@@ -1608,7 +1884,7 @@ public class IngestDocumentTests extends ESTestCase {
             doc.removeField("dots.foo.bar.null");
             assertThat(dots.size(), equalTo(4));
             assertThat(dots.containsKey("foo.bar.null"), equalTo(false));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
 
             doc.removeField("dots.arrays.dotted.strings");
@@ -1617,7 +1893,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(dots.size(), equalTo(4));
             assertThat(arrays.size(), equalTo(2));
             assertThat(arrays.containsKey("dotted.strings"), equalTo(false));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
         });
     }
@@ -1677,9 +1953,10 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testRemoveIngestObject() throws Exception {
+        int originalDocSize = document.getSourceAndMetadata().size();
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("_ingest");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize - 1));
             assertThat(doc.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
         });
     }
@@ -1701,9 +1978,10 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListRemoveField() throws Exception {
+        int originalDocSize = document.getSourceAndMetadata().size();
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.removeField("list.0.field");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
             assertThat(doc.getSourceAndMetadata().containsKey("list"), equalTo(true));
             Object object = doc.getSourceAndMetadata().get("list");
             assertThat(object, instanceOf(List.class));
@@ -1719,10 +1997,35 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(list.size(), equalTo(1));
             assertThat(list.get(0), nullValue());
         });
-        // TODO: Flexible will have a new notation for list indexing - For now it does not support traversing lists
         doWithAccessPattern(FLEXIBLE, (doc) -> {
-            var illegalArgument = expectThrows(IllegalArgumentException.class, () -> doc.removeField("list.0.field"));
-            assertThat(illegalArgument.getMessage(), equalTo("path [list.0.field] is not valid"));
+            doc.removeField("dots.arrays.dotted.objects[0].foo");
+            assertThat(doc.getSourceAndMetadata().size(), equalTo(originalDocSize));
+            assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
+            Object object = doc.getSourceAndMetadata().get("dots");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dots = (Map<String, Object>) object;
+            object = dots.get("arrays");
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> arrays = (Map<String, Object>) object;
+            object = arrays.get("dotted.objects");
+            assertThat(object, instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) object;
+            assertThat(list.size(), equalTo(2));
+            object = list.get(0);
+            assertThat(object, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) object;
+            assertThat(map.size(), equalTo(0));
+            document.removeField("dots.arrays.dotted.objects[0]");
+            assertThat(list.size(), equalTo(1));
+            assertThat(list.get(0), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> submap = (Map<String, Object>) list.get(0);
+            assertThat(submap.size(), equalTo(1));
+            assertThat(submap.get("baz"), equalTo("qux"));
         });
     }
 
@@ -1763,11 +2066,18 @@ public class IngestDocumentTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
-        // Flexible mode does not allow for interactions with arrays yet
         try {
             doWithAccessPattern(FLEXIBLE, (doc) -> doc.removeField("list.test"));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.test] is not valid"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot resolve [test] from object of type [java.util.ArrayList] as part of path [list.test]")
+            );
+        }
+        try {
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.removeField("list[test]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list[test]]"));
         }
     }
 
@@ -1777,11 +2087,10 @@ public class IngestDocumentTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }
-        // Flexible mode does not allow for interactions with arrays yet
         try {
-            doWithAccessPattern(FLEXIBLE, (doc) -> doc.removeField("list.10"));
+            doWithAccessPattern(FLEXIBLE, (doc) -> doc.removeField("list[10]"));
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("path [list.10] is not valid"));
+            assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list[10]]"));
         }
     }
 
@@ -2034,7 +2343,7 @@ public class IngestDocumentTests extends ESTestCase {
 
         // At the end of the test, there should be neither pipeline ids nor access patterns left in the stack.
         assertThat(document.getPipelineStack(), is(empty()));
-        assertThat(document.getCurrentAccessPattern(), is(nullValue()));
+        assertTrue(document.getCurrentAccessPattern().isEmpty());
     }
 
     /**
@@ -2082,7 +2391,8 @@ public class IngestDocumentTests extends ESTestCase {
 
             // Assert expected state
             assertThat(document.getPipelineStack().getFirst(), is(expectedPipelineId));
-            assertThat(document.getCurrentAccessPattern(), is(expectedAccessPattern));
+            assertTrue(document.getCurrentAccessPattern().isPresent());
+            assertThat(document.getCurrentAccessPattern().get(), is(expectedAccessPattern));
 
             // Randomly recurse: We recurse only one time per level to avoid hogging test time, but we randomize which
             // pipeline to recurse on, eventually requiring a recursion on the last pipeline run if one hasn't happened yet.
@@ -2099,11 +2409,11 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(document.getPipelineStack().size(), is(equalTo(level)));
             if (level == 0) {
                 // Top level means access pattern should be empty
-                assertThat(document.getCurrentAccessPattern(), is(nullValue()));
+                assertTrue(document.getCurrentAccessPattern().isEmpty());
             } else {
                 // If we're nested below the top level we should still have an access
                 // pattern on the document for the pipeline above us
-                assertThat(document.getCurrentAccessPattern(), is(not(nullValue())));
+                assertTrue(document.getCurrentAccessPattern().isPresent());
             }
         }
         logger.debug("LEVEL {}/{}: COMPLETE", level, maxCallDepth);

@@ -80,7 +80,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         // pipeline_tracking info: `{created,modified}_date` system properties defined within pipeline definition.
         if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            return Set.of("pipeline_tracking_info", "field_access_pattern.flexible");
+            return Set.of("pipeline_tracking_info", "field_access_pattern.flexible", "field_access_pattern.flexible.arrays");
         } else {
             return Set.of("pipeline_tracking_info");
         }

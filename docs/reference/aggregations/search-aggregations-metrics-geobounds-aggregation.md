@@ -88,7 +88,7 @@ The Geo Bounds Aggregation is also supported on `geo_shape` fields.
 
 If [`wrap_longitude`](#geo-bounds-wrap-longitude) is set to `true` (the default), the bounding box can overlap the international date line and return a bounds where the `top_left` longitude is larger than the `top_right` longitude.
 
-For example, the upper right longitude will typically be greater than the lower left longitude of a geographic bounding box. However, when the area crosses the 180° meridian, the value of the lower left longitude will be greater than the value of the upper right longitude. See [Geographic bounding box](http://docs.opengeospatial.org/is/12-063r5/12-063r5.md#30) on the Open Geospatial Consortium website for more information.
+For example, the upper right longitude will typically be greater than the lower left longitude of a geographic bounding box. However, when the area crosses the 180° meridian, the value of the lower left longitude will be greater than the value of the upper right longitude. See [Geographic bounding box](https://docs.ogc.org/is/12-063r5/12-063r5.html#30) on the Open Geospatial Consortium website for more information.
 
 Example:
 

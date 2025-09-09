@@ -1,5 +1,5 @@
 steps:
-  - label: "{{matrix.FWC_VERSION}}" / fwc
+  - label: "{{matrix.FWC_VERSION}} / fwc"
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$FWC_VERSION#fwcTest -Dtests.bwc.snapshot=false
     timeout_in_minutes: 300
     agents:

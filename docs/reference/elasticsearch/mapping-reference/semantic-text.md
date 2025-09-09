@@ -349,7 +349,7 @@ fragments when the field is not of type semantic_text, you can explicitly
 enforce the `semantic` highlighter in the query:
 
 ```console
-PUT test-index
+POST test-index/_search
 {
     "query": {
         "match": {
@@ -530,14 +530,14 @@ inference data that `semantic_text` typically hides using `fields`.
 ```console
 POST test-index/_search
 {
-    "query": {
-        "match": {
-            "my_semantic_field": "Which country is Paris in?"
-        },
-        "fields": [
-            "_inference_fields"
-          ]
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
     }
+  },
+  "fields": [
+    "_inference_fields"
+  ]
 }
 ```
 

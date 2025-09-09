@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.SyntheticVectorsMapperTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -232,7 +233,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        assertEquals(ElementType.FLOAT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
+        assertEquals(DenseVectorFieldMapper.FLOAT_ELEMENT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
         float[][] decodedValues = new float[validVectors.length][];
         for (int i = 0; i < validVectors.length; i++) {
             decodedValues[i] = new float[validVectors[i].length];

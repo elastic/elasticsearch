@@ -3,8 +3,8 @@
 **Parameters**
 
 `geomA`
-:   Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`.
+:   Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`.
 
 `geomB`
-:   Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.
+:   Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.
 

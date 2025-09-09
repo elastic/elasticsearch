@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Randomness;
@@ -108,8 +107,7 @@ public class DiscoveryModule extends AbstractModule {
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
         CompatibilityVersions compatibilityVersions,
-        FeatureService featureService,
-        ClusterService clusterService
+        FeatureService featureService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -196,8 +194,7 @@ public class DiscoveryModule extends AbstractModule {
                 leaderHeartbeatService,
                 preVoteCollectorFactory,
                 compatibilityVersions,
-                featureService,
-                clusterService
+                featureService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

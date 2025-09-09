@@ -44,6 +44,8 @@ testClusters.configureEach {
    */
   setting 'thread_pool.estimated_time_interval', '0'
   setting 'time_series.poll_interval', '10m'
+  // Disable shard balancing to avoid force merges failing due to relocating shards.
+  setting 'cluster.routing.rebalance.enable', 'none'
 }
 
 if (buildParams.inFipsJvm){

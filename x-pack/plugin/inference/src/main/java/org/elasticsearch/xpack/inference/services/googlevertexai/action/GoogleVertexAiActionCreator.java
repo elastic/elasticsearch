@@ -73,13 +73,14 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
 
     @Override
     public ExecutableAction create(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
 
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
-            model,
+            overriddenModel,
             CHAT_COMPLETION_HANDLER,
-            inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
+            inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
             ChatCompletionInput.class
         );
 

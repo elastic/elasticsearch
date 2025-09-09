@@ -81,7 +81,7 @@ public class CountTests extends AbstractAggregationTestCase {
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "Count[field=Attribute[channel=0]]",
+                        "Count",
                         DataType.LONG,
                         equalTo(0L)
                     )
@@ -103,12 +103,7 @@ public class CountTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var rowCount = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
 
-            return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData),
-                "Count[field=Attribute[channel=0]]",
-                DataType.LONG,
-                equalTo(rowCount)
-            );
+            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), "Count", DataType.LONG, equalTo(rowCount));
         });
     }
 }

@@ -14,13 +14,14 @@ import java.nio.file.Path;
 /**
  * An object to represent the loaded version of a transport version upper bound.
  *
- * An upper bound is the maximum transport version id that should be loaded for a given release branch.
+ * An upper bound is the maximum transport version definitionId that should be loaded for a given release branch.
  */
-record TransportVersionUpperBound(String branch, String name, TransportVersionId id) {
+record TransportVersionUpperBound(String name, String definitionName, TransportVersionId definitionId) {
     public static TransportVersionUpperBound fromString(Path file, String contents) {
         String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");
-        String branch = filename.substring(0, filename.length() - 4);
+        int slashIndex = filename.lastIndexOf('/');
+        String branch = filename.substring(slashIndex == -1 ? 0 : (slashIndex + 1), filename.length() - 4);
 
         String[] parts = contents.split(",");
         if (parts.length != 2) {

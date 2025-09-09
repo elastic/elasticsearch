@@ -15,7 +15,7 @@
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash)."
         }
       ],
@@ -33,7 +33,7 @@
         {
           "name" : "precision",
           "type" : "integer",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash)."
         },
         {

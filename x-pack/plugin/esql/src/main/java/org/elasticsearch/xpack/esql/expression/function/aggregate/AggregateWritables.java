@@ -41,10 +41,8 @@ public class AggregateWritables {
             SumOverTime.ENTRY,
             CountOverTime.ENTRY,
             CountDistinctOverTime.ENTRY,
-            // internal functions
-            ToPartial.ENTRY,
-            FromPartial.ENTRY,
-            WeightedAvg.ENTRY
+            WeightedAvg.ENTRY,
+            Present.ENTRY
         );
     }
 }

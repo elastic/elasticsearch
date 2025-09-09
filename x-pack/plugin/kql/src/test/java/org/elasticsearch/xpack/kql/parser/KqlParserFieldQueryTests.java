@@ -93,8 +93,15 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR OR")), KEYWORD_FIELD_NAME, "OR OR");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR NOT")), KEYWORD_FIELD_NAME, "OR NOT");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT")), KEYWORD_FIELD_NAME, "NOT");
-        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT AND")), KEYWORD_FIELD_NAME, "NOT AND");
-        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT OR")), KEYWORD_FIELD_NAME, "NOT OR");
+
+        assertMustNotQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT AND")),
+            subQuery -> assertTermQueryBuilder(subQuery, KEYWORD_FIELD_NAME, "AND")
+        );
+        assertMustNotQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT OR")),
+            subQuery -> assertTermQueryBuilder(subQuery, KEYWORD_FIELD_NAME, "OR")
+        );
 
         // Check we can use quoted field name as well
         assertThat(
@@ -172,8 +179,15 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR OR")), fieldName, "OR OR");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR NOT")), fieldName, "OR NOT");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT")), fieldName, "NOT");
-            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT AND")), fieldName, "NOT AND");
-            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT OR")), fieldName, "NOT OR");
+            assertMustNotQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "NOT AND")),
+                subQuery -> assertMatchQueryBuilder(subQuery, fieldName, "AND")
+            );
+            assertMustNotQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "NOT OR")),
+                subQuery -> assertMatchQueryBuilder(subQuery, fieldName, "OR")
+            );
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "ballon d'or")), fieldName, "ballon d'or");
 
             // Check we can use quoted field name as well
             assertThat(

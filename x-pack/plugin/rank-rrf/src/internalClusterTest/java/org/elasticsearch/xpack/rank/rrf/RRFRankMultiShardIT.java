@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
@@ -136,7 +137,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testTotalDocsSmallerThanSize() {
         float[] queryVector = { 0.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, IVF_FORMAT.isEnabled() ? 10f : null, null, null);
         assertResponse(
             prepareSearch("tiny_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))
@@ -167,7 +168,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testBM25AndKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -208,8 +217,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultipleOnlyKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder(
+            "vector_asc",
+            queryVectorAsc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder(
+            "vector_desc",
+            queryVectorDesc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(true)
@@ -260,8 +285,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder(
+            "vector_asc",
+            queryVectorAsc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder(
+            "vector_desc",
+            queryVectorDesc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(false)
@@ -332,7 +373,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testBM25AndKnnWithBucketAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(true)
@@ -389,8 +438,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultipleOnlyKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder(
+            "vector_asc",
+            queryVectorAsc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder(
+            "vector_desc",
+            queryVectorDesc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(false)
@@ -457,8 +522,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder(
+            "vector_asc",
+            queryVectorAsc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder(
+            "vector_desc",
+            queryVectorDesc,
+            51,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(51, 1))
                 .setTrackTotalHits(true)
@@ -704,7 +785,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testMultiBM25AndSingleKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -762,7 +851,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     public void testMultiBM25AndSingleKnnWithAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -837,8 +934,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultiBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder(
+            "vector_asc",
+            queryVectorAsc,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder(
+            "vector_desc",
+            queryVectorDesc,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -899,8 +1012,24 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
     public void testMultiBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 101, 1001, null, null);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 101, 1001, null, null);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder(
+            "vector_asc",
+            queryVectorAsc,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder(
+            "vector_desc",
+            queryVectorDesc,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(101, 1))
                 .setTrackTotalHits(false)
@@ -979,7 +1108,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         // the first result should be the one present in both queries (i.e. doc with text0: 10 and vector: [10]) and the other ones
         // should only match the knn query
         float[] queryVector = { 9f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null).queryName("my_knn_search");
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        ).queryName("my_knn_search");
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))
@@ -1045,7 +1182,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         // in this test we try knn with a query on an unknown field that would be rewritten to MatchNoneQuery
         // so we expect results and explanations only for the first part
         float[] queryVector = { 9f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null).queryName("my_knn_search");
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        ).queryName("my_knn_search");
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))
@@ -1112,7 +1257,15 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         // while the other one would produce a match.
         // So, we'd have a total of 3 queries, a (rewritten) MatchNoneQuery, a TermQuery, and a kNN query
         float[] queryVector = { 9f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null, null).queryName("my_knn_search");
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder(
+            "vector_asc",
+            queryVector,
+            101,
+            1001,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        ).queryName("my_knn_search");
         assertResponse(
             prepareSearch("nrd_index").setRankBuilder(new RRFRankBuilder(100, 1))
                 .setKnnSearch(List.of(knnSearch))

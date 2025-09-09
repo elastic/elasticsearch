@@ -433,7 +433,11 @@ public abstract class AbstractScopedSettings {
         assert setting.getProperties().contains(Setting.Property.Dynamic)
             || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
         assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
-        consumer.accept(setting.get(settings));
+
+        // this mimics the combined settings of last applied and node settings, without building a new settings object
+        Settings settingsWithValue = setting.exists(lastSettingsApplied) ? lastSettingsApplied : settings;
+
+        consumer.accept(setting.get(settingsWithValue));
         addSettingsUpdateConsumer(setting, consumer);
     }
 

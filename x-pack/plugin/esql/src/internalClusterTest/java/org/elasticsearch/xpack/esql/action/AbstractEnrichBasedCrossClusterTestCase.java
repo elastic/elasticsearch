@@ -87,6 +87,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
     }
 
     static final EnrichPolicy hostPolicy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));
+    static final EnrichPolicy hostPolicyLocal = new EnrichPolicy("match", null, List.of("hosts_local"), "ip", List.of("ip", "os"));
     static final EnrichPolicy vendorPolicy = new EnrichPolicy("match", null, List.of("vendors"), "os", List.of("os", "vendor"));
 
     @Before
@@ -115,18 +116,23 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
             "Windows"
         );
         for (String cluster : allClusters()) {
-            Client client = client(cluster);
-            client.admin().indices().prepareCreate("hosts").setMapping("ip", "type=ip", "os", "type=keyword").get();
-            for (Map.Entry<String, String> h : allHosts.entrySet()) {
-                client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
-            }
-            client.admin().indices().prepareRefresh("hosts").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", hostPolicy))
-                .actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
-                .actionGet();
-            assertAcked(client.admin().indices().prepareDelete("hosts"));
+            initHostsPolicy(client(cluster), "hosts", hostPolicy, allHosts);
         }
+        // create policy on coordinator only
+        initHostsPolicy(client(), "hosts_local", hostPolicyLocal, allHosts);
+    }
+
+    private static void initHostsPolicy(Client client, String indexName, EnrichPolicy policy, Map<String, String> allHosts) {
+        client.admin().indices().prepareCreate(indexName).setMapping("ip", "type=ip", "os", "type=keyword").get();
+        for (Map.Entry<String, String> h : allHosts.entrySet()) {
+            client.prepareIndex(indexName).setSource("ip", h.getKey(), "os", h.getValue()).get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+        client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, indexName, policy))
+            .actionGet();
+        client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, indexName))
+            .actionGet();
+        assertAcked(client.admin().indices().prepareDelete(indexName));
     }
 
     @Before
@@ -201,7 +207,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
     public void wipeEnrichPolicies() {
         for (String cluster : allClusters()) {
             cluster(cluster).wipe(Set.of());
-            for (String policy : List.of("hosts", "vendors")) {
+            for (String policy : List.of("hosts", "hosts_local", "vendors")) {
                 if (tolerateErrorsWhenWipingEnrichPolicies()) {
                     try {
                         client(cluster).execute(
@@ -224,6 +230,10 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
 
     static String enrichHosts(Enrich.Mode mode) {
         return EsqlTestUtils.randomEnrichCommand("hosts", mode, hostPolicy.getMatchField(), hostPolicy.getEnrichFields());
+    }
+
+    static String enrichHostsLocal(Enrich.Mode mode) {
+        return EsqlTestUtils.randomEnrichCommand("hosts_local", mode, hostPolicyLocal.getMatchField(), hostPolicyLocal.getEnrichFields());
     }
 
     static String enrichVendors(Enrich.Mode mode) {

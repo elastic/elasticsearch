@@ -154,7 +154,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                     return a.timeSeriesHash.compareTo(b.timeSeriesHash) < 0;
                 }
             };
-            Weight weight = luceneSlice.weight();
+            Weight weight = luceneSlice.createWeight();
             processedQueries.add(weight.getQuery());
             int maxSegmentOrd = 0;
             for (var leafReaderContext : luceneSlice.leaves()) {

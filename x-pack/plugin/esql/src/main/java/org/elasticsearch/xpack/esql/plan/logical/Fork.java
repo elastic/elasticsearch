@@ -29,6 +29,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+
 /**
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
@@ -121,7 +123,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                     continue;
                 }
 
-                if (names.contains(attr.name()) == false && attr.name().equals(Analyzer.NO_FIELDS_NAME) == false) {
+                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
                     names.add(attr.name());
                     output.add(attr);
                 }

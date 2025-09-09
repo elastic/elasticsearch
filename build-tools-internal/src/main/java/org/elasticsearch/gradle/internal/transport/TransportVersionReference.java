@@ -29,7 +29,7 @@ record TransportVersionReference(String name, String location) {
     private static final Attribute<Boolean> REFERENCES_ATTRIBUTE = Attribute.of("transport-version-references", Boolean.class);
 
     static List<TransportVersionReference> listFromFile(Path file) throws IOException {
-        assert file.endsWith(".csv");
+        assert file.toString().endsWith(".csv") : file + " does not end in .csv";
         List<TransportVersionReference> results = new ArrayList<>();
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
             String[] parts = line.split(",", 2);

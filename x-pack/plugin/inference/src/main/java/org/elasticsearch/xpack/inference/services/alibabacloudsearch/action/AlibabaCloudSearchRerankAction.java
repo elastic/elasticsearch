@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.Alib
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class AlibabaCloudSearchRerankAction implements ExecutableAction {
@@ -46,16 +44,14 @@ public class AlibabaCloudSearchRerankAction implements ExecutableAction {
 
     @Override
     public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
+            failedToSendRequestErrorMessage,
+            listener
+        );
         try {
-            ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
-                failedToSendRequestErrorMessage,
-                listener
-            );
             sender.send(requestCreator, inferenceInputs, timeout, wrappedListener);
-        } catch (ElasticsearchException e) {
-            listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(createInternalServerError(e, failedToSendRequestErrorMessage));
+            wrappedListener.onFailure(e);
         }
     }
 }

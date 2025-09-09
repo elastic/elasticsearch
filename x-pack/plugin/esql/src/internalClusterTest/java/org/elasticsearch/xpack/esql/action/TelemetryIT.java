@@ -157,7 +157,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
-                    "TS time_series_idx | STATS max(id) BY host | LIMIT 10",
+                    "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
                     EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
                         ? Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
                         : Collections.emptyMap(),

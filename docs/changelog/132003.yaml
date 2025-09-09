@@ -1,0 +1,5 @@
+pr: 132003
+summary: Add `copy_from` option to the Append processor
+area: Ingest Node
+type: enhancement
+issues: []

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +35,10 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
+
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
 
     public static RateLimitSettings of(
         Map<String, Object> map,
@@ -133,7 +137,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public RateLimitSettings(StreamInput in) throws IOException {
         requestsPerTimeUnit = in.readVLong();
         timeUnit = TimeUnit.MINUTES;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
             enabled = in.readBoolean();
         } else {
             enabled = true;
@@ -167,7 +171,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(requestsPerTimeUnit);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
             out.writeBoolean(enabled);
         }
     }

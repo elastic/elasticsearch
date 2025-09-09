@@ -54,7 +54,8 @@ import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
+import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.ES920HnswComposableKnnVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
@@ -1952,7 +1953,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             if (elementType == ElementType.BIT) {
-                return new ES815HnswBitVectorsFormat(m, efConstruction);
+                return new ES920HnswComposableKnnVectorsFormat(new ES815BitFlatVectorsFormat(), m, efConstruction);
             }
             return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
         }
@@ -2848,7 +2849,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
         final KnnVectorsFormat format;
         if (indexOptions == null) {
-            format = fieldType().element.elementType() == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
+            // TODO THIS DUMB WRAPPER BELOW BREAKS THIS
+            return new ES920HnswComposableKnnVectorsFormat(new ES815BitFlatVectorsFormat(), 16, 100);
         } else {
             format = indexOptions.getVectorsFormat(fieldType().element.elementType());
         }

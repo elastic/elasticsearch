@@ -20,6 +20,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.ComposablePerFieldKnnVectorsFormat;
 
 import java.util.List;
 import java.util.Map;
@@ -95,6 +96,9 @@ public class MergeMemoryEstimator {
     private static long estimateVectorFieldMemory(FieldInfo fieldInfo, SegmentCommitInfo segmentCommitInfo, SegmentReader segmentReader) {
         KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldKnnVectorsFormat) {
+            vectorsReader = perFieldKnnVectorsFormat.getFieldReader(fieldInfo.getName());
+        }
+        if (vectorsReader instanceof ComposablePerFieldKnnVectorsFormat.FieldsReader perFieldKnnVectorsFormat) {
             vectorsReader = perFieldKnnVectorsFormat.getFieldReader(fieldInfo.getName());
         }
 

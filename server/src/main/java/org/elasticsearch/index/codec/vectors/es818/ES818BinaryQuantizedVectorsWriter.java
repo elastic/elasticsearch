@@ -49,6 +49,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.ComposablePerFieldKnnVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.Closeable;
@@ -553,6 +554,9 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
 
     static float[] getCentroid(KnnVectorsReader vectorsReader, String fieldName) {
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
+            vectorsReader = candidateReader.getFieldReader(fieldName);
+        }
+        if (vectorsReader instanceof ComposablePerFieldKnnVectorsFormat.FieldsReader candidateReader) {
             vectorsReader = candidateReader.getFieldReader(fieldName);
         }
         if (vectorsReader instanceof ES818BinaryQuantizedVectorsReader reader) {

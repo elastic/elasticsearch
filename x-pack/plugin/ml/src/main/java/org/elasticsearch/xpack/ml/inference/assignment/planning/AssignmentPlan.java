@@ -445,8 +445,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 return this;
             }
 
-            validateAssignment(deployment, node, allocations);
-
             assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + allocations);
             accountMemory(deployment, node, requiredMemory);
 
@@ -455,39 +453,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             }
             remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - allocations);
             return this;
-        }
-
-        void validateAssignment(Deployment deployment, Node node, int allocations) {
-            long requiredMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
-            validateAssignment(deployment, node, allocations, requiredMemory);
-        }
-
-        private void validateAssignment(Deployment deployment, Node node, int allocations, long requiredMemory) {
-            if (requiredMemory > remainingNodeMemory.get(node)) {
-                throw new IllegalArgumentException(
-                    "not enough memory on node ["
-                        + node.id()
-                        + "] to assign ["
-                        + allocations
-                        + "] allocations to deployment ["
-                        + deployment.deploymentId()
-                        + "]"
-                );
-            }
-
-            if (deployment.priority == Priority.NORMAL && allocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
-                throw new IllegalArgumentException(
-                    "not enough cores on node ["
-                        + node.id()
-                        + "] to assign ["
-                        + allocations
-                        + "] allocations to deployment ["
-                        + deployment.deploymentId()
-                        + "]; required threads per allocation ["
-                        + deployment.threadsPerAllocation()
-                        + "]"
-                );
-            }
         }
 
         private int getAssignedAllocations(Deployment deployment, Node node) {

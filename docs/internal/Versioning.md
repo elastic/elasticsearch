@@ -22,134 +22,119 @@ it could be any arbitrary string.
 
 ## Transport protocol
 
-The transport protocol is used to send binary data between Elasticsearch nodes; the
-`TransportVersion` is the version number used for this protocol.
-This version number is negotiated between each pair of nodes in the cluster
-on first connection, and is set as the lower of the highest transport version
-understood by each node.
+The transport protocol is used to send binary data between Elasticsearch nodes; a
+`TransportVersion` encapsulates versioning of this protocol.
+This version is negotiated between each pair of nodes in the cluster
+on first connection, selecting the highest shared version.
 This version is then accessible through the `getTransportVersion` method
 on `StreamInput` and `StreamOutput`, so serialization code can read/write
 objects in a form that will be understood by the other node.
 
-Internally, every change to the transport protocol is represented by a new transport version, higher than all previous
-transport versions, which then becomes the highest version recognized by that build of Elasticsearch. The version ids
-are stored
-in state files in the `transport/` resources directory.
-Each id has a standard pattern `M_NNN_S_PP`, where:
-
-* `M` is the major version
-* `NNN` is an incrementing id
-* `S` is used in subsidiary repos amending the default transport protocol
-* `PP` is used for patches and backports
-
-* For every change to the transport protocol (serialization of any object), we need to create a new transport version
-  _in the same PR that adds the change_.
-
-[//]: # (TODO description of state files, patch version, and latest upper bounds)
+At a high level a `TransportVersion` contains one id per release branch it will
+be committed to. Each `TransportVersion` has a name selected when it is generated.
+In order to ensure consistency and robustness, all new `TransportVersion`s
+must first be created in the `main` branch and then backported to the relevant
+release branches.
 
 _Elastic developers_ - please see corresponding documentation for Serverless
 on creating transport versions for Serverless changes.
 
-### Creating transport versions
+### Creating transport versions locally
 
-We use gradle tooling to manage the creation of transport versions state files. To create a new transport version, first
-declare a reference anywhere in the java code. The `fromName` arg (called the "name") must be a string literal, composed
-only of characters that are alphanumeric or underscores:
+To create a transport version, declare a reference anywhere in java code. For example:
 
-    private static final TransportVersion MY_NEW_TV = TransportVersion.fromName("my_new_tv"); 
+    private static final TransportVersion MY_NEW_TV = TransportVersion.fromName("my_new_tv");
 
-Next, you need to create the transport version state stored in the resource files, including the creation of a new
-transport version id. This is done by running the `:generateTransportVersion` gradle task. The generation task can
-automatically detect the name by checking if a state file is missing for a given constant. e.g.:
+`fromName` takes an arbitrary String name. The String must be a String literal;
+it cannot a reference to a String. It must match the regex `[_0-9a-zA-Z]+`.
 
-    ./gradlew :generateTransportVersion
-
-Once you have declared your constant and generated its state, you can then use it to gate serialization code. e.g.:
+Once you have declared your `TransportVersion` you can use it in serialization code.
+For example, in a constructor that takes `StreamInput in`:
 
     if (in.getTransportVersion().supports(MY_NEW_TV)) {
         // new serialization code
     }
 
-Note that the generation task is idempotent. This means that if you have already generated a transport version file, and
-you run the task again, it will not create a duplicate transport version id. If you remove backports (described below)
-from a subsequent run, the backport will be removed from the state files. It is important to note that only one
-transport version may be generated for a given PR, though it can be referenced in multiple places in the code by using
-the same name.
+Finally, in order to run Elasticsearch or run tests, the transport version ids
+must be generated. Run the following gradle task:
+
+    ./gradlew generateTransportVersion
+
+This will generate the internal state to support the new transport version. If
+you also intend to backport your code, include branches you will backport to:
+
+    ./gradlew generateTransportVersion --backport-branches=9.1,8.19
+
+### Updating transport versions
+
+You can modify a transport version before it is merged to `main`. This includes
+renaming the transport version, updating the branches it will be backported to,
+or even removing the transport version itself.
+
+The generation task is idempotent. It can be re-run at any time and will result
+in a valid internal state. For example, if you want to add an additional
+backport branch, re-run the generation task with all the target backport
+branches:
+
+    ./gradlew generateTransportVersion --backport-branches=9.1,9.0,8.19,8.18
+
+You can also let CI handle updating transport versions for you. As version
+labels are updated on your PR, the generation task is automatically run with
+the appropriate backport branches and any changes to the internal state files
+are committed to your branch.
+
+Transport versions can also have additional branches added after merging to
+`main`. When doing so, you must include all branches the transport version was
+added to in addition to new branch. For example, if you originally committed
+your transport version `my_tv` to `main` and `9.1`, and then realized you also
+needed to backport to `8.19` you would run:
+
+    ./gradlew generateTransportVersion --name=my_tv --backport-branches=9.1,8.19
+
+In the above case CI will not know what transport version name to update, so you
+must update the transport version manually.
+
+### Resolving merge conflicts
+
+Transport versions are created sequentially. If two developers create a transport
+version at the same time, based on the same `main` commit, they will generate
+the same internal ids. The first of these two merged into `main` will "win", and
+the latter will have a merge conflict with `main`.
+
+In the event of a conflict, merge `main` into your branch. You will have
+conflict(s) with transport version internal state files. Run the following
+generate task to resolve the conflict:
+
+    ./gradlew generateTransportVersion --update
+
+This command will regenerate your transport version and stage the updated
+state files in git. You can then proceed with your merge as usual.
 
 ### Reverting changes
 
-#### On main
+Transport version cannot be removed, they can only be added. If the logic
+using a transport version needs to be reverted, it must be done with a
+new transport version.
 
-Once a transport change with a new version has been merged into main or a release branch,
-it **must not** be modified - this is so the meaning of that specific
-transport version does not change.
+For example, if you have previously added a transport version named
+`original_tv` you could add `revert_tv` reversing the logic:
 
-If a transport version change on main needs to be reverted, a **new** version constant
-should be added representing the revert. The version id checks should be
-adjusted to only use the modified protocol between the version id
-the change was added, and the new version id used for the revert (exclusive).
-
-    TransportVersion inTV = in.getTransportVersion();
-    if (inTV.supports(MY_ORIGINAL_TV) && inTV.supports(MY_REVERT_TV) == false) {
-        // old serialization code
-    } else if (inTV.supports(MY_REVERT_TV)) {
-        // new serialization code
+    TransportVersion tv = in.getTransportVersion();
+    if (tv.supports(ORIGINAL_TV) && tv.supports(REVERT_TV) == false) {
+        // serialization code being reverted
     }
-
-#### On a PR
-
-A transport version change in a PR that has not yet been merged can be easily reverted by simply removing the code that
-references the transport version (`TransportVersion.fromName("my_new_tv");`), then rerunning the generation task with no
-args. Because this command is idempotent, it will detect that the transport version constant is no longer referenced,
-and remove the corresponding state file. E.g.:
-
-    ./gradlew :generateTransportVersion
-
-### Backporting transport versions
-
-To prevent race conditions, all transport version ids are first created on the `main` branch, after which they can be
-backported to prior release branches.
-
-Backport state files can either be generated on the command line by gradle, or by adding a gihub version label to your
-PR.
-
-If you have already generated a transport version file, gradle will not be able to automatically detect which transport
-version you want to create backport ids for, so you will need to specify the name as an arg. E.g.:
-
-    ./gradlew :generateTransportVersion --name=my_new_tv --backport-branches=9.1,9.0
-
-If you later decide that you'd like to remove a backport, you can rerun the above command without the branch you want to
-remove. e.g. to remove the 9.0 backport:
-
-    ./gradlew :generateTransportVersion --name=my_new_tv --backport-branches=9.1
-
-You can also remove the label on github, and this will trigger CI to remove the backport.
-
-It is also safe to create backports for pre-existing transport versions on main, just be sure to include the code
-changes in the same PR to the prior release branch (these must be part of a single atomic commit). E.g.:
-
-    ./gradlew :generateTransportVersion --name=my_preexisting_tv --backport-branches=9.1,9.0
-
-#### Merge conflicts
-
-By design, a merge conflict will occur when two different PRs try to create the same transport version id (e.g. because
-they were both based off the same prior id in main). This will produce a merge conflict in a state file in the
-`transport/upper_bounds/` resource directory. To resolve the conflict, rerun the full generation command, and it will
-regenerate the state files, including the new transport version id. E.g.:
-
-    ./gradlew :generateTransportVersion --name=my_new_tv 
 
 ### Minimum compatibility versions
 
 The transport version used between two nodes is determined by the initial handshake
 (see `TransportHandshaker`, where the two nodes swap their highest known transport version).
 The lowest transport version that is compatible with the current node
-is determined by `TransportVersions.MINIMUM_COMPATIBLE`,
+is determined by `TransportVersion.minimumCompatible()`,
 and the node is prevented from joining the cluster if it is below that version.
 This constant should be updated manually on a major release.
 
 The minimum version that can be used for CCS is determined by
-`TransportVersions.MINIMUM_CCS_VERSION`, but this is not actively checked
+`TransportVersion.minimumCCSVersion()`, but this is not actively checked
 before queries are performed. Only if a query cannot be serialized at that
 version is an action rejected. This constant is updated automatically
 as part of performing a release.

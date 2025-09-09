@@ -84,13 +84,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
         ClusterSettings clusterSettings,
         MockTransportService transportService
     ) {
-        if (linkedProjectConfigService == null) {
-            linkedProjectConfigService = new ClusterSettingsLinkedProjectConfigService(
-                settings,
-                clusterSettings,
-                DefaultProjectResolver.INSTANCE
-            );
-        }
+        linkedProjectConfigService = new ClusterSettingsLinkedProjectConfigService(
+            settings,
+            clusterSettings,
+            DefaultProjectResolver.INSTANCE
+        );
         return new RemoteClusterService(settings, transportService, DefaultProjectResolver.INSTANCE);
     }
 

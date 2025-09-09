@@ -687,14 +687,45 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
-    public void testErrorMessageForArrayValuesInParams() throws IOException {
+    public void testArrayValuesAllowedInValueParams() throws IOException {
+        Map<String, Object> responseMap = runEsql(
+            RequestObjectBuilder.jsonBuilder()
+                .query("row a = ?n1 | eval s = ?n2")
+                .params("[{\"n1\" : [\"a1\", \"a2\"]}, {\"n2\" : [1, 2]}]")
+        );
+        System.out.println(responseMap);
+
+        ListMatcher values = matchesList().item(
+            matchesList().item(matchesList().item("a1").item("a2")).item(matchesList().item(1).item(2))
+        );
+
+        assertResultMap(
+            responseMap,
+            matchesList().item(matchesMap().entry("name", "a").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "s").entry("type", "integer")),
+            values
+        );
+    }
+
+    public void testErrorMessageForArrayValuesInNonValueParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
+            () -> runEsql(
+                RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval ?n1 = 5").params("[{\"n1\" : {\"identifier\" : [\"integer\"]}}]")
+            )
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("Failed to parse params: [1:45] n1=[5, 6, 7] is not supported as a parameter")
+            containsString("\"Failed to parse params: [1:47] n1={identifier=[integer]} parameter is multivalued")
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | keep ?n1").params("[{\"n1\" : {\"pattern\" : [\"a*\"]}}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("\"Failed to parse params: [1:43] n1={pattern=[a*]} parameter is multivalued")
         );
     }
 

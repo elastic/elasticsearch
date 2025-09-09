@@ -23,7 +23,16 @@ public class IgnoreAboveTests extends ESTestCase {
         assertTrue(ignoreAbove.isSet());
     }
 
-    public void test_ignore_above_with_default_only_is_valid() {
+    public void test_ignore_above_with_value_only() {
+        // given
+        IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(123).build();
+
+        // when/then
+        assertEquals(123, ignoreAbove.get());
+        assertTrue(ignoreAbove.isSet());
+    }
+
+    public void test_ignore_above_with_default_only() {
         // given
         IgnoreAbove ignoreAbove = IgnoreAbove.builder().defaultValue(456).build();
 
@@ -41,14 +50,9 @@ public class IgnoreAboveTests extends ESTestCase {
         assertFalse(ignoreAbove.isSet());
     }
 
-    public void test_ignore_above_with_value_only_should_throw() {
-        // given/when/then
-        assertThrows(NullPointerException.class, () -> IgnoreAbove.builder().value(123).build());
-    }
-
     public void test_ignore_above_with_nothing_should_throw() {
         // given/when/then
-        assertThrows(NullPointerException.class, () -> IgnoreAbove.builder().build());
+        assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().build());
     }
 
     public void test_string_isIgnored() {

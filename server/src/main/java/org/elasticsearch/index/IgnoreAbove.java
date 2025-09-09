@@ -11,8 +11,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.xcontent.XContentString;
 
-import java.util.Objects;
-
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES;
 
@@ -33,8 +31,13 @@ public class IgnoreAbove {
     private final Integer defaultValue;
 
     public IgnoreAbove(Integer value, Integer defaultValue) {
+        if (value == null && defaultValue == null) {
+            throw new IllegalArgumentException(
+                "IgnoreAbove must be initialized with at least one non-null argument: either 'value' or 'defaultValue'"
+            );
+        }
         this.value = value;
-        this.defaultValue = Objects.requireNonNull(defaultValue);
+        this.defaultValue = defaultValue;
     }
 
     public int get() {

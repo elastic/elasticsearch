@@ -29,24 +29,24 @@ base {
 
 dependencies {
 
-  api project(':libs:core')
-  api project(':libs:logging')
+  implementation project(':libs:core')
+  implementation project(':libs:logging')
   api project(':libs:x-content')
   api project(":libs:geo")
-  api project(":libs:lz4")
-  api project(":libs:plugin-api")
+  implementation project(":libs:lz4")
+  implementation project(":libs:plugin-api")
   api project(":libs:plugin-analysis-api")
-  api project(':libs:grok')
+  implementation project(':libs:grok')
   api project(":libs:tdigest")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
   // lucene
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
-  api "org.apache.lucene:lucene-facet:${versions.lucene}"
-  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-facet:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
   api "org.apache.lucene:lucene-join:${versions.lucene}"
   api "org.apache.lucene:lucene-memory:${versions.lucene}"

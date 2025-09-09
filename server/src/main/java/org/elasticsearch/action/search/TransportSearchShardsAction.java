@@ -16,6 +16,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
@@ -113,7 +114,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             System::nanoTime
         );
 
-        final ProjectState project = projectResolver.getProjectState(clusterService.state());
+        final ClusterState clusterState = clusterService.state();
+        final ProjectState project = projectResolver.getProjectState(clusterState);
         final ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             searchShardsRequest,
             project.metadata(),
@@ -130,7 +132,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             original,
             searchService.getRewriteContext(
                 timeProvider::absoluteStartMillis,
-                clusterService.state().getMinTransportVersion(),
+                clusterState.getMinTransportVersion(),
                 searchShardsRequest.clusterAlias(),
                 resolvedIndices,
                 null,

@@ -44,7 +44,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -115,6 +117,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
+    protected EsqlStatement statement(ParseTree ctx) {
+        EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
+        return p;
+    }
+
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
@@ -132,6 +139,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
+    @Override
+    public EsqlStatement visitStatements(EsqlBaseParser.StatementsContext ctx) {
+        List<QuerySetting> settings = new ArrayList<>();
+        for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
+            settings.add(visitSetCommand(setCommandContext));
+        }
+
+        LogicalPlan query = visitSingleStatement(ctx.singleStatement());
+        return new EsqlStatement(query, settings);
+    }
+
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
         return ParserUtils.visitList(this, ctxs, LogicalPlan.class);
     }
@@ -141,6 +159,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var plan = plan(ctx.query());
         telemetryAccounting(plan);
         return plan;
+    }
+
+    @Override
+    public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
+        var field = visitSetField(ctx.setField());
+        return new QuerySetting(source(ctx), field);
+    }
+
+    @Override
+    public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
+        String name = visitIdentifier(ctx.identifier());
+        Expression value = expression(ctx.constant());
+        return new Alias(source(ctx), name, value);
     }
 
     @Override

@@ -134,23 +134,15 @@ class TrainedModelAssignmentRebalancer {
         return finalPlanBuilder.build();
     }
 
-    private static void copyAssignments(
-        AssignmentPlan source,
-        AssignmentPlan.Builder dest,
-        Map<String, AssignmentPlan.Node> originalNodeById
-    ) {
-        for (AssignmentPlan.Deployment m : source.models()) {
-            Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
-            for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
-                AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
-                dest.assignModelToNode(m, originalNode, assignment.getValue());
-                if (m.currentAllocationsByNodeId().containsKey(originalNode.id())) {
-                    // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
-                    // As the node has all its available memory we need to manually account memory of models with
-                    // current allocations.
-                    long requiredMemory = m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId().get(originalNode.id()));
-                    dest.accountMemory(m, originalNode, requiredMemory);
-                }
+    /**
+     *  Transfers assignments from the source AssignmentPlan to the destination AssignmentPlan.Builder.
+     */
+    static void copyAssignments(AssignmentPlan source, AssignmentPlan.Builder dest, Map<String, AssignmentPlan.Node> originalNodeById) {
+        for (AssignmentPlan.Deployment deployment : source.models()) {
+            Map<AssignmentPlan.Node, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
+            for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
+                AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
+                dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
             }
         }
     }
@@ -307,9 +299,7 @@ class TrainedModelAssignmentRebalancer {
                         nodes.add(
                             new AssignmentPlan.Node(
                                 discoveryNode.getId(),
-                                // We subtract native inference memory as the planner expects available memory for
-                                // native inference including current assignments.
-                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                load.getFreeMemoryExcludingPerNodeOverhead(),
                                 MlProcessors.get(discoveryNode, allocatedProcessorsScale).roundUp()
                             )
                         );
@@ -324,10 +314,6 @@ class TrainedModelAssignmentRebalancer {
             }
             return nodes;
         }));
-    }
-
-    private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
-        return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
     }
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {

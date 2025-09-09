@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/list-connector-api.html",
       "description": "Get all connectors"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

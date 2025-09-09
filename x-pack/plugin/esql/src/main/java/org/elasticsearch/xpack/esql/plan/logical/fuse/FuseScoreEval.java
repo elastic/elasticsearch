@@ -81,14 +81,14 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
         Double rankConstant = RrfConfig.DEFAULT_RANK_CONSTANT;
         Expression rankConstantExp = options.keyFoldedMap().get(RrfConfig.RANK_CONSTANT);
         if (rankConstantExp != null) {
-            rankConstant = Double.valueOf(rankConstantExp.fold(FoldContext.small()).toString());
+            rankConstant = ((Number) rankConstantExp.fold(FoldContext.small())).doubleValue();
         }
 
         Map<String, Double> weights = new HashMap<>();
         Expression weightsExp = options.keyFoldedMap().get(FuseConfig.WEIGHTS);
         if (weightsExp != null) {
             for (Map.Entry<String, Expression> entry : ((MapExpression) weightsExp).keyFoldedMap().entrySet()) {
-                weights.put(entry.getKey(), Double.valueOf(entry.getValue().fold(FoldContext.small()).toString()));
+                weights.put(entry.getKey(), ((Number) entry.getValue().fold(FoldContext.small())).doubleValue());
             }
         }
 

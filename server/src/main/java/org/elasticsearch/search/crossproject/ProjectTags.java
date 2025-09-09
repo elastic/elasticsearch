@@ -56,6 +56,9 @@ public record ProjectTags(Map<String, String> tags) {
         return tags.get(PROJECT_ALIAS);
     }
 
+    /**
+     * Validate that all required tags are present.
+     */
     public static void validateTags(String projectId, Map<String, String> tags) {
         if (false == tags.containsKey(PROJECT_ID_TAG)) {
             throw missingTagException(projectId, PROJECT_ID_TAG);

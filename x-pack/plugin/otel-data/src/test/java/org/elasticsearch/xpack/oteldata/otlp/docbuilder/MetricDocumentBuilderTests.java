@@ -104,8 +104,8 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
         ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        assertThat(doc.evaluate("@timestamp"), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
-        assertThat(doc.evaluate("start_timestamp"), equalTo(TimeUnit.NANOSECONDS.toMillis(startTimestamp)));
+        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
+        assertThat(doc.<Number>evaluate("start_timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(startTimestamp)));
         assertThat(doc.evaluate("data_stream.type"), equalTo("metrics"));
         assertThat(doc.evaluate("data_stream.dataset"), equalTo("generic.otel"));
         assertThat(doc.evaluate("data_stream.namespace"), equalTo("default"));

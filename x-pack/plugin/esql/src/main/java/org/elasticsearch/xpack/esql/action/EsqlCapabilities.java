@@ -1449,6 +1449,7 @@ public class EsqlCapabilities {
          */
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
 
+        /**
          * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
          */
         IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
@@ -1457,11 +1458,11 @@ public class EsqlCapabilities {
          * Support for the Present function
          */
         FN_PRESENT,
-      
+
         /**
          * TO_DENSE_VECTOR function.
          */
-        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());      
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

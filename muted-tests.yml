@@ -507,6 +507,9 @@ tests:
 - class: org.elasticsearch.action.support.nodes.TransportNodesActionTests
   method: testConcurrentlyCompletionAndCancellation
   issue: https://github.com/elastic/elasticsearch/issues/134277
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  method: testDateHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/134389
 
 # Examples:
 #

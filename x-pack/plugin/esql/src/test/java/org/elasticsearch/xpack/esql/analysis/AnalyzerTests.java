@@ -2352,7 +2352,6 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
 
-
         checkDenseVectorCastingHexKnn("float_vector");
         checkDenseVectorCastingHexKnn("byte_vector");
         checkDenseVectorCastingKnn("float_vector");

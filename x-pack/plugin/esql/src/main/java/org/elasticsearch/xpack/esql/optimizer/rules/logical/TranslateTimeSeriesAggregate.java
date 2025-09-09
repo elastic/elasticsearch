@@ -240,6 +240,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
+        // NOCOMMIT TODO: Should we include the tsid grouping for the group by all? If so, we need to project it away later
         firstPassGroupings.add(tsid.get());
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
@@ -284,6 +285,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
 
+        // NOCOMMIT TODO: Skip this for group by all if we don't need the tsid
+        // Add the _tsid to the EsRelation Leaf, if it's not there already
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
@@ -299,6 +302,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         });
 
+        // NOCOMMIT TODO: I think the group by all path just returns firstPhase here
         final var firstPhase = new TimeSeriesAggregate(
             newChild.source(),
             newChild,

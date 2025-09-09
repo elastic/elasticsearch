@@ -134,6 +134,7 @@ public class CrossClusterApiKeySigner {
      * Build the effective remote cluster settings by merging the currently configured (if any) and new/updated settings
      * <p>
      * - If newSettings is null - use existing settings, used to refresh the dependent files
+     * - If newSettings is empty - return empty settings, used for resetting signing config
      * - If updateSecureSettings is true - merge secure settings from newSettings with current settings, used by secure settings refresh
      * - If updateSecureSettings is false - merge new settings with existing secure settings, used for regular settings update
      */
@@ -142,14 +143,14 @@ public class CrossClusterApiKeySigner {
         @Nullable Settings newSettings,
         boolean updateSecureSettings
     ) {
-        if (currentSettings == null && newSettings == null) {
-            return Settings.EMPTY;
+        if (currentSettings == null) {
+            return newSettings == null ? Settings.EMPTY : newSettings;
         }
         if (newSettings == null) {
             return currentSettings;
         }
-        if (currentSettings == null || newSettings.isEmpty()) {
-            return newSettings;
+        if (newSettings.isEmpty()) {
+            return Settings.EMPTY;
         }
 
         Settings secureSettingsSource = updateSecureSettings ? newSettings : currentSettings;

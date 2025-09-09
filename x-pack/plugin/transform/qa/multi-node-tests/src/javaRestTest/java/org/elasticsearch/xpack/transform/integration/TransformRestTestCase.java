@@ -348,9 +348,20 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         QueryConfig queryConfig,
         String... sourceIndices
     ) {
+        var projectRouting = randomBoolean() ? "_alias:_origin" : null;
+        return createTransformConfigBuilder(id, destinationIndex, projectRouting, queryConfig, sourceIndices);
+    }
+
+    protected TransformConfig.Builder createTransformConfigBuilder(
+        String id,
+        String destinationIndex,
+        String projectRouting,
+        QueryConfig queryConfig,
+        String... sourceIndices
+    ) {
         return TransformConfig.builder()
             .setId(id)
-            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
+            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap(), projectRouting))
             .setDest(new DestConfig(destinationIndex, null, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + id);

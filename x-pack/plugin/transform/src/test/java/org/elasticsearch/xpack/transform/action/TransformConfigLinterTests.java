@@ -61,7 +61,8 @@ public class TransformConfigLinterTests extends ESTestCase {
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+            runtimeMappings,
+            null
         );
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
@@ -91,7 +92,8 @@ public class TransformConfigLinterTests extends ESTestCase {
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+            runtimeMappings,
+            null
         );
 
         assertThat(

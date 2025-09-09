@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -25,12 +26,20 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SourceConfigTests extends AbstractSerializingTransformTestCase<SourceConfig> {
+public class SourceConfigTests extends AbstractBWCSerializationTestCase<SourceConfig> {
 
     private boolean lenient;
 
     public static SourceConfig randomSourceConfig() {
-        return new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), randomRuntimeMappings());
+        return randomSourceConfig(generateRandomStringArray(10, 10, false, false));
+    }
+
+    private static SourceConfig randomSourceConfig(String[] indices) {
+        return new SourceConfig(indices, randomQueryConfig(), randomRuntimeMappings(), randomProjectRouting());
+    }
+
+    private static String randomProjectRouting() {
+        return randomBoolean() ? randomIdentifier() : null;
     }
 
     public static SourceConfig randomInvalidSourceConfig() {
@@ -38,7 +47,8 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         return new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomInvalidQueryConfig(),
-            randomRuntimeMappings()
+            randomRuntimeMappings(),
+            randomProjectRouting()
         );
     }
 
@@ -85,61 +95,57 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     }
 
     public void testConstructor_NoIndices() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SourceConfig(new String[] {}, randomQueryConfig(), randomRuntimeMappings())
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> randomSourceConfig(new String[] {}));
         assertThat(e.getMessage(), is(equalTo("must specify at least one index")));
     }
 
     public void testConstructor_EmptyIndex() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SourceConfig(new String[] { "" }, randomQueryConfig(), randomRuntimeMappings())
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> randomSourceConfig(new String[] { "" }));
         assertThat(e.getMessage(), is(equalTo("all indices need to be non-null and non-empty")));
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SourceConfig(new String[] { "index1", "" }, randomQueryConfig(), randomRuntimeMappings())
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> randomSourceConfig(new String[] { "index1", "" }));
         assertThat(e.getMessage(), is(equalTo("all indices need to be non-null and non-empty")));
     }
 
     public void testGetIndex() {
-        SourceConfig sourceConfig = new SourceConfig(new String[] { "index1" }, randomQueryConfig(), randomRuntimeMappings());
+        SourceConfig sourceConfig = randomSourceConfig(new String[] { "index1" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index1")));
 
-        sourceConfig = new SourceConfig(new String[] { "index1", "index2", "index3" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "index1", "index2", "index3" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "index2", "index3")));
 
-        sourceConfig = new SourceConfig(new String[] { "index1,index2,index3" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "index1,index2,index3" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "index2", "index3")));
 
-        sourceConfig = new SourceConfig(new String[] { "index1", "index2,index3" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "index1", "index2,index3" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "index2", "index3")));
 
-        sourceConfig = new SourceConfig(new String[] { "index1", "remote2:index2" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "index1", "remote2:index2" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "remote2:index2")));
 
-        sourceConfig = new SourceConfig(new String[] { "index1,remote2:index2" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "index1,remote2:index2" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "remote2:index2")));
 
-        sourceConfig = new SourceConfig(new String[] { "remote1:index1", "index2" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "remote1:index1", "index2" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("remote1:index1", "index2")));
 
-        sourceConfig = new SourceConfig(new String[] { "remote1:index1,index2" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "remote1:index1,index2" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("remote1:index1", "index2")));
 
-        sourceConfig = new SourceConfig(new String[] { "index*,remote2:index*" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "index*,remote2:index*" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("index*", "remote2:index*")));
 
-        sourceConfig = new SourceConfig(new String[] { "remote1:index*,remote2:index*" }, randomQueryConfig(), randomRuntimeMappings());
+        sourceConfig = randomSourceConfig(new String[] { "remote1:index*,remote2:index*" });
         assertThat(sourceConfig.getIndex(), is(arrayContaining("remote1:index*", "remote2:index*")));
     }
 
     public void testGetRuntimeMappings_EmptyRuntimeMappings() {
-        SourceConfig sourceConfig = new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), emptyMap());
+        SourceConfig sourceConfig = new SourceConfig(
+            generateRandomStringArray(10, 10, false, false),
+            randomQueryConfig(),
+            emptyMap(),
+            randomProjectRouting()
+        );
         assertThat(sourceConfig.getRuntimeMappings(), is(anEmptyMap()));
         assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(anEmptyMap()));
     }
@@ -159,42 +165,35 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
             "field-C",
             Map.of("script", "some other script")
         );
-        SourceConfig sourceConfig = new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), runtimeMappings);
+        SourceConfig sourceConfig = new SourceConfig(
+            generateRandomStringArray(10, 10, false, false),
+            randomQueryConfig(),
+            runtimeMappings,
+            randomProjectRouting()
+        );
         assertThat(sourceConfig.getRuntimeMappings(), is(equalTo(runtimeMappings)));
         assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(equalTo(scriptBasedRuntimeMappings)));
     }
 
     public void testRequiresRemoteCluster() {
-        assertFalse(
-            new SourceConfig(new String[] { "index1", "index2", "index3" }, randomQueryConfig(), randomRuntimeMappings())
-                .requiresRemoteCluster()
-        );
+        assertFalse(randomSourceConfig(new String[] { "index1", "index2", "index3" }).requiresRemoteCluster());
 
-        assertTrue(
-            new SourceConfig(new String[] { "index1", "remote2:index2", "index3" }, randomQueryConfig(), randomRuntimeMappings())
-                .requiresRemoteCluster()
-        );
+        assertTrue(randomSourceConfig(new String[] { "index1", "remote2:index2", "index3" }).requiresRemoteCluster());
 
-        assertTrue(
-            new SourceConfig(new String[] { "index1", "index2", "remote3:index3" }, randomQueryConfig(), randomRuntimeMappings())
-                .requiresRemoteCluster()
-        );
+        assertTrue(randomSourceConfig(new String[] { "index1", "index2", "remote3:index3" }).requiresRemoteCluster());
 
-        assertTrue(
-            new SourceConfig(new String[] { "index1", "remote2:index2", "remote3:index3" }, randomQueryConfig(), randomRuntimeMappings())
-                .requiresRemoteCluster()
-        );
+        assertTrue(randomSourceConfig(new String[] { "index1", "remote2:index2", "remote3:index3" }).requiresRemoteCluster());
 
-        assertTrue(
-            new SourceConfig(new String[] { "remote1:index1" }, randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster()
-        );
+        assertTrue(randomSourceConfig(new String[] { "remote1:index1" }).requiresRemoteCluster());
 
-        assertFalse(
-            new SourceConfig(new String[] { "index1,index2" }, randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster()
-        );
+        assertFalse(randomSourceConfig(new String[] { "index1,index2" }).requiresRemoteCluster());
 
-        assertTrue(
-            new SourceConfig(new String[] { "index1,remote2:index2" }, randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster()
-        );
+        assertTrue(randomSourceConfig(new String[] { "index1,remote2:index2" }).requiresRemoteCluster());
+    }
+
+    @Override
+    protected SourceConfig mutateInstanceForVersion(SourceConfig instance, TransportVersion version) {
+        // when we start reading/writing projectRouting, this test should fail
+        return instance;
     }
 }

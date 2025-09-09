@@ -11,10 +11,15 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.xcontent.XContentString;
 
+import java.util.Objects;
+
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES;
 
-public record IgnoreAbove(Integer value, int defaultValue) {
+/**
+ * This class models the ignore_above parameter in indices.
+ */
+public class IgnoreAbove {
 
     public static final IgnoreAbove IGNORE_ABOVE_STANDARD_INDICES = IgnoreAbove.builder()
         .defaultValue(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES)
@@ -24,14 +29,29 @@ public record IgnoreAbove(Integer value, int defaultValue) {
         .defaultValue(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES)
         .build();
 
+    private final Integer value;
+    private final Integer defaultValue;
+
+    public IgnoreAbove(Integer value, Integer defaultValue) {
+        this.value = value;
+        this.defaultValue = Objects.requireNonNull(defaultValue);
+    }
+
     public int get() {
         return value != null ? value : defaultValue;
     }
 
+    /**
+     * Returns whether ignore_above is set; at field or index level.
+     */
     public boolean isSet() {
-        return value != null && value != defaultValue;
+        // if ignore_above equals default, its not considered to be set, even if it was explicitly set to the default value
+        return value != null && value.equals(defaultValue) == false;
     }
 
+    /**
+     * Returns whether the given string will be ignored.
+     */
     public boolean isIgnored(final String s) {
         if (s == null) return false;
         return lengthExceedsIgnoreAbove(s.length());
@@ -53,7 +73,7 @@ public record IgnoreAbove(Integer value, int defaultValue) {
     public static final class Builder {
 
         private Integer value;
-        private int defaultValue;  // cannot be null, hence int
+        private Integer defaultValue;
 
         private Builder() {}
 
@@ -62,7 +82,7 @@ public record IgnoreAbove(Integer value, int defaultValue) {
             return this;
         }
 
-        public Builder defaultValue(int defaultValue) {
+        public Builder defaultValue(Integer defaultValue) {
             this.defaultValue = defaultValue;
             return this;
         }

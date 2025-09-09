@@ -69,6 +69,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         Order.OrderDirection direction();
 
         FieldAttribute field();
+
+        /**
+         * Type of the <strong>result</strong> of the sort. For example,
+         * geo distance will be {@link DataType#DOUBLE}.
+         */
+        DataType resulType();
     }
 
     public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Sort {
@@ -88,6 +94,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 in.readEnum(Order.NullsPosition.class)
             );
         }
+
+        @Override
+        public DataType resulType() {
+            return field.dataType();
+        }
     }
 
     public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Sort {
@@ -96,6 +107,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
             builder.order(Direction.from(direction).asOrder());
             return builder;
+        }
+
+        @Override
+        public DataType resulType() {
+            return DataType.DOUBLE;
         }
     }
 
@@ -109,6 +125,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         public FieldAttribute field() {
             // TODO: refactor this: not all Sorts are backed by FieldAttributes
             return null;
+        }
+
+        @Override
+        public DataType resulType() {
+            return DataType.DOUBLE;
         }
     }
 

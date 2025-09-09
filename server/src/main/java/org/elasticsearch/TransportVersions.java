@@ -341,16 +341,6 @@ public class TransportVersions {
     public static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = def(9_124_0_00);
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
-<<<<<<< HEAD
-    public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
-    public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_147_0_00);
-    public static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = def(9_148_0_00);
-    public static final TransportVersion RESOLVE_INDEX_MODE_FILTER = def(9_149_0_00);
-    public static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = def(9_150_0_00);
-    public static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = def(9_151_0_00);
-    public static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = def(9_152_0_00);
-    public static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = def(9_153_0_00);
-    public static final TransportVersion VISIT_PERCENTAGE = def(9_154_0_00);
     public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_155_0_00);
     public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
     public static final TransportVersion RANDOM_SAMPLING = def(9_157_0_00);

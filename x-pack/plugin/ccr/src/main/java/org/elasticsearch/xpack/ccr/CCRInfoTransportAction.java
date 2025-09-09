@@ -29,7 +29,6 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    private final TransportVersion transportVersion = TransportVersion.fromName("my-transport-version");
 
     @Inject
     public CCRInfoTransportAction(

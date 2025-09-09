@@ -9,10 +9,11 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
@@ -22,50 +23,67 @@ import java.util.Map;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
+    public static final String TRANSPORT_REFERENCES_TOPIC = "transportReferences";
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+        var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
+        var resourceRoot = getResourceRoot(project);
 
-        String resourceRoot = getResourceRoot(project);
+        String taskGroup = "Transport Versions";
 
         project.getGradle()
             .getSharedServices()
             .registerIfAbsent("transportVersionResources", TransportVersionResourcesService.class, spec -> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
                 spec.getParameters().getTransportResourcesDirectory().set(transportResources);
-                spec.getParameters().getRootDirectory().set(project.getRootProject().getRootDir());
+                spec.getParameters().getRootDirectory().set(project.getLayout().getSettingsDirectory().getAsFile());
             });
 
-        DependencyHandler depsHandler = project.getDependencies();
-        Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
-        tvReferencesConfig.setCanBeConsumed(false);
-        tvReferencesConfig.setCanBeResolved(true);
-        tvReferencesConfig.attributes(TransportVersionReference::addArtifactAttribute);
-
-        // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
-        for (Project subProject : project.getRootProject().getSubprojects()) {
-            subProject.getPlugins().withType(TransportVersionReferencesPlugin.class).configureEach(plugin -> {
-                tvReferencesConfig.getDependencies().add(depsHandler.project(Map.of("path", subProject.getPath())));
-            });
-        }
+        var depsHandler = project.getDependencies();
+        var tvReferencesConfig = project.getConfigurations().create("globalTvReferences", c -> {
+            c.setCanBeConsumed(false);
+            c.setCanBeResolved(true);
+            c.attributes(TransportVersionReference::addArtifactAttribute);
+            c.getDependencies()
+                .addAllLater(
+                    psService.flatMap(t -> t.getProjectsByTopic(TRANSPORT_REFERENCES_TOPIC))
+                        .map(projectPaths -> projectPaths.stream().map(path -> depsHandler.project(Map.of("path", path))).toList())
+                );
+        });
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionResources", ValidateTransportVersionResourcesTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getShouldValidateDensity().convention(true);
+                t.getShouldValidatePrimaryIdNotPatch().convention(true);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("Generate a manifest resource for all transport version definitions");
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
+
+        var generateDefinitionsTask = project.getTasks()
+            .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
+                t.setGroup(taskGroup);
+                t.setDescription("(Re)generates a transport version definition file");
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getIncrement().convention(1000);
+                Version esVersion = VersionProperties.getElasticsearchVersion();
+                t.getCurrentUpperBoundName().convention(esVersion.getMajor() + "." + esVersion.getMinor());
+            });
+
+        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
     }
 
     private static String getResourceRoot(Project project) {

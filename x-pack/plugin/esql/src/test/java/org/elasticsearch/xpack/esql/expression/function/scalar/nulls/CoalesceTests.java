@@ -183,14 +183,23 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
-        for (DataType dataType : List.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE)) {
+        for (DataType dataType : List.of(
+            DataType.GEO_POINT,
+            DataType.GEO_SHAPE,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
+        )) {
+            String blockType = DataType.isGeoGrid(dataType) ? "Long" : "BytesRef";
             TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             suppliers.add(
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,
                     rightDataSupplier,
-                    (l, r) -> equalTo("CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    (l, r) -> equalTo("Coalesce" + blockType + "EagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
                     dataType,
                     (l, r) -> l
                 )
@@ -223,6 +232,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         @Override
                         public Block eval(Page page) {
                             throw new AssertionError("shouldn't be called");
+                        }
+
+                        @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
                         }
 
                         @Override

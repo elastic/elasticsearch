@@ -28,9 +28,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -45,6 +43,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -62,12 +61,21 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -76,6 +84,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +97,7 @@ import static org.mockito.Mockito.mock;
 
 public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
+    private static final int LESS_THAN_VALUE = -40;
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
@@ -135,12 +146,17 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         for (Page r : results) {
             assertThat(r.getBlockCount(), equalTo(numberOfJoinColumns + 2));
             LongVector match = r.<LongBlock>getBlock(0).asVector();
-            BytesRefVector lkwd = r.<BytesRefBlock>getBlock(numberOfJoinColumns).asVector();
-            IntVector lint = r.<IntBlock>getBlock(numberOfJoinColumns + 1).asVector();
+            BytesRefBlock lkwdBlock = r.getBlock(numberOfJoinColumns);
+            IntBlock lintBlock = r.getBlock(numberOfJoinColumns + 1);
             for (int p = 0; p < r.getPositionCount(); p++) {
                 long m = match.getLong(p);
-                assertThat(lkwd.getBytesRef(p, new BytesRef()).utf8ToString(), equalTo("l" + m));
-                assertThat(lint.getInt(p), equalTo((int) -m));
+                if (m > Math.abs(LESS_THAN_VALUE)) {
+                    assertThat(lkwdBlock.getBytesRef(lkwdBlock.getFirstValueIndex(p), new BytesRef()).utf8ToString(), equalTo("l" + m));
+                    assertThat(lintBlock.getInt(lintBlock.getFirstValueIndex(p)), equalTo((int) -m));
+                } else {
+                    assertTrue("at " + p, lkwdBlock.isNull(p));
+                    assertTrue("at " + p, lintBlock.isNull(p));
+                }
             }
         }
     }
@@ -162,6 +178,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match" + i);
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
+
         return new LookupFromIndexOperator.Factory(
             matchFields,
             sessionId,
@@ -171,8 +188,25 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             lookupIndex,
             lookupIndex,
             loadFields,
-            Source.EMPTY
+            Source.EMPTY,
+            buildLessThanFilter(LESS_THAN_VALUE)
         );
+    }
+
+    private FragmentExec buildLessThanFilter(int value) {
+        FieldAttribute filterAttribute = new FieldAttribute(
+            Source.EMPTY,
+            "lint",
+            new EsField("lint", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression lessThan = new LessThan(
+            new Source(new Location(0, 0), "lint < " + value),
+            filterAttribute,
+            new Literal(Source.EMPTY, value, DataType.INTEGER)
+        );
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        Filter filter = new Filter(Source.EMPTY, esRelation, lessThan);
+        return new FragmentExec(filter);
     }
 
     @Override
@@ -181,19 +215,49 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Override
+    public void testSimpleDescription() {
+        Operator.OperatorFactory factory = simple();
+        String description = factory.describe();
+        assertThat(description, expectedDescriptionOfSimple());
+        try (Operator op = factory.get(driverContext())) {
+            // we use a special pattern here because the description can contain new lines for the right_pre_join_plan
+            String pattern = "^\\w*\\[[\\s\\S]*\\]$";
+            assertThat(description, matchesPattern(pattern));
+        }
+    }
+
+    @Override
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+]");
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            sb.append(" input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i);
+            sb.append("input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i).append(" ");
         }
-        sb.append("]");
+        // Accept either the legacy physical plan rendering (FilterExec/EsQueryExec) or the new FragmentExec rendering
+        sb.append("right_pre_join_plan=(?:");
+        // Legacy pattern
+        sb.append("FilterExec\\[lint\\{f}#\\d+ < ")
+            .append(LESS_THAN_VALUE)
+            .append(
+                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup],\\s*(?:query\\[\\]|\\[\\])?,?\\s*"
+                    + "limit\\[\\],?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[(?:\\[\\]\\])\\]"
+            );
+        sb.append("|");
+        // New FragmentExec pattern
+        sb.append("FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
+            .append("Filter\\[lint\\{f}#\\d+ < ")
+            .append(LESS_THAN_VALUE)
+            .append("\\[INTEGER]]\\n")
+            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]\\]");
+        sb.append(")");
         return matchesPattern(sb.toString());
     }
 
     private LookupFromIndexService lookupService(DriverContext mainContext) {
         boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
+        var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,
@@ -202,7 +266,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .build(),
-            ClusterSettings.createBuiltInClusterSettings()
+            new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
         );
         IndicesService indicesService = mock(IndicesService.class);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();

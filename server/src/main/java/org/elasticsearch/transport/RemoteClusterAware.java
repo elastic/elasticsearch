@@ -28,6 +28,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
+
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
  */
@@ -57,7 +60,7 @@ public abstract class RemoteClusterAware {
      * Returns remote clusters that are enabled in these settings
      */
     protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        return RemoteConnectionStrategy.getRemoteClusters(settings);
+        return RemoteClusterSettings.getRemoteClusters(settings);
     }
 
     /**
@@ -231,13 +234,13 @@ public abstract class RemoteClusterAware {
         List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
             RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
             RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
+            RemoteClusterSettings.REMOTE_CONNECTION_MODE,
+            SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS,
+            SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
+            ProxyConnectionStrategySettings.PROXY_ADDRESS,
+            ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS,
+            ProxyConnectionStrategySettings.SERVER_NAME
         );
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesFieldExtractExec;
@@ -266,6 +267,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
+        List<EsQueryExec.QueryBuilderAndTags> queryAndTagsFromEsQueryExec
+    ) {
+        return ctx -> queryAndTagsFromEsQueryExec.stream().map(queryBuilderAndTags -> {
+            QueryBuilder qb = queryBuilderAndTags.query();
+            return new LuceneSliceQueue.QueryAndTags(
+                shardContexts.get(ctx.index()).toQuery(qb == null ? QueryBuilders.matchAllQuery().boost(0.0f) : qb),
+                queryBuilderAndTags.tags()
+            );
+        }).toList();
+    }
+
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -282,9 +295,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean scoring = esQueryExec.hasScoring();
         if ((sorts != null && sorts.isEmpty() == false)) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
+            long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
+                estimatedPerRowSortSize += EstimatesRowSize.estimateSize(sort.resulType());
             }
+            /*
+             * In the worst case Lucene's TopN keeps each value in memory twice. Once
+             * for the actual sort and once for the top doc. In the best case they share
+             * references to the same underlying data, but we're being a bit paranoid here.
+             */
+            estimatedPerRowSortSize *= 2;
+            // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
+            // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
@@ -293,12 +316,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(rowEstimatedSize),
                 limit,
                 sortBuilders,
+                estimatedPerRowSortSize,
                 scoring
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
-                querySupplier(esQueryExec.query()),
+                querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
                 context.autoPartitioningStrategy().get(),
                 context.queryPragmas().taskConcurrency(),
@@ -335,7 +359,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
         fieldExtractExec.forEachDown(EsQueryExec.class, queryExec -> {
-            QueryBuilder q = queryExec.query();
+            QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
             if (q != null) {
                 nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
             }
@@ -386,6 +410,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             querySupplier(queryBuilder),
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
+            List.of(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }

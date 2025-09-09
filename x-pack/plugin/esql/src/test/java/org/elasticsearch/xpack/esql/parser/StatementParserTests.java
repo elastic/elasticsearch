@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -64,9 +63,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -1304,6 +1303,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
+            "from a | enrich countries on foo . * ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo.*]"
+        );
+        expectError(
             "from a | enrich typo:countries on foo",
             "line 1:17: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
@@ -2333,10 +2336,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
-    public void testSpaceNotAllowedInIdPatternKeep() {
-        expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
-    }
-
     public void testEnrichOnMatchField() {
         var plan = statement("ROW a = \"1\" | ENRICH languages_policy ON a WITH ```name``* = language_name`");
         var enrich = as(plan, Enrich.class);
@@ -2598,10 +2597,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFailingMetadataWithSquareBrackets() {
-        expectError(
-            "FROM test [METADATA _index] | STATS count(*)",
-            "line 1:11: mismatched input '[' expecting {<EOF>, '|', ',', 'metadata'}"
-        );
+        expectError("FROM test [METADATA _index] | STATS count(*)", "line 1:11: token recognition error at: '['");
     }
 
     public void testFunctionNamedParameterInMap() {
@@ -3342,13 +3338,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         {
             var fromPatterns = randomIndexPattern();
-            // Generate a syntactically invalid (partial quoted) pattern.
+            // Generate a syntactically invalid (partially quoted) pattern.
             var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
-                "expecting UNQUOTED_SOURCE"
+                "no viable alternative at input"
             );
         }
 
@@ -3389,7 +3385,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 joinPattern = unquoteIndexPattern(joinPattern);
                 expectError(
                     "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    "extraneous input ':' expecting UNQUOTED_SOURCE"
+                    "no viable alternative at input "
                 );
             }
             {
@@ -3429,7 +3425,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // partially quoted.
                 expectError(
                     "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    " mismatched input ':' expecting UNQUOTED_SOURCE"
+                    "no viable alternative at input"
                 );
             }
         }
@@ -3632,11 +3628,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
 
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        expectError(
-            "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
-            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
-        );
+        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+            expectError(
+                "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
+            );
+        }
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -3847,6 +3845,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inference_id\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
         );
+
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
+            "Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
     }
 
     public void testCompletionMissingOptions() {
@@ -3941,6 +3944,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM " + fromPatterns + " | COMPLETION prompt_field WITH { \"inference_id\" : \"inference_id\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
         );
+
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
+            "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
     }
 
     public void testSample() {
@@ -3972,22 +3980,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 | FUSE
             """);
 
-        var dedup = as(plan, Dedup.class);
-        assertThat(dedup.groupings().size(), equalTo(2));
-        assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
-        assertThat(dedup.groupings().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(dedup.groupings().get(1).name(), equalTo("_index"));
-        assertThat(dedup.aggregates().size(), equalTo(1));
-        assertThat(dedup.aggregates().get(0), instanceOf(Alias.class));
+        var fuse = as(plan, Fuse.class);
+        assertThat(fuse.groupings().size(), equalTo(2));
+        assertThat(fuse.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.groupings().get(0).name(), equalTo("_id"));
+        assertThat(fuse.groupings().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.groupings().get(1).name(), equalTo("_index"));
+        assertThat(fuse.discriminator().name(), equalTo("_fork"));
+        assertThat(fuse.score().name(), equalTo("_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
 
-        var rrfScoreEval = as(dedup.child(), RrfScoreEval.class);
-        assertThat(rrfScoreEval.scoreAttribute(), instanceOf(UnresolvedAttribute.class));
-        assertThat(rrfScoreEval.scoreAttribute().name(), equalTo("_score"));
-        assertThat(rrfScoreEval.forkAttribute(), instanceOf(UnresolvedAttribute.class));
-        assertThat(rrfScoreEval.forkAttribute().name(), equalTo("_fork"));
-
-        assertThat(rrfScoreEval.child(), instanceOf(Fork.class));
+        assertThat(fuse.child(), instanceOf(Fork.class));
     }
 
     public void testDoubleParamsForIdentifier() {

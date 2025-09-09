@@ -44,7 +44,6 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
 
     @TaskAction
     public void generateTransportVersionManifest() throws IOException {
-
         Path definitionsDir = getDefinitionsDirectory();
         Path manifestFile = getManifestFile().get().getAsFile().toPath();
         try (var writer = Files.newBufferedWriter(manifestFile)) {

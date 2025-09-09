@@ -260,7 +260,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             PhysicalSettings.DEFAULT_DATA_PARTITIONING,
             PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
-            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX
+            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
+            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
         );
     }
 

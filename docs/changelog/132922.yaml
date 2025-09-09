@@ -1,5 +1,0 @@
-pr: 132922
-summary: Change GeoIpCache and EnrichCache to LongAdder
-area: Ingest Node
-type: bug
-issues: []

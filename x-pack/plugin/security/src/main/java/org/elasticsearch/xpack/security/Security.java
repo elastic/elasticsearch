@@ -107,6 +107,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -417,6 +418,8 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
+import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -747,6 +750,7 @@ public class Security extends Plugin
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.linkedProjectConfigService(),
                 services.projectResolver()
             );
         } catch (final Exception e) {
@@ -767,6 +771,7 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
+        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
@@ -972,7 +977,8 @@ public class Security extends Plugin
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
-        ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
+        ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get()
+            .create(clusterService, projectResolver, fileRolesStore.get()::exists);
         components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -1141,6 +1147,7 @@ public class Security extends Plugin
             operatorPrivilegesService.get(),
             restrictedIndices,
             authorizationDenialMessages.get(),
+            linkedProjectConfigService,
             projectResolver
         );
 
@@ -1163,17 +1170,24 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
+
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
+            settings,
+            threadPool,
+            authcService.get(),
+            authzService,
+            securityContext.get(),
+            crossClusterAccessAuthcService.get(),
+            getLicenseState()
+        );
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
                 threadPool,
-                authcService.get(),
-                authzService,
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                crossClusterAccessAuthcService.get(),
-                getLicenseState()
+                remoteClusterTransportInterceptor
             )
         );
 

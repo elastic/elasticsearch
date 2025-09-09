@@ -1609,6 +1609,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             final var projectId = System.getProperty("tests.rest.project.id");
             builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
+        if (System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT) != null) {
+            builder.put(CLIENT_SOCKET_TIMEOUT, System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT));
+        }
         return builder.build();
     }
 
@@ -2085,6 +2088,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void awaitIndexExists(String index, TimeValue timeout) throws IOException {
         // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
         ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index) throws Exception {
+        awaitIndexDoesNotExist(index, TimeValue.timeValueSeconds(10));
     }
 
     protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {

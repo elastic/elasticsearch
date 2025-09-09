@@ -2334,6 +2334,40 @@ public class VerifierTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
     }
 
+    public void testDecayFunctionNullArgs() {
+        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
+
+        // First arg cannot be null
+        assertEquals(
+            "2:23: first argument of [decay(null, origin, scale, "
+                + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row origin = 10, scale = 10\n"
+                    + "| eval decay_result = decay(null, origin, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Second arg cannot be null
+        assertEquals(
+            "2:23: second argument of [decay(value, null, scale, "
+                + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row value = 10, scale = 10\n"
+                    + "| eval decay_result = decay(value, null, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Third arg cannot be null
+        assertEquals(
+            "2:23: third argument of [decay(value, origin, null, "
+                + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row value = 10, origin = 10\n"
+                    + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+    }
+
     private void checkFullTextFunctionsInStats(String functionInvocation) {
         query("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer);
         query("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
@@ -2376,12 +2410,13 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsWithSemanticText() {
+        assumeTrue("requires knn function", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         checkFullTextFunctionsWithSemanticText("knn(semantic, [0, 1, 2])");
         checkFullTextFunctionsWithSemanticText("match(semantic, \"hello world\")");
         checkFullTextFunctionsWithSemanticText("semantic:\"hello world\"");
     }
 
-    public void checkFullTextFunctionsWithSemanticText(String functionInvocation) {
+    private void checkFullTextFunctionsWithSemanticText(String functionInvocation) {
         query("from test | where " + functionInvocation, fullTextAnalyzer);
     }
 

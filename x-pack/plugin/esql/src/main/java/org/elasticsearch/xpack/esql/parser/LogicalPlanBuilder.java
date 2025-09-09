@@ -376,21 +376,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
-        if (val instanceof Integer i) {
-            if (i < 0) {
-                throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
-            }
+        if (val instanceof Integer i && i >= 0) {
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
-        } else {
-            throw new ParsingException(
-                source,
-                "Invalid value for LIMIT ["
-                    + BytesRefs.toString(val)
-                    + ": "
-                    + (expression(ctx.constant()).dataType() == KEYWORD ? "String" : val.getClass().getSimpleName())
-                    + "], expecting a non negative integer"
-            );
         }
+
+        String valueType = expression(ctx.constant()).dataType().typeName();
+
+        throw new ParsingException(
+            source,
+            "value of ["
+                + source.text()
+                + "] must be a non negative integer, found value ["
+                + ctx.constant().getText()
+                + "] type ["
+                + valueType
+                + "]"
+        );
     }
 
     @Override

@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -86,6 +87,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -142,6 +144,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         try (EsqlQueryResponse response = run("row " + value)) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        EsqlQueryRequest request = syncEsqlQueryRequest();
+        request.query("row " + value);
+        request.filter(new BoolQueryBuilder().boost(1.0f));
+        try (EsqlQueryResponse response = run(request)) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
     }

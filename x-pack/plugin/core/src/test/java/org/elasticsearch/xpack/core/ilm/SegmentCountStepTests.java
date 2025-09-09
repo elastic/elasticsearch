@@ -103,7 +103,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -155,7 +155,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -212,7 +212,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -249,7 +249,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 throw new AssertionError("unexpected method call");

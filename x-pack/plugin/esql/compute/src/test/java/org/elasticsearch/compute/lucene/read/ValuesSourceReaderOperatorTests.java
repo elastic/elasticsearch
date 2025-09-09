@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -36,6 +38,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -97,6 +100,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -148,12 +152,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     static Operator.OperatorFactory factory(IndexReader reader, String name, ElementType elementType, BlockLoader loader) {
-        return new ValuesSourceReaderOperator.Factory(List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
-            if (shardIdx != 0) {
-                fail("unexpected shardIdx [" + shardIdx + "]");
-            }
-            return loader;
-        })),
+        return new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
+                if (shardIdx != 0) {
+                    fail("unexpected shardIdx [" + shardIdx + "]");
+                }
+                return loader;
+            })),
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
@@ -389,17 +395,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return DirectoryReader.open(directory);
     }
 
-    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery) throws IOException {
+    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery, boolean forceMerge) throws IOException {
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy()).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             )
         ) {
             for (int d = 0; d < size; d++) {
                 XContentBuilder source = JsonXContent.contentBuilder();
                 source.startObject();
-                source.field("long_source_text", Integer.toString(d).repeat(100 * 1024));
+                source.field("long_source_text", d + "#" + "a".repeat(100 * 1024));
                 source.endObject();
                 ParsedDocument doc = mapperService.documentParser()
                     .parseDocument(
@@ -411,6 +417,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 if (d % commitEvery == commitEvery - 1) {
                     writer.commit();
                 }
+            }
+
+            if (forceMerge) {
+                writer.forceMerge(1);
             }
         }
         return DirectoryReader.open(directory);
@@ -483,6 +493,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         operators.add(
             new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(testCase.info, fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
                 List.of(
                     new ValuesSourceReaderOperator.ShardContext(
@@ -602,6 +613,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Operator> operators = new ArrayList<>();
         operators.add(
             new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
                 List.of(
                     new ValuesSourceReaderOperator.ShardContext(
@@ -620,6 +632,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             tests.addAll(b);
             operators.add(
                 new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
                     b.stream().map(i -> i.info).toList(),
                     List.of(
                         new ValuesSourceReaderOperator.ShardContext(
@@ -718,6 +731,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Operator> operators = cases.stream()
             .map(
                 i -> new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
                     List.of(i.info),
                     List.of(
                         new ValuesSourceReaderOperator.ShardContext(
@@ -922,8 +936,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private void testLoadLong(boolean shuffle, boolean manySegments) throws IOException {
         int numDocs = between(10, 500);
         initMapping();
-        keyToTags.clear();
-        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs);
+        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs, manySegments == false);
 
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));
@@ -935,6 +948,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         if (shuffle) {
             input = input.stream().map(this::shuffle).toList();
         }
+        boolean willSplit = loadLongWillSplit(input);
 
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
 
@@ -950,6 +964,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Operator> operators = cases.stream()
             .map(
                 i -> new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
                     List.of(i.info),
                     List.of(
                         new ValuesSourceReaderOperator.ShardContext(
@@ -962,12 +977,55 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 ).get(driverContext)
             )
             .toList();
-        drive(operators, input.iterator(), driverContext);
+        List<Page> result = drive(operators, input.iterator(), driverContext);
+
+        boolean[] found = new boolean[numDocs];
+        for (Page page : result) {
+            BytesRefVector bytes = page.<BytesRefBlock>getBlock(1).asVector();
+            BytesRef scratch = new BytesRef();
+            for (int p = 0; p < bytes.getPositionCount(); p++) {
+                BytesRef v = bytes.getBytesRef(p, scratch);
+                int d = Integer.valueOf(v.utf8ToString().split("#")[0]);
+                assertFalse("found a duplicate " + d, found[d]);
+                found[d] = true;
+            }
+        }
+        List<Integer> missing = new ArrayList<>();
+        for (int d = 0; d < numDocs; d++) {
+            if (found[d] == false) {
+                missing.add(d);
+            }
+        }
+        assertThat(missing, hasSize(0));
+        assertThat(result, hasSize(willSplit ? greaterThanOrEqualTo(input.size()) : equalTo(input.size())));
+
         for (int i = 0; i < cases.size(); i++) {
             ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) operators.get(i).status();
             assertThat(status.pagesReceived(), equalTo(input.size()));
-            assertThat(status.pagesEmitted(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), willSplit ? greaterThanOrEqualTo(input.size()) : equalTo(input.size()));
         }
+    }
+
+    private boolean loadLongWillSplit(List<Page> input) {
+        int nextDoc = -1;
+        for (Page page : input) {
+            DocVector doc = page.<DocBlock>getBlock(0).asVector();
+            for (int p = 0; p < doc.getPositionCount(); p++) {
+                if (doc.shards().getInt(p) != 0) {
+                    return false;
+                }
+                if (doc.segments().getInt(p) != 0) {
+                    return false;
+                }
+                if (nextDoc == -1) {
+                    nextDoc = doc.docs().getInt(p);
+                } else if (doc.docs().getInt(p) != nextDoc) {
+                    return false;
+                }
+                nextDoc++;
+            }
+        }
+        return true;
     }
 
     record Checks(Block.MvOrdering booleanAndNumericalDocValuesMvOrdering, Block.MvOrdering bytesRefDocValuesMvOrdering) {
@@ -1562,6 +1620,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 simpleInput(driverContext.blockFactory(), 10),
                 List.of(
                     new ValuesSourceReaderOperator.Factory(
+                        ByteSizeValue.ofGb(1),
                         List.of(
                             new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
                             new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
@@ -1614,6 +1673,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertThat(source, hasSize(1)); // We want one page for simpler assertions, and we want them all in one segment
         assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
         Operator op = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
             List.of(
                 fieldInfo(mapperService.fieldType("key"), ElementType.INT),
                 fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
@@ -1651,6 +1711,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<FieldCase> cases = infoAndChecksForEachType(ordering, ordering);
 
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(
@@ -1704,6 +1765,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, shardIdx -> {
                     seenShards.add(shardIdx);
                     return ft.blockLoader(blContext());

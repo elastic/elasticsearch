@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -768,16 +770,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             while (submittedMergesCount > 0 && expectedAvailableBudget.get() > 0L) {
                 ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
                 when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
-                doAnswer(mock -> {
-                    Schedule schedule = randomFrom(Schedule.values());
-                    if (schedule == BACKLOG) {
-                        testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                            // re-enqueue backlogged merge task
-                            threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
-                        });
-                    }
-                    return schedule;
-                }).when(mergeTask).schedule();
+                // avoid backlogging and re-enqueing merge tasks in this test because it makes the queue's available budget unsteady
+                when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
                 // let some task complete, which will NOT hold up any budget
                 if (randomBoolean()) {
                     // this task will NOT hold up any budget because it runs quickly (it is not blocked)
@@ -897,8 +891,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertBusy(
                 () -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()))
             );
-            List<ThreadPoolMergeScheduler.MergeTask> tasksRunList = new ArrayList<>();
-            List<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = new ArrayList<>();
+            Set<ThreadPoolMergeScheduler.MergeTask> tasksRunList = ConcurrentCollections.newConcurrentSet();
+            Set<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = ConcurrentCollections.newConcurrentSet();
             int submittedMergesCount = randomIntBetween(1, 5);
             long[] mergeSizeEstimates = new long[submittedMergesCount];
             for (int i = 0; i < submittedMergesCount; i++) {

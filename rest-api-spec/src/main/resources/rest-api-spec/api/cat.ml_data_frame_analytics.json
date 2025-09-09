@@ -1,8 +1,8 @@
 {
   "cat.ml_data_frame_analytics":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/cat-dfanalytics.html",
-      "description": "Gets configuration and usage information about data frame analytics jobs."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cat-dfanalytics.html",
+      "description": "Get data frame analytics jobs"
     },
     "stability":"stable",
     "visibility":"public",

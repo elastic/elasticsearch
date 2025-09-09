@@ -1,8 +1,8 @@
 {
   "transform.stop_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html",
-      "description":"Stops one or more transforms."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/stop-transform.html",
+      "description":"Stop transforms"
     },
     "stability":"stable",
     "visibility":"public",

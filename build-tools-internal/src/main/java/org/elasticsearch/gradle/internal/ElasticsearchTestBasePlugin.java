@@ -24,6 +24,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -34,6 +35,7 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
@@ -50,8 +52,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     public static final String DUMP_OUTPUT_ON_FAILURE_PROP_NAME = "dumpOutputOnFailure";
 
+    public static final Set<String> TEST_TASKS_WITH_ENTITLEMENTS = Set.of("test", "internalClusterTest");
+
     @Inject
     protected abstract ProviderFactory getProviderFactory();
+
+    @Inject
+    protected abstract BuildFeatures getBuildFeatures();
 
     @Override
     public void apply(Project project) {
@@ -160,9 +167,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
             test.systemProperties(sysprops);
 
-            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
-            if (System.getProperty("ignore.tests.seed") != null) {
-                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeed());
+            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
+            // also ignore when configuration cache is on since the test seed as task input would break
+            // configuration cache reuse.
+            if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
+                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
             } else {
                 test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }
@@ -173,14 +182,23 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
+            if (test.getName().equals("internalClusterTest")) {
+                // configure a node home directory independent of the Java temp dir so that entitlements can be properly enforced
+                nonInputProperties.systemProperty("tempDir", test.getWorkingDir().toPath().resolve("nodesTemp"));
+            }
 
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
-            if ("test".equals(test.getName()) && mainSourceSet != null && testSourceSet != null) {
+            SourceSet internalClusterTestSourceSet = sourceSets.findByName("internalClusterTest");
+
+            if (TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) && mainSourceSet != null && testSourceSet != null) {
                 FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
                 FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
-                FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
+                FileCollection internalClusterTestRuntime = ("internalClusterTest".equals(test.getName())
+                    && internalClusterTestSourceSet != null) ? internalClusterTestSourceSet.getRuntimeClasspath() : project.files();
+                FileCollection testOnlyFiles = testRuntime.plus(internalClusterTestRuntime).minus(mainRuntime);
+
                 test.doFirst(task -> test.environment("es.entitlement.testOnlyPath", testOnlyFiles.getAsPath()));
             }
 
@@ -240,14 +258,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
      * Computes and sets the {@code --patch-module=java.base} and {@code --add-opens=java.base} JVM command line options.
      */
     private void configureJavaBaseModuleOptions(Project project) {
-        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
-            FileCollection patchedImmutableCollections = patchedImmutableCollections(project);
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // patch immutable collections only for "test" task
+            FileCollection patchedImmutableCollections = test.getName().equals("test") ? patchedImmutableCollections(project) : null;
             if (patchedImmutableCollections != null) {
                 test.getInputs().files(patchedImmutableCollections);
                 test.systemProperty("tests.hackImmutableCollections", "true");
             }
 
-            FileCollection entitlementBridge = entitlementBridge(project);
+            FileCollection entitlementBridge = TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) ? entitlementBridge(project) : null;
             if (entitlementBridge != null) {
                 test.getInputs().files(entitlementBridge);
             }
@@ -311,27 +330,28 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         }
         FileCollection bridgeFiles = bridgeConfig;
 
-        project.getTasks().withType(Test.class).configureEach(test -> {
-            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+        project.getTasks()
+            .withType(Test.class)
+            .matching(test -> TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()))
+            .configureEach(test -> {
+                // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+                SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = test.getExtensions()
+                    .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
-            // Agent
-            if (agentFiles.isEmpty() == false) {
-                test.getInputs().files(agentFiles);
-                test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
-                test.systemProperty("jdk.attach.allowAttachSelf", true);
-            }
+                // Agent
+                test.getInputs().files(agentFiles).optional(true);
+                nonInputSystemProperties.systemProperty("es.entitlement.agentJar", agentFiles::getAsPath);
+                nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
-            // Bridge
-            if (bridgeFiles.isEmpty() == false) {
+                // Bridge
                 String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                test.getInputs().files(bridgeFiles);
+                test.getInputs().files(bridgeFiles).optional(true);
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
                     "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
                         + modulesContainingEntitlementInstrumentation
                 );
-            }
-        });
+            });
     }
 
 }

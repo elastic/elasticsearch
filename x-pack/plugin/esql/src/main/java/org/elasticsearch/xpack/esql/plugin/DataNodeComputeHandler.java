@@ -95,6 +95,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         String sessionId,
         String clusterAlias,
         CancellableTask parentTask,
+        EsqlFlags flags,
         Configuration configuration,
         PhysicalPlan dataNodePlan,
         Set<String> concreteIndices,
@@ -111,7 +112,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             esqlExecutor,
             parentTask,
             originalIndices,
-            PlannerUtils.canMatchFilter(clusterService.state().getMinTransportVersion(), dataNodePlan),
+            PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
@@ -214,6 +215,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     private class DataNodeRequestExecutor {
+        private final EsqlFlags flags;
         private final DataNodeRequest request;
         private final CancellableTask parentTask;
         private final ExchangeSinkHandler exchangeSink;
@@ -224,6 +226,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final Map<ShardId, Exception> shardLevelFailures;
 
         DataNodeRequestExecutor(
+            EsqlFlags flags,
             DataNodeRequest request,
             CancellableTask parentTask,
             ExchangeSinkHandler exchangeSink,
@@ -232,6 +235,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener
         ) {
+            this.flags = flags;
             this.request = request;
             this.parentTask = parentTask;
             this.exchangeSink = exchangeSink;
@@ -295,6 +299,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     sessionId,
                     "data",
                     clusterAlias,
+                    flags,
                     searchContexts,
                     configuration,
                     configuration.newFoldContext(),
@@ -415,7 +420,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             try {
                 // run compute with target shards
                 var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+                EsqlFlags flags = computeService.createFlags();
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                    flags,
                     request,
                     task,
                     internalSink,
@@ -439,6 +446,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.sessionId(),
                         "node_reduce",
                         request.clusterAlias(),
+                        flags,
                         List.of(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),

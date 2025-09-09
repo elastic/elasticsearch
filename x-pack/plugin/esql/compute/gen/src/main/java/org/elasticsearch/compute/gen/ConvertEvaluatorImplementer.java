@@ -23,6 +23,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
+import static org.elasticsearch.compute.gen.EvaluatorImplementer.baseRamBytesUsed;
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
@@ -98,6 +99,7 @@ public class ConvertEvaluatorImplementer {
         builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.superclass(ABSTRACT_CONVERT_FUNCTION_EVALUATOR);
+        builder.addField(baseRamBytesUsed(implementation));
 
         for (EvaluatorImplementer.ProcessFunctionArg a : processFunction.args) {
             a.declareField(builder);
@@ -113,6 +115,7 @@ public class ConvertEvaluatorImplementer {
         }
         builder.addMethod(processFunction.toStringMethod(implementation));
         builder.addMethod(processFunction.close());
+        builder.addMethod(processFunction.baseRamBytesUsed());
         builder.addType(factory());
         return builder.build();
     }

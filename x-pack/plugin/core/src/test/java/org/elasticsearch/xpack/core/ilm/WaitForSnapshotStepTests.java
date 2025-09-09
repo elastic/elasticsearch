@@ -88,7 +88,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         WaitForSnapshotStep instance = createRandomInstance();
         SetOnce<Exception> error = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);
@@ -127,7 +127,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Boolean> isConditionMet = new SetOnce<>();
         SetOnce<ToXContentObject> informationContext = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 isConditionMet.set(conditionMet);
@@ -240,7 +240,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Exception> error = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);
@@ -305,7 +305,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Boolean> isConditionMet = new SetOnce<>();
         SetOnce<ToXContentObject> informationContext = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 isConditionMet.set(conditionMet);
@@ -361,7 +361,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
         SetOnce<Exception> error = new SetOnce<>();
-        instance.evaluateCondition(clusterState.metadata(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        instance.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 logger.warn("expected an error got unexpected response {}", conditionMet);

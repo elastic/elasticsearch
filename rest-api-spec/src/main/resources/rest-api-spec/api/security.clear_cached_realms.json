@@ -1,8 +1,8 @@
 {
   "security.clear_cached_realms":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html",
-      "description":"Evicts users from the user cache. Can completely clear the cache or evict specific users."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-clear-cache.html",
+      "description":"Clear the user cache"
     },
     "stability":"stable",
     "visibility":"public",

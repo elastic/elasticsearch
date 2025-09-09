@@ -1,8 +1,8 @@
 {
   "ml.put_trained_model_alias":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models-aliases.html",
-      "description":"Creates a new model alias (or reassigns an existing one) to refer to the trained model"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/put-trained-models-aliases.html",
+      "description":"Create or update a trained model alias"
     },
     "stability":"stable",
     "visibility":"public",

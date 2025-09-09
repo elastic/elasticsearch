@@ -174,7 +174,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            try {
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            } catch (Exception e) {
+                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
+                logger.debug(
+                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
+                    result.getShardIndex(),
+                    Arrays.toString(topDocs.fields),
+                    e
+                );
+            }
         }
         super.onShardResult(result);
     }
@@ -454,6 +464,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeAsSingleRequest(routing, request.shards.get(0));
                 return;
             }
+            String nodeId = routing.nodeId();
             final Transport.Connection connection;
             try {
                 connection = getConnection(routing.clusterAlias(), routing.nodeId());
@@ -503,6 +514,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     @Override
                     public void handleException(TransportException e) {
                         Exception cause = (Exception) ExceptionsHelper.unwrapCause(e);
+                        logger.debug("handling node search exception coming from [" + nodeId + "]", cause);
                         if (e instanceof SendRequestTransportException || cause instanceof TaskCancelledException) {
                             // two possible special cases here where we do not want to fail the phase:
                             // failure to send out the request -> handle things the same way a shard would fail with unbatched execution

@@ -150,7 +150,19 @@ public class ServerUtils {
             executor.auth(username, password);
             executor.authPreemptive(new HttpHost("localhost", 9200));
         }
-        return executor.execute(request).returnResponse();
+        try {
+            return executor.execute(request).returnResponse();
+        } catch (Exception e) {
+            logger.warn(
+                "Failed to execute request [{}] with username/password [{}/{}] and caCert [{}]",
+                request.toString(),
+                username,
+                password,
+                caCert,
+                e
+            );
+            throw e;
+        }
     }
 
     // polls every two seconds for Elasticsearch to be running on 9200
@@ -238,14 +250,13 @@ public class ServerUtils {
         long timeElapsed = 0;
         boolean started = false;
         Throwable thrownException = null;
-        if (caCert == null) {
-            caCert = getCaCert(installation);
-        }
 
         while (started == false && timeElapsed < waitTime) {
             if (System.currentTimeMillis() - lastRequest > requestInterval) {
+                if (caCert == null) {
+                    caCert = getCaCert(installation);
+                }
                 try {
-
                     final HttpResponse response = execute(
                         Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/_cluster/health")
                             .connectTimeout((int) timeoutLength)
@@ -276,7 +287,7 @@ public class ServerUtils {
                     }
                     started = true;
 
-                } catch (IOException e) {
+                } catch (Exception e) {
                     if (thrownException == null) {
                         thrownException = e;
                     } else {

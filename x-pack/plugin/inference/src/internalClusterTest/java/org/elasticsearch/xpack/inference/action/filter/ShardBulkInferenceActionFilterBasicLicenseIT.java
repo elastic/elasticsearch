@@ -23,6 +23,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.ra
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCase {
     public static final String INDEX_NAME = "test-index";
 

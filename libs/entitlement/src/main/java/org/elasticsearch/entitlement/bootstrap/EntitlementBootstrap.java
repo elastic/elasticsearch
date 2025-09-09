@@ -46,6 +46,7 @@ public class EntitlementBootstrap {
      * @param scopeResolver                a functor to map a Java Class to the component and module it belongs to.
      * @param settingResolver              a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs                     data directories for Elasticsearch
+     * @param sharedDataDir                shared data directory for Elasticsearch (deprecated)
      * @param sharedRepoDirs               shared repository directories for Elasticsearch
      * @param configDir                    the config directory for Elasticsearch
      * @param libDir                       the lib directory for Elasticsearch
@@ -63,6 +64,7 @@ public class EntitlementBootstrap {
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
+        Path sharedDataDir,
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
@@ -82,6 +84,7 @@ public class EntitlementBootstrap {
             getUserHome(),
             configDir,
             dataDirs,
+            sharedDataDir,
             sharedRepoDirs,
             libDir,
             modulesDir,
@@ -140,7 +143,8 @@ public class EntitlementBootstrap {
             return propertyValue;
         }
 
-        Path dir = Path.of("lib", "entitlement-agent");
+        Path esHome = Path.of(System.getProperty("es.path.home"));
+        Path dir = esHome.resolve("lib/entitlement-agent");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
         }
@@ -160,7 +164,7 @@ public class EntitlementBootstrap {
         PathLookup pathLookup,
         Policy serverPolicyPatch,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
-        Map<String, Collection<Path>> pluginSourcePaths
+        Map<String, Collection<Path>> pluginSourcePathsResolver
     ) {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
@@ -169,7 +173,7 @@ public class EntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            pluginSourcePaths,
+            pluginSourcePathsResolver::get,
             pathLookup
         );
     }

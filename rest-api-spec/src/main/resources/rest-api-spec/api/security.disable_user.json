@@ -1,8 +1,8 @@
 {
   "security.disable_user":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html",
-      "description":"Disables users in the native realm."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-disable-user.html",
+      "description":"Disable users"
     },
     "stability":"stable",
     "visibility":"public",

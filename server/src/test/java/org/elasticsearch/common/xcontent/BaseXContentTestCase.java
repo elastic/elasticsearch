@@ -1217,7 +1217,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     private static byte[] randomBytes() throws Exception {
-        return randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes("UTF-8");
+        return randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes(StandardCharsets.UTF_8);
     }
 
     @FunctionalInterface

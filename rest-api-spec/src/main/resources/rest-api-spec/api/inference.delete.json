@@ -1,7 +1,7 @@
 {
   "inference.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-inference-api.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/delete-inference-api.html",
       "description": "Delete an inference endpoint"
     },
     "stability": "stable",

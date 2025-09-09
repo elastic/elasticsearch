@@ -222,6 +222,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         }
 
                         @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
+                        }
+
+                        @Override
                         public void close() {}
                     };
                 }

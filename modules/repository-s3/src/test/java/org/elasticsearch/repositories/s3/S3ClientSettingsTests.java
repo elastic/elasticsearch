@@ -13,6 +13,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.regions.Region;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,6 +22,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyString;
@@ -186,9 +188,11 @@ public class S3ClientSettingsTests extends ESTestCase {
                 Mockito.mock(Environment.class),
                 Settings.EMPTY,
                 Mockito.mock(ResourceWatcherService.class),
-                () -> null
+                DEFAULT_REGION_UNAVAILABLE
             )
         ) {
+            s3Service.start();
+
             var otherSettings = settings.get("other");
             Region otherRegion = s3Service.getClientRegion(otherSettings);
             assertEquals(randomRegion, otherRegion.toString());
@@ -209,4 +213,8 @@ public class S3ClientSettingsTests extends ESTestCase {
         // the default appears in the docs so let's make sure it doesn't change:
         assertEquals(50, S3ClientSettings.Defaults.MAX_CONNECTIONS);
     }
+
+    public static final Supplier<Region> DEFAULT_REGION_UNAVAILABLE = () -> {
+        throw new ElasticsearchException("default region unavailable in this test");
+    };
 }

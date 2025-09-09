@@ -66,7 +66,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentParser createParser(XContentParserConfiguration config, BytesReference bytes) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
@@ -567,7 +567,7 @@ public class XContentHelper {
     @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
@@ -591,7 +591,7 @@ public class XContentHelper {
         ToXContent.Params params
     ) throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
@@ -661,7 +661,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentTypeMayCompressed(BytesReference bytes) {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(bytes);
         if (compressor != null) {
             try {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());

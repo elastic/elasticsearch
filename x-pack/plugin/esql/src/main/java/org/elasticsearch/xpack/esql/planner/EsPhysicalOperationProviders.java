@@ -17,13 +17,11 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
@@ -109,17 +107,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private final List<ShardContext> shardContexts;
-    private final DataPartitioning defaultDataPartitioning;
+    private final PhysicalSettings physicalSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        DataPartitioning defaultDataPartitioning
+        PhysicalSettings physicalSettings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
-        this.defaultDataPartitioning = defaultDataPartitioning;
+        this.physicalSettings = physicalSettings;
     }
 
     @Override
@@ -149,7 +147,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
-        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
+        return source.with(
+            new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+            layout.build()
+        );
     }
 
     private BlockLoader getBlockLoaderFor(
@@ -204,7 +205,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
@@ -213,18 +214,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-                luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
-                    limit,
-                    context.pageSize(rowEstimatedSize),
-                    context.queryPragmas().taskConcurrency(),
-                    shardContexts,
-                    querySupplier(esQueryExec.query())
-                );
+                throw new IllegalStateException("time-series in ES|QL is not supported");
             } else {
                 luceneFactory = new LuceneSourceOperator.Factory(
                     shardContexts,
                     querySupplier(esQueryExec.query()),
-                    context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+                    context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
                     context.queryPragmas().taskConcurrency(),
                     context.pageSize(rowEstimatedSize),
                     limit,
@@ -246,7 +241,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return new LuceneCountOperator.Factory(
             shardContexts,
             querySupplier(queryBuilder),
-            context.queryPragmas().dataPartitioning(defaultDataPartitioning),
+            context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
@@ -442,8 +437,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs) throws IOException {
-                    Block block = reader.read(factory, docs);
+                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+                    Block block = reader.read(factory, docs, offset);
                     return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
                 }
 

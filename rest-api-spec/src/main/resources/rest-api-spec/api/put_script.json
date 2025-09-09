@@ -1,8 +1,8 @@
 {
   "put_script":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
-      "description":"Creates or updates a script."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/create-stored-script-api.html",
+      "description":"Create or update a script or search template"
     },
     "stability":"stable",
     "visibility":"public",

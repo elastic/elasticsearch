@@ -1,6 +1,0 @@
-pr: 130733
-summary: Specify master timeout when submitting alias tasks
-area: Indices APIs
-type: bug
-issues:
- - 120389

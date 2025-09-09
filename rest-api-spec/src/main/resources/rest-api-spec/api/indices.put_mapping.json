@@ -1,8 +1,8 @@
 {
   "indices.put_mapping":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-put-mapping.html",
-      "description":"Updates the index mappings."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/indices-put-mapping.html",
+      "description":"Update field mappings"
     },
     "stability":"stable",
     "visibility":"public",

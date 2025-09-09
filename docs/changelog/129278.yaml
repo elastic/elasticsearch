@@ -1,5 +1,0 @@
-pr: 129278
-summary: Fix constant keyword optimization
-area: ES|QL
-type: bug
-issues: []

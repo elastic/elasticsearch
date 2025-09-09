@@ -1,8 +1,8 @@
 {
   "indices.shard_stores":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-shards-stores.html",
-      "description":"Provides store information for shard copies of indices."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/indices-shards-stores.html",
+      "description":"Get index shard stores"
     },
     "stability":"stable",
     "visibility":"public",

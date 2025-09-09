@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.hasItem;
  *
  * @see SecuritySettingsSource
  */
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-12382
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;

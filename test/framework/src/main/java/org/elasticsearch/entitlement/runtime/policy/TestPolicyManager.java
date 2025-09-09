@@ -31,14 +31,14 @@ public class TestPolicyManager extends PolicyManager {
 
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
-    String[] entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+    String[] entitledTestPackages;
 
     /**
      * We don't have modules in tests, so we can't use the inherited map of entitlements per module.
      * We need this larger map per class instead.
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
-
+    final Collection<Path> classpath;
     final Collection<URI> testOnlyClasspath;
 
     public TestPolicyManager(
@@ -46,13 +46,14 @@ public class TestPolicyManager extends PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup,
+        Collection<Path> classpath,
         Collection<URI> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
+        this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
-        reset();
+        resetAfterTest();
     }
 
     public void setActive(boolean newValue) {
@@ -64,23 +65,34 @@ public class TestPolicyManager extends PolicyManager {
     }
 
     public void setEntitledTestPackages(String... entitledTestPackages) {
+        if (entitledTestPackages == null || entitledTestPackages.length == 0) {
+            this.entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES; // already validated and sorted
+            return;
+        }
+
         assertNoRedundantPrefixes(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages, false);
         if (entitledTestPackages.length > 1) {
             assertNoRedundantPrefixes(entitledTestPackages, entitledTestPackages, true);
         }
-        String[] packages = ArrayUtils.concat(this.entitledTestPackages, entitledTestPackages);
+        String[] packages = ArrayUtils.concat(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages);
         Arrays.sort(packages);
         this.entitledTestPackages = packages;
     }
 
-    /**
-     * Called between tests so each test is not affected by prior tests
-     */
-    public final void reset() {
-        assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";
-        classEntitlementsMap.clear();
+    public final void resetAfterTest() {
         isActive = false;
         isTriviallyAllowingTestCode = true;
+        entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+        clearModuleEntitlementsCache();
+    }
+
+    /**
+     * Clear cached module entitlements.
+     * This is required after updating path entries.
+     */
+    public final void clearModuleEntitlementsCache() {
+        assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";
+        classEntitlementsMap.clear();
     }
 
     @Override
@@ -116,6 +128,11 @@ public class TestPolicyManager extends PolicyManager {
             return true;
         }
         return super.isTriviallyAllowed(requestingClass);
+    }
+
+    @Override
+    protected Collection<Path> getComponentPathsFromClass(Class<?> requestingClass) {
+        return classpath; // required to grant read access to the production source and test resources
     }
 
     private boolean isEntitlementClass(Class<?> requestingClass) {
@@ -180,6 +197,9 @@ public class TestPolicyManager extends PolicyManager {
         URI needle;
         try {
             needle = codeSource.getLocation().toURI();
+            if (needle.getScheme().equals("jrt")) {
+                return false; // won't be on testOnlyClasspath
+            }
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

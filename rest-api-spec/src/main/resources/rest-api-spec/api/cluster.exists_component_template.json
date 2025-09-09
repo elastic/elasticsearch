@@ -1,8 +1,8 @@
 {
   "cluster.exists_component_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-component-template.html",
-      "description":"Returns information about whether a particular component template exist"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/indices-component-template.html",
+      "description":"Check component templates"
     },
     "stability":"stable",
     "visibility":"public",

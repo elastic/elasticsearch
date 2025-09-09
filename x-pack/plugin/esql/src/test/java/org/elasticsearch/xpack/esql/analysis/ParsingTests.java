@@ -19,7 +19,10 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -92,7 +95,7 @@ public class ParsingTests extends ESTestCase {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
@@ -153,9 +156,34 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testInvalidLimit() {
-        assertEquals("1:13: Invalid value for LIMIT [foo: String], expecting a non negative integer", error("row a = 1 | limit \"foo\""));
-        assertEquals("1:13: Invalid value for LIMIT [1.2: Double], expecting a non negative integer", error("row a = 1 | limit 1.2"));
-        assertEquals("1:13: Invalid value for LIMIT [-1], expecting a non negative integer", error("row a = 1 | limit -1"));
+        assertLimitWithAndWithoutParams("foo", "\"foo\"", DataType.KEYWORD);
+        assertLimitWithAndWithoutParams(1.2, "1.2", DataType.DOUBLE);
+        assertLimitWithAndWithoutParams(-1, "-1", DataType.INTEGER);
+        assertLimitWithAndWithoutParams(true, "true", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(false, "false", DataType.BOOLEAN);
+        assertLimitWithAndWithoutParams(null, "null", DataType.NULL);
+    }
+
+    private void assertLimitWithAndWithoutParams(Object value, String valueText, DataType type) {
+        assertEquals(
+            "1:13: value of [limit "
+                + valueText
+                + "] must be a non negative integer, found value ["
+                + valueText
+                + "] type ["
+                + type.typeName()
+                + "]",
+            error("row a = 1 | limit " + valueText)
+        );
+
+        assertEquals(
+            "1:13: value of [limit ?param] must be a non negative integer, found value [?param] type [" + type.typeName() + "]",
+            error(
+                "row a = 1 | limit ?param",
+                new QueryParams(List.of(new QueryParam("param", value, type, ParserUtils.ParamClassification.VALUE)))
+            )
+        );
+
     }
 
     public void testInvalidSample() {
@@ -177,11 +205,18 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    private String error(String query) {
-        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query)));
+    private String error(String query, QueryParams params) {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> defaultAnalyzer.analyze(parser.createStatement(query, params, TEST_CFG))
+        );
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());
+    }
+
+    private String error(String query) {
+        return error(query, new QueryParams());
     }
 
     private static IndexResolution loadIndexResolution(String name) {

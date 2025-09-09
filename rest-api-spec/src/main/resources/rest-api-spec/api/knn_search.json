@@ -1,8 +1,8 @@
 {
   "knn_search":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
-      "description":"Performs a kNN search."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/knn-search-api.html",
+      "description":"Run a knn search"
     },
     "stability":"experimental",
     "deprecated" : {

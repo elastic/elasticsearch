@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -68,7 +67,10 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -177,14 +179,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<DataPartitioning> DEFAULT_DATA_PARTITIONING = Setting.enumSetting(
-        DataPartitioning.class,
-        "esql.default_data_partitioning",
-        DataPartitioning.AUTO,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     @Override
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
@@ -248,8 +242,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
             ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
+            PhysicalSettings.DEFAULT_DATA_PARTITIONING,
+            PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
-            DEFAULT_DATA_PARTITIONING
+            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX
         );
     }
 
@@ -307,6 +303,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(ExpressionQueryBuilder.ENTRY);
+        entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());

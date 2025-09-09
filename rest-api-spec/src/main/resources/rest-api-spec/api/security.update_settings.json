@@ -1,8 +1,8 @@
 {
   "security.update_settings":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-settings.html",
-      "description":"Update settings for the security system index"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-update-settings.html",
+      "description":"Update security index settings"
     },
     "stability":"stable",
     "visibility":"public",

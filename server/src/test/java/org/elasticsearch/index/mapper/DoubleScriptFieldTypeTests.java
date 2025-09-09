@@ -251,7 +251,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             );
             try (DirectoryReader reader = iw.getReader()) {
                 DoubleScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(3d)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(2d, 3d)));
             }
         }

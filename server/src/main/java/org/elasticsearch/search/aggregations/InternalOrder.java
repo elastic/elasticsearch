@@ -440,16 +440,7 @@ public abstract class InternalOrder extends BucketOrder {
      * @return {@code true} if the order matches, {@code false} otherwise.
      */
     private static boolean isOrder(BucketOrder order, BucketOrder expected) {
-        if (order == expected) {
-            return true;
-        } else if (order instanceof CompoundOrder) {
-            // check if its a compound order with the first element that matches
-            List<BucketOrder> orders = ((CompoundOrder) order).orderElements;
-            if (orders.size() >= 1) {
-                return isOrder(orders.get(0), expected);
-            }
-        }
-        return false;
+        return order == expected || (order instanceof CompoundOrder compoundOrder && compoundOrder.orderElements.get(0) == expected);
     }
 
     /**

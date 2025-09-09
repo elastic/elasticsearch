@@ -1,8 +1,8 @@
 {
   "ml.put_calendar":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar.html",
-      "description":"Instantiates a calendar."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ml-put-calendar.html",
+      "description":"Create a calendar"
     },
     "stability":"stable",
     "visibility":"public",

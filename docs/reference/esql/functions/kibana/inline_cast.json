@@ -12,7 +12,7 @@
   "geo_shape" : "to_geoshape",
   "int" : "to_integer",
   "integer" : "to_integer",
-  "ip" : "to_ip",
+  "ip" : "TO_IP",
   "keyword" : "to_string",
   "long" : "to_long",
   "string" : "to_string",

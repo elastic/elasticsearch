@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class StreamsStatusAction {
 
-    public static ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/streams/status");
+    public static ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/streams/status");
 
     public static class Request extends ActionRequest {
         protected Request() {

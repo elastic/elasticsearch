@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -245,6 +246,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (searchExecutionContext.isSourceSynthetic() && withinMultiField) {
                 String parentField = searchExecutionContext.parentPath(name());
                 var parent = searchExecutionContext.lookup().fieldType(parentField);
+
+                if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
+                    && keywordParent.ignoreAbove() != Integer.MAX_VALUE) {
+                    if (parent.isStored()) {
+                        return storedFieldFetcher(parentField, keywordParent.originalName());
+                    } else if (parent.hasDocValues()) {
+                        var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
+                        return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(keywordParent.originalName()));
+                    }
+                }
+
                 if (parent.isStored()) {
                     return storedFieldFetcher(parentField);
                 } else if (parent.hasDocValues()) {
@@ -256,8 +268,19 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             } else if (searchExecutionContext.isSourceSynthetic() && hasCompatibleMultiFields) {
                 var mapper = (MatchOnlyTextFieldMapper) searchExecutionContext.getMappingLookup().getMapper(name());
                 var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(mapper);
+
                 if (kwd != null) {
                     var fieldType = kwd.fieldType();
+
+                    if (fieldType.ignoreAbove() != Integer.MAX_VALUE) {
+                        if (fieldType.isStored()) {
+                            return storedFieldFetcher(fieldType.name(), fieldType.originalName());
+                        } else if (fieldType.hasDocValues()) {
+                            var ifd = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                            return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(fieldType.originalName()));
+                        }
+                    }
+
                     if (fieldType.isStored()) {
                         return storedFieldFetcher(fieldType.name());
                     } else if (fieldType.hasDocValues()) {
@@ -306,13 +329,52 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             };
         }
 
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String name) {
-            var loader = StoredFieldLoader.create(false, Set.of(name));
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String... names) {
+            var loader = StoredFieldLoader.create(false, Set.of(names));
             return context -> {
                 var leafLoader = loader.getLoader(context, null);
                 return docId -> {
                     leafLoader.advanceTo(docId);
-                    return leafLoader.storedFields().get(name);
+                    var storedFields = leafLoader.storedFields();
+                    if (names.length == 1) {
+                        return storedFields.get(names[0]);
+                    }
+
+                    List<Object> values = new ArrayList<>();
+                    for (var name : names) {
+                        var currValues = storedFields.get(name);
+                        if (currValues != null) {
+                            values.addAll(currValues);
+                        }
+                    }
+
+                    return values;
+                };
+            };
+        }
+
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> combineFieldFetchers(
+            IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> primaryFetcher,
+            IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> secondaryFetcher
+        ) {
+            return context -> {
+                var primaryGetter = primaryFetcher.apply(context);
+                var secondaryGetter = secondaryFetcher.apply(context);
+                return docId -> {
+                    List<Object> values = new ArrayList<>();
+                    var primary = primaryGetter.apply(docId);
+                    if (primary != null) {
+                        values.addAll(primary);
+                    }
+
+                    var secondary = secondaryGetter.apply(docId);
+                    if (secondary != null) {
+                        values.addAll(secondary);
+                    }
+
+                    assert primary != null || secondary != null;
+
+                    return values;
                 };
             };
         }

@@ -114,6 +114,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         checkGeneratedJson(json, parsed);
         assertEquals(json, "ki*y", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
+        assertEquals(new WildcardQueryBuilder("user", "ki*y", false).caseInsensitive(true).boost(2.0f), parsed);
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

@@ -1,8 +1,8 @@
 {
   "migration.get_feature_upgrade_status":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-feature-upgrade.html",
-      "description":"Find out whether system features need to be upgraded or not"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/feature-migration-api.html",
+      "description":"Get feature migration information"
     },
     "stability":"stable",
     "visibility":"public",

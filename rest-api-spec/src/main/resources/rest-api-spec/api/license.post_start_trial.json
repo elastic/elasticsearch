@@ -1,8 +1,8 @@
 {
   "license.post_start_trial":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trial.html",
-      "description":"starts a limited time trial license."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/start-trial.html",
+      "description":"Start a trial"
     },
     "stability":"stable",
     "visibility":"public",

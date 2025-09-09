@@ -345,7 +345,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19)
-            && block instanceof AggregateMetricDoubleBlock aggregateMetricDoubleBlock) {
+            && block instanceof AggregateMetricDoubleArrayBlock aggregateMetricDoubleBlock) {
             block = aggregateMetricDoubleBlock.asCompositeBlock();
         }
         block.elementType().writeTo(out);
@@ -361,7 +361,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
         Block block = elementType.reader.readBlock(in);
         if (in.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19)
             && block instanceof CompositeBlock compositeBlock) {
-            block = AggregateMetricDoubleBlock.fromCompositeBlock(compositeBlock);
+            block = AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock);
         }
         return block;
     }

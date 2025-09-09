@@ -1,8 +1,8 @@
 {
   "esql.async_query_get":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-get-api.html",
-      "description": "Retrieves the results of a previously submitted async query request given its ID."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/esql-async-query-get-api.html",
+      "description": "Get async ES|QL query results"
     },
     "stability":"stable",
     "visibility":"public",
@@ -26,6 +26,10 @@
       ]
     },
     "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
       "wait_for_completion_timeout":{
         "type":"time",
         "description":"Specify the time that the request should block waiting for the final response"

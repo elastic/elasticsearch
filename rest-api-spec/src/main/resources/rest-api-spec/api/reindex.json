@@ -1,8 +1,8 @@
 {
   "reindex":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
-      "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/docs-reindex.html",
+      "description":"Reindex documents"
     },
     "stability":"stable",
     "visibility":"public",
@@ -57,6 +57,11 @@
       "max_docs":{
         "type":"number",
         "description":"Maximum number of documents to process (default: all documents)"
+      },
+      "require_alias":{
+        "type":"boolean",
+        "default":false,
+        "description":"When true, requires destination to be an alias."
       }
     },
     "body":{

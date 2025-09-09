@@ -24,8 +24,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -84,10 +86,13 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+    static {
+        LogConfigurator.configureESLogging();
+    }
+
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
@@ -296,6 +301,7 @@ public class ValuesSourceReaderBenchmark {
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             blockFactory,
+            ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");

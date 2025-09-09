@@ -22,9 +22,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -52,7 +54,7 @@ public class PolicyManager {
      */
     static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop", "java.xml");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
@@ -122,8 +124,7 @@ public class PolicyManager {
         String componentName,
         String moduleName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
-        FileAccessTree fileAccess,
-        Logger logger
+        FileAccessTree fileAccess
     ) {
 
         public ModuleEntitlements {
@@ -141,6 +142,12 @@ public class PolicyManager {
             }
             return entitlements.stream().map(entitlementClass::cast);
         }
+
+        Logger logger(Class<?> requestingClass) {
+            var packageName = requestingClass.getPackageName();
+            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName) + "." + packageName;
+            return LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
+        }
     }
 
     private FileAccessTree getDefaultFileAccess(Collection<Path> componentPaths) {
@@ -149,13 +156,7 @@ public class PolicyManager {
 
     // pkg private for testing
     ModuleEntitlements defaultEntitlements(String componentName, Collection<Path> componentPaths, String moduleName) {
-        return new ModuleEntitlements(
-            componentName,
-            moduleName,
-            Map.of(),
-            getDefaultFileAccess(componentPaths),
-            getLogger(componentName, moduleName)
-        );
+        return new ModuleEntitlements(componentName, moduleName, Map.of(), getDefaultFileAccess(componentPaths));
     }
 
     // pkg private for testing
@@ -175,8 +176,7 @@ public class PolicyManager {
             componentName,
             moduleName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths),
-            getLogger(componentName, moduleName)
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths)
         );
     }
 
@@ -217,7 +217,7 @@ public class PolicyManager {
         .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
         .collect(Collectors.toUnmodifiableSet());
 
-    private final Map<String, Collection<Path>> pluginSourcePaths;
+    private final Function<String, Collection<Path>> pluginSourcePathsResolver;
 
     /**
      * Paths that are only allowed for a single module. Used to generate
@@ -231,7 +231,7 @@ public class PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Collection<Path>> pluginSourcePaths,
+        Function<String, Collection<Path>> pluginSourcePathsResolver,
         PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -240,7 +240,7 @@ public class PolicyManager {
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.scopeResolver = scopeResolver;
-        this.pluginSourcePaths = pluginSourcePaths;
+        this.pluginSourcePathsResolver = pluginSourcePathsResolver;
         this.pathLookup = requireNonNull(pathLookup);
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
@@ -286,21 +286,6 @@ public class PolicyManager {
         }
     }
 
-    private static Logger getLogger(String componentName, String moduleName) {
-        var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
-        return MODULE_LOGGERS.computeIfAbsent(PolicyManager.class.getName() + loggerSuffix, LogManager::getLogger);
-    }
-
-    /**
-     * We want to use the same {@link Logger} object for a given name, because we want {@link ModuleEntitlements}
-     * {@code equals} and {@code hashCode} to work.
-     * <p>
-     * This would not be required if LogManager
-     * <a href="https://github.com/elastic/elasticsearch/issues/87511">memoized the loggers</a>,
-     * but here we are.
-     */
-    private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
-
     protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
         return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));
     }
@@ -334,7 +319,10 @@ public class PolicyManager {
             default -> {
                 assert policyScope.kind() == PLUGIN;
                 var pluginEntitlements = pluginsEntitlements.get(componentName);
-                Collection<Path> componentPaths = pluginSourcePaths.getOrDefault(componentName, List.of());
+                Collection<Path> componentPaths = Objects.requireNonNullElse(
+                    pluginSourcePathsResolver.apply(componentName),
+                    Collections.emptyList()
+                );
                 if (pluginEntitlements == null) {
                     return defaultEntitlements(componentName, componentPaths, moduleName);
                 } else {
@@ -379,9 +367,7 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     boolean isTriviallyAllowed(Class<?> requestingClass) {
-        if (generalLogger.isTraceEnabled()) {
-            generalLogger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
-        }
+        // note: do not log exceptions in here, this could interfere with loading of additionally necessary classes such as ThrowableProxy
         if (requestingClass == null) {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;

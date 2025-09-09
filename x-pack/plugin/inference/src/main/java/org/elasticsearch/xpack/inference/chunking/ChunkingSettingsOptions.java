@@ -12,7 +12,7 @@ public enum ChunkingSettingsOptions {
     MAX_CHUNK_SIZE("max_chunk_size"),
     OVERLAP("overlap"),
     SENTENCE_OVERLAP("sentence_overlap"),
-    SEPARATOR_SET("separator_set"),
+    SEPARATOR_GROUP("separator_group"),
     SEPARATORS("separators");
 
     private final String chunkingSettingsOption;

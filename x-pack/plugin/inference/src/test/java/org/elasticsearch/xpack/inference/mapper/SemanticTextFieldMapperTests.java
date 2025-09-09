@@ -107,9 +107,11 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -398,6 +400,57 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
         }
+    }
+
+    @Override
+    protected IndexVersion boostNotAllowedIndexVersion() {
+        return IndexVersions.NEW_SPARSE_VECTOR;
+    }
+
+    public void testOldIndexSemanticTextDenseVectorRaisesError() throws IOException {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field(INFERENCE_ID_FIELD, "test_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "text_embedding");
+            b.field("dimensions", 384);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+        });
+        assertOldIndexUnsupported(fieldMapping);
+    }
+
+    public void testOldIndexSemanticTextMinimalMappingRaisesError() throws IOException {
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        assertOldIndexUnsupported(fieldMapping);
+    }
+
+    public void testOldIndexSemanticTextSparseVersionRaisesError() throws IOException {
+        final XContentBuilder fieldMapping = fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "sparse_embedding");
+            b.endObject();
+        });
+        assertOldIndexUnsupported(fieldMapping);
+    }
+
+    private void assertOldIndexUnsupported(XContentBuilder fieldMapping) {
+
+        MapperParsingException exception = assertThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping,
+                true,
+                IndexVersions.V_8_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
+            )
+        );
+        assertTrue(exception.getMessage().contains(UNSUPPORTED_INDEX_MESSAGE));
+        assertTrue(exception.getRootCause() instanceof UnsupportedOperationException);
     }
 
     public void testMultiFieldsSupport() throws IOException {
@@ -1362,6 +1415,34 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
         assertThat(e.getMessage(), containsString("Unsupported index options type invalid"));
 
+    }
+
+    /**
+     * Semantic text version error supersedes deprecated boost warning
+     * @throws IOException
+     */
+    @Override
+    public void testDeprecatedBoostWarning() throws IOException {
+        try {
+            createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
+                minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
+                b.field("boost", 2.0);
+            }));
+            String[] warnings = Strings.concatStringArrays(
+                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
+                new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
+            );
+            assertWarnings(warnings);
+        } catch (MapperParsingException e) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString(UNSUPPORTED_INDEX_MESSAGE),
+                    containsString("Unknown parameter [boost]"),
+                    containsString("[boost : 2.0]")
+                )
+            );
+        }
     }
 
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {

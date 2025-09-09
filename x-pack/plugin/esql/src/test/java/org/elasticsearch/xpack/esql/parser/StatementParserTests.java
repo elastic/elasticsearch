@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -984,10 +985,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
-    }
-
-    public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
     }
 
     public void testBasicSortCommand() {
@@ -3646,7 +3643,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
         );
         var rerank = as(
-            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams),
+            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams, EsqlTestUtils.TEST_CFG),
             Rerank.class
         );
 
@@ -3669,7 +3666,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var rerank = as(
             parser.createStatement(
                 "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
-                queryParams
+                queryParams,
+                EsqlTestUtils.TEST_CFG
             ),
             Rerank.class
         );
@@ -3717,7 +3715,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams, EsqlTestUtils.TEST_CFG),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3726,7 +3727,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams, EsqlTestUtils.TEST_CFG),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));

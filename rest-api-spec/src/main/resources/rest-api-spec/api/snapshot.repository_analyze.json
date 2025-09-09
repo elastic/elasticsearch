@@ -1,8 +1,8 @@
 {
   "snapshot.repository_analyze":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Analyzes a repository for correctness and performance"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/repo-analysis-api.html",
+      "description":"Analyze a snapshot repository"
     },
     "stability":"stable",
     "visibility":"public",
@@ -35,6 +35,10 @@
       "concurrency":{
         "type":"number",
         "description":"Number of operations to run concurrently during the test. Defaults to 10."
+      },
+      "register_operation_count":{
+        "type":"number",
+        "description":"The minimum number of linearizable register operations to perform in total. Defaults to 10."
       },
       "read_node_count":{
         "type":"number",

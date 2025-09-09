@@ -1,8 +1,8 @@
 {
   "logstash.put_pipeline":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/logstash-api-put-pipeline.html",
-      "description":"Adds and updates Logstash Pipelines used for Central Management"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/logstash-api-put-pipeline.html",
+      "description":"Create or update a Logstash pipeline"
     },
     "stability":"stable",
     "visibility":"public",

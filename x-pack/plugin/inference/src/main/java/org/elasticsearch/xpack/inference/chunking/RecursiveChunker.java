@@ -60,7 +60,10 @@ public class RecursiveChunker implements Chunker {
             return chunkWithBackupChunker(input, offset, maxChunkSize);
         }
 
-        var potentialChunks = splitTextBySeparatorRegex(input, offset, separators.get(separatorIndex));
+        var potentialChunks = mergeChunkOffsetsUpToMaxChunkSize(
+            splitTextBySeparatorRegex(input, offset, separators.get(separatorIndex)),
+            maxChunkSize
+        );
         var actualChunks = new ArrayList<ChunkOffset>();
         for (var potentialChunk : potentialChunks) {
             if (isChunkWithinMaxSize(potentialChunk, maxChunkSize)) {
@@ -102,6 +105,33 @@ public class RecursiveChunker implements Chunker {
         }
 
         return chunkOffsets;
+    }
+
+    private List<ChunkOffsetAndCount> mergeChunkOffsetsUpToMaxChunkSize(List<ChunkOffsetAndCount> chunkOffsets, int maxChunkSize) {
+        if (chunkOffsets.size() < 2) {
+            return chunkOffsets;
+        }
+
+        List<ChunkOffsetAndCount> mergedOffsetsAndCounts = new ArrayList<>();
+        var mergedChunk = chunkOffsets.get(0);
+        for (int i = 1; i < chunkOffsets.size(); i++) {
+            var chunkOffsetAndCountToMerge = chunkOffsets.get(i);
+            var potentialMergedChunk = new ChunkOffsetAndCount(
+                new ChunkOffset(mergedChunk.chunkOffset.start(), chunkOffsetAndCountToMerge.chunkOffset.end()),
+                mergedChunk.wordCount + chunkOffsetAndCountToMerge.wordCount
+            );
+            if (isChunkWithinMaxSize(potentialMergedChunk, maxChunkSize)) {
+                mergedChunk = potentialMergedChunk;
+            } else {
+                mergedOffsetsAndCounts.add(mergedChunk);
+                mergedChunk = chunkOffsets.get(i);
+            }
+
+            if (i == chunkOffsets.size() - 1) {
+                mergedOffsetsAndCounts.add(mergedChunk);
+            }
+        }
+        return mergedOffsetsAndCounts;
     }
 
     private List<ChunkOffset> chunkWithBackupChunker(String input, ChunkOffset offset, int maxChunkSize) {

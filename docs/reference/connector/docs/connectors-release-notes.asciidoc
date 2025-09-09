@@ -10,6 +10,74 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-3]]
+=== 8.19.3
+
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+[discrete]
+[[es-connectors-release-notes-8-19-2]]
+=== 8.19.2
+
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+[discrete]
+[[es-connectors-release-notes-8-19-1]]
+=== 8.19.1
+
+[discrete]
+[[es-connectors-release-notes-8-19-1-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
+[[es-connectors-release-notes-8-19-0]]
+=== 8.19.0
+
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+[discrete]
+[[es-connectors-release-notes-8-18-6]]
+=== 8.18.6
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-18-5]]
+=== 8.18.5
+
+[discrete]
+[[es-connectors-release-notes-8-18-5-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
+[[es-connectors-release-notes-8-18-3]]
+=== 8.18.3
+
+[discrete]
+[[es-connectors-release-notes-8-18-3-enhancements]]
+==== Enhancements
+
+* Improve UUID handling by correctly parsing type 4 UUIDs and skipping unsupported type 3 with a warning.
+See https://github.com/elastic/connectors/pull/3459[*PR 3459*].
+
+* Confluence connector no longer swallows errors that may occur during ingestion.
+See https://github.com/elastic/connectors/pull/3384[*PR 3384*].
+
+[discrete]
 [[es-connectors-release-notes-8-18-0]]
 === 8.18.0
 
@@ -29,6 +97,69 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 +
 IMPORTANT: Users building custom docker images based on this Dockerfile may have to review their configuration for compatibility with the new base image.
 See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
+
+[discrete]
+[[es-connectors-release-notes-8-17-10]]
+=== 8.17.10
+
+[discrete]
+[[es-connectors-release-notes-8-17-10-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
+[[es-connectors-release-notes-8-17-9]]
+=== 8.17.9
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-8]]
+=== 8.17.8
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-7]]
+=== 8.17.7
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-6]]
+=== 8.17.6
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-5]]
+=== 8.17.5
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-4]]
+=== 8.17.4
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-3]]
+=== 8.17.3
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-2]]
+=== 8.17.2
+
+No notable changes in this release.
 
 [discrete]
 [[es-connectors-release-notes-8-17-1]]
@@ -108,6 +239,9 @@ Users should migrate to the new `integrations` namespace as soon as possible to 
 [discrete]
 [[es-connectors-release-notes-8-16-0-enhancements]]
 ==== Enhancements
+
+* Connectors now support working with index aliases.
+See https://github.com/elastic/connectors/pull/2796[*PR 2796*].
 
 * Docker images now use Chainguard's Wolfi base image (`docker.elastic.co/wolfi/jdk:openjdk-11-dev`), replacing the previous `ubuntu:focal` base.
 

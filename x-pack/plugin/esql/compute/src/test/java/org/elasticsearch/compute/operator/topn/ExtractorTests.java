@@ -13,6 +13,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -40,8 +41,26 @@ public class ExtractorTests extends ESTestCase {
             switch (e) {
                 case UNKNOWN -> {
                 }
-                case COMPOSITE, AGGREGATE_METRIC_DOUBLE -> {
+                case COMPOSITE -> {
                     // TODO: add later
+                }
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    cases.add(
+                        valueTestCase(
+                            "regular aggregate_metric_double",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            () -> randomAggregateMetricDouble(true)
+                        )
+                    );
+                    cases.add(
+                        valueTestCase(
+                            "aggregate_metric_double with nulls",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            () -> randomAggregateMetricDouble(false)
+                        )
+                    );
                 }
                 case FLOAT -> {
                 }
@@ -101,7 +120,8 @@ public class ExtractorTests extends ESTestCase {
                             ).asBlock()
                         ) }
                 );
-                case NULL -> cases.add(valueTestCase("null", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
+                case NULL -> {
+                }
                 default -> {
                     cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> BlockTestUtils.randomValue(e)));
                     cases.add(
@@ -113,6 +133,9 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
+            }
+            if (e != ElementType.UNKNOWN && e != ElementType.COMPOSITE && e != ElementType.FLOAT && e != ElementType.DOC) {
+                cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
             }
         }
         return cases;
@@ -213,5 +236,17 @@ public class ExtractorTests extends ESTestCase {
         assertThat(values.length, equalTo(0));
 
         assertThat(result.build(), equalTo(value));
+    }
+
+    public static AggregateMetricDoubleLiteral randomAggregateMetricDouble(boolean allMetrics) {
+        if (allMetrics) {
+            return new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt());
+        }
+        return new AggregateMetricDoubleLiteral(
+            randomBoolean() ? randomDouble() : null,
+            randomBoolean() ? randomDouble() : null,
+            randomBoolean() ? randomDouble() : null,
+            randomBoolean() ? randomInt() : null
+        );
     }
 }

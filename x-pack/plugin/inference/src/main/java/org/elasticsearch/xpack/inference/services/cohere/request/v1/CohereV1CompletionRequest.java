@@ -30,7 +30,7 @@ public class CohereV1CompletionRequest extends CohereRequest {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         // we only allow one input for completion, so always get the first one
-        builder.field(CohereUtils.MESSAGE_FIELD, input.get(0));
+        builder.field(CohereUtils.V1_MESSAGE_FIELD, input.get(0));
         if (getModelId() != null) {
             builder.field(CohereUtils.MODEL_FIELD, getModelId());
         }

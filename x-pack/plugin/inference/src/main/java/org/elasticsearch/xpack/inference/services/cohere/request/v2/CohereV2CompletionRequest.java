@@ -29,8 +29,13 @@ public class CohereV2CompletionRequest extends CohereRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.startArray(CohereUtils.V2_MESSAGES_FIELD);
+        builder.startObject();
+        builder.field(CohereUtils.V2_ROLE_FIELD, CohereUtils.USER_FIELD);
         // we only allow one input for completion, so always get the first one
-        builder.field(CohereUtils.MESSAGE_FIELD, input.get(0));
+        builder.field("content", input.get(0));
+        builder.endObject();
+        builder.endArray();
         builder.field(CohereUtils.MODEL_FIELD, getModelId());
         builder.field(CohereUtils.STREAM_FIELD, isStreaming());
         builder.endObject();

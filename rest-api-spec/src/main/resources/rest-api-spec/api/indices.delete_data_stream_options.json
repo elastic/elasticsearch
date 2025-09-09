@@ -2,7 +2,7 @@
   "indices.delete_data_stream_options":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
-      "description":"Deletes the data stream options of the selected data streams."
+      "description":"Deletes the data stream options of the selected data streams"
     },
     "stability": "stable",
     "visibility": "public",

@@ -36,9 +36,6 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
         boolean success = false;
         try {
             load(target, offset);
-            if (target[0].getPositionCount() != docs.getPositionCount()) {
-                throw new IllegalStateException("partial pages not yet supported");
-            }
             success = true;
             for (Block b : target) {
                 operator.valuesLoaded += b.getTotalValueCount();

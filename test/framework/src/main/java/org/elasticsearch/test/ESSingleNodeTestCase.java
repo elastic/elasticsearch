@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * A test that keep a singleton node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
-@ESTestCase.WithoutEntitlements // ES-12042
 public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
@@ -281,7 +280,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();
         } catch (NodeValidationException e) {

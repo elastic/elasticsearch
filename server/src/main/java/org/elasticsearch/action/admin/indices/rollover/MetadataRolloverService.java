@@ -48,7 +48,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -295,7 +295,7 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) throws Exception {
 
-        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+        if (SnapshotsServiceUtils.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
             // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
             // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
             // rollover

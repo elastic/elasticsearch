@@ -1,8 +1,8 @@
 {
   "ml.get_datafeeds":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed.html",
-      "description":"Retrieves configuration information for datafeeds."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ml-get-datafeed.html",
+      "description":"Get datafeeds configuration info"
     },
     "stability":"stable",
     "visibility":"public",

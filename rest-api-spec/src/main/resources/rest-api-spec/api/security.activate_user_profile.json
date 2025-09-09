@@ -1,11 +1,11 @@
 {
   "security.activate_user_profile":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-activate-user-profile.html",
-      "description":"Creates or updates the user profile on behalf of another user."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-activate-user-profile.html",
+      "description":"Activate a user profile"
     },
     "stability":"stable",
-    "visibility":"private",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

@@ -1,8 +1,8 @@
 {
   "cat.aliases":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-alias.html",
-      "description":"Shows information about currently configured aliases to indices including filter and routing infos."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cat-alias.html",
+      "description":"Get aliases"
     },
     "stability":"stable",
     "visibility":"public",

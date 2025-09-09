@@ -23,6 +23,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -199,6 +200,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             operators.add(
                 new ValuesSourceReaderOperator(
                     blockFactory,
+                    ByteSizeValue.ofGb(1).getBytes(),
                     List.of(
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
@@ -214,7 +216,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             );
             LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {
                 new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher) };
-            operators.add(createOperator(blockFactory, shards));
+            operators.add(createOperator(driverContext, shards));
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
                 "test",
@@ -295,7 +297,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     /**
      * Create the operator to test
      */
-    protected abstract Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards);
+    protected abstract Operator createOperator(DriverContext driverContext, LuceneQueryEvaluator.ShardConfig[] shards);
 
     /**
      * Should the test use scoring?

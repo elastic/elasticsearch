@@ -508,7 +508,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
@@ -646,6 +646,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]
      *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testReplaceUpperStringCasinqgWithInsensitiveRLike() {
         var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE \"VALÜ*\"");
 
@@ -660,6 +661,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     // same plan as above, but lower case pattern
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testReplaceLowerStringCasingWithInsensitiveRLike() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"valü*\"");
 
@@ -677,6 +679,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
      *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testReplaceStringCasingAndRLikeWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"VALÜ*\"");
 
@@ -685,6 +688,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     // same plan as in testReplaceUpperStringCasingWithInsensitiveRLike, but with LIKE instead of RLIKE
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testReplaceUpperStringCasingWithInsensitiveLike() {
         var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) LIKE \"VALÜ*\"");
 
@@ -699,6 +703,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     // same plan as above, but lower case pattern
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testReplaceLowerStringCasingWithInsensitiveLike() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"valü*\"");
 
@@ -716,6 +721,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
      *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testReplaceStringCasingAndLikeWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
 
@@ -785,7 +791,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);

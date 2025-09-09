@@ -59,7 +59,6 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportRequest;
@@ -252,7 +251,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 fieldPermissionsCache,
                 mock(ApiKeyService.class),
                 mock(ServiceAccountService.class),
-                new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
+                new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 rds -> {}

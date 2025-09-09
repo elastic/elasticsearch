@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -141,17 +139,6 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
-        Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlCCSUtils.determineUnavailableRemoteClusters(
-            fieldCapsResponse.getFailures()
-        );
-
-        Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
-        for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
-            if (failure.getException() instanceof NoShardAvailableActionException e) {
-                unavailableShards.add(e);
-            }
-        }
-
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
@@ -163,7 +150,8 @@ public class IndexResolver {
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices);
-        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
+        var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldCapsResponse.getFailures());
+        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.UrlCodecUtils;
 
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,18 +24,16 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
 
     private record RandomUrl(String plain, String encoded) {}
 
-    public static Iterable<Object[]> createParameters(boolean isEncoderTest) {
-        String evaluatorToString = isEncoderTest
-            ? "UrlEncodeEvaluator[val=Attribute[channel=0]]"
-            : "UrlDecodeEvaluator[val=Attribute[channel=0]]";
-
+    public static Iterable<Object[]> createParameters(boolean isEncoderTest, String evaluatorToString) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        boolean useUrlComponentEncoder = evaluatorToString.equals("UrlEncodeComponentEvaluator[val=Attribute[channel=0]]");
 
         for (DataType dataType : DataType.stringTypes()) {
             Supplier<TestCaseSupplier.TestCase> caseSupplier = () -> createTestCaseWithRandomUrl(
                 dataType,
                 evaluatorToString,
-                isEncoderTest
+                isEncoderTest,
+                useUrlComponentEncoder
             );
 
             suppliers.add(new TestCaseSupplier(List.of(dataType), caseSupplier));
@@ -44,7 +42,7 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
                 TestCaseSupplier testCaseSupplier = new TestCaseSupplier(
                     supplier.name(),
                     List.of(supplier.type()),
-                    () -> createTestCaseWithRandomString(dataType, evaluatorToString, isEncoderTest, supplier)
+                    () -> createTestCaseWithRandomString(dataType, evaluatorToString, isEncoderTest, useUrlComponentEncoder, supplier)
                 );
                 suppliers.add(testCaseSupplier);
             }
@@ -57,9 +55,10 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
     public static TestCaseSupplier.TestCase createTestCaseWithRandomUrl(
         DataType dataType,
         String evaluatorToString,
-        boolean isEncoderTest
+        boolean isEncoderTest,
+        boolean useUrlComponentEncoder
     ) {
-        RandomUrl url = generateRandomUrl();
+        RandomUrl url = generateRandomUrl(useUrlComponentEncoder);
         BytesRef input = new BytesRef(isEncoderTest ? url.plain() : url.encoded());
         BytesRef output = new BytesRef(isEncoderTest ? url.encoded() : url.plain());
         TestCaseSupplier.TypedData fieldTypedData = new TestCaseSupplier.TypedData(input, dataType, "string");
@@ -71,11 +70,12 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
         DataType dataType,
         String evaluatorToString,
         boolean isEncoderTest,
+        boolean useUrlComponentEncoder,
         TestCaseSupplier.TypedDataSupplier supplier
     ) {
         TestCaseSupplier.TypedData fieldTypedData = supplier.get();
         String plain = BytesRefs.toBytesRef(fieldTypedData.data()).utf8ToString();
-        String encoded = encode(plain);
+        String encoded = encode(useUrlComponentEncoder, plain);
         BytesRef input = new BytesRef(isEncoderTest ? plain : encoded);
         BytesRef output = new BytesRef(isEncoderTest ? encoded : plain);
 
@@ -87,19 +87,22 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
         );
     }
 
-    private static RandomUrl generateRandomUrl() {
+    private static RandomUrl generateRandomUrl(boolean useUrlComponentEncoder) {
         String protocol = randomFrom("http://", "https://", "");
         String domain = String.format(Locale.ROOT, "%s.com", randomAlphaOfLengthBetween(3, 10));
         String path = randomFrom("", "/" + randomAlphanumericOfLength(5) + "/");
         String query = randomFrom("", "?" + randomAlphaOfLength(5) + "=" + randomAlphanumericOfLength(5));
+        String space = " "; // ensure the correct encoding for space (+ or %20)
 
-        String plain = String.format(Locale.ROOT, "%s%s%s%s", protocol, domain, path, query);
-        String encoded = encode(plain);
+        String plain = String.format(Locale.ROOT, "%s%s%s%s%s", protocol, domain, path, query, space);
+        String encoded = encode(useUrlComponentEncoder, plain);
 
         return new RandomUrl(plain, encoded);
     }
 
-    private static String encode(String plain) {
-        return URLEncoder.encode(plain, StandardCharsets.UTF_8);
+    private static String encode(boolean useUrlComponentEncoder, String plain) {
+        byte[] plainBytes = plain.getBytes(StandardCharsets.UTF_8);
+        byte[] encoded = useUrlComponentEncoder ? UrlCodecUtils.encodeUrlComponent(plainBytes) : UrlCodecUtils.encodeUrl(plainBytes);
+        return new String(encoded, StandardCharsets.UTF_8);
     }
 }

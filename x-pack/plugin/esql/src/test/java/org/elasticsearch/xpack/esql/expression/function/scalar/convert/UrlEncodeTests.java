@@ -26,7 +26,7 @@ public class UrlEncodeTests extends AbstractUrlEncodeDecodeTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return createParameters(true);
+        return createParameters(true, "UrlEncodeEvaluator[val=Attribute[channel=0]]");
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.UrlCodecUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -24,45 +25,45 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public final class UrlDecode extends UnaryScalarFunction {
+public class UrlEncodeComponent extends UnaryScalarFunction {
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "UrlDecode",
-        UrlDecode::new
+        "UrlEncodeComponent",
+        UrlEncodeComponent::new
     );
 
-    private UrlDecode(StreamInput in) throws IOException {
+    private UrlEncodeComponent(StreamInput in) throws IOException {
         super(in);
     }
 
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
-        description = "URL-decodes the input, or returns `null` and adds a warning header to the response if the input cannot be decoded.",
-        examples = { @Example(file = "string", tag = "url_decode") },
+        description = "URL-encodes the input. All characters are percent-encoded except for alphanumerics, "
+            + "`.`, `-`, `_`, and `~`. Spaces are encoded as `%20`.",
+        examples = { @Example(file = "string", tag = "url_encode_component") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
-    public UrlDecode(
+    public UrlEncodeComponent(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }, description = "The URL-encoded string to decode.") Expression str
+        @Param(name = "string", type = { "keyword", "text" }, description = "The URL to encode.") Expression str
     ) {
         super(source, str);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new UrlDecode(source(), newChildren.get(0));
+        return new UrlEncodeComponent(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, UrlDecode::new, field());
+        return NodeInfo.create(this, UrlEncodeComponent::new, field());
     }
 
     @Override
@@ -80,13 +81,15 @@ public final class UrlDecode extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new UrlDecodeEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return new UrlEncodeComponentEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
-    @ConvertEvaluator(warnExceptions = { IllegalArgumentException.class })
+    @ConvertEvaluator()
     static BytesRef process(final BytesRef val) {
-        String input = val.utf8ToString();
-        String decoded = URLDecoder.decode(input, StandardCharsets.UTF_8);
-        return new BytesRef(decoded);
+        byte[] input = new byte[val.length];
+        System.arraycopy(val.bytes, val.offset, input, 0, val.length);
+        byte[] bytes = UrlCodecUtils.encodeUrlComponent(input);
+        return new BytesRef(bytes);
     }
+
 }

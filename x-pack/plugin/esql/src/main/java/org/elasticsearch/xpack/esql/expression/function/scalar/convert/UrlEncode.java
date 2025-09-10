@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.UrlCodecUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -24,8 +25,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -45,11 +44,15 @@ public final class UrlEncode extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
-        description = "URL encodes the input.",
+        description = "URL-encodes the input. All characters are percent-encoded except for alphanumerics, "
+            + "`.`, `-`, `_`, and `~`. Spaces are encoded as `+`.",
         examples = { @Example(file = "string", tag = "url_encode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
-    public UrlEncode(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "URL to encode.") Expression str) {
+    public UrlEncode(
+        Source source,
+        @Param(name = "string", type = { "keyword", "text" }, description = "The URL to encode.") Expression str
+    ) {
         super(source, str);
     }
 
@@ -83,9 +86,10 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @ConvertEvaluator()
     static BytesRef process(final BytesRef val) {
-        String input = val.utf8ToString();
-        String encoded = URLEncoder.encode(input, StandardCharsets.UTF_8);
-        return new BytesRef(encoded);
+        byte[] input = new byte[val.length];
+        System.arraycopy(val.bytes, val.offset, input, 0, val.length);
+        byte[] bytes = UrlCodecUtils.encodeUrl(input);
+        return new BytesRef(bytes);
     }
 
 }

@@ -1423,6 +1423,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Generate a random TimeValue that is at least the provided timeValue.
+     * Chooses a random TimeUnit, adds between 0 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
+     */
+    public static TimeValue randomTimeValueOfAtLeast(TimeValue timeValue) {
+        final var randomUnit = randomFrom(TimeUnit.values());
+        long lowerBound = timeValue.getMillis();
+        // This could result in an overflow, but since this is only a test utility method, we're ok with that.
+        long upperBound = lowerBound + randomUnit.toMillis(1000);
+        final var durationMillis = randomLongBetween(lowerBound, upperBound);
+        final var duration = randomUnit.convert(durationMillis, TimeUnit.MILLISECONDS);
+        return new TimeValue(duration, randomUnit);
+    }
+
+    /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
     public static long randomMillisUpToYear9999() {

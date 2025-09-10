@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.XmlUtils;
@@ -30,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import javax.xml.namespace.NamespaceContext;
@@ -472,6 +474,24 @@ public final class XmlProcessor extends AbstractProcessor {
         }
     }
 
+    private static Map<SAXParserFactory, ThreadLocal<SAXParser>> PARSERS = new ConcurrentHashMap<>();
+    static {
+        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY, ThreadLocal.withInitial(() -> {
+            try {
+                return XmlFactories.SAX_PARSER_FACTORY.newSAXParser();
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+        }));
+        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY_NS, ThreadLocal.withInitial(() -> {
+            try {
+                return XmlFactories.SAX_PARSER_FACTORY_NS.newSAXParser();
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+        }));
+    }
+
     /**
      * Main XML parsing method that converts XML to JSON and optionally extracts XPath values.
      * Uses streaming SAX parser with optional DOM building for XPath processing.
@@ -485,7 +505,8 @@ public final class XmlProcessor extends AbstractProcessor {
             return;
         }
 
-        SAXParser parser = factory.newSAXParser();
+        SAXParser parser = PARSERS.get(factory).get();
+        parser.reset();
 
         // Use enhanced handler that can build DOM during streaming when needed
         XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);

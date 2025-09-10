@@ -414,17 +414,17 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID(Build.current().isSnapshot()),
+        SPATIAL_GRID,
 
         /**
          * Support geohash, geotile and geohex data types. Done in #129581
          */
-        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
+        SPATIAL_GRID_TYPES,
 
         /**
          * Support geohash, geotile and geohex in ST_INTERSECTS and ST_DISJOINT. Done in #133546
          */
-        SPATIAL_GRID_INTERSECTS(Build.current().isSnapshot()),
+        SPATIAL_GRID_INTERSECTS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -1328,6 +1328,11 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
          */
         FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
+         * Support for the SET command.
+         */
+        SET_COMMAND(Build.current().isSnapshot()),
 
         /**
          * (Re)Added EXPLAIN command

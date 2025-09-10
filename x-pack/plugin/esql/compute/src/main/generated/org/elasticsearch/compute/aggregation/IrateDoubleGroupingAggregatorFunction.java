@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -23,32 +22,30 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link RateDoubleAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link IrateDoubleAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class RateDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.DOUBLE),
-      new IntermediateStateDesc("sampleCounts", ElementType.INT),
-      new IntermediateStateDesc("resets", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("values", ElementType.DOUBLE)  );
 
-  private final RateDoubleAggregator.DoubleRateGroupingState state;
+  private final IrateDoubleAggregator.DoubleIrateGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public RateDoubleGroupingAggregatorFunction(List<Integer> channels,
-      RateDoubleAggregator.DoubleRateGroupingState state, DriverContext driverContext) {
+  public IrateDoubleGroupingAggregatorFunction(List<Integer> channels,
+      IrateDoubleAggregator.DoubleIrateGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static RateDoubleGroupingAggregatorFunction create(List<Integer> channels,
+  public static IrateDoubleGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext), driverContext);
+    return new IrateDoubleGroupingAggregatorFunction(channels, IrateDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -160,7 +157,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            RateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+            IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
@@ -180,7 +177,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         double valueValue = valueVector.getDouble(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        RateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+        IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -199,17 +196,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     DoubleBlock values = (DoubleBlock) valuesUncast;
-    Block sampleCountsUncast = page.getBlock(channels.get(2));
-    if (sampleCountsUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
-    Block resetsUncast = page.getBlock(channels.get(3));
-    if (resetsUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -219,7 +206,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(valuesPosition), resets.getDouble(valuesPosition), valuesPosition);
+        IrateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
@@ -249,7 +236,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            RateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+            IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
@@ -269,7 +256,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         double valueValue = valueVector.getDouble(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        RateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+        IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -288,17 +275,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     DoubleBlock values = (DoubleBlock) valuesUncast;
-    Block sampleCountsUncast = page.getBlock(channels.get(2));
-    if (sampleCountsUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
-    Block resetsUncast = page.getBlock(channels.get(3));
-    if (resetsUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -308,7 +285,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(valuesPosition), resets.getDouble(valuesPosition), valuesPosition);
+        IrateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
@@ -332,7 +309,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          RateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+          IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
     }
@@ -345,7 +322,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       double valueValue = valueVector.getDouble(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      RateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+      IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
     }
   }
 
@@ -363,21 +340,11 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     DoubleBlock values = (DoubleBlock) valuesUncast;
-    Block sampleCountsUncast = page.getBlock(channels.get(2));
-    if (sampleCountsUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
-    Block resetsUncast = page.getBlock(channels.get(3));
-    if (resetsUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(valuesPosition), resets.getDouble(valuesPosition), valuesPosition);
+      IrateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
     }
   }
 
@@ -404,7 +371,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = RateDoubleAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = IrateDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

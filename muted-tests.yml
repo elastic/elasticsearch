@@ -480,6 +480,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseOrQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133863
+- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
+  method: testParseAndQuery
+  issue: https://github.com/elastic/elasticsearch/issues/133871
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
@@ -504,9 +510,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:spatial_shapes.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/134254
-- class: org.elasticsearch.action.support.nodes.TransportNodesActionTests
-  method: testConcurrentlyCompletionAndCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/134277
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testDateHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/134389

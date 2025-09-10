@@ -114,6 +114,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
+    private final NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -124,18 +125,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
-        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings));
+        this(
+            balancerSettings,
+            writeLoadForecaster,
+            new GlobalBalancingWeightsFactory(balancerSettings),
+            NonPreferredShardIteratorFactory.NOOP
+        );
     }
 
     @Inject
     public BalancedShardsAllocator(
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
-        BalancingWeightsFactory balancingWeightsFactory
+        BalancingWeightsFactory balancingWeightsFactory,
+        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
     ) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
+        this.nonPreferredShardIteratorFactory = nonPreferredShardIteratorFactory;
     }
 
     @Override
@@ -152,7 +160,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return;
         }
         final BalancingWeights balancingWeights = balancingWeightsFactory.create();
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), balancingWeights);
+        final Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancerSettings.getThreshold(),
+            balancingWeights,
+            nonPreferredShardIteratorFactory
+        );
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.moveNonPreferred();
@@ -189,7 +203,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancerSettings.getThreshold(),
-            balancingWeightsFactory.create()
+            balancingWeightsFactory.create(),
+            nonPreferredShardIteratorFactory
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -249,12 +264,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelNode> nodes;
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
+        private final NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
-            BalancingWeights balancingWeights
+            BalancingWeights balancingWeights,
+            NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -267,6 +284,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
+            this.nonPreferredShardIteratorFactory = nonPreferredShardIteratorFactory;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -720,7 +738,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             do {
                 // Any time we move a shard, we need to update the cluster info and ask again for the non-preferred shards
                 // as they may have changed
-                for (Iterator<ShardRouting> nonPreferredShards = allocation.nonPreferredShards(); nonPreferredShards.hasNext();) {
+                for (Iterator<ShardRouting> nonPreferredShards = nonPreferredShardIteratorFactory.createNonPreferredShardIterator(
+                    allocation
+                ); nonPreferredShards.hasNext();) {
                     if (tryMoveShardIfNonPreferred(nonPreferredShards.next())) {
                         movedAShard = true;
                         break;

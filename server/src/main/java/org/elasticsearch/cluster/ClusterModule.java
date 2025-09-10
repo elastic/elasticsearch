@@ -186,14 +186,12 @@ public class ClusterModule extends AbstractModule {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
         this.shardRoutingRoleStrategy = getShardRoutingRoleStrategy(clusterPlugins);
-        final var writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterService.getClusterSettings());
         this.allocationService = new AllocationService(
             allocationDeciders,
             shardsAllocator,
             clusterInfoService,
             snapshotsInfoService,
-            shardRoutingRoleStrategy,
-            new DefaultNonPreferredShardIteratorFactory(writeLoadConstraintSettings)
+            shardRoutingRoleStrategy
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -508,16 +506,30 @@ public class ClusterModule extends AbstractModule {
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics
     ) {
+        WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+        DefaultNonPreferredShardIteratorFactory nonPreferredShardIteratorFactory = new DefaultNonPreferredShardIteratorFactory(
+            writeLoadConstraintSettings
+        );
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
             BALANCED_ALLOCATOR,
-            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory)
+            () -> new BalancedShardsAllocator(
+                balancerSettings,
+                writeLoadForecaster,
+                balancingWeightsFactory,
+                nonPreferredShardIteratorFactory
+            )
         );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory),
+                new BalancedShardsAllocator(
+                    balancerSettings,
+                    writeLoadForecaster,
+                    balancingWeightsFactory,
+                    nonPreferredShardIteratorFactory
+                ),
                 threadPool,
                 clusterService,
                 reconciler,

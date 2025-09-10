@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.allocator.NonPreferredShardIteratorFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -155,8 +154,7 @@ public class AllocationServiceTests extends ESTestCase {
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            NonPreferredShardIteratorFactory.NOOP
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -270,8 +268,7 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             null,
             null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            NonPreferredShardIteratorFactory.NOOP
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
@@ -393,8 +390,7 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            NonPreferredShardIteratorFactory.NOOP
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         final ProjectId project1 = randomUniqueProjectId();

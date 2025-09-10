@@ -1346,7 +1346,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE(Build.current().isSnapshot()),
+        FUSE_V2(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1420,6 +1420,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
 
         /**
+         * Bit elements dense vector field type support.
+         */
+        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
          * Support null elements on vector similarity functions
          */
         VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
@@ -1469,7 +1474,12 @@ public class EsqlCapabilities {
          * is replaced by something else on planning
          * e.g. STATS SUM(1) WHERE x==3 is replaced by MV_SUM(const)*COUNT(* WHERE x == 3).
          */
-        STATS_WITH_FILTERED_SURROGATE_FIXED;
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

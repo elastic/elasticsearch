@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -66,7 +67,7 @@ public class SamplingService implements ClusterStateListener {
     private final LongSupplier relativeNanoTimeSupplier;
     private final MasterServiceTaskQueue<UpdateSampleConfigTask> updateSamplingConfigTaskQueue;
     private final MasterServiceTaskQueue<DeleteSampleConfigTask> deleteSamplingConfigTaskQueue;
-    private final Map<ProjectIndex, SampleInfo> samples = new HashMap<>();
+    private final Map<ProjectIndex, SoftReference<SampleInfo>> samples = new HashMap<>();
 
     public SamplingService(ScriptService scriptService, ClusterService clusterService, LongSupplier relativeNanoTimeSupplier) {
         this.scriptService = scriptService;
@@ -184,64 +185,69 @@ public class SamplingService implements ClusterStateListener {
         if (samplingConfig != null) {
             String samplingIndex = samplingConfig.indexName;
             if (samplingIndex.equals(indexRequest.index())) {
-                SampleInfo sampleInfo = samples.computeIfAbsent(
+                SoftReference<SampleInfo> sampleInfoReference = samples.compute(
                     new ProjectIndex(projectId, samplingIndex),
-                    k -> new SampleInfo(samplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong())
+                    (k, v) -> v == null || v.get() == null
+                        ? new SoftReference<>(new SampleInfo(samplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong()))
+                        : v
                 );
-                SampleStats stats = sampleInfo.stats;
-                stats.potentialSamples.increment();
-                try {
-                    if (sampleInfo.getSamples().size() < samplingConfig.maxSamples) {
-                        String condition = samplingConfig.condition;
-                        if (condition != null) {
-                            if (sampleInfo.script == null || sampleInfo.factory == null) {
-                                // We don't want to pay for synchronization because worst case, we compile the script twice
-                                long compileScriptStartTime = relativeNanoTimeSupplier.getAsLong();
-                                try {
-                                    if (sampleInfo.compilationFailed) {
-                                        // we don't want to waste time
-                                        stats.samplesRejectedForException.increment();
-                                        return;
-                                    } else {
-                                        Script script = getScript(condition);
-                                        sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
+                SampleInfo sampleInfo = sampleInfoReference.get();
+                if (sampleInfo != null) {
+                    SampleStats stats = sampleInfo.stats;
+                    stats.potentialSamples.increment();
+                    try {
+                        if (sampleInfo.getSamples().size() < samplingConfig.maxSamples) {
+                            String condition = samplingConfig.condition;
+                            if (condition != null) {
+                                if (sampleInfo.script == null || sampleInfo.factory == null) {
+                                    // We don't want to pay for synchronization because worst case, we compile the script twice
+                                    long compileScriptStartTime = relativeNanoTimeSupplier.getAsLong();
+                                    try {
+                                        if (sampleInfo.compilationFailed) {
+                                            // we don't want to waste time
+                                            stats.samplesRejectedForException.increment();
+                                            return;
+                                        } else {
+                                            Script script = getScript(condition);
+                                            sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
+                                        }
+                                    } catch (Exception e) {
+                                        sampleInfo.compilationFailed = true;
+                                        throw e;
+                                    } finally {
+                                        stats.timeCompilingCondition.add((relativeNanoTimeSupplier.getAsLong() - compileScriptStartTime));
                                     }
-                                } catch (Exception e) {
-                                    sampleInfo.compilationFailed = true;
-                                    throw e;
-                                } finally {
-                                    stats.timeCompilingCondition.add((relativeNanoTimeSupplier.getAsLong() - compileScriptStartTime));
                                 }
                             }
-                        }
-                        long conditionStartTime = relativeNanoTimeSupplier.getAsLong();
-                        if (condition == null
-                            || evaluateCondition(ingestDocument, sampleInfo.script, sampleInfo.factory, sampleInfo.stats)) {
-                            stats.timeEvaluatingCondition.add((relativeNanoTimeSupplier.getAsLong() - conditionStartTime));
-                            if (Math.random() < samplingConfig.rate) {
-                                indexRequest.incRef();
-                                if (indexRequest.source() instanceof ReleasableBytesReference releaseableSource) {
-                                    releaseableSource.incRef();
+                            long conditionStartTime = relativeNanoTimeSupplier.getAsLong();
+                            if (condition == null
+                                || evaluateCondition(ingestDocument, sampleInfo.script, sampleInfo.factory, sampleInfo.stats)) {
+                                stats.timeEvaluatingCondition.add((relativeNanoTimeSupplier.getAsLong() - conditionStartTime));
+                                if (Math.random() < samplingConfig.rate) {
+                                    indexRequest.incRef();
+                                    if (indexRequest.source() instanceof ReleasableBytesReference releaseableSource) {
+                                        releaseableSource.incRef();
+                                    }
+                                    sampleInfo.getSamples().add(indexRequest);
+                                    stats.samples.increment();
+                                    logger.info("Sampling " + indexRequest);
+                                } else {
+                                    stats.samplesRejectedForRate.increment();
                                 }
-                                sampleInfo.getSamples().add(indexRequest);
-                                stats.samples.increment();
-                                logger.info("Sampling " + indexRequest);
                             } else {
-                                stats.samplesRejectedForRate.increment();
+                                stats.samplesRejectedForCondition.increment();
                             }
                         } else {
-                            stats.samplesRejectedForCondition.increment();
+                            stats.samplesRejectedForSize.increment();
                         }
-                    } else {
-                        stats.samplesRejectedForSize.increment();
+                    } catch (Exception e) {
+                        stats.samplesRejectedForException.increment();
+                        stats.lastException = e;
+                        logger.info("Error performing sampling for " + samplingIndex, e);
+                    } finally {
+                        stats.timeSampling.add((relativeNanoTimeSupplier.getAsLong() - startTime));
+                        logger.info("********* Stats: " + stats);
                     }
-                } catch (Exception e) {
-                    stats.samplesRejectedForException.increment();
-                    stats.lastException = e;
-                    logger.info("Error performing sampling for " + samplingIndex, e);
-                } finally {
-                    stats.timeSampling.add((relativeNanoTimeSupplier.getAsLong() - startTime));
-                    logger.info("********* Stats: " + stats);
                 }
             }
         }
@@ -249,11 +255,15 @@ public class SamplingService implements ClusterStateListener {
     }
 
     public List<IndexRequest> getSamples(ProjectId projectId, String index) {
-        return samples.get(new ProjectIndex(projectId, index)).getSamples();
+        SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
+        SampleInfo sampleInfo = sampleInfoReference.get();
+        return sampleInfo == null ? List.of() : sampleInfo.getSamples();
     }
 
     public SampleStats getSampleStats(ProjectId projectId, String index) {
-        return samples.get(new ProjectIndex(projectId, index)).stats;
+        SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
+        SampleInfo sampleInfo = sampleInfoReference.get();
+        return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
     }
 
     public TransportPutSampleConfigAction.SamplingConfigCustomMetadata getSampleConfig(ProjectMetadata projectMetadata, String index) {
@@ -309,9 +319,9 @@ public class SamplingService implements ClusterStateListener {
                     if (newSamplingConfig == null && oldSamplingConfig != null) {
                         samples.remove(new ProjectIndex(projectId, oldSamplingConfig.indexName));
                     } else if (newSamplingConfig != null && newSamplingConfig.equals(oldSamplingConfig) == false) {
-                        samples.computeIfPresent(
+                        samples.put(
                             new ProjectIndex(projectId, newSamplingConfig.indexName),
-                            (s, sampleInfo) -> new SampleInfo(newSamplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong())
+                            new SoftReference<>(new SampleInfo(newSamplingConfig.timeToLive, relativeNanoTimeSupplier.getAsLong()))
                         );
                     }
                 }
@@ -323,8 +333,9 @@ public class SamplingService implements ClusterStateListener {
         long now = relativeNanoTimeSupplier.getAsLong();
         Set<ProjectIndex> projectIndices = samples.keySet();
         for (ProjectIndex projectIndex : projectIndices) {
-            SampleInfo sampleInfo = samples.get(projectIndex);
-            if (sampleInfo.expiration < now) {
+            SoftReference<SampleInfo> sampleInfoReference = samples.get(projectIndex);
+            SampleInfo sampleInfo = sampleInfoReference.get();
+            if (sampleInfo != null && sampleInfo.expiration < now) {
                 deleteSampleConfiguration(projectIndex.projectId, projectIndex.indexName);
             }
         }
@@ -387,23 +398,23 @@ public class SamplingService implements ClusterStateListener {
 
         @Override
         public String toString() {
-            return "potentialSamples: "
+            return "potential_samples: "
                 + potentialSamples
-                + ", samplesRejectedForSize: "
+                + ", samples_rejected_for_size: "
                 + samplesRejectedForSize
-                + ", samplesRejectedForCondition: "
+                + ", samples_rejected_for_condition: "
                 + samplesRejectedForCondition
-                + ", samplesRejectedForRate: "
+                + ", samples_rejected_for_rate: "
                 + samplesRejectedForRate
-                + ", samplesRejectedForException: "
+                + ", samples_rejected_for_exception: "
                 + samplesRejectedForException
-                + ", samples: "
+                + ", samples_accepted: "
                 + samples
-                + ", timeSampling: "
+                + ", time_sampling: "
                 + (timeSampling.longValue() / 1000000)
-                + ", timeEvaluatingCondition: "
+                + ", time_evaluating_condition: "
                 + (timeEvaluatingCondition.longValue() / 1000000)
-                + ", timeCompilingCondition: "
+                + ", time_compiling_condition: "
                 + (timeCompilingCondition.longValue() / 1000000);
         }
 
@@ -434,15 +445,15 @@ public class SamplingService implements ClusterStateListener {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("potentialSamples", potentialSamples.longValue());
-            builder.field("samplesRejectedForSize", samplesRejectedForSize.longValue());
-            builder.field("samplesRejectedForCondition", samplesRejectedForCondition.longValue());
-            builder.field("samplesRejectedForRate", samplesRejectedForRate.longValue());
-            builder.field("samplesRejectedForException", samplesRejectedForException.longValue());
-            builder.field("samples", samples.longValue());
-            builder.field("timeSampling", (timeSampling.longValue() / 1000000));
-            builder.field("timeEvaluatingCondition", (timeEvaluatingCondition.longValue() / 1000000));
-            builder.field("timeCompilingCondition", (timeCompilingCondition.longValue() / 1000000));
+            builder.field("potential_samples", potentialSamples.longValue());
+            builder.field("samples_rejected_for_size", samplesRejectedForSize.longValue());
+            builder.field("samples_rejected_for_condition", samplesRejectedForCondition.longValue());
+            builder.field("samples_rejected_for_rate", samplesRejectedForRate.longValue());
+            builder.field("samples_rejected_for_exception", samplesRejectedForException.longValue());
+            builder.field("samples_accepted", samples.longValue());
+            builder.field("time_sampling", (timeSampling.longValue() / 1000000));
+            builder.field("time_evaluating_condition", (timeEvaluatingCondition.longValue() / 1000000));
+            builder.field("time_compiling_condition", (timeCompilingCondition.longValue() / 1000000));
             builder.endObject();
             return builder;
         }

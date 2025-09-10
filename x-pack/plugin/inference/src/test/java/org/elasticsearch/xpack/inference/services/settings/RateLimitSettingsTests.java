@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,6 +29,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase<RateLimitSettings> {
+
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
 
     public static RateLimitSettings createRandom() {
         return new RateLimitSettings(randomLongBetween(1, 1000000));
@@ -190,7 +193,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
 
     @Override
     protected RateLimitSettings mutateInstanceForVersion(RateLimitSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (version.supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             return new RateLimitSettings(instance.requestsPerTimeUnit(), instance.timeUnit(), true);
         } else {
             return instance;

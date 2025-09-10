@@ -24,6 +24,8 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
@@ -50,18 +52,29 @@ public class LuceneSliceQueueTests extends ESTestCase {
         LeafReaderContext leaf2 = new MockLeafReader(1000).getContext();
         LeafReaderContext leaf3 = new MockLeafReader(1000).getContext();
         LeafReaderContext leaf4 = new MockLeafReader(1000).getContext();
-        var slice1 = new LuceneSlice(0, null, List.of(new PartialLeafReaderContext(leaf1, 0, 10)), null, null);
-
-        var slice2 = new LuceneSlice(1, null, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, null);
-        var slice3 = new LuceneSlice(2, null, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, null);
-
-        var slice4 = new LuceneSlice(3, null, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, null);
-        var slice5 = new LuceneSlice(4, null, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, null);
-        var slice6 = new LuceneSlice(5, null, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, null);
-
-        var slice7 = new LuceneSlice(6, null, List.of(new PartialLeafReaderContext(leaf4, 0, 10)), null, null);
-        var slice8 = new LuceneSlice(7, null, List.of(new PartialLeafReaderContext(leaf4, 10, 20)), null, null);
-        List<LuceneSlice> sliceList = List.of(slice1, slice2, slice3, slice4, slice5, slice6, slice7, slice8);
+        LuceneSliceQueue.QueryAndTags t1 = new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of("q1"));
+        LuceneSliceQueue.QueryAndTags t2 = new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of("q2"));
+        var scoreMode = ScoreMode.COMPLETE_NO_SCORES;
+        List<LuceneSlice> sliceList = List.of(
+            // query1: new segment
+            new LuceneSlice(0, true, null, List.of(new PartialLeafReaderContext(leaf1, 0, 10)), scoreMode, t1),
+            new LuceneSlice(1, false, null, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), scoreMode, t1),
+            new LuceneSlice(2, false, null, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), scoreMode, t1),
+            // query1: new segment
+            new LuceneSlice(3, false, null, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), scoreMode, t1),
+            new LuceneSlice(4, false, null, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), scoreMode, t1),
+            new LuceneSlice(5, false, null, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), scoreMode, t1),
+            // query1: new segment
+            new LuceneSlice(6, false, null, List.of(new PartialLeafReaderContext(leaf4, 0, 10)), scoreMode, t1),
+            new LuceneSlice(7, false, null, List.of(new PartialLeafReaderContext(leaf4, 10, 20)), scoreMode, t1),
+            // query2: new segment
+            new LuceneSlice(8, true, null, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), scoreMode, t2),
+            new LuceneSlice(9, false, null, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), scoreMode, t2),
+            // query1: new segment
+            new LuceneSlice(10, false, null, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), scoreMode, t2),
+            new LuceneSlice(11, false, null, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), scoreMode, t2),
+            new LuceneSlice(12, false, null, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), scoreMode, t2)
+        );
         // single driver
         {
             LuceneSliceQueue queue = new LuceneSliceQueue(sliceList, Map.of());
@@ -72,32 +85,43 @@ public class LuceneSliceQueueTests extends ESTestCase {
             }
             assertNull(queue.nextSlice(randomBoolean() ? last : null));
         }
-        // two drivers
+        // three drivers
         {
             LuceneSliceQueue queue = new LuceneSliceQueue(sliceList, Map.of());
+
             LuceneSlice first = null;
             LuceneSlice second = null;
+            LuceneSlice third = null;
             first = queue.nextSlice(first);
-            assertEquals(slice1, first);
+            assertEquals(sliceList.get(0), first);
             first = queue.nextSlice(first);
-            assertEquals(slice2, first);
+            assertEquals(sliceList.get(1), first);
 
             second = queue.nextSlice(second);
-            assertEquals(slice4, second);
+            assertEquals(sliceList.get(8), second);
             second = queue.nextSlice(second);
-            assertEquals(slice5, second);
+            assertEquals(sliceList.get(9), second);
 
             first = queue.nextSlice(first);
-            assertEquals(slice3, first);
-            second = queue.nextSlice(second);
-            assertEquals(slice6, second);
+            assertEquals(sliceList.get(2), first);
+            third = queue.nextSlice(third);
+            assertEquals(sliceList.get(3), third);
             first = queue.nextSlice(first);
-            assertEquals(slice7, first);
+            assertEquals(sliceList.get(6), first);
 
-            assertEquals(slice8, queue.nextSlice(randomFrom(first, second)));
-
-            assertNull(queue.nextSlice(first));
-            assertNull(queue.nextSlice(second));
+            first = queue.nextSlice(first);
+            assertEquals(sliceList.get(7), first);
+            third = queue.nextSlice(third);
+            assertEquals(sliceList.get(4), third);
+            first = queue.nextSlice(first);
+            assertEquals(sliceList.get(10), first);
+            first = queue.nextSlice(first);
+            assertEquals(sliceList.get(11), first);
+            second = queue.nextSlice(second);
+            assertEquals(sliceList.get(5), second);
+            second = queue.nextSlice(second);
+            assertEquals(sliceList.get(12), second);
+            assertNull(null, queue.nextSlice(randomFrom(sliceList)));
         }
     }
 
@@ -108,16 +132,17 @@ public class LuceneSliceQueueTests extends ESTestCase {
         for (int shard = 0; shard < numShards; shard++) {
             int numSegments = randomIntBetween(1, 10);
             for (int segment = 0; segment < numSegments; segment++) {
-                int numSlices = randomBoolean() ? 1 : between(2, 5);
+                int numSlices = between(10, 50);
                 LeafReaderContext leafContext = new MockLeafReader(randomIntBetween(1000, 2000)).getContext();
                 for (int i = 0; i < numSlices; i++) {
                     final int minDoc = i * 10;
                     final int maxDoc = minDoc + 10;
                     LuceneSlice slice = new LuceneSlice(
                         slicePosition++,
+                        false,
                         mock(ShardContext.class),
                         List.of(new PartialLeafReaderContext(leafContext, minDoc, maxDoc)),
-                        null,
+                        ScoreMode.COMPLETE_NO_SCORES,
                         null
                     );
                     sliceList.add(slice);
@@ -147,8 +172,8 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     var currentLeaf = processedSlices.get(i).getLeaf(0);
                     for (int p = 0; p < i; p++) {
                         PartialLeafReaderContext prevLeaf = processedSlices.get(p).getLeaf(0);
-                        if (prevLeaf == currentLeaf) {
-                            assertThat(prevLeaf.minDoc(), Matchers.lessThanOrEqualTo(processedSlices.get(i).leaves().getFirst().maxDoc()));
+                        if (prevLeaf.leafReaderContext() == currentLeaf.leafReaderContext()) {
+                            assertThat(prevLeaf.maxDoc(), Matchers.lessThanOrEqualTo(currentLeaf.minDoc()));
                         }
                     }
                 }

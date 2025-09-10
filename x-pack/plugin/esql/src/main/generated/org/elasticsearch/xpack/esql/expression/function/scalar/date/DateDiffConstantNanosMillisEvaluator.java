@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffConstantNanosMillisEvaluator.class);
+
   private final Source source;
 
   private final DateDiff.Part datePartFieldUnit;
@@ -61,6 +64,14 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
         return eval(page.getPositionCount(), startTimestampNanosVector, endTimestampMillisVector);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += startTimestampNanos.baseRamBytesUsed();
+    baseRamBytesUsed += endTimestampMillis.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public IntBlock eval(int positionCount, LongBlock startTimestampNanosBlock,

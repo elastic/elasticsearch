@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -185,8 +186,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+    public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        if (TransformMetadata.upgradeMode(project)) {
             // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
             listener.onResponse(Map.of("already_in_upgrade_mode", true));
             return;
@@ -202,12 +203,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public void indicesMigrationComplete(
-        Map<String, Object> preUpgradeMetadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
+    public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
         if (wasAlreadyInUpgradeMode) {
             // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
@@ -307,7 +303,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             settings,
-            clusterService,
+            services.linkedProjectConfigService(),
             configManager,
             auditor
         );

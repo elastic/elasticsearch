@@ -9,12 +9,14 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+
+import static org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin.TRANSPORT_REFERENCES_TOPIC;
 
 public class TransportVersionReferencesPlugin implements Plugin<Project> {
 
@@ -22,18 +24,22 @@ public class TransportVersionReferencesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
+        project.getPlugins()
+            .apply(ProjectSubscribeServicePlugin.class)
+            .getService()
+            .get()
+            .registerProjectForTopic(TRANSPORT_REFERENCES_TOPIC, project);
+
         var collectTask = project.getTasks()
             .register("collectTransportVersionReferences", CollectTransportVersionReferencesTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Collects all TransportVersion references used throughout the project");
                 SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
                 t.getClassPath().setFrom(mainSourceSet.getOutput());
-                t.getOutputFile().set(project.getLayout().getBuildDirectory().file("transport-version/references.txt"));
+                t.getOutputFile().set(project.getLayout().getBuildDirectory().file("transport-version/references.csv"));
             });
 
-        Configuration tvReferencesConfig = project.getConfigurations().create("transportVersionReferences", c -> {
-            c.setCanBeConsumed(true);
-            c.setCanBeResolved(false);
+        var tvReferencesConfig = project.getConfigurations().consumable("transportVersionReferences", c -> {
             c.attributes(TransportVersionReference::addArtifactAttribute);
         });
         project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);

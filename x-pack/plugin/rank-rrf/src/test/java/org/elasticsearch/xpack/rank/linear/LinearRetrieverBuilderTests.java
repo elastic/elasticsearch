@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.linear;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -22,9 +23,11 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class LinearRetrieverBuilderTests extends ESTestCase {
@@ -45,8 +49,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -175,8 +182,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -326,4 +336,104 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             return Objects.hash(retriever, weight, normalizer);
         }
     }
+
+    public void testTopLevelNormalizerWithRetrieversArray() {
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "title_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            null,
+            10,
+            100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            List.of(
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
+                CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
+            ),
+            null,
+            null,
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[] { 1.0f, 2.0f },
+            new ScoreNormalizer[] { null, null }
+        );
+
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
+    }
+
+    public void testTopLevelNormalizerWithPerRetrieverOverrides() {
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "title_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            null,
+            10,
+            100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            List.of(
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
+                CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
+            ),
+            null,
+            null,
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[] { 1.0f, 2.0f },
+            new ScoreNormalizer[] { L2ScoreNormalizer.INSTANCE, null }
+        );
+
+        assertEquals(L2ScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
+    }
+
+    public void testNullNormalizersWithoutTopLevelUsesIdentity() {
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            List.of(CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever)),
+            null,
+            null,
+            null,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[] { 1.0f },
+            new ScoreNormalizer[] { null }
+        );
+
+        assertEquals(IdentityScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
+    }
+
+    public void testMixedNormalizerInheritanceScenario() {
+        StandardRetrieverBuilder standardRetriever1 = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
+        StandardRetrieverBuilder standardRetriever2 = new StandardRetrieverBuilder(new MatchQueryBuilder("content", "search"));
+        StandardRetrieverBuilder standardRetriever3 = new StandardRetrieverBuilder(new MatchQueryBuilder("tags", "java"));
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            List.of(
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever1),
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever2),
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever3)
+            ),
+            null,
+            null,
+            L2ScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            new ScoreNormalizer[] { null, MinMaxScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+        );
+        assertEquals(L2ScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
+        assertEquals(IdentityScoreNormalizer.INSTANCE, retriever.getNormalizers()[2]);
+    }
+
 }

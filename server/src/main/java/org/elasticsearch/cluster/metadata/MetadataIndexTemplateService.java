@@ -26,6 +26,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -789,16 +790,21 @@ public class MetadataIndexTemplateService {
         final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         var finalSettings = Settings.builder();
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         for (var provider : indexSettingProviders) {
-            var newAdditionalSettings = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalMetadata(
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
                 projectMetadata,
                 now,
                 combinedSettings,
-                combinedMappings
+                combinedMappings,
+                builder,
+                customMetadataBuilder::put
             );
+            var newAdditionalSettings = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
             finalSettings.put(newAdditionalSettings);
         }
@@ -826,7 +832,15 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(projectMetadata, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
+            validateCompositeTemplate(
+                projectMetadata,
+                name,
+                templateToValidate,
+                customMetadataBuilder.build(),
+                indicesService,
+                xContentRegistry,
+                systemIndices
+            );
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["
@@ -1063,12 +1077,16 @@ public class MetadataIndexTemplateService {
         boolean checkPriority,
         long priority
     ) {
-        Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+        // Determinization is avoided because it can fail or become very costly due to state explosion.
+        Automaton v1automaton = Regex.simpleMatchToNonDeterminizedAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new TreeMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : templatesV2.entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
-            Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
+            // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+            // Determinization is avoided because it can fail or become very costly due to state explosion.
+            Automaton v2automaton = Regex.simpleMatchToNonDeterminizedAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
                 if (checkPriority == false || priority == template.priorityOrZero()) {
                     logger.debug(
@@ -1938,6 +1956,7 @@ public class MetadataIndexTemplateService {
         final ProjectMetadata project,
         final String templateName,
         final ComposableIndexTemplate template,
+        final ImmutableOpenMap<String, Map<String, String>> customMetadata,
         final IndicesService indicesService,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices
@@ -1971,6 +1990,7 @@ public class MetadataIndexTemplateService {
                     // necessary to pass asserts in ClusterState constructor
                     .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                     .settings(finalResolvedSettings)
+                    .putCustom(customMetadata)
             )
             .build();
         final IndexMetadata tmpIndexMetadata = projectMetadataWithIndex.index(temporaryIndexName);

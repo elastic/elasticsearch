@@ -239,8 +239,8 @@ public class InetAddresses {
                 return null; // Invalid character
             }
         }
-        if (currentHextetStart != length) {
-            // Handle the last hextet
+        // Handle the last hextet unless the IP address ends with ::
+        if (currentHextetStart < offset + length) {
             if (putHextet(bytes, currentHextet) == false) {
                 return null;
             }

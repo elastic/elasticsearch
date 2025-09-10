@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -71,7 +72,8 @@ public abstract class FullTextFunction extends Function
         PostAnalysisPlanVerificationAware,
         EvaluatorMapper,
         ExpressionScoreMapper,
-        PostOptimizationVerificationAware {
+        PostOptimizationVerificationAware,
+        RewriteableAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -164,13 +166,12 @@ public abstract class FullTextFunction extends Function
         return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
     }
 
+    @Override
     public QueryBuilder queryBuilder() {
         return queryBuilder;
     }
 
     protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
-
-    public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
@@ -383,9 +384,20 @@ public abstract class FullTextFunction extends Function
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(evaluatorQueryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+    }
+
+    /**
+     * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
+     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     *
+     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     */
+    protected QueryBuilder evaluatorQueryBuilder() {
+        // Use the same query builder as for the translation by default
+        return queryBuilder();
     }
 
     @Override
@@ -394,7 +406,7 @@ public abstract class FullTextFunction extends Function
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(evaluatorQueryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
     }

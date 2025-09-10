@@ -61,7 +61,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportRequest;
@@ -243,6 +243,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
+        final var projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = Mockito.spy(
             new CompositeRolesStore(
@@ -255,8 +256,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 fieldPermissionsCache,
                 mock(ApiKeyService.class),
                 mock(ServiceAccountService.class),
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
+                projectResolver,
+                new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 rds -> {}
@@ -418,7 +419,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService, indexNameExpressionResolver);
+        defaultIndicesResolver = new IndicesAndAliasesResolver(
+            settings,
+            new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
+            indexNameExpressionResolver
+        );
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {

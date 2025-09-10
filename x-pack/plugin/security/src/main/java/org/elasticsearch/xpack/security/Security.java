@@ -107,6 +107,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -749,6 +750,7 @@ public class Security extends Plugin
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.linkedProjectConfigService(),
                 services.projectResolver()
             );
         } catch (final Exception e) {
@@ -769,6 +771,7 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
+        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
@@ -1144,6 +1147,7 @@ public class Security extends Plugin
             operatorPrivilegesService.get(),
             restrictedIndices,
             authorizationDenialMessages.get(),
+            linkedProjectConfigService,
             projectResolver
         );
 

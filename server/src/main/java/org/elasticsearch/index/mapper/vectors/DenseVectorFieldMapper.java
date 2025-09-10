@@ -2643,11 +2643,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            if (element.elementType() == ElementType.BIT) {
-                // Just float and byte dense vector support for now
-                return null;
-            }
-
             if (dims == null) {
                 // No data has been indexed yet
                 return BlockLoader.CONSTANT_NULLS;

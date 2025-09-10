@@ -1278,10 +1278,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater,
                     ActionListener<Void> completionListener
                 ) throws IOException {
-                    LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
-                    String blobFileExtension = luceneFilesExtensions != null
-                        ? luceneFilesExtensions.getExtension()
-                        : NON_LUCENE_EXTENSION_TO_RECORD;
+                    String blobFileExtension = getFileExtension(resourceDescription);
                     writer.fillCacheRange(
                         channel,
                         channelPos,
@@ -2084,5 +2081,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 this.isClosed = true;
             }
         }
+    }
+
+    private static String getFileExtension(String resourceDescription) {
+        int s, e;
+        if ((s = resourceDescription.lastIndexOf('(')) >= 0
+            && resourceDescription.endsWith(".cfs")
+            && (e = resourceDescription.lastIndexOf(')')) > 0) {
+            resourceDescription = resourceDescription.substring(s + 1, e);
+        }
+        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
+        return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
     }
 }

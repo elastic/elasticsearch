@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.PROJECT_ROUTING;
+
 /**
  * A datafeed update contains partial properties to update a {@link DatafeedConfig}.
  * The main difference between this class and {@link DatafeedConfig} is that here all
@@ -93,6 +95,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.INDICES_OPTIONS
         );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        PARSER.declareString(Builder::setProjectRouting, PROJECT_ROUTING);
     }
 
     private final String id;
@@ -109,6 +112,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
+    private final String projectRouting;
 
     private DatafeedUpdate(
         String id,
@@ -124,7 +128,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         DelayedDataCheckConfig delayedDataCheckConfig,
         Integer maxEmptySearches,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -140,6 +145,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = indicesOptions;
         this.runtimeMappings = runtimeMappings;
+        this.projectRouting = projectRouting;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -167,6 +173,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         maxEmptySearches = in.readOptionalInt();
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
         this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
+        this.projectRouting = null;
     }
 
     /**
@@ -251,6 +258,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.endObject();
         }
         addOptionalField(builder, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD, runtimeMappings);
+        addOptionalField(builder, PROJECT_ROUTING, projectRouting);
         builder.endObject();
         return builder;
     }
@@ -330,6 +338,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return indicesOptions;
     }
 
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
     /**
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
@@ -386,6 +398,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (headers.isEmpty() == false) {
             builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
         }
+        if (projectRouting != null) {
+            builder.setProjectRouting(projectRouting);
+        }
         return builder.build();
     }
 
@@ -419,7 +434,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && Objects.equals(this.chunkingConfig, that.chunkingConfig)
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
-            && Objects.equals(this.runtimeMappings, that.runtimeMappings);
+            && Objects.equals(this.runtimeMappings, that.runtimeMappings)
+            && Objects.equals(this.projectRouting, that.projectRouting);
     }
 
     @Override
@@ -438,7 +454,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             delayedDataCheckConfig,
             maxEmptySearches,
             indicesOptions,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 
@@ -461,7 +478,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches())
                 || (maxEmptySearches == -1 && datafeed.getMaxEmptySearches() == null))
             && (indicesOptions == null || Objects.equals(indicesOptions, datafeed.getIndicesOptions()))
-            && (runtimeMappings == null || Objects.equals(runtimeMappings, datafeed.getRuntimeMappings()));
+            && (runtimeMappings == null || Objects.equals(runtimeMappings, datafeed.getRuntimeMappings()))
+            && (projectRouting == null || Objects.equals(projectRouting, datafeed.getProjectRouting()));
     }
 
     public static class Builder {
@@ -480,6 +498,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings;
+        private String projectRouting;
 
         public Builder() {}
 
@@ -502,6 +521,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.maxEmptySearches = config.maxEmptySearches;
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = config.runtimeMappings != null ? new HashMap<>(config.runtimeMappings) : null;
+            this.projectRouting = config.projectRouting;
         }
 
         public Builder setId(String datafeedId) {
@@ -602,6 +622,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setProjectRouting(String projectRouting) {
+            this.projectRouting = projectRouting;
+            return this;
+        }
+
         public DatafeedUpdate build() {
             return new DatafeedUpdate(
                 id,
@@ -617,7 +642,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 delayedDataCheckConfig,
                 maxEmptySearches,
                 indicesOptions,
-                runtimeMappings
+                runtimeMappings,
+                projectRouting
             );
         }
     }

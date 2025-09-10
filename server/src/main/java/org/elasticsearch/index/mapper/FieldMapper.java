@@ -612,12 +612,46 @@ public abstract class FieldMapper extends Mapper {
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
+            /**
+             * Returns whether the given builder should be used to track source for synthetic source purposes.
+             */
+            private boolean shouldTrackSource(KeywordFieldMapper.Builder keywordBuilder) {
+                // we only need one compatible keyword multi-field, so if one was already found, ignore the rest
+                return hasSyntheticSourceCompatibleKeywordField == false && isSyntheticSourceCompatible(keywordBuilder);
+            }
+
+            /**
+             * Returns whether the given builder is synthetic source compatible. To be compatible, the builder must
+             * track source in some way, whether that be via the "store" param or using doc values.
+             */
+            private boolean isSyntheticSourceCompatible(KeywordFieldMapper.Builder keywordBuilder) {
+                return keywordBuilder.hasNormalizer() == false && (keywordBuilder.hasDocValues() || keywordBuilder.isStored());
+            }
+
+            /**
+             * Same as {@link #shouldTrackSource(KeywordFieldMapper.Builder)} but with a
+             * {@link KeywordFieldMapper} instead.
+             */
+            private boolean shouldTrackSource(KeywordFieldMapper keywordMapper) {
+                return hasSyntheticSourceCompatibleKeywordField == false && isSyntheticSourceCompatible(keywordMapper);
+            }
+
+            /**
+             * Same as {@link #isSyntheticSourceCompatible(KeywordFieldMapper.Builder)} but with a
+             * {@link KeywordFieldMapper} instead.
+             */
+            private boolean isSyntheticSourceCompatible(KeywordFieldMapper keyworddMapper) {
+                return keyworddMapper.hasNormalizer() == false
+                    && (keyworddMapper.fieldType().hasDocValues() || keyworddMapper.fieldType().isStored());
+            }
+
             public Builder add(FieldMapper.Builder builder) {
                 mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                    if (shouldTrackSource(kwd)) {
                         hasSyntheticSourceCompatibleKeywordField = true;
+                        kwd.shouldTrackSourceForSyntheticSource(true);
                     }
                 }
 
@@ -628,8 +662,9 @@ public abstract class FieldMapper extends Mapper {
                 mapperBuilders.put(mapper.leafName(), context -> mapper);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                    if (shouldTrackSource(kwd)) {
                         hasSyntheticSourceCompatibleKeywordField = true;
+                        kwd.setTracksSourceForSyntheticSource(true);
                     }
                 }
             }

@@ -213,6 +213,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean forceDocValuesSkipper;
         private final SourceKeepMode indexSourceKeepMode;
 
+        private boolean withinMultiField;
+
+        // used when in a multi-field - indicates whether this keyword field should store source for synthetic source purposes
+        private boolean tracksSourceForSyntheticSource = false;
+
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
                 name,
@@ -325,6 +330,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 true,
                 SourceKeepMode.NONE
             );
+        }
+
+        public Builder shouldTrackSourceForSyntheticSource(boolean shouldTrackSourceForSyntheticSource) {
+            this.tracksSourceForSyntheticSource = shouldTrackSourceForSyntheticSource;
+            return this;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -1121,6 +1131,9 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final IndexVersion indexCreatedVersion;
     private final boolean isSyntheticSource;
+    private final boolean isWithinMultiField;
+
+    private boolean tracksSourceForSyntheticSource;
 
     private final IndexAnalyzers indexAnalyzers;
     private final int ignoreAboveDefault;
@@ -1163,6 +1176,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
         this.originalName = mappedFieldType.originalName();
+        this.isWithinMultiField = builder.withinMultiField;
+        this.tracksSourceForSyntheticSource = builder.tracksSourceForSyntheticSource;
     }
 
     @Override
@@ -1206,6 +1221,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         return indexValue(context, new Text(value));
     }
 
+    /**
+     * Returns whether this field should be stored separately as a {@link StoredField} for supporting synthetic source.
+     */
+    private boolean shouldStoreThisFieldForSyntheticSource() {
+        // skip all fields that are multi-fields unless they've been explicitly designated as a source tracker
+        return isSyntheticSource && (isWithinMultiField == false || tracksSourceForSyntheticSource);
+    }
+
     private boolean indexValue(DocumentParserContext context, XContentString value) {
         if (value == null) {
             return false;
@@ -1216,10 +1239,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return false;
         }
 
+        // if this field's value exceeds ignore_above, then don't index this field
         if (value.stringLength() > fieldType().ignoreAbove()) {
             context.addIgnoredField(fullPath());
-            if (isSyntheticSource) {
-                // Save a copy of the field so synthetic source can load it
+            // unless synthetic source is enabled, then we need to save a copy of the field so synthetic source can load it
+            if (shouldStoreThisFieldForSyntheticSource()) {
                 var utfBytes = value.bytes();
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 context.doc().add(new StoredField(originalName, bytesRef));
@@ -1336,6 +1360,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     boolean hasNormalizer() {
         return normalizerName != null;
+    }
+
+    void setTracksSourceForSyntheticSource(boolean tracksSourceForSyntheticSource) {
+        this.tracksSourceForSyntheticSource = tracksSourceForSyntheticSource;
     }
 
     @Override

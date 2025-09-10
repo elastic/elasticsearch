@@ -241,7 +241,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
-        // NOCOMMIT TODO: Should we include the tsid grouping for the group by all? If so, we need to project it away later
         firstPassGroupings.add(tsid.get());
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
@@ -265,28 +264,56 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         });
         NamedExpression timeBucket = timeBucketRef.get();
 
-        // NOCOMMIT - TODO: Presumably somewhere in here, I need to add the dimension groups
         // Construct the groupings for the new aggregations
-        for (Expression group : aggregate.groupings()) {
-            if (group instanceof Attribute == false) {
-                throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
+        if (hasTopLevelOverTimeAggs) {
+            // Group by all dimensions case. In this path, there is only one tier, and it should have either a tbucket
+            // or no groupings at all.
+            if (aggregate.groupings().size() > 1) {
+                throw new EsqlIllegalArgumentException(
+                    "expected at most one time bucket grouping for top level time series aggregation; "
+                        + "got ["
+                        + aggregate.groupings()
+                        + "]"
+                );
             }
-            final Attribute g = (Attribute) group;
-            final NamedExpression newFinalGroup;
-            if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                // Add the time bucket grouping to both the inner and outer aggregations
-                newFinalGroup = timeBucket.toAttribute();
-                firstPassGroupings.add(newFinalGroup);
-            } else {
-                // Pass all the second pass groupings through the first pass aggregation via a values agg
-                // NOCOMMIT TODO: Skip this for the group by all case
-                newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
-                firstPassAggs.add(newFinalGroup);
+            if (aggregate.groupings().size() == 1) {
+                // extract the tbucket, same as we would for the two tiered case
+                if (timeBucket != null && aggregate.groupings().get(0) instanceof Attribute attr && attr.id().equals(timeBucket.id())) {
+                    firstPassGroupings.add(timeBucket.toAttribute());
+                } else {
+                    throw new EsqlIllegalArgumentException(
+                        "expected at most one time bucket grouping for top level time series aggregation; "
+                            + "got ["
+                            + aggregate.groupings()
+                            + "]"
+                    );
+                }
+                for (Attribute dimension : dimensions) {
+                    firstPassAggs.add(new Alias(dimension.source(), dimension.name(), new Values(dimension.source(), dimension)));
+                }
             }
-            secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
+        } else {
+            // Two tiered case; we want to group both tiers by the tbucket, collect the groupings for the second aggregation
+            // as values on the first, and finally group the second agg by those values
+            for (Expression group : aggregate.groupings()) {
+                if (group instanceof Attribute == false) {
+                    throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
+                }
+                final Attribute g = (Attribute) group;
+                final NamedExpression newFinalGroup;
+                if (timeBucket != null && g.id().equals(timeBucket.id())) {
+                    // Add the time bucket grouping to both the inner and outer aggregations
+                    newFinalGroup = timeBucket.toAttribute();
+                    firstPassGroupings.add(newFinalGroup);
+                } else {
+                    // Pass all the second pass groupings through the first pass aggregation via a values agg
+                    newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
+                    firstPassAggs.add(newFinalGroup);
+                }
+                secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
+            }
         }
 
-        // NOCOMMIT TODO: Skip this for group by all if we don't need the tsid
         // Add the _tsid to the EsRelation Leaf, if it's not there already
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
@@ -303,7 +330,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         });
 
-        // NOCOMMIT TODO: I think the group by all path just returns firstPhase here
         final var firstPhase = new TimeSeriesAggregate(
             newChild.source(),
             newChild,
@@ -312,6 +338,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             (Bucket) Alias.unwrap(timeBucket)
         );
         if (hasTopLevelOverTimeAggs) {
+            // Project away the _tsid; we don't want to expose that to users directly
             return new Drop(firstPhase.source(), firstPhase, List.of(tsid.get()));
         }
         return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.common.util.concurrent.ThreadContextValue;
+import org.elasticsearch.common.util.concurrent.ThreadContextTransient;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Collection;
@@ -14,15 +14,15 @@ import java.util.List;
 
 public final class AuthorizationServiceField {
 
-    public static final ThreadContextValue<IndicesAccessControl> INDICES_PERMISSIONS_VALUE = ThreadContextValue.transientValue(
+    public static final ThreadContextTransient<IndicesAccessControl> INDICES_PERMISSIONS_VALUE = ThreadContextTransient.transientValue(
         "_indices_permissions",
         IndicesAccessControl.class
     );
-    public static final ThreadContextValue<String> ORIGINATING_ACTION_VALUE = ThreadContextValue.transientValue(
+    public static final ThreadContextTransient<String> ORIGINATING_ACTION_VALUE = ThreadContextTransient.transientValue(
         "_originating_action_name",
         String.class
     );
-    public static final ThreadContextValue<AuthorizationEngine.AuthorizationInfo> AUTHORIZATION_INFO_VALUE = ThreadContextValue
+    public static final ThreadContextTransient<AuthorizationEngine.AuthorizationInfo> AUTHORIZATION_INFO_VALUE = ThreadContextTransient
         .transientValue("_authz_info", AuthorizationEngine.AuthorizationInfo.class);
 
     // Most often, transient authorisation headers are scoped (i.e. set, read and cleared) for the authorisation and execution

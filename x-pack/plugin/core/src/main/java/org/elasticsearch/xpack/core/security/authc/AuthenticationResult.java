@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.ThreadContextValue;
+import org.elasticsearch.common.util.concurrent.ThreadContextTransient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -29,7 +29,7 @@ public final class AuthenticationResult<T> {
     private static final AuthenticationResult<?> NOT_HANDLED = new AuthenticationResult<>(Status.CONTINUE, null, null, null, null);
 
     @SuppressWarnings("rawtypes")
-    public static final ThreadContextValue<AuthenticationResult> THREAD_CONTEXT_VALUE = ThreadContextValue.transientValue(
+    public static final ThreadContextTransient<AuthenticationResult> THREAD_CONTEXT_VALUE = ThreadContextTransient.transientValue(
         "_xpack_security_auth_result",
         AuthenticationResult.class
     );

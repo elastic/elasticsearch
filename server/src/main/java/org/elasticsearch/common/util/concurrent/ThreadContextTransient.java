@@ -10,28 +10,41 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A utility class for resolving/setting values in the {@link ThreadContext} in a typesafe way
+ * @see ThreadContext#getTransient(String)
+ * @see ThreadContext#putTransient(String, Object)
  */
-public final class ThreadContextValue<T> {
+public final class ThreadContextTransient<T> {
 
     private final String key;
     private final Class<T> type;
 
-    private ThreadContextValue(String key, Class<T> type) {
+    private ThreadContextTransient(String key, Class<T> type) {
         this.key = key;
         this.type = type;
     }
 
+    /**
+     * @return The key/name of the transient header
+     */
     public String getKey() {
         return key;
     }
 
+    /**
+     * @return {@code true} if the thread context contains a non-null value for this {@link #getKey() key}
+     */
     public boolean exists(ThreadContext threadContext) {
         return threadContext.getTransient(key) != null;
     }
 
+    /**
+     * @return The current value for this {@link #getKey() key}. May be {@code null}.
+     */
+    @Nullable
     public T get(ThreadContext threadContext) {
         final Object val = threadContext.getTransient(key);
         if (val == null) {
@@ -51,6 +64,10 @@ public final class ThreadContextValue<T> {
         }
     }
 
+    /**
+     * @return The current value for this {@link #getKey() key}. May not be {@code null}
+     * @throws IllegalStateException if the thread context does not contain a value (or contains {@code null}).
+     */
     public T require(ThreadContext threadContext) {
         final T value = get(threadContext);
         if (value == null) {
@@ -59,12 +76,18 @@ public final class ThreadContextValue<T> {
         return value;
     }
 
+    /**
+     * Set the value for the this {@link #getKey() key}.
+     * Because transient headers cannot be overwritten, this method will throw an exception if a value already exists
+     * @see ThreadContext#putTransient(String, Object)
+     */
     public void set(ThreadContext threadContext, T value) {
         threadContext.putTransient(this.key, value);
     }
 
     /**
-     * @return If the value was set
+     * Set the value for the this {@link #getKey() key}, if and only if there is no current value
+     * @return {@code true} if the value was set, {@code false} otherwise
      */
     public boolean setIfEmpty(ThreadContext threadContext, T value) {
         if (exists(threadContext) == false) {
@@ -75,7 +98,7 @@ public final class ThreadContextValue<T> {
         }
     }
 
-    public static <T> ThreadContextValue<T> transientValue(String key, Class<T> type) {
-        return new ThreadContextValue<>(key, type);
+    public static <T> ThreadContextTransient<T> transientValue(String key, Class<T> type) {
+        return new ThreadContextTransient<>(key, type);
     }
 }

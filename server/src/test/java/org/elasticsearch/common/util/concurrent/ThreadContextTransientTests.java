@@ -17,11 +17,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ThreadContextValueTests extends ESTestCase {
+public class ThreadContextTransientTests extends ESTestCase {
 
     public void testSetAndGetSecureStringValue() {
         final String key = randomAlphanumericOfLength(12);
-        final ThreadContextValue<SecureString> tcv = ThreadContextValue.transientValue(key, SecureString.class);
+        final ThreadContextTransient<SecureString> tcv = ThreadContextTransient.transientValue(key, SecureString.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 

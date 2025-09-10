@@ -950,10 +950,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // some attributes were unresolved - we return Fuse here so that the Verifier can raise an error message
             if (score instanceof UnresolvedAttribute || discriminator instanceof UnresolvedAttribute) {
-                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType());
+                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
             }
 
-            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator);
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);

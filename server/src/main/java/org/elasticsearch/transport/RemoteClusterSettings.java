@@ -337,6 +337,9 @@ public class RemoteClusterSettings {
         String linkedProjectAlias,
         Settings settings
     ) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(linkedProjectAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
         final var strategy = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(linkedProjectAlias).get(settings);
         final var builder = switch (strategy) {
             case SNIFF -> SniffConnectionStrategySettings.readSettings(

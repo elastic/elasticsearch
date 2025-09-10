@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -97,7 +98,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsM
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
-import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
@@ -439,21 +439,21 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
         entries.add(
             new NamedWriteableRegistry.Entry(
-                InterceptedInferenceQueryBuilder.class,
+                QueryBuilder.class,
                 InterceptedInferenceMatchQueryBuilder.NAME,
                 InterceptedInferenceMatchQueryBuilder::new
             )
         );
         entries.add(
             new NamedWriteableRegistry.Entry(
-                InterceptedInferenceQueryBuilder.class,
+                QueryBuilder.class,
                 InterceptedInferenceKnnVectorQueryBuilder.NAME,
                 InterceptedInferenceKnnVectorQueryBuilder::new
             )
         );
         entries.add(
             new NamedWriteableRegistry.Entry(
-                InterceptedInferenceQueryBuilder.class,
+                QueryBuilder.class,
                 InterceptedInferenceSparseVectorQueryBuilder.NAME,
                 InterceptedInferenceSparseVectorQueryBuilder::new
             )

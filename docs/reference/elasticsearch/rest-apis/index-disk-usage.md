@@ -126,7 +126,7 @@ The API returns:
 % TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 % TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
-1. The store size of only analyzed shards of the index.
+1. The total disk space used by the shards analyzed by the API. By default, only primary shards are analyzed.
 
 The total disk space used by all fields in the analyzed shards. This total is usually smaller than the `store_size` annotated in <1>, because the API ignores some metadata files.
 

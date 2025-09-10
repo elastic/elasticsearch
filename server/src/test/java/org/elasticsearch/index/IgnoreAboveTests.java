@@ -14,9 +14,9 @@ import org.elasticsearch.xcontent.Text;
 
 public class IgnoreAboveTests extends ESTestCase {
 
-    public void test_ignore_above_with_value_and_default() {
+    public void test_ignore_above_with_value_and_index_mode_and_index_version() {
         // given
-        IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(123).defaultValue(456).build();
+        IgnoreAbove ignoreAbove = new IgnoreAbove(123, IndexMode.STANDARD, IndexVersion.current());
 
         // when/then
         assertEquals(123, ignoreAbove.get());
@@ -25,47 +25,70 @@ public class IgnoreAboveTests extends ESTestCase {
 
     public void test_ignore_above_with_value_only() {
         // given
-        IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(123).build();
+        IgnoreAbove ignoreAbove = new IgnoreAbove(123);
 
         // when/then
         assertEquals(123, ignoreAbove.get());
         assertTrue(ignoreAbove.isSet());
     }
 
-    public void test_ignore_above_with_default_only() {
+    public void test_ignore_above_with_null_value_should_throw() {
+        assertThrows(NullPointerException.class, () -> new IgnoreAbove(null));
+    }
+
+    public void test_ignore_above_with_negative_value_should_throw() {
+        assertThrows(IllegalArgumentException.class, () -> new IgnoreAbove(-1));
+        assertThrows(IllegalArgumentException.class, () -> new IgnoreAbove(-1, IndexMode.STANDARD, IndexVersion.current()));
+    }
+
+    public void test_ignore_above_with_null_value() {
         // given
-        IgnoreAbove ignoreAbove = IgnoreAbove.builder().defaultValue(456).build();
+        IgnoreAbove ignoreAbove = new IgnoreAbove(null, IndexMode.STANDARD, IndexVersion.current());
 
         // when/then
-        assertEquals(456, ignoreAbove.get());
+        assertEquals(IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
     }
 
-    public void test_ignore_above_with_same_value_and_default() {
+    public void test_ignore_above_with_null_value_and_logsdb_index_mode() {
         // given
-        IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(123).defaultValue(123).build();
+        IgnoreAbove ignoreAbove = new IgnoreAbove(null, IndexMode.LOGSDB, IndexVersion.current());
 
         // when/then
-        assertEquals(123, ignoreAbove.get());
+        assertEquals(IndexSettings.IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
     }
 
-    public void test_ignore_above_with_nothing_should_throw() {
-        // given/when/then
-        assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().build());
+    public void test_ignore_above_with_null_everything() {
+        // given
+        IgnoreAbove ignoreAbove = new IgnoreAbove(null, null, null);
+
+        // when/then
+        assertEquals(IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, ignoreAbove.get());
+        assertFalse(ignoreAbove.isSet());
     }
 
-    public void test_negative_value_throws() {
-        assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().value(-1).build());
+    public void test_ignore_above_default_for_standard_indices() {
+        // given
+        IgnoreAbove ignoreAbove = IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES;
+
+        // when/then
+        assertEquals(IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, ignoreAbove.get());
+        assertFalse(ignoreAbove.isSet());
     }
 
-    public void test_negative_default_value_throws() {
-        assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().defaultValue(-1).build());
+    public void test_ignore_above_default_for_logsdb_indices() {
+        // given
+        IgnoreAbove ignoreAbove = IgnoreAbove.IGNORE_ABOVE_LOGSDB_INDICES;
+
+        // when/then
+        assertEquals(IndexSettings.IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, ignoreAbove.get());
+        assertFalse(ignoreAbove.isSet());
     }
 
     public void test_string_isIgnored() {
         // given
-        IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(10).defaultValue(456).build();
+        IgnoreAbove ignoreAbove = new IgnoreAbove(10);
 
         // when/then
         assertFalse(ignoreAbove.isIgnored("potato"));
@@ -76,7 +99,7 @@ public class IgnoreAboveTests extends ESTestCase {
 
     public void test_XContentString_isIgnored() {
         // given
-        IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(10).defaultValue(456).build();
+        IgnoreAbove ignoreAbove = new IgnoreAbove(10);
 
         // when/then
         assertFalse(ignoreAbove.isIgnored(new Text("potato")));

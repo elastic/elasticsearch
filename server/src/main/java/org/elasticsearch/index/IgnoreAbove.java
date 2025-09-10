@@ -11,33 +11,30 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.xcontent.XContentString;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES;
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES;
+import java.util.Objects;
 
 /**
  * This class models the ignore_above parameter in indices.
  */
 public class IgnoreAbove {
 
-    public static final IgnoreAbove IGNORE_ABOVE_STANDARD_INDICES = IgnoreAbove.builder()
-        .defaultValue(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES)
-        .build();
-
-    public static final IgnoreAbove IGNORE_ABOVE_LOGSDB_INDICES = IgnoreAbove.builder()
-        .defaultValue(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES)
-        .build();
+    public static final IgnoreAbove IGNORE_ABOVE_STANDARD_INDICES = new IgnoreAbove(null, IndexMode.STANDARD, IndexVersion.current());
+    public static final IgnoreAbove IGNORE_ABOVE_LOGSDB_INDICES = new IgnoreAbove(null, IndexMode.LOGSDB, IndexVersion.current());
 
     private final Integer value;
     private final Integer defaultValue;
 
-    public IgnoreAbove(Integer value, Integer defaultValue) {
-        if (value == null && defaultValue == null) {
-            throw new IllegalArgumentException(
-                "IgnoreAbove must be initialized with at least one non-null argument: either 'value' or 'defaultValue'"
-            );
+    public IgnoreAbove(Integer value) {
+        this(Objects.requireNonNull(value), null, null);
+    }
+
+    public IgnoreAbove(Integer value, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        if (value != null && value < 0) {
+            throw new IllegalArgumentException("[ignore_above] must be positive, got [" + value + "]");
         }
+
         this.value = value;
-        this.defaultValue = defaultValue;
+        this.defaultValue = IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion);
     }
 
     public int get() {
@@ -69,37 +66,4 @@ public class IgnoreAbove {
         return strLength > get();
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static final class Builder {
-
-        private Integer value;
-        private Integer defaultValue;
-
-        private Builder() {}
-
-        public Builder value(Integer value) {
-            if (value != null && value < 0) {
-                throw new IllegalArgumentException("[ignore_above] must be positive, got [" + value + "]");
-            }
-
-            this.value = value;
-            return this;
-        }
-
-        public Builder defaultValue(Integer defaultValue) {
-            if (defaultValue != null && defaultValue < 0) {
-                throw new IllegalArgumentException("[ignore_above] must be positive, got [" + defaultValue + "]");
-            }
-
-            this.defaultValue = defaultValue;
-            return this;
-        }
-
-        public IgnoreAbove build() {
-            return new IgnoreAbove(value, defaultValue);
-        }
-    }
 }

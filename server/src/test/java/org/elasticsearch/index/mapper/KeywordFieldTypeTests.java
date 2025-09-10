@@ -490,7 +490,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(IGNORE_ABOVE_DEFAULT_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_configured_at_index_level() {
+    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_configured_at_index_level() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

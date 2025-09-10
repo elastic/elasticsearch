@@ -88,7 +88,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
-import static org.elasticsearch.index.IndexSettings.getIgnoreAboveDefaultValue;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -245,10 +244,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
                 dimensions.get(),
-                IgnoreAbove.builder()
-                    .value(ignoreAbove.getValue())
-                    .defaultValue(getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion))
-                    .build()
+                new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion)
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }

@@ -564,10 +564,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;
-            this.ignoreAbove = IgnoreAbove.builder()
-                .value(builder.ignoreAbove.getValue())
-                .defaultValue(IndexSettings.getIgnoreAboveDefaultValue(builder.indexMode, builder.indexCreatedVersion))
-                .build();
+            this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();

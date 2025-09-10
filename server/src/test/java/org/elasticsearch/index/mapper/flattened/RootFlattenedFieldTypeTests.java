@@ -35,15 +35,7 @@ import java.util.Map;
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static RootFlattenedFieldType createDefaultFieldType(int ignoreAbove) {
-        return new RootFlattenedFieldType(
-            "field",
-            true,
-            true,
-            Collections.emptyMap(),
-            false,
-            false,
-            IgnoreAbove.builder().value(ignoreAbove).build()
-        );
+        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, new IgnoreAbove(ignoreAbove));
     }
 
     public void testValueForDisplay() {

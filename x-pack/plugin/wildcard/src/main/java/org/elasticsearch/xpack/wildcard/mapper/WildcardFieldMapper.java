@@ -289,10 +289,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
             }
             this.nullValue = builder.nullValue.getValue();
-            this.ignoreAbove = IgnoreAbove.builder()
-                .value(builder.ignoreAbove.getValue())
-                .defaultValue(builder.ignoreAbove.getDefaultValue())
-                .build();
+            this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         }
 
         @Override
@@ -1030,10 +1027,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexMode = builder.indexMode;
         this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
-        this.ignoreAbove = IgnoreAbove.builder()
-            .value(builder.ignoreAbove.getValue())
-            .defaultValue(getIgnoreAboveDefaultValue(builder.indexMode, builder.indexCreatedVersion))
-            .build();
+        this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         this.originalName = storeIgnored ? fullPath() + "._original" : null;
     }
 

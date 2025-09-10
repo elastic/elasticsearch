@@ -721,8 +721,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // Any time we move a shard, we need to update the cluster info and ask again for the non-preferred shards
                 // as they may have changed
                 for (Iterator<ShardRouting> nonPreferredShards = allocation.nonPreferredShards(); nonPreferredShards.hasNext();) {
-                    ShardRouting shard = nonPreferredShards.next();
-                    if (tryMoveNonPreferred(shard)) {
+                    if (tryMoveShardIfNonPreferred(nonPreferredShards.next())) {
                         movedAShard = true;
                         break;
                     }
@@ -731,7 +730,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             } while (movedAShard);
         }
 
-        private boolean tryMoveNonPreferred(ShardRouting shardRouting) {
+        private boolean tryMoveShardIfNonPreferred(ShardRouting shardRouting) {
             ProjectIndex index = projectIndex(shardRouting);
             final MoveDecision moveDecision = decideMoveNonPreferred(index, shardRouting);
             if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {

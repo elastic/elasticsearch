@@ -20,7 +20,7 @@ public interface NonPreferredShardIteratorFactory {
     NonPreferredShardIteratorFactory NOOP = ignored -> Collections.emptyIterator();
 
     /**
-     * Create an iterator returning all shards that are in non-preferred allocations, ordered in
+     * Create an iterator returning all shards to be checked for non-preferred allocation, ordered in
      * descending desirability-to-move order
      *
      * @param allocation the current routing allocation

@@ -174,6 +174,16 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return rootDir.relativize(transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name())));
     }
 
+    void writeUnreferableDefinition(TransportVersionDefinition definition) throws IOException {
+        Path path = transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name()));
+        logger.debug("Writing unreferable definition [" + definition + "] to [" + path + "]");
+        Files.writeString(
+            path,
+            definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
     /** Read all upper bound files and return them mapped by their release name */
     Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
         Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();

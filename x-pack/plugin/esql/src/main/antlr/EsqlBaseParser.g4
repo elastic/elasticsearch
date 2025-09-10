@@ -336,7 +336,7 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE
+    : DEV_FUSE (fuseType=identifier)? fuseOptions=commandNamedParameters
     ;
 
 setCommand

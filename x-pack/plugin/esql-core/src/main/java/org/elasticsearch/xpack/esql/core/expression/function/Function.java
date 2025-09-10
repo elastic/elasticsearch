@@ -21,9 +21,6 @@ import java.util.StringJoiner;
  * {@code EVAL}) or aggregation functions ({@code STATS}).
  */
 public abstract class Function extends Expression {
-
-    private final String functionName = getClass().getSimpleName().toUpperCase(Locale.ROOT);
-
     // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
     protected Function(Source source, List<Expression> children) {
         super(source, children);
@@ -34,7 +31,7 @@ public abstract class Function extends Expression {
     }
 
     public String functionName() {
-        return functionName;
+        return getClass().getSimpleName().toUpperCase(Locale.ROOT);
     }
 
     @Override

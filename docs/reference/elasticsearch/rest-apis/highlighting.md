@@ -65,7 +65,7 @@ The `plain` highlighter works best for highlighting simple query matches in a si
 
 The `fvh` highlighter uses the Lucene Fast Vector highlighter. This highlighter can be used on fields with `term_vector` set to `with_positions_offsets` in the mapping. The fast vector highlighter:
 
-* Can be customized with a [`boundary_scanner`](#boundary-scanners).
+* Can be customized with a [`boundary_scanner`](highlighting-settings.md#boundary-scanners).
 * Requires setting `term_vector` to `with_positions_offsets` which increases the size of the index
 * Can combine matches from multiple fields into one result. See `matched_fields`
 * Can assign different weights to matches at different positions allowing for things like phrase matches being sorted above term matches when highlighting a Boosting Query that boosts phrase matches over term matches

@@ -133,7 +133,12 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
         }
     }
 
-    public void testShardCountComputedOncePerIndex() {
+    /*
+        This test generates N indices, and each index has M snapshots.
+        When deleting multiple snapshots within one request, each including the same index,
+        we expect each indices metadata to only be loaded once
+     */
+    public void testShardCountComputedOncePerIndexWhenDeletingMultipleSnapshotsConcurrently() {
         final var repoPath = ESIntegTestCase.randomRepoPath(node().settings());
 
         int numberOfIndices = randomIntBetween(3, 10);
@@ -143,6 +148,59 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             ensureGreen(indexName);
         }
 
+        // Set up our test repo
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setType(TEST_REPO_TYPE)
+                .setSettings(Settings.builder().put("location", repoPath))
+        );
+
+        int numberOfSnapshots = randomIntBetween(3, 10);
+        List<String> snapshotNames = new ArrayList<>();
+        for (int i = 0; i < numberOfSnapshots; i++) {
+            String snapshotName = "snapshot-" + i;
+            snapshotNames.add(snapshotName);
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
+                .setWaitForCompletion(true)
+                .get();
+        }
+
+        // We want to avoid deleting all snapshots since this would invoke cleanup code and bulk snapshot deletion
+        // which is out of scope of this test
+        List<String> snapshotsToDelete = randomSubsetOf(randomIntBetween(1, numberOfSnapshots - 1), snapshotNames);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotsToDelete.toArray(new String[0]))
+                .get()
+        );
+
+        // Each index metadata should only be loaded into heap memory once
+        assertEquals(numberOfIndices, INDEX_LOADED_COUNT.get());
+        assertAcked(client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME));
+    }
+
+    /*
+        This test generates N indices, and each index has M snapshots.
+        When deleting multiple snapshots sequentially, even if they include the same index,
+        we expect each indices metadata to be loaded each time
+     */
+    public void testShardCountComputedOncePerIndexWhenDeletingMultipleSnapshotsSequentially() {
+        final var repoPath = ESIntegTestCase.randomRepoPath(node().settings());
+
+        int numberOfIndices = randomIntBetween(3, 10);
+        for (int i = 0; i < numberOfIndices; i++) {
+            String indexName = "index-" + i;
+            createIndex(indexName, indexSettings(between(1, 3), 0).build());
+            ensureGreen(indexName);
+        }
+
+        // Set up our test repo
         assertAcked(
                 client().admin()
                         .cluster()
@@ -163,12 +221,16 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
                     .get();
         }
 
+        // We want to avoid deleting all snapshots since this would invoke cleanup code and bulk snapshot deletion
+        // which is out of scope of this test
+        snapshotNames.removeLast();
+
         for (String snapshotName : snapshotNames) {
             assertAcked(client().admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName).get());
         }
 
-        // All metadata should have been cached upon writing the snapshots, so no Index MetaData should have been written to memory
-        assertEquals(0, INDEX_LOADED_COUNT.get());
+        // Each index metadata is loaded into heap for each snapshot deletion request
+        assertEquals(numberOfIndices * (numberOfSnapshots - 1), INDEX_LOADED_COUNT.get());
         assertAcked(client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME));
     }
 }

@@ -500,11 +500,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final ThrottledTaskRunner staleBlobDeleteRunner;
 
     /**
-     * Maps the Index UUID to its shard count
-     */
-    private final ConcurrentMap<String, Integer> indexUUIDToShardCountMap = new ConcurrentHashMap<>();
-
-    /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
@@ -1034,7 +1029,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     blob must not change until it is updated by this deletion and the {@code repositoryDataUpdateListener} is completed.
      * </p>
      */
-     class SnapshotsDeletion {
+    class SnapshotsDeletion {
 
         /**
          * The IDs of the snapshots to delete. This collection is empty if the deletion is a repository cleanup.
@@ -1104,6 +1099,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * Tracks the shard-level blobs which can be deleted once all the metadata updates have completed.
          */
         private final ShardBlobsToDelete shardBlobsToDelete = new ShardBlobsToDelete();
+
+        /**
+         * Maps the Index UUID to its shard count
+         */
+        private final ConcurrentMap<String, Integer> indexUUIDToShardCountMap = new ConcurrentHashMap<>();
 
         SnapshotsDeletion(
             Collection<SnapshotId> snapshotIds,
@@ -1267,9 +1267,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private class IndexSnapshotsDeletion {
             private final IndexId indexId;
             private final Set<SnapshotId> snapshotsWithIndex;
+            private final BlobContainer indexContainer;
 
             IndexSnapshotsDeletion(IndexId indexId) {
                 this.indexId = indexId;
+                this.indexContainer = indexContainer(indexId);
                 this.snapshotsWithIndex = Set.copyOf(originalRepositoryData.getSnapshots(indexId));
             }
 
@@ -1291,15 +1293,44 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try (var listeners = new RefCountingListener(listener)) {
                     for (SnapshotId snapshotId : snapshotIds.stream().filter(snapshotsWithIndex::contains).collect(Collectors.toSet())) {
                         snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
+                            String blobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId);
                             // The unique IndexMetadata ID prefixed by Index UUID
                             String indexMetadataId = originalRepositoryData.indexMetaDataGenerations()
                                 .snapshotIndexMetadataIdentifier(snapshotId, indexId);
 
-                            // Guarantees that the indexUUID will not be ""
+                            // Guarantees that the indexUUID will not be "" since this would map multiple indexMetaData objects to the
+                            // same shard count
                             assert indexMetadataId != null;
                             String indexUUID = parseUUIDFromUniqueIdentifier(indexMetadataId);
 
-                            updateShardCount(indexUUIDToShardCountMap.get(indexUUID));
+                            if (indexUUIDToShardCountMap.containsKey(indexUUID) == false) {
+                                try {
+                                    IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
+                                        getProjectRepo(),
+                                        indexContainer,
+                                        blobId,
+                                        namedXContentRegistry
+                                    );
+                                    int numberOfShards = indexMetadata.getNumberOfShards();
+                                    indexUUIDToShardCountMap.put(indexUUID, numberOfShards);
+                                    updateShardCount(numberOfShards);
+                                } catch (Exception ex) {
+                                    logger.warn(() -> format("[%s] [%s] failed to read metadata for index", blobId, indexId.getName()), ex);
+                                    // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we
+                                    // might get the shard count from another metadata blob, or we might just not process these shards.
+                                    // If we skip these shards then the repository will technically enter an invalid state
+                                    // (these shards' index-XXX blobs will refer to snapshots that no longer exist) and may contain dangling
+                                    // blobs too. A subsequent delete that hits this index may repair the state if the metadata read error
+                                    // is transient, but if not then the stale indices cleanup will eventually remove this index and all its
+                                    // extra data anyway.
+                                    // TODO: Should we fail the delete here? See https://github.com/elastic/elasticsearch/issues/100569.
+                                }
+                            } else {
+                                // indexUUIDToShardCountMap is shared across all threads. Therefore, while there may be an entry for this
+                                // UUID, there is no guarantee that we've encountered it in this thread, so we update using the precomputed
+                                // value, thus removing the unnecessary INDEX_METADATA_FORMAT.read call.
+                                updateShardCount(indexUUIDToShardCountMap.get(indexUUID));
+                            }
                         }));
                     }
                 }
@@ -1843,7 +1874,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // We don't yet have this version of the metadata so we write it
                                     metaUUID = UUIDs.base64UUID();
                                     INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                                    indexUUIDToShardCountMap.put(indexMetaData.getIndexUUID(), indexMetaData.getNumberOfShards());
                                     metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
                                 } // else this task was largely a no-op - TODO no need to fork in that case
                                 metadataWriteResult.indexMetas().put(index, identifiers);

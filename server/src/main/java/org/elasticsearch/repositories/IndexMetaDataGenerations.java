@@ -186,15 +186,9 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
-        return indexMetaData.getIndexUUID()
-            + DELIMITER
-            + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
-            + DELIMITER
-            + indexMetaData.getSettingsVersion()
-            + DELIMITER
-            + indexMetaData.getMappingVersion()
-            + DELIMITER
-            + indexMetaData.getAliasesVersion();
+        return indexMetaData.getIndexUUID() + DELIMITER + indexMetaData.getSettings()
+            .get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE) + DELIMITER + indexMetaData.getSettingsVersion()
+            + DELIMITER + indexMetaData.getMappingVersion() + DELIMITER + indexMetaData.getAliasesVersion();
     }
 
     /**

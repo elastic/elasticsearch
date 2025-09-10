@@ -7,6 +7,7 @@ setup:
         index: index1
         body:
           settings:
+            refresh_interval: "3s"
             number_of_shards: 1
             number_of_replicas: 0
           mappings:

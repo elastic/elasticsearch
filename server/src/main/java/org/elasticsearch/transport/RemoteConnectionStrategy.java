@@ -14,11 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -69,6 +71,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    public static final TimeValue CONNECTION_FAILURE_WARN_INTERVAL = TimeValue.timeValueSeconds(30);
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -76,12 +80,18 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
+    private long connectionAttempts = 0L;
+    private long lastFailedConnectionAttemptWarningTimeMillis = -1L;
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
+    protected final ProjectId originProjectId;
+    protected final ProjectId linkedProjectId;
     protected final String clusterAlias;
 
     RemoteConnectionStrategy(LinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this.originProjectId = config.originProjectId();
+        this.linkedProjectId = config.linkedProjectId();
         this.clusterAlias = config.linkedProjectAlias();
         this.transportService = transportService;
         this.connectionManager = connectionManager;
@@ -190,16 +200,42 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                     connectImpl(new ActionListener<>() {
                         @Override
                         public void onResponse(Void aVoid) {
+                            connectionAttemptCompleted(null);
                             ActionListener.onResponse(getAndClearListeners(), aVoid);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
+                            connectionAttemptCompleted(e);
                             ActionListener.onFailure(getAndClearListeners(), e);
                         }
                     });
                 }
             });
+        }
+    }
+
+    private void connectionAttemptCompleted(Exception e) {
+        connectionAttempts++;
+        final var nowMillis = transportService.threadPool.relativeTimeInMillis();
+        final org.apache.logging.log4j.util.Supplier<String> msgSupplier = () -> format(
+            "Origin project [%s] %s linked project [%s] alias [%s] on attempt [%d]",
+            originProjectId,
+            e == null ? "successfully connected to" : "failed to connect to",
+            linkedProjectId,
+            clusterAlias,
+            connectionAttempts
+        );
+        if (e == null) {
+            logger.info(msgSupplier);
+            lastFailedConnectionAttemptWarningTimeMillis = -1L;
+        } else {
+            if (lastFailedConnectionAttemptWarningTimeMillis == -1L
+                || nowMillis - lastFailedConnectionAttemptWarningTimeMillis >= CONNECTION_FAILURE_WARN_INTERVAL.getMillis()) {
+                logger.warn(msgSupplier, e);
+                lastFailedConnectionAttemptWarningTimeMillis = nowMillis;
+            }
+            // TODO: ES-12695: Increment either the initial (connectionAttempts == 1) or retry connection failure metric.
         }
     }
 

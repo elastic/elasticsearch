@@ -88,7 +88,10 @@ public final class XmlProcessor extends AbstractProcessor {
     private final boolean forceArray;
     private final Map<String, String> xpathExpressions;
     private final Map<String, String> namespaces;
+
     private final Map<String, XPathExpression> compiledXPathExpressions;
+    private final boolean needsDom;
+    private final SAXParserFactory factory;
 
     XmlProcessor(
         String tag,
@@ -115,9 +118,13 @@ public final class XmlProcessor extends AbstractProcessor {
         this.removeNamespaces = removeNamespaces;
         this.forceContent = forceContent;
         this.forceArray = forceArray;
+
         this.xpathExpressions = xpathExpressions != null ? Map.copyOf(xpathExpressions) : Map.of();
         this.namespaces = namespaces != null ? Map.copyOf(namespaces) : Map.of();
+
         this.compiledXPathExpressions = compileXPathExpressions(this.xpathExpressions, this.namespaces);
+        this.needsDom = this.xpathExpressions.isEmpty() == false;
+        this.factory = selectSaxParserFactory(this.namespaces.isEmpty() == false || removeNamespaces);
     }
 
     public String getField() {
@@ -150,10 +157,6 @@ public final class XmlProcessor extends AbstractProcessor {
 
     public boolean isForceArray() {
         return forceArray;
-    }
-
-    public boolean hasNamespaces() {
-        return namespaces.isEmpty() == false;
     }
 
     public Map<String, String> getNamespaces() {
@@ -481,12 +484,6 @@ public final class XmlProcessor extends AbstractProcessor {
         if (Strings.hasText(xmlString) == false) {
             return;
         }
-
-        // Determine if we need DOM for XPath processing
-        boolean needsDom = xpathExpressions.isEmpty() == false;
-
-        // Use the appropriate pre-configured SAX parser factory
-        SAXParserFactory factory = selectSaxParserFactory();
 
         SAXParser parser = factory.newSAXParser();
 
@@ -833,10 +830,8 @@ public final class XmlProcessor extends AbstractProcessor {
      * @return the appropriate SAX parser factory for the current configuration
      * @throws UnsupportedOperationException if the required XML factory is not available
      */
-    private SAXParserFactory selectSaxParserFactory() {
-        boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
+    private static SAXParserFactory selectSaxParserFactory(final boolean needsNamespaceAware) {
         SAXParserFactory factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS : XmlFactories.SAX_PARSER_FACTORY;
-
         if (factory == null) {
             throw new UnsupportedOperationException(
                 "XML parsing"
@@ -845,7 +840,6 @@ public final class XmlProcessor extends AbstractProcessor {
                     + "supports these XML features."
             );
         }
-
         return factory;
     }
 }

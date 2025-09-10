@@ -137,8 +137,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public static final class IgnoreAbove {
 
-        public static final int I
-
         public static final int IGNORE_ABOVE_DEFAULT_VALUE = Integer.MAX_VALUE;
         public static final int IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES = 8191;
 

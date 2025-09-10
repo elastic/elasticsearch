@@ -734,10 +734,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Move started shards that are in non-preferred allocations
          */
         public void moveNonPreferred() {
-            boolean movedAShard = false;
+            boolean movedAShard;
             do {
                 // Any time we move a shard, we need to update the cluster info and ask again for the non-preferred shards
                 // as they may have changed
+                movedAShard = false;
                 for (Iterator<ShardRouting> nonPreferredShards = nonPreferredShardIteratorFactory.createNonPreferredShardIterator(
                     allocation
                 ); nonPreferredShards.hasNext();) {

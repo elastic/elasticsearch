@@ -78,7 +78,7 @@
       },
       "require_alias": {
         "type": "boolean",
-        "description": "If true, the request\u2019s actions must target an index alias. Defaults to false."
+        "description": "If true, the request's actions must target an index alias. Defaults to false."
       },
       "require_data_stream": {
         "type": "boolean",

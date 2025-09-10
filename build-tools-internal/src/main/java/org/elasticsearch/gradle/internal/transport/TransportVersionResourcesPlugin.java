@@ -9,7 +9,11 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -18,6 +22,7 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
+import java.util.Properties;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
@@ -26,6 +31,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
         var resourceRoot = getResourceRoot(project);
 
@@ -55,7 +61,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
-        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
+        project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {

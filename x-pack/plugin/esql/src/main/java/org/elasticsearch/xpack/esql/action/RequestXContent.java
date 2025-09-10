@@ -375,7 +375,7 @@ final class RequestXContent {
                             "Parameter [" + entry.getKey() + "] contains a null value. Null values are not allowed for multivalues"
                         )
                     );
-                    continue;
+                    break;
                 } else if (arrayType != null && arrayType != currentType) {
                     errors.add(
                         new XContentParseException(
@@ -383,7 +383,7 @@ final class RequestXContent {
                             "Parameter [" + entry.getKey() + "] has values from different types, found " + arrayType + " and " + currentType
                         )
                     );
-                    continue;
+                    break;
                 }
                 arrayType = currentType;
             }

@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -109,7 +108,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
              {"_n1" : "8.15.0"}, { "__n2" : 0.05}, {"__3" : -799810013},
              {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false},
              {"_n8": ["8.15.0", "8.19.0"]}, {"_n9": ["x", "y"]}, {"_n10": [true, false]}, {"_n11": [1.0, 1.1, 1.2]},
-             {"_n12": [-799810013, 0, 799810013]}, {"_n13": [null, null, null]}
+             {"_n12": [-799810013, 0, 799810013]}
              ] }""";
 
         List<QueryParam> params = List.of(
@@ -131,8 +130,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new QueryParam("_n9", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n10", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n11", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
-            new QueryParam("_n12", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
-            new QueryParam("_n13", Arrays.asList(null, null, null), NULL, ParserUtils.ParamClassification.VALUE)
+            new QueryParam("_n12", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE)
             // TODO add mixed null values, or check all elements, and separate into a new method
         );
         String json = String.format(Locale.ROOT, """
@@ -166,7 +164,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String paramsString = """
             ,"params":[
              {"_n1": ["8.15.0", "8.19.0"]}, {"_n2": ["x", "y"]}, {"_n3": [true, false]}, {"_n4": [1.0, 1.1, 1.2]},
-             {"_n5": [-799810013, 0, 799810013]}, {"_n6": [null, null, null]}
+             {"_n5": [-799810013, 0, 799810013]}
              ] }""";
 
         List<QueryParam> params = List.of(
@@ -174,8 +172,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new QueryParam("_n2", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n3", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n4", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
-            new QueryParam("_n5", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
-            new QueryParam("_n6", Arrays.asList(null, null, null), NULL, ParserUtils.ParamClassification.VALUE)
+            new QueryParam("_n5", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE)
         );
         String json = String.format(Locale.ROOT, """
             {
@@ -336,23 +333,23 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         assertThat(
             e1.getCause().getMessage(),
-            containsString("Failed to parse params: [3:2] _n1 parameter has values from different types, found NULL and KEYWORD")
+            containsString(" [3:2] Parameter [_n1] contains a null value. Null values are not allowed for multivalues;")
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[3:29] _n2 parameter has values from different types, found NULL and KEYWORD")
+            containsString("[3:29] Parameter [_n2] contains a null value. Null values are not allowed for multivalues;")
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[3:57] _n3 parameter has values from different types, found NULL and BOOLEAN")
+            containsString("[3:57] Parameter [_n3] contains a null value. Null values are not allowed for multivalues;")
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[4:2] _n4 parameter has values from different types, found NULL and DOUBLE")
+            containsString("[4:2] Parameter [_n4] contains a null value. Null values are not allowed for multivalues;")
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[4:30] _n5 parameter has values from different types, found NULL and INTEGER")
+            containsString("[4:30] Parameter [_n5] contains a null value. Null values are not allowed for multivalues;")
         );
         assertThat(e1.getCause().getMessage(), containsString("[5:2] n6=[{value={a5=v5}}] is not supported as a parameter"));
         assertThat(e1.getCause().getMessage(), containsString("[5:40] n7=[{identifier=[x, y]}] is not supported as a parameter"));
@@ -388,18 +385,48 @@ public class EsqlQueryRequestTests extends ESTestCase {
             message,
             containsString("[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; ")
         );
-        assertThat(message, containsString("[2:38] [n2] has multiple param attributes [identifier, pattern],"));
-        assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
-        assertThat(message, containsString("[2:38] [v2] is not a valid value for PATTERN parameter,"));
-        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
-        assertThat(message, containsString("[3:1] [n3] has multiple param attributes [identifier, pattern],"));
-        assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
-        assertThat(message, containsString("[3:1] [v3] is not a valid value for PATTERN parameter,"));
-        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
-        assertThat(message, containsString("[3:51] [n4] has multiple param attributes [pattern, value],"));
-        assertThat(message, containsString("only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"));
-        assertThat(message, containsString("[3:51] [v4.1] is not a valid value for PATTERN parameter,"));
-        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(
+            message,
+            containsString(
+                "[2:38] [n2] has multiple param attributes [identifier, pattern], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[2:38] [v2] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:1] [n3] has multiple param attributes [identifier, pattern], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:1] [v3] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:51] [n4] has multiple param attributes [pattern, value], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:51] [v4.1] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *;"
+            )
+        );
         assertThat(message, containsString("[4:1] n5={value={a5=v5}} is not supported as a parameter;"));
         assertThat(message, containsString("[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter,"));
         assertThat(message, containsString("a valid value for IDENTIFIER parameter is a string;"));

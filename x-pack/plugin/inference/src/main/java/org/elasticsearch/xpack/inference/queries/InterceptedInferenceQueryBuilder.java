@@ -150,6 +150,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         if (this.inferenceResultsMap != null) {
+            // TODO: Check for error inference results here?
             return this;
         }
 
@@ -162,6 +163,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         coordinatorNodeValidate(resolvedIndices);
 
+        // NOTE: This logic misses when ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field.
+        // In this case, the remote data node will receive the original query, which will in turn result in an error about querying an
+        // unsupported field type.
         Set<String> inferenceIds = getInferenceIdsForFields(
             resolvedIndices.getConcreteLocalIndicesMetadata().values(),
             getFields(),
@@ -169,18 +173,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             useDefaultFields()
         );
 
-        // TODO: Check for supported CCS mode here (once we support CCS)
-
-        // NOTE: This logic only works when ccs_minimize_roundtrips=true. It assumes that the remote cluster will perform a new
-        // coordinator node rewrite, which will re-intercept the query and determine if a semantic text field is being queried.
-        // When ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field, it will result in the remote
-        // data node receiving the naked original query, which will in turn result in an error about an unsupported field type.
-        // Should we always wrap the query in a InterceptedQueryBuilder so that we can handle this case more gracefully?
         if (inferenceIds.isEmpty()) {
             // Not querying a semantic text field
             return originalQuery;
         }
 
+        // TODO: Check for supported CCS mode here (once we support CCS)
         if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
             throw new IllegalArgumentException(
                 originalQuery.getName()
@@ -195,8 +193,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        // If the query is null, there's nothing to generate embeddings for. This can happen if pre-computed embeddings are provided
-        // by the user.
+        // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results are
+        // provided by the user.
         String query = getQuery();
         Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
         if (query != null) {

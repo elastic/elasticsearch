@@ -698,7 +698,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
             throw new ParsingException(ctx.getText(), "JOIN ON clause only supports fields at the moment, found [{}]", ctx.getText());
         }
-        var predicates = visitList(this, ctx.comparisonExpression(), Expression.class);
+        var predicates = visitList(this, ctx.joinPredicateExpression(), Expression.class);
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         List<Expression> joinExpressions = new ArrayList<>(predicates.size());
         for (var f : predicates) {

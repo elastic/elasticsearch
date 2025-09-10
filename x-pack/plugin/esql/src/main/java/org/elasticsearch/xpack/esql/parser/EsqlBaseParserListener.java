@@ -902,16 +902,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitComparison(EsqlBaseParser.ComparisonContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#comparisonExpression}.
-   * @param ctx the parse tree
-   */
-  void enterComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#comparisonExpression}.
-   * @param ctx the parse tree
-   */
-  void exitComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code operatorExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
@@ -1281,4 +1271,24 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   */
+  void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   */
+  void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicateExpression}.
+   * @param ctx the parse tree
+   */
+  void enterJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicateExpression}.
+   * @param ctx the parse tree
+   */
+  void exitJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx);
 }

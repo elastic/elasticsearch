@@ -608,16 +608,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitComparison(EsqlBaseParser.ComparisonContext ctx) {
-        return expression(ctx.comparisonExpression());
-    }
-
-    @Override
-    public Expression visitComparisonExpression(EsqlBaseParser.ComparisonExpressionContext ctx) {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
+        return buildComparison(source(ctx), left, right, op);
+    }
 
-        Source source = source(ctx);
+    @Override
+    public Expression visitJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx) {
+        Expression left = expression(ctx.left);
+        Expression right = expression(ctx.right);
+        TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
+        return buildComparison(source(ctx), left, right, op);
+    }
+
+    private Expression buildComparison(Source source, Expression left, Expression right, TerminalNode op) {
         ZoneId zoneId = DateUtils.UTC;
 
         return switch (op.getSymbol().getType()) {
@@ -628,7 +633,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
             case EsqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId);
             case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
-            default -> throw new ParsingException(source, "Unknown comparison operator {}", source.text());
+            default -> throw new ParsingException(source, "Unknown comparison operator {}", op.getText());
         };
     }
 

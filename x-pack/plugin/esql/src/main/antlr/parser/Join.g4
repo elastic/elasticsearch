@@ -19,7 +19,15 @@ joinTarget
 
 joinCondition
     : ON qualifiedName (COMMA qualifiedName)*                                #fieldBasedLookupJoin
-    | ON comparisonExpression (AND comparisonExpression)*                    #expressionBasedLookupJoin
+    | ON joinPredicateExpression (AND joinPredicateExpression)*              #expressionBasedLookupJoin
+    ;
+
+joinPredicate
+    : valueExpression
+    ;
+
+joinPredicateExpression
+    : left=operatorExpression comparisonOperator right=operatorExpression
     ;
 
 

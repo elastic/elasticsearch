@@ -223,6 +223,8 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
+import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -980,6 +982,11 @@ class NodeConstruction {
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
+        final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
+            LinkedProjectConfigService.class,
+            () -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver)
+        );
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1003,7 +1010,8 @@ class NodeConstruction {
             taskManager,
             projectResolver,
             slowLogFieldProvider,
-            indexingLimits
+            indexingLimits,
+            linkedProjectConfigService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1124,6 +1132,7 @@ class NodeConstruction {
             taskManager,
             telemetryProvider.getTracer(),
             nodeEnvironment.nodeId(),
+            linkedProjectConfigService,
             projectResolver
         );
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());

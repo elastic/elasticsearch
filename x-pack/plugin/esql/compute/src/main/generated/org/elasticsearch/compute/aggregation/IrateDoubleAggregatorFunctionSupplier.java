@@ -11,11 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link RateIntAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link IrateDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class RateIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public RateIntAggregatorFunctionSupplier() {
+public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public IrateDoubleAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -25,7 +25,7 @@ public final class RateIntAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return RateIntGroupingAggregatorFunction.intermediateStateDesc();
+    return IrateDoubleGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -34,13 +34,13 @@ public final class RateIntAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
-  public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public IrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return RateIntGroupingAggregatorFunction.create(channels, driverContext);
+    return IrateDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "rate of ints";
+    return "irate of doubles";
   }
 }

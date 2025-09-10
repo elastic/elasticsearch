@@ -71,8 +71,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
-    public static final TimeValue CONNECTION_FAILURE_WARN_INTERVAL = TimeValue.timeValueSeconds(30);
-
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -80,8 +78,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
-    private long connectionAttempts = 0L;
-    private long lastFailedConnectionAttemptWarningTimeMillis = -1L;
+    private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
@@ -216,26 +213,20 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     private void connectionAttemptCompleted(Exception e) {
-        connectionAttempts++;
-        final var nowMillis = transportService.threadPool.relativeTimeInMillis();
+        final boolean isInitialAttempt = initialConnectionAttempted.compareAndSet(false, true);
         final org.apache.logging.log4j.util.Supplier<String> msgSupplier = () -> format(
-            "Origin project [%s] %s linked project [%s] alias [%s] on attempt [%d]",
+            "Origin project [%s] %s linked project [%s] alias [%s] on %s attempt",
             originProjectId,
             e == null ? "successfully connected to" : "failed to connect to",
             linkedProjectId,
             clusterAlias,
-            connectionAttempts
+            isInitialAttempt ? "the initial connection" : "a reconnection"
         );
         if (e == null) {
             logger.info(msgSupplier);
-            lastFailedConnectionAttemptWarningTimeMillis = -1L;
         } else {
-            if (lastFailedConnectionAttemptWarningTimeMillis == -1L
-                || nowMillis - lastFailedConnectionAttemptWarningTimeMillis >= CONNECTION_FAILURE_WARN_INTERVAL.getMillis()) {
-                logger.warn(msgSupplier, e);
-                lastFailedConnectionAttemptWarningTimeMillis = nowMillis;
-            }
-            // TODO: ES-12695: Increment either the initial (connectionAttempts == 1) or retry connection failure metric.
+            logger.warn(msgSupplier, e);
+            // TODO: ES-12695: Increment either the initial or retry connection failure metric.
         }
     }
 

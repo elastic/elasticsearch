@@ -137,6 +137,10 @@ public class InferenceEndpointRegistry {
         return cacheEnabled ? cache.stats() : EMPTY;
     }
 
+    public int cacheCount() {
+        return cacheEnabled ? cache.count() : 0;
+    }
+
     public boolean cacheEnabled() {
         return cacheEnabled;
     }

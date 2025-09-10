@@ -11,7 +11,6 @@ import org.apache.http.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,7 +41,14 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractBWCWireS
         var eisPoolStats = new PoolStats(5, 6, 7, 8);
         var entity = new GetInferenceDiagnosticsAction.Response(
             ClusterName.DEFAULT,
-            List.of(new GetInferenceDiagnosticsAction.NodeResponse(node, externalPoolStats, eisPoolStats, new Cache.Stats(5, 6, 7))),
+            List.of(
+                new GetInferenceDiagnosticsAction.NodeResponse(
+                    node,
+                    externalPoolStats,
+                    eisPoolStats,
+                    new GetInferenceDiagnosticsAction.NodeResponse.Stats(5, 6, 7, 8)
+                )
+            ),
             List.of()
         );
 
@@ -70,9 +76,10 @@ public class GetInferenceDiagnosticsActionResponseTests extends AbstractBWCWireS
                         }
                     },
                     "inference_endpoint_registry":{
-                        "cache_hits": 5,
-                        "cache_misses": 6,
-                        "cache_evictions": 7
+                        "cache_count": 5,
+                        "cache_hits": 6,
+                        "cache_misses": 7,
+                        "cache_evictions": 8
                     }
                 }
             }""")));

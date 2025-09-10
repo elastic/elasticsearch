@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -85,8 +84,13 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         );
     }
 
-    private static Cache.Stats randomCacheStats() {
-        return new Cache.Stats(randomLong(), randomLong(), randomLong());
+    private static GetInferenceDiagnosticsAction.NodeResponse.Stats randomCacheStats() {
+        return new GetInferenceDiagnosticsAction.NodeResponse.Stats(
+            randomInt(),
+            randomLongBetween(0, Long.MAX_VALUE),
+            randomLongBetween(0, Long.MAX_VALUE),
+            randomLongBetween(0, Long.MAX_VALUE)
+        );
     }
 
     @Override

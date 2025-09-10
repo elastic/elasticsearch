@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -134,12 +133,12 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             DiscoveryNode node,
             PoolStats poolStats,
             PoolStats eisPoolStats,
-            @Nullable Cache.Stats inferenceEndpointRegistryStats
+            @Nullable Stats inferenceEndpointRegistryStats
         ) {
             super(node);
             externalConnectionPoolStats = ConnectionPoolStats.of(poolStats);
             eisMtlsConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
-            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats != null ? Stats.of(inferenceEndpointRegistryStats) : null;
+            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -298,34 +297,33 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             }
         }
 
-        public record Stats(long hits, long misses, long evictions) implements ToXContentObject, Writeable {
+        public record Stats(int entryCount, long hits, long misses, long evictions) implements ToXContentObject, Writeable {
 
+            private static final String NUM_OF_CACHE_ENTRIES = "cache_count";
             private static final String CACHE_HITS = "cache_hits";
             private static final String CACHE_MISSES = "cache_misses";
             private static final String CACHE_EVICTIONS = "cache_evictions";
 
             public Stats(StreamInput in) throws IOException {
-                this(in.readLong(), in.readLong(), in.readLong());
+                this(in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong());
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeLong(hits);
-                out.writeLong(misses);
-                out.writeLong(evictions);
+                out.writeVInt(entryCount);
+                out.writeVLong(hits);
+                out.writeVLong(misses);
+                out.writeVLong(evictions);
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.startObject()
+                    .field(NUM_OF_CACHE_ENTRIES, entryCount)
                     .field(CACHE_HITS, hits)
                     .field(CACHE_MISSES, misses)
                     .field(CACHE_EVICTIONS, evictions)
                     .endObject();
-            }
-
-            public static Stats of(Cache.Stats cacheStats) {
-                return new Stats(cacheStats.getHits(), cacheStats.getMisses(), cacheStats.getEvictions());
             }
         }
     }

@@ -54,6 +54,7 @@ public class ClearInferenceEndpointCacheActionTests extends ESSingleNodeTestCase
         invokeEndpoint();
 
         var stats = cacheStats();
+        assertThat(stats.entryCount(), equalTo(1));
         assertThat(stats.hits(), equalTo(0L));
         assertThat(stats.misses(), equalTo(1L));
         assertThat(stats.evictions(), equalTo(0L));
@@ -64,6 +65,7 @@ public class ClearInferenceEndpointCacheActionTests extends ESSingleNodeTestCase
 
         assertBusy(() -> {
             var nextStats = cacheStats();
+            assertThat(nextStats.entryCount(), equalTo(0));
             assertThat(nextStats.hits(), equalTo(0L));
             assertThat(nextStats.misses(), equalTo(1L));
             assertThat(nextStats.evictions(), equalTo(1L));
@@ -71,6 +73,7 @@ public class ClearInferenceEndpointCacheActionTests extends ESSingleNodeTestCase
 
         invokeEndpoint();
         stats = cacheStats();
+        assertThat(stats.entryCount(), equalTo(1));
         assertThat(stats.hits(), equalTo(0L));
         assertThat(stats.misses(), equalTo(2L));
         assertThat(stats.evictions(), equalTo(1L));

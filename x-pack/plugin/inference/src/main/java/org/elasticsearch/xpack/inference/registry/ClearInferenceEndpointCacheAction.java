@@ -59,7 +59,7 @@ import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
  */
 public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMasterNodeAction<ClearInferenceEndpointCacheAction.Request> {
     private static final Logger log = LogManager.getLogger(ClearInferenceEndpointCacheAction.class);
-    private static final String NAME = "cluster:admin/xpack/inference/clear_inference_endpoint_cache";
+    private static final String NAME = "cluster:internal/xpack/inference/clear_inference_endpoint_cache";
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
     private static final String TASK_QUEUE_NAME = "inference-endpoint-cache-management";
 

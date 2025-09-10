@@ -84,7 +84,21 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
             transportService.getLocalNode(),
             managers.externalHttpClientManager().getPoolStats(),
             managers.eisMtlsHttpClientManager().getPoolStats(),
-            inferenceEndpointRegistry.cacheEnabled() ? inferenceEndpointRegistry.stats() : null
+            cacheStats()
         );
+    }
+
+    private GetInferenceDiagnosticsAction.NodeResponse.Stats cacheStats() {
+        if (inferenceEndpointRegistry.cacheEnabled()) {
+            var stats = inferenceEndpointRegistry.stats();
+            return new GetInferenceDiagnosticsAction.NodeResponse.Stats(
+                inferenceEndpointRegistry.cacheCount(),
+                stats.getHits(),
+                stats.getMisses(),
+                stats.getEvictions()
+            );
+        } else {
+            return null;
+        }
     }
 }

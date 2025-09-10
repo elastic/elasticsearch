@@ -513,9 +513,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testDateHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/134389
-- class: org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT
-  method: testIngestMetricDataViaMetricExporter
-  issue: https://github.com/elastic/elasticsearch/issues/134426
 
 # Examples:
 #

@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -96,6 +98,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
+            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         this.segmentWriteState = state;
@@ -148,11 +151,70 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         flatVectorWriter.flush(maxDoc, sortMap);
+
         for (FieldWriter field : fields) {
-            if (sortMap == null) {
-                flushField(field);
+            var fieldInfo = field.fieldInfo;
+
+            var numVectors = field.flatFieldVectorsWriter.getVectors().size();
+            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                // Will not be indexed on the GPU
+                if (sortMap == null) {
+                    writeFieldInternal(fieldInfo, null, numVectors);
+                } else {
+                    // TODO: use sortMap
+                    writeFieldInternal(fieldInfo, null, numVectors);
+                }
             } else {
-                flushSortingField(field, sortMap);
+                // save vector values to a temp file
+                var success = false;
+                String tempRawVectorsFileName = null;
+                SegmentInfo segmentInfo = segmentWriteState.segmentInfo;
+                try (IndexOutput out = segmentInfo.dir.createTempOutput(segmentInfo.name, "vec_", IOContext.DEFAULT)) {
+                    tempRawVectorsFileName = out.getName();
+
+                    final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES)
+                        .order(ByteOrder.LITTLE_ENDIAN);
+                    for (var vector : field.flatFieldVectorsWriter.getVectors()) {
+                        buffer.asFloatBuffer().put(vector);
+                        out.writeBytes(buffer.array(), buffer.array().length);
+                    }
+
+                    CodecUtil.writeFooter(out);
+                    success = true;
+                } finally {
+                    if (success == false && tempRawVectorsFileName != null) {
+                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentInfo.dir, tempRawVectorsFileName);
+                    }
+                }
+
+                // Read back the file to try and mmap it
+                try (IndexInput in = segmentWriteState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
+                    final CuVSMatrix dataset;
+
+                    var input = FilterIndexInput.unwrapOnlyTest(in);
+                    if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+                        dataset = DatasetUtils.getInstance()
+                            .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
+                    } else {
+                        var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+                        for (var vector : field.flatFieldVectorsWriter.getVectors()) {
+                            builder.addVector(vector);
+                        }
+                        dataset = builder.build();
+                    }
+                    try {
+                        if (sortMap == null) {
+                            writeFieldInternal(fieldInfo, dataset, numVectors);
+                        } else {
+                            // TODO: use sortMap
+                            writeFieldInternal(fieldInfo, dataset, numVectors);
+                        }
+                    } finally {
+                        dataset.close();
+                    }
+                } finally {
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentInfo.dir, tempRawVectorsFileName);
+                }
             }
         }
     }

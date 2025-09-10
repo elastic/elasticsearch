@@ -272,10 +272,12 @@ public class EsqlSession {
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
+            Block[] localRelationBlocks = null;
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                localRelationBlocks = resultWrapper.supplier().get();
 
                 // replace the original logical plan with the backing result
                 LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
@@ -303,6 +305,9 @@ public class EsqlSession {
                     executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
                 }
             } finally {
+                if (localRelationBlocks != null) {
+                    Releasables.closeExpectNoException(localRelationBlocks);
+                }
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));

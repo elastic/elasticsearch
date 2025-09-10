@@ -26,6 +26,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 /**
@@ -41,12 +42,16 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     // Field names
     public static final String ROLE_FIELD = "role";
     public static final String INDEX_FIELD = "index";
+    public static final String TYPE_FIELD = "type";
     public static final String MODEL_FIELD = "model";
     public static final String ID_FIELD = "id";
+    public static final String NAME_FIELD = "name";
     public static final String INPUT_TOKENS_FIELD = "input_tokens";
     public static final String OUTPUT_TOKENS_FIELD = "output_tokens";
     public static final String STOP_REASON_FIELD = "stop_reason";
     public static final String TEXT_FIELD = "text";
+    public static final String INPUT_FIELD = "input";
+    public static final String PARTIAL_JSON_FIELD = "partial_json";
 
     // Event types
     public static final String MESSAGE_DELTA_EVENT_TYPE = "message_delta";
@@ -58,6 +63,12 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     public static final String CONTENT_BLOCK_DELTA_EVENT_TYPE = "content_block_delta";
     public static final String MESSAGE_STOP_EVENT_TYPE = "message_stop";
     public static final String ERROR_TYPE = "error";
+
+    // Content block types
+    public static final String TEXT_DELTA_TYPE = "text_delta";
+    public static final String INPUT_JSON_DELTA_TYPE = "input_json_delta";
+    public static final String TOOL_USE_TYPE = "tool_use";
+    public static final String TEXT_TYPE = "text";
 
     private final BiFunction<String, Exception, Exception> errorParser;
 
@@ -91,12 +102,21 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
     }
 
+    /**
+     * Parse a single ServerSentEvent into zero or more ChatCompletionChunk
+     * @param parserConfig the parser configuration
+     * @param event the server sent event
+     * @return a stream of ChatCompletionChunk
+     * @throws IOException if parsing fails
+     */
     public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
         XContentParserConfiguration parserConfig,
         ServerSentEvent event
     ) throws IOException {
+        // Handle known event types
         switch (event.type()) {
             case VERTEX_EVENT_EVENT_TYPE, PING_EVENT_TYPE, CONTENT_BLOCK_STOP_EVENT_TYPE:
+                // No content to parse, just skip
                 logger.debug("Skipping event type [{}] for line [{}].", event.type(), event.data());
                 return Stream.empty();
             case MESSAGE_START_EVENT_TYPE:
@@ -115,18 +135,25 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
     }
 
+    /**
+     * Parse a message start event into a ChatCompletionChunk stream
+     * @param parserConfig the parser configuration
+     * @param data the event data
+     * @return a stream of ChatCompletionChunk
+     * @throws IOException if parsing fails
+     */
     public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(
         XContentParserConfiguration parserConfig,
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            String id = parseStringField(jsonParser, ID_FIELD);
-            String role = parseStringField(jsonParser, ROLE_FIELD);
-            String model = parseStringField(jsonParser, MODEL_FIELD);
-            String finishReason = parseStringField(jsonParser, STOP_REASON_FIELD);
-            int promptTokens = parseNumberField(jsonParser, INPUT_TOKENS_FIELD);
-            int completionTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
-            int totalTokens = completionTokens + promptTokens;
+            var id = parseStringField(jsonParser, ID_FIELD);
+            var role = parseStringField(jsonParser, ROLE_FIELD);
+            var model = parseStringField(jsonParser, MODEL_FIELD);
+            var finishReason = parseStringOrNullField(jsonParser, STOP_REASON_FIELD);
+            var promptTokens = parseNumberField(jsonParser, INPUT_TOKENS_FIELD);
+            var completionTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
+            var totalTokens = completionTokens + promptTokens;
 
             var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(completionTokens, promptTokens, totalTokens);
             var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null);
@@ -137,31 +164,92 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
     }
 
+    /**
+     * Parse a content block start event into a ChatCompletionChunk stream
+     * @param parserConfig the parser configuration
+     * @param data the event data
+     * @return a stream of ChatCompletionChunk
+     * @throws IOException if parsing fails
+     */
     public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockStart(
         XContentParserConfiguration parserConfig,
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            int index = parseNumberField(jsonParser, INDEX_FIELD);
-            String text = parseStringField(jsonParser, TEXT_FIELD);
-
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
+            var index = parseNumberField(jsonParser, INDEX_FIELD);
+            var type = parseStringField(jsonParser, TYPE_FIELD);
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
+            if (type.equals(TEXT_TYPE)) {
+                var text = parseStringField(jsonParser, TEXT_FIELD);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
+            } else if (type.equals(TOOL_USE_TYPE)) {
+                var id = parseStringField(jsonParser, ID_FIELD);
+                var name = parseStringField(jsonParser, NAME_FIELD);
+                var input = parseFieldValue(jsonParser, INPUT_FIELD);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                            0,
+                            id,
+                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
+                                input != null ? input.toString() : null,
+                                name
+                            ),
+                            null
+                        )
+                    )
+                );
+            } else {
+                logger.debug("Unknown content block start type [{}] for line [{}].", type, data);
+                return Stream.empty();
+            }
             var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
             var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
-
             return Stream.of(chunk);
         }
     }
 
+    /**
+     * Parse a content block delta event into a ChatCompletionChunk stream
+     * @param parserConfig the parser configuration
+     * @param data the event data
+     * @return a stream of ChatCompletionChunk
+     * @throws IOException if parsing fails
+     */
     public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockDelta(
         XContentParserConfiguration parserConfig,
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            int index = parseNumberField(jsonParser, INDEX_FIELD);
-            String text = parseStringField(jsonParser, TEXT_FIELD);
+            var index = parseNumberField(jsonParser, INDEX_FIELD);
+            var type = parseStringField(jsonParser, TYPE_FIELD);
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
+            if (type.equals(TEXT_DELTA_TYPE)) {
+                var text = parseStringField(jsonParser, TEXT_FIELD);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
+            } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
+                var partialJson = parseStringField(jsonParser, PARTIAL_JSON_FIELD);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                    null,
+                    null,
+                    null,
+                    List.of(
+                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                            0,
+                            null,
+                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(partialJson, null),
+                            null
+                        )
+                    )
+                );
+            } else {
+                logger.debug("Unknown content block delta type [{}] for line [{}].", type, data);
+                return Stream.empty();
+            }
 
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
             var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
             var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
 
@@ -169,24 +257,38 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
     }
 
+    /**
+     * Parse a message delta event into a ChatCompletionChunk stream
+     * @param parserConfig the parser configuration
+     * @param data the event data
+     * @return a stream of ChatCompletionChunk
+     * @throws IOException if parsing fails
+     */
     public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(
         XContentParserConfiguration parserConfig,
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            String finishReason = parseStringField(jsonParser, STOP_REASON_FIELD);
-            int totalTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
+            var finishReason = parseStringOrNullField(jsonParser, STOP_REASON_FIELD);
+            var totalTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
 
-            var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(totalTokens, 0, totalTokens);
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null),
-                finishReason,
-                0
-            );
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, usage);
+            var chunk = buildChatCompletionChunk(totalTokens, finishReason);
 
             return Stream.of(chunk);
         }
+    }
+
+    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk buildChatCompletionChunk(
+        int totalTokens,
+        String finishReason
+    ) {
+        var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(totalTokens, 0, totalTokens);
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null),
+            finishReason,
+            0
+        );
+        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, usage);
     }
 
     private static int parseNumberField(XContentParser jsonParser, String fieldName) throws IOException {
@@ -198,7 +300,17 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private static String parseStringField(XContentParser jsonParser, String fieldName) throws IOException {
         positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
         ensureExpectedToken(XContentParser.Token.VALUE_STRING, jsonParser.currentToken(), jsonParser);
+        return jsonParser.text();
+    }
+
+    private static String parseStringOrNullField(XContentParser jsonParser, String fieldName) throws IOException {
+        positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
         return jsonParser.textOrNull();
+    }
+
+    private static Object parseFieldValue(XContentParser jsonParser, String fieldName) throws IOException {
+        positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
+        return parseFieldsValue(jsonParser);
     }
 
 }

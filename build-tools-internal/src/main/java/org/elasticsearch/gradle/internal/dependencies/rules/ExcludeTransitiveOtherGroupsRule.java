@@ -13,27 +13,14 @@ import org.gradle.api.artifacts.ComponentMetadataContext;
 import org.gradle.api.artifacts.ComponentMetadataRule;
 
 //@CacheableRule
-public abstract class ExcludeTransitivesRule implements ComponentMetadataRule {
+public abstract class ExcludeTransitiveOtherGroupsRule implements ComponentMetadataRule {
 
     @Override
     public void execute(ComponentMetadataContext context) {
         context.getDetails().allVariants(variant -> {
             variant.withDependencies(dependencies -> {
-                // Exclude all transitive dependencies
-                if (dependencies.isEmpty() == false) {
-
-                }
-                dependencies.removeIf(dep -> {
-                    // if (dep.getGroup().equals(context.getDetails().getId().getGroup()) == false) {
-                    if (context.getDetails().getId().getGroup().equals("org.apache.directory.api")) {
-                        System.out.println(
-                            context.getDetails().getId().getGroup() + ":" + context.getDetails().getId().getName() + ":  " + dep
-                        );
-                    }
-                    // }
-                    return false;
-                });
-                dependencies.clear();
+                // Exclude transitive dependencies with a different groupId than the parent
+                dependencies.removeIf(dep -> dep.getGroup().equals(context.getDetails().getId().getGroup()) == false);
             });
         });
     }

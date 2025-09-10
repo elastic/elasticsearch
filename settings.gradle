@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.dependencies.rules.ExcludeTransitivesRule
+import org.elasticsearch.gradle.internal.dependencies.rules.ExcludeTransitiveOtherGroupsRule
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
@@ -143,19 +144,39 @@ dependencyResolutionManagement {
     withModule("org.apache.arrow:arrow-vector", ExcludeTransitivesRule)
     withModule("org.apache.commons:commons-compress", ExcludeTransitivesRule)
     withModule("org.apache.commons:commons-text", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-asn1-api", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-asn1-ber", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-ldap-client-api", ExcludeTransitivesRule)
+    
+    // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
+    withModule("org.apache.directory.api:api-asn1-ber", ExcludeTransitiveOtherGroupsRule)
+
+    // org.apache.directory.api:api-ldap-client-api brings in org.apache.mina:mina-core:2.0.16. We use 2.2.4
+    withModule("org.apache.directory.api:api-ldap-client-api", ExcludeTransitiveOtherGroupsRule)
     withModule("org.apache.directory.api:api-ldap-codec-core", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-ldap-codec-standalone", ExcludeTransitivesRule)
+    
+    // "org.apache.directory.api:api-ldap-codec-standalone brings in org.apache.mina:mina-core:2.0.16. We use 2.2.4
+    withModule("org.apache.directory.api:api-ldap-codec-standalone", ExcludeTransitiveOtherGroupsRule)
+
+    // TODO: For org.apache.directory.api dependencies we use partially 1.0.1 and partially 1.0.0. We should align these.
     withModule("org.apache.directory.api:api-ldap-extras-aci", ExcludeTransitivesRule)
+    withModule("org.apache.directory.api:api-ldap-schema-data", ExcludeTransitivesRule)
     withModule("org.apache.directory.api:api-ldap-extras-codec-api", ExcludeTransitivesRule)
     withModule("org.apache.directory.api:api-ldap-extras-sp", ExcludeTransitivesRule)
     withModule("org.apache.directory.api:api-ldap-extras-util", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-ldap-model", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-ldap-net-mina", ExcludeTransitivesRule)
-    withModule("org.apache.directory.api:api-ldap-schema-data", ExcludeTransitivesRule)
+
+    // org.apache.directory.api:api-ldap-model brings in org.apache.mina:mina-core:2.0.17. We use 2.2.4
+    // org.apache.directory.api:api-ldap-model brings in org.apache.servicemix.bundles:org.apache.servicemix.bundles.antlr:2.7.7_5. We use 2.7.7_5.
+    // org.apache.directory.api:api-ldap-model brings in commons-codec:commons-lang:commons-lang:2.6. We use 2.6.
+    // org.apache.directory.api:api-ldap-model brings in commons-collections:commons-collections:3.2.2. We use 3.3.2.
+    // org.apache.directory.api:api-ldap-model brings in commons-codec:commons-codec:1.10. We use 1.15.
+    // TODO exclude matching third party deps from being excluded
+    withModule("org.apache.directory.api:api-ldap-model", ExcludeTransitiveOtherGroupsRule)
+
+    // org.apache.directory.api:api-ldap-model brings in org.apache.mina:mina-core:2.0.17. We use 2.2.4
+    withModule("org.apache.directory.api:api-ldap-net-mina", ExcludeTransitiveOtherGroupsRule)
+    
+    // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
+    // TODO: For org.apache.directory.api dependencies we use partially 1.0.1 and partially 1.0.0. We should align these.
     withModule("org.apache.directory.api:api-util", ExcludeTransitivesRule)
+
     withModule("org.apache.directory.jdbm:apacheds-jdbm1", ExcludeTransitivesRule)
     withModule("org.apache.directory.mavibot:mavibot", ExcludeTransitivesRule)
     withModule("org.apache.directory.server:apacheds-core-annotations", ExcludeTransitivesRule)
@@ -173,6 +194,7 @@ dependencyResolutionManagement {
     withModule("org.apache.directory.server:apacheds-test-framework", ExcludeTransitivesRule)
     withModule("org.apache.directory.server:apacheds-xdbm-partition", ExcludeTransitivesRule)
     withModule("org.apache.directory.server:ldap-client-test", ExcludeTransitivesRule)
+
     withModule("org.apache.hadoop:hadoop-client-api", ExcludeTransitivesRule)
     withModule("org.apache.hadoop:hadoop-client-runtime", ExcludeTransitivesRule)
     withModule("org.apache.hadoop:hadoop-common", ExcludeTransitivesRule)
@@ -200,12 +222,24 @@ dependencyResolutionManagement {
     withModule("org.apache.logging.log4j:log4j-core", ExcludeTransitivesRule)
     withModule("org.apache.logging.log4j:log4j-jcl", ExcludeTransitivesRule)
     withModule("org.apache.logging.log4j:log4j-slf4j-impl", ExcludeTransitivesRule)
-    withModule("org.apache.lucene:lucene-analysis-icu", ExcludeTransitivesRule)
-    withModule("org.apache.lucene:lucene-analysis-morfologik", ExcludeTransitivesRule)
-    withModule("org.apache.lucene:lucene-analysis-phonetic", ExcludeTransitivesRule)
-    withModule("org.apache.lucene:lucene-spatial-extras", ExcludeTransitivesRule)
-    withModule("org.apache.lucene:lucene-expressions", ExcludeTransitivesRule)
-    withModule("org.apache.lucene:lucene-test-framework", ExcludeTransitivesRule)
+
+    // lucene-analysis-morfologik brings in org.carrot2:morfologik-stemming:2.1.9. we use 2.1.1
+    // lucene-analysis-morfologik brings in org.carrot2:morfologik-polish:2.1.9. we use none.
+    // lucene-analysis-morfologik brings in ua.net.nlp:morfologik-ukrainian-search:4.9.1 we use 3.7.5.
+    withModule("org.apache.lucene:lucene-analysis-morfologik", ExcludeTransitiveOtherGroupsRule)
+    
+    // lucene-analysis-phonetic brings in commons-codec:1.17. We use 1.15
+    withModule("org.apache.lucene:lucene-analysis-phonetic", ExcludeTransitiveOtherGroupsRule)
+
+    // lucene-spatial-extras brings in different version of spatial4j
+    // lucene-spatial-extras brings in different version of s2-geometry-library-java
+    withModule("org.apache.lucene:lucene-spatial-extras", ExcludeTransitiveOtherGroupsRule)
+    
+    // lucene-expressions brings in org.antlr:antlr4-runtime:4.13.2
+    // lucene-expressions brings in org.ow2.asm:asm:9.6
+    // lucene-expressions brings in org.ow2.asm:asm-commons:9.6
+    withModule("org.apache.lucene:lucene-expressions", ExcludeTransitiveOtherGroupsRule)
+    withModule("org.apache.lucene:lucene-test-framework", ExcludeTransitiveOtherGroupsRule)
     withModule("org.apache.mina:mina-core", ExcludeTransitivesRule)
     withModule("org.apache.pdfbox:fontbox", ExcludeTransitivesRule)
     withModule("org.apache.pdfbox:pdfbox", ExcludeTransitivesRule)

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -42,6 +44,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
+// Repeating to ensure everything was properly closed in the cluster.
+// Failing to close objects on CB exception led to errors only visible with @Repeat.
+@Repeat(iterations = 3)
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 1)
 public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
     @Override

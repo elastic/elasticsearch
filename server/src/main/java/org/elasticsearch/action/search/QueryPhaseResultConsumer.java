@@ -222,34 +222,35 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
-        // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
-        // execution for shards on the coordinating node itself
-        if (mergeResult != null) {
-            consumePartialMergeResult(mergeResult, topDocsList, aggsList);
-            addEstimateAndMaybeBreak(mergeResult.estimatedSize);
-        }
-        Tuple<TopDocsStats, MergeResult> batchedResult;
-        while ((batchedResult = batchedResults.poll()) != null) {
-            topDocsStats.add(batchedResult.v1());
-            consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
-            // Add the estimate of the agg size
-            addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
-        }
-        for (QuerySearchResult result : buffer) {
-            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
-            if (topDocsList != null) {
-                TopDocsAndMaxScore topDocs = result.consumeTopDocs();
-                setShardIndex(topDocs.topDocs, result.getShardIndex());
-                topDocsList.add(topDocs.topDocs);
-            }
-        }
+
         SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = circuitBreakerBytes;
         final InternalAggregations aggs;
         try {
+            // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
+            // execution for shards on the coordinating node itself
+            if (mergeResult != null) {
+                consumePartialMergeResult(mergeResult, topDocsList, aggsList);
+                breakerSize = addEstimateAndMaybeBreak(mergeResult.estimatedSize);
+            }
+            Tuple<TopDocsStats, MergeResult> batchedResult;
+            while ((batchedResult = batchedResults.poll()) != null) {
+                topDocsStats.add(batchedResult.v1());
+                consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
+                // Add the estimate of the agg size
+                breakerSize = addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize); // TODO: This leaves objects unclosed!
+            }
+            for (QuerySearchResult result : buffer) {
+                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                if (topDocsList != null) {
+                    TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                    setShardIndex(topDocs.topDocs, result.getShardIndex());
+                    topDocsList.add(topDocs.topDocs);
+                }
+            }
             if (aggsList != null) {
                 // Add an estimate of the final reduce size
-                breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(breakerSize));
+                breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(circuitBreakerBytes));
                 aggs = aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {
@@ -278,7 +279,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             );
             buffer = null;
         } finally {
-            releaseAggs(buffer);
+            // Buffer is only null on exception
+            if (buffer != null) {
+                releaseAggs(buffer);
+                if (aggsList != null) {
+                    Releasables.close(aggsList);
+                }
+            }
         }
         if (hasAggs
             // reduced aggregations can be null if all shards failed
@@ -643,7 +650,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         });
     }
 
-    private static void releaseAggs(List<QuerySearchResult> toConsume) {
+    private static void releaseAggs(@Nullable List<QuerySearchResult> toConsume) {
         if (toConsume != null) {
             for (QuerySearchResult result : toConsume) {
                 result.releaseAggs();

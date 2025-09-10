@@ -34,25 +34,32 @@ dependencyResolutionManagement {
 
 dependencyResolutionManagement {
   components {
-    withModule("co.elastic.logging:log4j2-ecs-layout", ExcludeTransitivesRule)
-    withModule("com.azure:azure-core", ExcludeTransitivesRule)
+    withModule("com.azure:azure-core", ExcludeTransitiveOtherGroupsRule)
+    // brings in azure-core-http-netty. not used
     withModule("com.azure:azure-core-http-netty", ExcludeTransitivesRule)
-    withModule("com.azure:azure-core-http-okhttp", ExcludeTransitivesRule)
+    withModule("com.azure:azure-core-http-okhttp", ExcludeTransitiveOtherGroupsRule)
+
+    // brings in net.java.dev.jna:jna-platform:5.6.0. We use 5.12.1.
+    // brings in com.azure:azure-core-http-netty:1.15.1
     withModule("com.azure:azure-identity", ExcludeTransitivesRule)
-    withModule("com.azure:azure-storage-blob", ExcludeTransitivesRule)
-    withModule("com.azure:azure-storage-blob-batch", ExcludeTransitivesRule)
-    withModule("com.azure:azure-storage-common", ExcludeTransitivesRule)
+
+    // brings in com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.17.2. We use 2.15.0
+    withModule("com.azure:azure-storage-blob", ExcludeTransitiveOtherGroupsRule)
+    withModule("com.azure:azure-storage-blob-batch", ExcludeTransitiveOtherGroupsRule)
+    withModule("com.azure:azure-storage-common", ExcludeTransitiveOtherGroupsRule)
     withModule("com.azure:azure-storage-internal-avro", ExcludeTransitivesRule)
+
     withModule("com.carrotsearch.randomizedtesting:randomizedtesting-runner", ExcludeTransitivesRule)
-    withModule("com.fasterxml.jackson.core:jackson-annotations", ExcludeTransitivesRule)
-    withModule("com.fasterxml.jackson.core:jackson-core", ExcludeTransitivesRule)
+    withModule("com.fasterxml.jackson.core:jackson-core", ExcludeTransitiveOtherGroupsRule)
+    // brings in jackson-databind and jackson-annotations not used
     withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor", ExcludeTransitivesRule)
     withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-smile", ExcludeTransitivesRule)
-    withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-xml", ExcludeTransitivesRule)
-    withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", ExcludeTransitivesRule)
-    withModule("com.fasterxml.jackson.datatype:jackson-datatype-jsr310", ExcludeTransitivesRule)
+
+    withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-xml", ExcludeTransitiveOtherGroupsRule)
+    withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", ExcludeTransitiveOtherGroupsRule)
+
+    // brings in jakarta.activation:jakarta.activation-api:1.2.2. We use 1.2.1.
     withModule("com.fasterxml.jackson.module:jackson-module-jaxb-annotations", ExcludeTransitivesRule)
-    withModule("com.fasterxml.woodstox:woodstox-core", ExcludeTransitivesRule)
     withModule("com.google.api-client:google-api-client", ExcludeTransitivesRule)
     withModule("com.google.api.grpc:proto-google-cloud-storage-v2", ExcludeTransitivesRule)
     withModule("com.google.api.grpc:proto-google-common-protos", ExcludeTransitivesRule)

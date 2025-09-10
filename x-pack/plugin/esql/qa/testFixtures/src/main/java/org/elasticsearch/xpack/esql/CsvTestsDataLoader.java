@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -637,6 +639,8 @@ public class CsvTestsDataLoader {
         }
     }
 
+    record ColumnHeader(String name, String type) {}
+
     @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -654,12 +658,13 @@ public class CsvTestsDataLoader {
      */
     private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
+
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null
+            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
 
             while ((line = reader.readLine()) != null) {
@@ -669,15 +674,16 @@ public class CsvTestsDataLoader {
                     String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
-                        columns = new String[entries.length];
+                        columns = new ColumnHeader[entries.length];
                         for (int i = 0; i < entries.length; i++) {
                             int split = entries[i].indexOf(':');
                             if (split < 0) {
-                                columns[i] = entries[i].trim();
+                                columns[i] = new ColumnHeader(entries[i].trim(), null);
                             } else {
                                 String name = entries[i].substring(0, split).trim();
+                                String type = entries[i].substring(split + 1).trim();
                                 if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = name;
+                                    columns[i] = new ColumnHeader(name, type);
                                 } else {// if it's a subfield, ignore it in the _bulk request
                                     columns[i] = null;
                                     subFieldsIndices.add(i);
@@ -707,7 +713,7 @@ public class CsvTestsDataLoader {
                                     // Value is null, skip
                                     continue;
                                 }
-                                if ("_id".equals(columns[i])) {
+                                if (columns[i] != null && "_id".equals(columns[i].name)) {
                                     // Value is an _id
                                     idField = entries[i];
                                     continue;
@@ -722,17 +728,17 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 1) {
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append(quoteIfNecessary(s)).append(",");
+                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = quoteIfNecessary(entries[i]);
+                                        entries[i] = toJson(columns[i].type, entries[i]);
                                     }
                                     // replace any escaped commas with single comma
                                     entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i]).append("\":").append(entries[i]);
+                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
                                         format(
@@ -770,10 +776,23 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String quoteIfNecessary(String value) {
-        boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        boolean isNumeric = value.matches(NUMERIC_REGEX);
-        return isQuoted || isNumeric ? value : "\"" + value + "\"";
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+
+    private static String toJson(String type, String value) {
+        return switch (type == null ? "" : type) {
+            case "date_range", "double_range", "integer_range" -> {
+                Matcher m = RANGE_PATTERN.matcher(value);
+                if (m.matches() == false) {
+                    throw new IllegalArgumentException("can't parse range: " + value);
+                }
+                yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+            }
+            default -> {
+                boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
+                boolean isNumeric = value.matches(NUMERIC_REGEX);
+                yield isQuoted || isNumeric ? value : "\"" + value + "\"";
+            }
+        };
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)

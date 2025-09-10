@@ -237,12 +237,17 @@ class FieldCapabilitiesFetcher {
         QueryBuilder indexFilter,
         long nowInMillis,
         SearchExecutionContext searchExecutionContext
-    ) throws IOException {
+    ) {
         assert alwaysMatches(indexFilter) == false : "should not be called for always matching [" + indexFilter + "]";
         assert nowInMillis != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(indexFilter));
-        return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
+        try {
+            return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
+        } catch (Exception e) {
+            // treat as if shard is still a potential match
+            return true;
+        }
     }
 
     private static boolean alwaysMatches(QueryBuilder indexFilter) {

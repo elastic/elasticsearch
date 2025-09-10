@@ -51,6 +51,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     public static final ProjectStateRegistry EMPTY = new ProjectStateRegistry(Collections.emptyMap(), Collections.emptySet(), 0);
     private static final Entry EMPTY_ENTRY = new Entry(Settings.EMPTY, ImmutableOpenMap.of());
 
+    private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
     private static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = TransportVersion.fromName(
         "project_reserved_state_move_to_registry"
     );
@@ -69,7 +70,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     }
 
     public ProjectStateRegistry(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
+        if (in.getTransportVersion().supports(PROJECT_STATE_REGISTRY_ENTRY)) {
             projectsEntries = in.readMap(ProjectId::readFrom, Entry::readFrom);
         } else {
             Map<ProjectId, Settings> settingsMap = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
@@ -151,7 +152,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
+        if (in.getTransportVersion().supports(PROJECT_STATE_REGISTRY_ENTRY)) {
             return new ProjectStateRegistryDiff(in);
         }
         return readDiffFrom(Custom.class, TYPE, in);
@@ -177,7 +178,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
+        if (out.getTransportVersion().supports(PROJECT_STATE_REGISTRY_ENTRY)) {
             out.writeMap(projectsEntries);
         } else {
             Map<ProjectId, Settings> settingsMap = projectsEntries.entrySet()
@@ -203,8 +204,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         return projectsMarkedForDeletionGeneration;
     }
 
-    // visible for testing
-    Set<ProjectId> knownProjects() {
+    public Set<ProjectId> knownProjects() {
         return projectsEntries.keySet();
     }
 
@@ -254,6 +254,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             Entry.EntryDiff::readFrom
         );
 
+        private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
+
         private final DiffableUtils.MapDiff<ProjectId, Entry, Map<ProjectId, Entry>> projectsEntriesDiff;
         private final Set<ProjectId> projectsMarkedForDeletion;
         private final long projectsMarkedForDeletionGeneration;
@@ -277,7 +279,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.PROJECT_STATE_REGISTRY_ENTRY;
+            return PROJECT_STATE_REGISTRY_ENTRY;
         }
 
         @Override

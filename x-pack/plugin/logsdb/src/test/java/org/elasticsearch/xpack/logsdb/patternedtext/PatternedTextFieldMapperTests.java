@@ -191,6 +191,64 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
     }
 
+    public void testFallbackToMatchOnlyTextParameter() throws IOException {
+        {
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
+            MapperService mapperService = createMapperService(mapping);
+            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            assertFalse(mapper.fallbackToMatchOnlyText());
+        }
+
+        {
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("fallback_to_match_only_text", true));
+            MapperService mapperService = createMapperService(mapping);
+            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            assertTrue(mapper.fallbackToMatchOnlyText());
+        }
+
+        {
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("fallback_to_match_only_text", false));
+            MapperService mapperService = createMapperService(mapping);
+            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            assertFalse(mapper.fallbackToMatchOnlyText());
+        }
+    }
+
+    public void testFallbackToMatchOnlyTextParameterWhenDisallowedByLicense() throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(getIndexSettings())
+            .put(PatternedTextFieldMapper.PATTERNED_TEXT_FALLBACK_SETTING.getKey(), true)
+            .build();
+        {
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
+            MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
+            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            assertTrue(mapper.fallbackToMatchOnlyText());
+        }
+
+        {
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("fallback_to_match_only_text", true));
+            MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
+            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            assertTrue(mapper.fallbackToMatchOnlyText());
+        }
+
+        {
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("fallback_to_match_only_text", false));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(getVersion(), indexSettings, () -> true, mapping)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "value [false] for mapping parameter [fallback_to_match_only_text] contradicts value [true] for index "
+                        + "setting [index.mapping.patterned_text_fallback_to_match_only_text]"
+                )
+            );
+        }
+    }
+
     public void testDisabledSource() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         {

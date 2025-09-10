@@ -24,6 +24,7 @@ import static org.elasticsearch.license.TestUtils.dateMath;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 public class LogsdbLicenseServiceTests extends ESTestCase {
@@ -57,6 +58,26 @@ public class LogsdbLicenseServiceTests extends ESTestCase {
         licenseService.setLicenseService(mockLicenseService);
         assertTrue(licenseService.allowLogsdbRoutingOnSortField(true));
         Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
+    }
+
+    public void testAllowPatternedText() {
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_FEATURE))).thenReturn(true);
+        licenseService.setLicenseState(licenseState);
+        licenseService.setLicenseService(mockLicenseService);
+        assertTrue(licenseService.allowPatternedText(false));
+        Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
+    }
+
+    public void testAllowPatternedTextTemplateValidation() {
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_FEATURE))).thenReturn(true);
+        licenseService.setLicenseState(licenseState);
+        licenseService.setLicenseService(mockLicenseService);
+        assertTrue(licenseService.allowPatternedText(true));
+        Mockito.verify(licenseState, never()).featureUsed(any());
     }
 
     public void testLicenseAllowsSyntheticSource() {

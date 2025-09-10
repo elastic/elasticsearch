@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -29,14 +28,12 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -158,16 +155,20 @@ public class PatternedTextFieldMapper extends FieldMapper {
          */
         private static Parameter<Boolean> fallbackToMatchOnlyTextParameter(IndexSettings indexSettings) {
             boolean forceFallback = indexSettings.getValue(PATTERNED_TEXT_FALLBACK_SETTING);
-            return new Parameter<>("fallback_to_match_only_text", false, () -> forceFallback, (n, c, o) -> {
-                if (XContentMapValues.nodeBooleanValue(o) == false) {
+            return Parameter.boolParam(
+                "fallback_to_match_only_text",
+                false,
+                m -> ((PatternedTextFieldMapper) m).fallbackToMatchOnlyText(),
+                forceFallback
+            ).addValidator(value -> {
+                if (value == false && forceFallback) {
                     throw new MapperParsingException(
-                        "Illegal value [false] for field [fallback_to_match_only_text] - accepted values are [true]"
+                        "value [false] for mapping parameter [fallback_to_match_only_text] contradicts value [true] for index setting ["
+                            + PATTERNED_TEXT_FALLBACK_SETTING.getKey()
+                            + "]"
                     );
                 }
-                return true;
-            }, m -> ((PatternedTextFieldMapper) m).fallbackToMatchOnlyText, XContentBuilder::field, Objects::toString).setSerializerCheck(
-                (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value
-            );
+            }).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
         }
 
         @Override
@@ -218,6 +219,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
         this.fallbackToMatchOnlyText = builder.fallbackToMatchOnlyText.getValue();
+    }
+
+    public boolean fallbackToMatchOnlyText() {
+        return this.fallbackToMatchOnlyText;
     }
 
     @Override

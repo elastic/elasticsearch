@@ -12,4 +12,5 @@
 | geo_point | geo_point | text | named parameters | double |
 | integer | integer | integer | named parameters | double |
 | long | long | long | named parameters | double |
+| unsigned_long | unsigned_long | unsigned_long | named parameters | double |
 

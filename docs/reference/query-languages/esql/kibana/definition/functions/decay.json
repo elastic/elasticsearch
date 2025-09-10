@@ -251,6 +251,37 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The input value to apply decay scoring to."
+        },
+        {
+          "name" : "origin",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Central point from which the distances are calculated."
+        },
+        {
+          "name" : "scale",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Distance from the origin where the function returns the decay value."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.'}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.'}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.'}",
+          "optional" : true,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [

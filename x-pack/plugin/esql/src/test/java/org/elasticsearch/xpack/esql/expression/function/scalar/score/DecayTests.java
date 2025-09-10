@@ -102,6 +102,33 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Long random
         testCaseSuppliers.addAll(longRandomTestCases());
 
+        // Unsigned Long Linear
+        testCaseSuppliers.addAll(unsignedLongTestCase(0L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(50000L, 10L, 10000000L, 200L, 0.33, "linear", 0.99666407));
+        testCaseSuppliers.addAll(unsignedLongTestCase(300000L, 10L, 10000000L, 200L, 0.33, "linear", 0.97991407));
+        testCaseSuppliers.addAll(unsignedLongTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "linear", 0.0));
+
+        // Unsigned Long Exponential
+        testCaseSuppliers.addAll(unsignedLongTestCase(0L, 10L, 10000000L, 200L, 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 10L, 10000000L, 200L, 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(50000L, 10L, 10000000L, 200L, 0.33, "exp", 0.9944951761701727));
+        testCaseSuppliers.addAll(unsignedLongTestCase(300000L, 10L, 10000000L, 200L, 0.33, "exp", 0.9673096701204178));
+        testCaseSuppliers.addAll(unsignedLongTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "exp", 0.0));
+
+        // Unsigned Long Gaussian
+        testCaseSuppliers.addAll(unsignedLongTestCase(0L, 10L, 10000000L, 200L, 0.33, "gauss", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 10L, 10000000L, 200L, 0.33, "gauss", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(50000L, 10L, 10000000L, 200L, 0.33, "gauss", 0.999972516142306));
+        testCaseSuppliers.addAll(unsignedLongTestCase(300000L, 10L, 10000000L, 200L, 0.33, "gauss", 0.9990040963055015));
+        testCaseSuppliers.addAll(unsignedLongTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "gauss", 0.0));
+
+        // Unsigned Long defaults
+        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 0L, 10L, null, null, null, 0.5));
+
+        // Unsigned Long random
+        testCaseSuppliers.addAll(unsignedLongRandomTestCases());
+
         // Double Linear
         testCaseSuppliers.addAll(doubleTestCase(0.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
         testCaseSuppliers.addAll(doubleTestCase(10.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
@@ -736,6 +763,69 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 equalTo(scoreScriptNumericResult)
             );
         }));
+    }
+
+    private static List<TestCaseSupplier> unsignedLongTestCase(
+        long value,
+        long origin,
+        long scale,
+        Long offset,
+        Double decay,
+        String functionType,
+        double expected
+    ) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, "value"),
+                        new TestCaseSupplier.TypedData(origin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
+                    ),
+                    startsWith("DecayLongEvaluator["),
+                    DataType.DOUBLE,
+                    closeTo(expected, Math.ulp(expected))
+                )
+            )
+        );
+    }
+
+    private static List<TestCaseSupplier> unsignedLongRandomTestCases() {
+        return List.of(
+            new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE), () -> {
+                long randomValue = randomLong();
+                long randomOrigin = randomLong();
+                long randomScale = randomLong();
+                long randomOffset = randomLong();
+                double randomDecay = randomDouble();
+                String randomType = randomFrom("linear", "gauss", "exp");
+
+                double scoreScriptNumericResult = longDecayWithScoreScript(
+                    randomValue,
+                    randomOrigin,
+                    randomScale,
+                    randomOffset,
+                    randomDecay,
+                    randomType
+                );
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomValue, DataType.UNSIGNED_LONG, "value"),
+                        new TestCaseSupplier.TypedData(randomOrigin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(randomScale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                            .forceLiteral()
+                    ),
+                    startsWith("DecayLongEvaluator["),
+                    DataType.DOUBLE,
+                    equalTo(scoreScriptNumericResult)
+                );
+            })
+        );
     }
 
     private static double longDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {

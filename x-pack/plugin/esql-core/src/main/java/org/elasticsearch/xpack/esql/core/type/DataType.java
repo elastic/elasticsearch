@@ -313,10 +313,21 @@ public enum DataType {
     DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
 
     /**
-     * Types that are actively being built. These types are not returned
-     * from Elasticsearch if their associated {@link FeatureFlag} is disabled.
-     * They aren't included in generated documentation. And the tests don't
-     * check that sending them to a function produces a sane error message.
+     * Types that are actively being built. These types are
+     * <ul>
+     *     <li>Not returned from Elasticsearch if their associated {@link FeatureFlag} is disabled.</li>
+     *     <li>Not included in generated documentation</li>
+     *     <li>
+     *         Not tested by {@code ErrorsForCasesWithoutExamplesTestCase} subclasses.
+     *         When a function supports a type it includes a test case in its subclass
+     *         of {@code AbstractFunctionTestCase}. If a function does not support.
+     *         them like {@code TO_STRING} then the tests won't notice. See class javadoc
+     *         for instructions on adding new types, but that usually involves adding support
+     *         for that type to a handful of functions. Once you've done that you should be
+     *         able to remove your new type from UNDER_CONSTRUCTION and update a few error
+     *         messages.
+     *     </li>
+     * </ul>
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -510,6 +521,14 @@ public enum DataType {
         return type == DATETIME;
     }
 
+    public static boolean isTimeDuration(DataType t) {
+        return t == TIME_DURATION;
+    }
+
+    public static boolean isDateNanos(DataType t) {
+        return t == DATE_NANOS;
+    }
+
     public static boolean isNullOrTimeDuration(DataType t) {
         return t == TIME_DURATION || isNull(t);
     }
@@ -569,7 +588,15 @@ public enum DataType {
     }
 
     public static boolean isSpatialPoint(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT;
+        return isGeoPoint(t) || isCartesianPoint(t);
+    }
+
+    public static boolean isGeoPoint(DataType t) {
+        return t == GEO_POINT;
+    }
+
+    public static boolean isCartesianPoint(DataType t) {
+        return t == CARTESIAN_POINT;
     }
 
     public static boolean isSpatialShape(DataType t) {

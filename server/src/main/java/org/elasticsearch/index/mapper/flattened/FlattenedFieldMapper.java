@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IgnoreAbove;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -182,21 +183,31 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private final IndexMode indexMode;
+        private final IndexVersion indexCreatedVersion;
+
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
         }
 
         public Builder(final String name) {
-            this(name, getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()));
+            this(name, IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, IndexMode.STANDARD, IndexVersion.current());
         }
 
         private Builder(String name, MappingParserContext mappingParserContext) {
-            this(name, IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()));
+            this(
+                name,
+                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getMode(),
+                mappingParserContext.indexVersionCreated()
+            );
         }
 
-        private Builder(String name, int ignoreAboveDefault) {
+        private Builder(String name, int ignoreAboveDefault, IndexMode indexMode, IndexVersion indexCreatedVersion) {
             super(name);
             this.ignoreAboveDefault = ignoreAboveDefault;
+            this.indexMode = indexMode;
+            this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
         }
@@ -234,7 +245,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
                 dimensions.get(),
-                IgnoreAbove.builder().value(ignoreAbove.getValue()).defaultValue(ignoreAbove.getDefaultValue()).build()
+                IgnoreAbove.builder()
+                    .value(ignoreAbove.getValue())
+                    .defaultValue(getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion))
+                    .build()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -898,7 +912,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.ignoreAboveDefault).init(this);
+        return new Builder(leafName(), builder.ignoreAboveDefault, builder.indexMode, builder.indexCreatedVersion).init(this);
     }
 
     @Override

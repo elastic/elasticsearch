@@ -52,6 +52,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
+    public static final NodeFeature SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX = new NodeFeature("semantic_query.filter_field_caps_fix");
+
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");

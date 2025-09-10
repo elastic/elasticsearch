@@ -104,7 +104,6 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     /**
      * {@link Set} of {@link Attribute}s referenced by this {@link Expression}.
-     * Callers <strong>must</strong> not mutate the result.
      */
     public AttributeSet references() {
         if (lazyReferences == null) {

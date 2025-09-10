@@ -134,7 +134,7 @@ files are ignored and some parts of data files might not be scanned by the API.
 
 3. The stored size of the `_id` field
 
-4. The stored size of the `_source` field. As stored fields are stored
+4. The disk space used by the `_source` field. As stored fields are stored
 together in a compressed format, the sizes of stored fields are
 estimates and can be inaccurate. The stored size of the `_id` field
 is likely underestimated while the `_source` field is overestimated.

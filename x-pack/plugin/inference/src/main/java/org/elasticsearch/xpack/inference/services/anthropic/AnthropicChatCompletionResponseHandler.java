@@ -13,7 +13,8 @@ import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionExcep
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ChatCompletionErrorResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
@@ -26,22 +27,19 @@ import java.util.concurrent.Flow;
  * Adapts the AnthropicResponseHandler to support chat completion schema.
  */
 public class AnthropicChatCompletionResponseHandler extends AnthropicResponseHandler {
-    private static final ChatCompletionErrorResponseHandler DEFAULT_CHAT_COMPLETION_ERROR_RESPONSE_HANDLER =
-        new ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorResponse.ERROR_PARSER);
+    private static final String ANTHROPIC_ERROR = "anthropic_error";
+    private static final UnifiedChatCompletionErrorParserContract ANTHROPIC_ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithStringify(ANTHROPIC_ERROR);
 
     private final ChatCompletionErrorResponseHandler chatCompletionErrorResponseHandler;
 
     public AnthropicChatCompletionResponseHandler(String requestType) {
-        this(requestType, AnthropicChatCompletionResponseEntity::fromResponse, DEFAULT_CHAT_COMPLETION_ERROR_RESPONSE_HANDLER);
+        this(requestType, AnthropicChatCompletionResponseEntity::fromResponse);
     }
 
-    private AnthropicChatCompletionResponseHandler(
-        String requestType,
-        ResponseParser parseFunction,
-        ChatCompletionErrorResponseHandler chatCompletionErrorResponseHandler
-    ) {
+    private AnthropicChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, true);
-        this.chatCompletionErrorResponseHandler = chatCompletionErrorResponseHandler;
+        this.chatCompletionErrorResponseHandler = new ChatCompletionErrorResponseHandler(ANTHROPIC_ERROR_PARSER);
     }
 
     @Override

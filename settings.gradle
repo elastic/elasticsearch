@@ -55,11 +55,13 @@ dependencyResolutionManagement {
     withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor", ExcludeTransitivesRule)
     withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-smile", ExcludeTransitivesRule)
 
+    // brings woodstox-core 6.7.0, we use 6.5.1
     withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-xml", ExcludeTransitiveOtherGroupsRule)
+
+    // brings in snakeyaml with wrong version
     withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", ExcludeTransitiveOtherGroupsRule)
 
-    // brings in jakarta.activation:jakarta.activation-api:1.2.2. We use 1.2.1.
-    withModule("com.fasterxml.jackson.module:jackson-module-jaxb-annotations", ExcludeTransitivesRule)
+    withModule("com.fasterxml.jackson.module:jackson-module-jaxb-annotations", ExcludeTransitiveOtherGroupsRule)
     withModule("com.google.api-client:google-api-client", ExcludeTransitivesRule)
     withModule("com.google.api.grpc:proto-google-cloud-storage-v2", ExcludeTransitivesRule)
     withModule("com.google.api.grpc:proto-google-common-protos", ExcludeTransitivesRule)

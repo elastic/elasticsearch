@@ -520,7 +520,7 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
-                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),              
+                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),

@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -86,6 +87,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
+
+    private static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = TransportVersion.fromName(
+        "project_reserved_state_move_to_registry"
+    );
 
     private final ProjectId id;
 
@@ -2171,7 +2176,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         readProjectCustoms(in, builder);
 
-        if (in.getTransportVersion().before(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+        if (in.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY) == false) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
                 ReservedStateMetadata.readFrom(in);
@@ -2212,7 +2217,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
         out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
-        if (out.getTransportVersion().before(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+        if (out.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY) == false) {
             out.writeCollection(Collections.emptySet());
         }
 
@@ -2265,7 +2270,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), PROJECT_CUSTOM_VALUE_SERIALIZER);
-            if (in.getTransportVersion().before(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+            if (in.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY) == false) {
                 DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RESERVED_DIFF_VALUE_READER);
             }
             if (in.getTransportVersion()
@@ -2291,7 +2296,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+            if (out.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY) == false) {
                 DiffableUtils.emptyDiff().writeTo(out);
             }
             if (out.getTransportVersion()

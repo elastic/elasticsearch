@@ -56,6 +56,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BIT, indexType });
         }
 
         // Remove flat index types, as knn does not do a top k for flat
@@ -196,7 +197,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
+        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         var indexName = "test";
         var client = client().admin().indices();
@@ -234,14 +235,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
-                    case FLOAT:
-                        vector.add(randomFloatBetween(0F, 1F, true));
-                        break;
-                    case BYTE:
-                        vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                    case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                    default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }
             }
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", String.valueOf(i), "vector", vector);

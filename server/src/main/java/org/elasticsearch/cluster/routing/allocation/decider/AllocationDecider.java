@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 
-import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 
@@ -152,16 +151,6 @@ public abstract class AllocationDecider {
      * This might be required for splitting or shrinking index as resulting shards have to be on the same node as a source shard.
      */
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return Optional.empty();
-    }
-
-    /**
-     * Get a list of allocation problems that can be fixed by moving some shards
-     *
-     * @param allocation the current routing allocation
-     * @return A list of node IDs that contain shards this decider would like to move elsewhere, in order of descending priority
-     */
-    public Optional<Collection<? extends AllocationDeciders.AllocationProblem>> getAllocationProblems(RoutingAllocation allocation) {
         return Optional.empty();
     }
 }

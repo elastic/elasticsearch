@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -21,11 +20,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -247,35 +243,5 @@ public class AllocationDeciders {
             }
         }
         return result;
-    }
-
-    public Iterator<AllocationProblem> findAllocationProblems(RoutingAllocation routingAllocation) {
-        var problems = new TreeSet<>(Comparator.comparing(AllocationProblem::priority).reversed());
-        for (AllocationDecider decider : deciders) {
-            decider.getAllocationProblems(routingAllocation).ifPresent(problems::addAll);
-        }
-        return problems.iterator();
-    }
-
-    public interface AllocationProblem {
-
-        /**
-         * Shard movements to attempt to resolve the problem in descending priority order.
-         */
-        Iterator<ShardRouting> preferredShardMovements();
-
-        /**
-         * The reason for the relocation
-         *
-         * @see RoutingChangesObserver#relocationStarted(ShardRouting, ShardRouting, String)
-         */
-        String relocateReason();
-
-        /**
-         * We could prioritize them this way
-         */
-        default int priority() {
-            return 1;
-        }
     }
 }

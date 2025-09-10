@@ -238,7 +238,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsStats.add(batchedResult.v1());
                 consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
                 // Add the estimate of the agg size
-                breakerSize = addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize); // TODO: This leaves objects unclosed!
+                breakerSize = addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
             }
             for (QuerySearchResult result : buffer) {
                 topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());

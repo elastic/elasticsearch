@@ -154,7 +154,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         // the server MUST respond with HTTP 200 OK.
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         MessageLite response = responseWithRejectedDataPoints(context.getIgnoredDataPoints(), context.getIgnoredDataPointsMessage());
-        listener.onResponse(new MetricsResponse(RestStatus.OK, response));
+        listener.onResponse(new MetricsResponse(RestStatus.BAD_REQUEST, response));
     }
 
     private static void handlePartialSuccess(

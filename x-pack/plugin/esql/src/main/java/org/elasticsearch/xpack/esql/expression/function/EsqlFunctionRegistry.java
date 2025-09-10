@@ -351,7 +351,7 @@ public class EsqlFunctionRegistry {
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent")},
+                def(Absent.class, uni(Absent::new), "absent") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -535,7 +535,7 @@ public class EsqlFunctionRegistry {
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlDecode.class, UrlDecode::new, "url_decode"),
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
-                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time")} };
+                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

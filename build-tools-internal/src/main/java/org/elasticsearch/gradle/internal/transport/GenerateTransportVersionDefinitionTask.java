@@ -67,6 +67,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Option(option = "increment", description = "The amount to increment the id from the current upper bounds file by")
     public abstract Property<Integer> getIncrement();
 
+    @Input
+    @Optional
+    @Option(option = "update", description = "Update the transport version currently being added to upstream")
+    public abstract Property<Boolean> getIsUpdate();
+
     /**
      * The name of the upper bounds file which will be used at runtime on the current branch. Normally
      * this equates to VersionProperties.getElasticsearchVersion().
@@ -82,7 +87,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);
 
         List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
-        Set<String> targetUpperBoundNames = getTargetUpperBoundNames(upstreamUpperBounds);
+        Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
 
         getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
         if (targetDefinitionName.isEmpty()) {
@@ -108,6 +113,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             throw new IllegalArgumentException("Invalid increment " + increment + ", must be a positive integer");
         }
         List<TransportVersionId> ids = new ArrayList<>();
+        boolean stageInGit = getIsUpdate().getOrElse(false);
 
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromUpstream(definitionName);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
@@ -121,12 +127,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                     int targetIncrement = upperBoundName.equals(currentUpperBoundName) ? increment : 1;
                     targetId = TransportVersionId.fromInt(existingUpperBound.definitionId().complete() + targetIncrement);
                     var newUpperBound = new TransportVersionUpperBound(upperBoundName, definitionName, targetId);
-                    resources.writeUpperBound(newUpperBound);
+                    resources.writeUpperBound(newUpperBound, stageInGit);
                 }
                 ids.add(targetId);
             } else {
                 // Default case: we're not targeting this branch so reset it
-                resources.writeUpperBound(existingUpperBound);
+                resources.writeUpperBound(existingUpperBound, false);
             }
         }
 
@@ -167,7 +173,19 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private Set<String> getTargetUpperBoundNames(List<TransportVersionUpperBound> upstreamUpperBounds) {
+    private Set<String> getTargetUpperBoundNames(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        String targetDefinitionName
+    ) throws IOException {
+        if (getIsUpdate().getOrElse(false)) {
+            if (getBackportBranches().isPresent()) {
+                throw new IllegalArgumentException("Cannot use --update with --backport-branches");
+            }
+
+            return getUpperBoundNamesFromDefinition(resources, upstreamUpperBounds, targetDefinitionName);
+        }
+
         Set<String> targetUpperBoundNames = new HashSet<>();
         targetUpperBoundNames.add(getCurrentUpperBoundName().get());
         if (getBackportBranches().isPresent()) {
@@ -191,9 +209,32 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return targetUpperBoundNames;
     }
 
+    private Set<String> getUpperBoundNamesFromDefinition(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        String targetDefinitionName
+    ) throws IOException {
+        TransportVersionDefinition definition = resources.getReferableDefinition(targetDefinitionName);
+        Set<String> upperBoundNames = new HashSet<>();
+        upperBoundNames.add(getCurrentUpperBoundName().get());
+
+        // skip the primary id as that is current, which we always add
+        for (int i = 1; i < definition.ids().size(); ++i) {
+            TransportVersionId id = definition.ids().get(i);
+            // we have a small number of upper bound files, so just scan for the ones we want
+            for (TransportVersionUpperBound upperBound : upstreamUpperBounds) {
+                if (upperBound.definitionId().base() == id.base()) {
+                    upperBoundNames.add(upperBound.name());
+                }
+            }
+        }
+
+        return upperBoundNames;
+    }
+
     private void resetAllUpperBounds(TransportVersionResourcesService resources) throws IOException {
         for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromUpstream()) {
-            resources.writeUpperBound(upperBound);
+            resources.writeUpperBound(upperBound, false);
         }
     }
 

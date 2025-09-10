@@ -51,7 +51,8 @@ public enum FeatureMetric {
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
     SORT(OrderBy.class::isInstance),
-    STATS(Aggregate.class::isInstance),
+    // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an inlinestats command
+    STATS(plan -> false),
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
     EXPLAIN(Explain.class::isInstance),
@@ -81,7 +82,8 @@ public enum FeatureMetric {
         EsqlProject.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
-        FuseScoreEval.class
+        FuseScoreEval.class,
+        Aggregate.class // STATS is managed in another way, see above
     );
 
     private Predicate<LogicalPlan> planCheck;

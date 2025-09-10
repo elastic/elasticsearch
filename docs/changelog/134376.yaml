@@ -1,6 +1,0 @@
-pr: 134376
-summary: "Fix ES|QL TOP 1 aggregation with condition"
-area: ES|QL
-type: bug
-issues:
- - 134293

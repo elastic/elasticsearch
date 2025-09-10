@@ -96,27 +96,19 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                Strings.format(
-                    "Shard [%s] in index [%s] can be assigned to node [%s]. The node's utilization would become [%s]",
-                    shardRouting.shardId(),
-                    shardRouting.index(),
-                    node.nodeId(),
-                    newWriteThreadPoolUtilization
-                )
-            );
-        }
-
-        return allocation.decision(
-            Decision.YES,
-            NAME,
+        String explanation = Strings.format(
             "Shard [%s] in index [%s] can be assigned to node [%s]. The node's utilization would become [%s]",
             shardRouting.shardId(),
             shardRouting.index(),
             node.nodeId(),
             newWriteThreadPoolUtilization
         );
+
+        if (logger.isTraceEnabled()) {
+            logger.trace(explanation);
+        }
+
+        return allocation.decision(Decision.YES, NAME, explanation);
     }
 
     @Override

@@ -66,7 +66,11 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         this(source, field, Literal.TRUE, SummationMode.COMPENSATED_LITERAL);
     }
 
-    public Sum(Source source, @Param(name = "number", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field, Expression filter) {
+    public Sum(
+        Source source,
+        @Param(name = "number", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field,
+        Expression filter
+    ) {
         this(source, field, filter, SummationMode.COMPENSATED_LITERAL);
     }
 

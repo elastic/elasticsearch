@@ -108,7 +108,7 @@ public class NodeUsageStatsForThreadPoolsAction {
 
         protected NodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
-            this.nodeUsageStatsForThreadPools = NodeUsageStatsForThreadPools.readFrom(in);
+            this.nodeUsageStatsForThreadPools = new NodeUsageStatsForThreadPools(in);
         }
 
         public NodeResponse(DiscoveryNode node, NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools) {
@@ -118,7 +118,7 @@ public class NodeUsageStatsForThreadPoolsAction {
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            this.nodeUsageStatsForThreadPools = NodeUsageStatsForThreadPools.readFrom(in);
+            this.nodeUsageStatsForThreadPools = new NodeUsageStatsForThreadPools(in);
         }
 
         public NodeUsageStatsForThreadPools getNodeUsageStatsForThreadPools() {

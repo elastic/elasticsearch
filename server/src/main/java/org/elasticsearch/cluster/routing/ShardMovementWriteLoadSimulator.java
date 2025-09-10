@@ -80,8 +80,7 @@ public class ShardMovementWriteLoadSimulator {
                             simulatedNodeWriteLoadDeltas.get(entry.getKey()),
                             nodesWithMovedAwayShard.contains(entry.getKey())
                         )
-                    ),
-                    entry.getValue().timestamp()
+                    )
                 );
                 adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);
             } else {

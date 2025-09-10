@@ -16,14 +16,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Objects;
 
@@ -84,8 +82,7 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
                                     averageThreadPoolUtilization,
                                     maxThreadPoolQueueLatencyMillis
                                 )
-                            ),
-                            Instant.now()
+                            )
                         )
                     )
                 );
@@ -93,13 +90,12 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         );
 
         // This info should contain our fake values
-        final var successfulStats = assertThreadPoolHasStats(
+        assertThreadPoolHasStats(
             dataNodeClusterService.localNode().getId(),
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis,
-            null
+            maxThreadPoolQueueLatencyMillis
         );
 
         // Now simulate an error
@@ -116,30 +112,23 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             threadPoolName,
             totalThreadPoolThreads,
             averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis,
-            successfulStats.timestamp()
+            maxThreadPoolQueueLatencyMillis
         );
     }
 
-    private NodeUsageStatsForThreadPools assertThreadPoolHasStats(
+    private void assertThreadPoolHasStats(
         String nodeId,
         String threadPoolName,
         int totalThreadPoolThreads,
         float averageThreadPoolUtilization,
-        long maxThreadPoolQueueLatencyMillis,
-        @Nullable Instant timestamp
+        long maxThreadPoolQueueLatencyMillis
     ) {
         final var clusterInfo = Objects.requireNonNull(refreshClusterInfo());
-        final var nodeUsageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools().get(nodeId);
-        if (timestamp != null) {
-            assertThat(nodeUsageStatsForThreadPools.timestamp(), equalTo(timestamp));
-        }
-        final var usageStatsMap = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap();
+        final var usageStatsMap = clusterInfo.getNodeUsageStatsForThreadPools().get(nodeId).threadPoolUsageStatsMap();
         assertThat(usageStatsMap, hasKey(threadPoolName));
         final var threadPoolStats = usageStatsMap.get(threadPoolName);
         assertThat(threadPoolStats.totalThreadPoolThreads(), equalTo(totalThreadPoolThreads));
         assertThat(threadPoolStats.averageThreadPoolUtilization(), equalTo(averageThreadPoolUtilization));
         assertThat(threadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(maxThreadPoolQueueLatencyMillis));
-        return nodeUsageStatsForThreadPools;
     }
 }

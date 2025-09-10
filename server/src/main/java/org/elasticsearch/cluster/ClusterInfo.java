@@ -110,7 +110,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             this.estimatedHeapUsages = Map.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
-            this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::readFrom);
+            this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::new);
         } else {
             this.nodeUsageStatsForThreadPools = Map.of();
         }

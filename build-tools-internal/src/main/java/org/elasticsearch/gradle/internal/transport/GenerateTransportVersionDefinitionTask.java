@@ -69,8 +69,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     @Optional
-    @Option(option = "resolveConflict", description = "Regenerate the transport version currently being added to upstream to resolve a merge conflict")
-    public abstract Property<Boolean> getIsUpdate();
+    @Option(option = "resolve-conflict", description = "Regenerate the transport version currently being added to upstream to resolve a merge conflict")
+    public abstract Property<Boolean> getResolveConflict();
 
     /**
      * The name of the upper bounds file which will be used at runtime on the current branch. Normally
@@ -113,7 +113,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             throw new IllegalArgumentException("Invalid increment " + increment + ", must be a positive integer");
         }
         List<TransportVersionId> ids = new ArrayList<>();
-        boolean stageInGit = getIsUpdate().getOrElse(false);
+        boolean stageInGit = getResolveConflict().getOrElse(false);
 
         TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromUpstream(definitionName);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
@@ -178,9 +178,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         List<TransportVersionUpperBound> upstreamUpperBounds,
         String targetDefinitionName
     ) throws IOException {
-        if (getIsUpdate().getOrElse(false)) {
+        if (getResolveConflict().getOrElse(false)) {
             if (getBackportBranches().isPresent()) {
-                throw new IllegalArgumentException("Cannot use --update with --backport-branches");
+                throw new IllegalArgumentException("Cannot use --resolve-conflict with --backport-branches");
             }
 
             return getUpperBoundNamesFromDefinition(resources, upstreamUpperBounds, targetDefinitionName);

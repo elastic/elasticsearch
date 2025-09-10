@@ -1465,9 +1465,11 @@ public class EsqlCapabilities {
         FN_PRESENT,
 
         /**
-         * Bugfix for STATS TOP(field, 1, order) WHERE condition.
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the expression
+         * is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by MV_SUM(const)*COUNT(* WHERE x == 3).
          */
-        STATS_TOP_1_WITH_CONDITION_FIXED;
+        STATS_WITH_FILTERED_SURROGATE_FIXED;
 
         private final boolean enabled;
 

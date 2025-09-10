@@ -8,7 +8,7 @@ mapped_pages:
 
 # XML processor [xml-processor]
 
-Parses XML documents and converts them to JSON objects using a DOM parser. This processor efficiently handles XML data with a single-parse architecture that supports both structured output and XPath extraction for optimal performance.
+Parses XML documents and converts them to JSON objects using a streaming SAX parser. This processor efficiently handles XML data with a single-pass architecture that supports both structured output and XPath extraction for optimal performance.
 
 $$$xml-options$$$
 
@@ -18,13 +18,12 @@ $$$xml-options$$$
 | `target_field` | no | `field` | The field that the converted structured object will be written into. Any existing content in this field will be overwritten. |
 | `store_xml` | no | `true` | If `true`, stores the parsed XML structure in the target field. If `false`, only XPath extraction results are stored and `target_field` is ignored. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document. |
-| `ignore_failure` | no | `false` | Ignore failures for the processor. When `true` and XML parsing fails, adds `_xmlparsefailure` tag to the document. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
+| `ignore_failure` | no | `false` | Ignore failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `to_lower` | no | `false` | Convert XML element names and attribute names to lowercase. |
 | `remove_empty_values` | no | `false` | If `true`, the processor will filter out null and empty values from the parsed XML structure, including empty elements, elements with null values, and elements with whitespace-only content. |
 | `remove_namespaces` | no | `false` | If `true`, removes namespace prefixes from element and attribute names. |
 | `force_content` | no | `false` | If `true`, forces text content and attributes to always parse to a hash value with `#text` key for content. |
 | `force_array` | no | `false` | If `true`, forces all parsed values to be arrays. Single elements are wrapped in arrays. |
-| `strict_parsing` | no | `false` | If `true`, enables strict XML validation that fails fast on invalid content. |
 | `xpath` | no | - | Map of XPath expressions to target field names. Extracts values from the XML using XPath and stores them in the specified fields. |
 | `namespaces` | no | - | Map of namespace prefixes to URIs for use with XPath expressions. Required when XPath expressions contain namespace prefixes. |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
@@ -314,54 +313,6 @@ Result:
               }
             }
           }
-        }
-      }
-    }
-  ]
-}
-```
-
-
-
-### Strict parsing mode
-
-Use `strict_parsing: true` for strict XML validation:
-
-```console
-POST _ingest/pipeline/_simulate
-{
-  "pipeline": {
-    "processors": [
-      {
-        "xml": {
-          "field": "xml_content",
-          "strict_parsing": true,
-          "ignore_failure": true
-        }
-      }
-    ]
-  },
-  "docs": [
-    {
-      "_source": {
-        "xml_content": "<catalog><book><title>Invalid XML with control character \u0000</title></book></catalog>"
-      }
-    }
-  ]
-}
-```
-
-Result (with parsing failure):
-
-```console-result
-{
-  "docs": [
-    {
-      "doc": {
-        ...
-        "_source": {
-          "xml_content": "<catalog><book><title>Invalid XML with control character \u0000</title></book></catalog>",
-          "tags": ["_xmlparsefailure"]
         }
       }
     }

@@ -50,7 +50,6 @@ import javax.xml.xpath.XPathFactory;
  *  <li>XML to JSON conversion with configurable structure options
  *  <li>XPath extraction with namespace support
  *  <li>Configurable options: force_array, force_content, remove_namespaces, to_lower
- *  <li>Strict parsing mode for XML validation
  *  <li>Empty value filtering with remove_empty_values option
  *  <li>Logstash-compatible error handling and behavior
  * </ul>
@@ -73,8 +72,6 @@ public final class XmlProcessor extends AbstractProcessor {
         // Pre-configured secure XML parser factories using XmlUtils
         static final SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
         static final SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
-        static final SAXParserFactory SAX_PARSER_FACTORY_STRICT = createSecureSaxParserFactoryStrict();
-        static final SAXParserFactory SAX_PARSER_FACTORY_NS_STRICT = createSecureSaxParserFactoryNamespaceAwareStrict();
 
         // Pre-configured secure document builder factory for DOM creation
         static final DocumentBuilderFactory DOM_FACTORY = createSecureDocumentBuilderFactory();
@@ -92,7 +89,6 @@ public final class XmlProcessor extends AbstractProcessor {
     private final Map<String, String> xpathExpressions;
     private final Map<String, String> namespaces;
     private final Map<String, XPathExpression> compiledXPathExpressions;
-    private final boolean strictParsing;
 
     XmlProcessor(
         String tag,
@@ -107,8 +103,7 @@ public final class XmlProcessor extends AbstractProcessor {
         boolean forceContent,
         boolean forceArray,
         Map<String, String> xpathExpressions,
-        Map<String, String> namespaces,
-        boolean strictParsing
+        Map<String, String> namespaces
     ) {
         super(tag, description);
         this.field = field;
@@ -123,7 +118,6 @@ public final class XmlProcessor extends AbstractProcessor {
         this.xpathExpressions = xpathExpressions != null ? Map.copyOf(xpathExpressions) : Map.of();
         this.namespaces = namespaces != null ? Map.copyOf(namespaces) : Map.of();
         this.compiledXPathExpressions = compileXPathExpressions(this.xpathExpressions, this.namespaces);
-        this.strictParsing = strictParsing;
     }
 
     public String getField() {
@@ -154,10 +148,6 @@ public final class XmlProcessor extends AbstractProcessor {
         return forceContent;
     }
 
-    public boolean isStrict() {
-        return strictParsing;
-    }
-
     public boolean isForceArray() {
         return forceArray;
     }
@@ -168,10 +158,6 @@ public final class XmlProcessor extends AbstractProcessor {
 
     public Map<String, String> getNamespaces() {
         return namespaces;
-    }
-
-    public boolean getStrictParsing() {
-        return strictParsing;
     }
 
     @Override
@@ -465,9 +451,6 @@ public final class XmlProcessor extends AbstractProcessor {
                 }
             }
 
-            // Parse strict_parsing parameter
-            boolean strictParsing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "strict_parsing", false);
-
             return new XmlProcessor(
                 processorTag,
                 description,
@@ -481,8 +464,7 @@ public final class XmlProcessor extends AbstractProcessor {
                 forceContent,
                 forceArray,
                 xpathExpressions,
-                namespaces,
-                strictParsing
+                namespaces
             );
         }
     }
@@ -507,26 +489,6 @@ public final class XmlProcessor extends AbstractProcessor {
         SAXParserFactory factory = selectSaxParserFactory();
 
         SAXParser parser = factory.newSAXParser();
-
-        // Configure error handler for strict mode
-        if (isStrict()) {
-            parser.getXMLReader().setErrorHandler(new org.xml.sax.ErrorHandler() {
-                @Override
-                public void warning(org.xml.sax.SAXParseException exception) throws org.xml.sax.SAXException {
-                    throw exception;
-                }
-
-                @Override
-                public void error(org.xml.sax.SAXParseException exception) throws org.xml.sax.SAXException {
-                    throw exception;
-                }
-
-                @Override
-                public void fatalError(org.xml.sax.SAXParseException exception) throws org.xml.sax.SAXException {
-                    throw exception;
-                }
-            });
-        }
 
         // Use enhanced handler that can build DOM during streaming when needed
         XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);
@@ -844,44 +806,6 @@ public final class XmlProcessor extends AbstractProcessor {
     }
 
     /**
-     * Creates a secure, pre-configured SAX parser factory for strict XML parsing using XmlUtils.
-     */
-    private static SAXParserFactory createSecureSaxParserFactoryStrict() {
-        try {
-            SAXParserFactory factory = XmlUtils.getHardenedSaxParserFactory();
-            factory.setValidating(false);
-            factory.setNamespaceAware(false);
-
-            // Try to enable strict parsing features (may not be supported on all JDKs)
-            factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
-
-            return factory;
-        } catch (Exception e) {
-            logger.warn("Cannot configure secure strict XML parsing features - XML processor may not work correctly", e);
-            return null;
-        }
-    }
-
-    /**
-     * Creates a secure, pre-configured namespace-aware SAX parser factory for strict XML parsing using XmlUtils.
-     */
-    private static SAXParserFactory createSecureSaxParserFactoryNamespaceAwareStrict() {
-        try {
-            SAXParserFactory factory = XmlUtils.getHardenedSaxParserFactory();
-            factory.setValidating(false);
-            factory.setNamespaceAware(true);
-
-            // Try to enable strict parsing features (may not be supported on all JDKs)
-            factory.setFeature("http://apache.org/xml/features/validation/check-full-element-content", true);
-
-            return factory;
-        } catch (Exception e) {
-            logger.warn("Cannot configure secure strict namespace-aware XML parsing features - XML processor may not work correctly", e);
-            return null;
-        }
-    }
-
-    /**
      * Creates a secure, pre-configured DocumentBuilderFactory for DOM creation using XmlUtils.
      * Since we only use this factory to create empty DOM documents programmatically
      * (not to parse XML), we use the hardened builder factory.
@@ -904,8 +828,6 @@ public final class XmlProcessor extends AbstractProcessor {
      * Factory selection matrix:<ul>
      *  <li>Regular parsing, no namespaces: SAX_PARSER_FACTORY
      *  <li>Regular parsing, with namespaces: SAX_PARSER_FACTORY_NS
-     *  <li>Strict parsing, no namespaces: SAX_PARSER_FACTORY_STRICT
-     *  <li>Strict parsing, with namespaces: SAX_PARSER_FACTORY_NS_STRICT
      * </ul>
      *
      * @return the appropriate SAX parser factory for the current configuration
@@ -913,28 +835,15 @@ public final class XmlProcessor extends AbstractProcessor {
      */
     private SAXParserFactory selectSaxParserFactory() {
         boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
-        SAXParserFactory factory;
+        SAXParserFactory factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS : XmlFactories.SAX_PARSER_FACTORY;
 
-        if (isStrict()) {
-            factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS_STRICT : XmlFactories.SAX_PARSER_FACTORY_STRICT;
-            if (factory == null) {
-                throw new UnsupportedOperationException(
-                    "Strict XML parsing with"
-                        + (needsNamespaceAware ? " namespace-aware " : " ")
-                        + "features is not supported by the current JDK. Please try without strict_parsing=true or "
-                        + "update your JDK to one that supports these XML features."
-                );
-            }
-        } else {
-            factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS : XmlFactories.SAX_PARSER_FACTORY;
-            if (factory == null) {
-                throw new UnsupportedOperationException(
-                    "XML parsing with"
-                        + (needsNamespaceAware ? " namespace-aware " : " ")
-                        + "features is not supported by the current JDK. Please update your JDK to one that "
-                        + "supports these XML features."
-                );
-            }
+        if (factory == null) {
+            throw new UnsupportedOperationException(
+                "XML parsing"
+                    + (needsNamespaceAware ? " with namespace-aware features " : " ")
+                    + "is not supported by the current JDK. Please update your JDK to one that "
+                    + "supports these XML features."
+            );
         }
 
         return factory;

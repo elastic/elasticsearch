@@ -512,33 +512,6 @@ public class XmlProcessorTests extends ESTestCase {
     }
 
     /**
-     * Test parsing with strict mode option.
-     */
-    public void testStrictParsing() throws Exception {
-        String xml = "<foo><bar>valid</bar></foo>";
-
-        Map<String, Object> config = new HashMap<>();
-        config.put("strict_parsing", true);
-        XmlProcessor processor = createTestProcessor(config);
-        IngestDocument ingestDocument = createTestIngestDocument(xml);
-
-        processor.execute(ingestDocument);
-
-        Map<?, ?> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
-
-        Map<String, Object> expectedData = Map.of("foo", Map.of("bar", "valid"));
-        assertThat(data, equalTo(expectedData));
-
-        // Test with invalid XML in strict mode
-        String invalidXml = "<foo><invalid & xml</foo>";
-        IngestDocument invalidDocument = createTestIngestDocument(invalidXml);
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidDocument));
-
-        assertThat(exception.getMessage(), containsString("contains invalid XML"));
-    }
-
-    /**
      * Test parsing XML with remove_namespaces option.
      */
     public void testRemoveNamespaces() throws Exception {

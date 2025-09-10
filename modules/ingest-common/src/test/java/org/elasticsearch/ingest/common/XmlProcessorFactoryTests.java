@@ -231,15 +231,6 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         assertThat(processor.isForceArray(), equalTo(true));
     }
 
-    public void testCreateWithStrictParsing() throws Exception {
-        Map<String, Object> config = Map.of("field", DEFAULT_FIELD, "strict_parsing", true);
-        XmlProcessor processor = createProcessor(config);
-
-        assertThat(processor.getField(), equalTo(DEFAULT_FIELD));
-        assertThat(processor.getStrictParsing(), equalTo(true));
-        assertThat(processor.isStrict(), equalTo(true));
-    }
-
     public void testCreateWithMultipleOptions() throws Exception {
         Map<String, Object> config = Map.of(
             "field",

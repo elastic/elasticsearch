@@ -128,9 +128,7 @@ The API returns:
 
 1. The store size of only analyzed shards of the index.
 
-2. The total size of fields of the analyzed shards of the index. This total
-is usually smaller than the index size specified in `<1>` as some small metadata
-files are ignored and some parts of data files might not be scanned by the API.
+The total disk space used by all fields in the analyzed shards. This total is usually smaller than the `store_size` annotated in <1>, because the API ignores some metadata files.
 
 3. The disk space used by `_id` field values for direct document retrieval. This storage enables [getting a document by its ID](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), without needing to search the inverted index.
 

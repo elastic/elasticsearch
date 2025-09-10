@@ -141,6 +141,7 @@ public class BwCSemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRe
                 original.queryVectorBuilder(),
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.getVectorSimilarity()
             );
         } else {
@@ -149,6 +150,7 @@ public class BwCSemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRe
                 original.queryVector(),
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.rescoreVectorBuilder(),
                 original.getVectorSimilarity()
             );
@@ -180,6 +182,7 @@ public class BwCSemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRe
                 queryVectorBuilder,
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.getVectorSimilarity()
             );
         } else {
@@ -188,6 +191,7 @@ public class BwCSemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRe
                 original.queryVector(),
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.rescoreVectorBuilder(),
                 original.getVectorSimilarity()
             );

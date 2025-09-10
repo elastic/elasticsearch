@@ -37,6 +37,19 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
+/**
+ * <p>
+ * An internal {@link QueryBuilder} type that associates an original query builder with a map of inference results required successfully
+ * query a {@link SemanticTextFieldMapper.SemanticTextFieldType}.
+ * </p>
+ * <p>
+ * This query builder generates the necessary inference results during coordinator node rewrite and stores them for use during data node
+ * rewrite. At that time, logic specific to each original query builder type is invoked to rewrite to a query appropriate for that index's
+ * mappings.
+ * </p>
+ *
+ * @param <T> The original query builder type
+ */
 public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBuilder<T>> extends AbstractQueryBuilder<
     InterceptedInferenceQueryBuilder<T>> {
     protected final T originalQuery;
@@ -63,28 +76,86 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         this.inferenceResultsMap = inferenceResultsMap;
     }
 
+    /**
+     * <p>
+     * Get the fields queried by the original query.
+     * </p>
+     * <p>
+     * Multi-field queries should return a field map, where the map value is the boost applied to that field or field pattern.
+     * Single-field queries should return a single-entry field map, where the map value is 1.0.
+     * </p>
+     * <p>
+     * Implementations should <i>always</i> return a non-null map. If no fields are specified in the original query, an empty map should be
+     * returned.
+     * </p>
+     *
+     * @return A map of the fields queried by the original query
+     */
     protected abstract Map<String, Float> getFields();
 
+    /**
+     * Get the original query's query text. If not available, {@code null} should be returned.
+     *
+     * @return The original query's query text
+     */
     protected abstract String getQuery();
 
+    /**
+     * Rewrite to a backwards-compatible form of the query builder, depending on the value of
+     * {@link QueryRewriteContext#getMinTransportVersion()}. If no rewrites are required, the implementation should return {@code this}.
+     *
+     * @param queryRewriteContext The query rewrite context
+     * @return The query builder rewritten to a backwards-compatible form
+     */
     protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext);
 
+    /**
+     * Generate a copy of {@code this} using the provided inference results map.
+     *
+     * @param inferenceResultsMap The inference results map
+     * @return A copy of {@code this} with the provided inference results map
+     */
     protected abstract QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap);
 
+    /**
+     * Rewrite to a {@link QueryBuilder} appropriate for a specific index's mappings. The implementation can use
+     * {@code indexMetadataContext} to get the index's mappings.
+     *
+     * @param inferenceFields A field map of the inference fields queried in this index. Every entry will be a concrete field.
+     * @param nonInferenceFields A field map of the non-inference fields queried in this index. Entries may be concrete fields or
+     *                           field patterns.
+     * @param indexMetadataContext The index metadata context.
+     * @return A query rewritten for the index's mappings.
+     */
     protected abstract QueryBuilder queryFields(
         Map<String, Float> inferenceFields,
         Map<String, Float> nonInferenceFields,
         QueryRewriteContext indexMetadataContext
     );
 
+    /**
+     * If the implementation should resolve wildcards in field patterns to inference fields.
+     */
     protected abstract boolean resolveWildcards();
 
+    /**
+     * If the implementation should fall back to the {@code index.query.default_field} index setting when
+     * {@link InterceptedInferenceQueryBuilder#getFields()} returns an empty map.
+     */
     protected abstract boolean useDefaultFields();
 
+    /**
+     * Get the query-time inference ID override. If not applicable or available, {@code null} should be returned.
+     */
     protected String getInferenceIdOverride() {
         return null;
     }
 
+    /**
+     * Perform any custom coordinator node validation. This is executed prior to generating inference results.
+     *
+     * @param resolvedIndices The resolved indices
+     */
     protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {}
 
     @Override

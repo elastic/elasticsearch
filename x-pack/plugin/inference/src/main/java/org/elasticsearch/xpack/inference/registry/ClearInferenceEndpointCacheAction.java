@@ -53,9 +53,12 @@ import java.util.Objects;
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
 
 /**
- * Clears the cache in {@link InferenceEndpointRegistry}. This uses a master node transport action, even though most requests will originate
- * from the master node (when updating and deleting inference endpoints via REST), because there are some edge cases where deletes can come
- * from other nodes. This uses the cluster state to broadcast the message to all nodes to clear their cache, which has guaranteed delivery.
+ * Clears the cache in {@link InferenceEndpointRegistry}.
+ * This uses the cluster state to broadcast the message to all nodes to clear their cache, which has guaranteed delivery.
+ * There are some edge cases where deletes can come from any node, for example ElasticInferenceServiceAuthorizationHandler and
+ * SemanticTextIndexOptionsIT will delete endpoints on whatever node is handling the request. So this must use a master node transport
+ * action so that the cluster updates can invalidate the cache, even though most requests will originate from the master node
+ * (e.g. when updating and deleting inference endpoints via REST).
  */
 public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMasterNodeAction<ClearInferenceEndpointCacheAction.Request> {
     private static final Logger log = LogManager.getLogger(ClearInferenceEndpointCacheAction.class);

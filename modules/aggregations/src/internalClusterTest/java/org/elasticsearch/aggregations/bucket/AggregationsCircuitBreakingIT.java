@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -46,6 +47,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 // Repeating to ensure everything was properly closed in the cluster.
 // Failing to close objects on CB exception led to errors only visible with @Repeat.
+@SuppressForbidden(
+    reason = "Repeating to ensure everything was properly closed in the cluster. "
+        + "Failing to close objects on CB exception led to errors only visible with @Repeat."
+)
 @Repeat(iterations = 3)
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 1, maxNumDataNodes = 2, numClientNodes = 1)
 public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
@@ -103,10 +108,7 @@ public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
         );
     }
 
-    public void assertCBTrip(
-        Supplier<SearchRequestBuilder> requestSupplier,
-        Consumer<SearchPhaseExecutionException> exceptionCallback
-    ) {
+    public void assertCBTrip(Supplier<SearchRequestBuilder> requestSupplier, Consumer<SearchPhaseExecutionException> exceptionCallback) {
         try {
             requestSupplier.get().get().decRef();
 

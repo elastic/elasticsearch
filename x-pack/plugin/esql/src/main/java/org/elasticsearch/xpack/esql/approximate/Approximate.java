@@ -21,11 +21,18 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -115,7 +122,7 @@ public class Approximate {
     private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(InlineStats.class, LookupJoin.class);
 
     // TODO: find a good default value, or alternative ways of setting it
-    private static final int SAMPLE_ROW_COUNT = 10000;
+    private static final int SAMPLE_ROW_COUNT = 100000;
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
@@ -297,6 +304,9 @@ public class Approximate {
             logger.debug("using original plan (too few rows)");
             return logicalPlan;
         }
+
+        logger.info("### BEFORE APPROXIMATE:\n{}", logicalPlan);
+
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
@@ -307,29 +317,84 @@ public class Approximate {
                     encounteredStats.set(true);
                     Expression sampleProbabilityExpr = new Literal(Source.EMPTY, sampleProbability, DataType.DOUBLE);
                     Sample sample = new Sample(Source.EMPTY, sampleProbabilityExpr, aggregate.child());
-                    Alias sampleId = new Alias(Source.EMPTY, ".sample_id",
-                        new MvAppend(Source.EMPTY, new Literal(Source.EMPTY, 0, DataType.INTEGER), new Random(Source.EMPTY, new Literal(Source.EMPTY, 25, DataType.INTEGER))));
-                    Eval addSampleId = new Eval(
+                    Alias sampleId = new Alias(
                         Source.EMPTY,
-                        sample,
-                        List.of(sampleId)
+                        ".sample_id",
+                        new MvAppend(
+                            Source.EMPTY,
+                            new Literal(Source.EMPTY, -1, DataType.INTEGER),
+                            new Random(Source.EMPTY, new Literal(Source.EMPTY, 25, DataType.INTEGER))
+                        )
                     );
-                    List<Expression> groupings = new ArrayList<>(aggregate.groupings());
-                    groupings.add(new ReferenceAttribute(Source.EMPTY, null, ".sample_id", DataType.INTEGER, sampleId.nullable(), sampleId.id(), sampleId.synthetic()));
-                    LogicalPlan aggregateWithSampledId = aggregate.with(addSampleId, groupings, aggregate.aggregates()).transformExpressionsOnlyUp(
-                        expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(sampleProbabilityExpr) : expr
-                    );
+                    Eval addSampleId = new Eval(Source.EMPTY, sample, List.of(sampleId));
                     List<NamedExpression> aggregates = new ArrayList<>();
                     for (NamedExpression aggr : aggregate.aggregates()) {
-//                        aggregates.add(new Alias(Source.EMPTY, "confidence:" + aggr.name(),
-//                            new ConfidenceInterval(Source.EMPTY, new Top(aggr.))));
+                        if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
+                            aggregates.add(new Alias(Source.EMPTY, ".sampled-" + alias.name(), alias.child()));
+                        } else {
+                            aggregates.add(aggr);
+                        }
                     }
-                    plan = new Aggregate(Source.EMPTY, aggregateWithSampledId, aggregate.groupings(), aggregates);
+                    List<Expression> groupings = new ArrayList<>(aggregate.groupings());
+                    groupings.add(sampleId.toAttribute());
+                    aggregates.add(sampleId.toAttribute());
+                    Aggregate aggregateWithSampledId = (Aggregate) aggregate.with(addSampleId, groupings, aggregates)
+                        .transformExpressionsOnlyUp(
+                            expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(sampleProbabilityExpr) : expr
+                        );
+                    aggregates = new ArrayList<>();
+                    for (int i = 0; i < aggregate.aggregates().size(); i++) {
+                        NamedExpression aggr = aggregate.aggregates().get(i);
+                        NamedExpression sampledAggr = aggregateWithSampledId.aggregates().get(i);
+                        if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
+                            aggregates.add(
+                                alias.replaceChild(
+                                    new ToLong( // TODO: cast to original type
+                                        Source.EMPTY,
+                                        new ConfidenceInterval( // TODO: move confidence level to the end
+                                            Source.EMPTY,
+                                            new ToDouble(
+                                                Source.EMPTY,
+                                                new Min(
+                                                    Source.EMPTY,
+                                                    sampledAggr.toAttribute(),
+                                                    new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1))
+                                                )
+                                            ),
+                                            new ToDouble(
+                                                Source.EMPTY,
+                                                new Top(
+                                                    Source.EMPTY,
+                                                    new Mul(
+                                                        Source.EMPTY,
+                                                        Literal.integer(Source.EMPTY, 25),
+                                                        sampledAggr.toAttribute()
+                                                    ),
+                                                    new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                                    Literal.integer(Source.EMPTY, 25),
+                                                    Literal.keyword(Source.EMPTY, "ASC")
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            );
+                        } else {
+                            aggregates.add(aggr);
+                        }
+                    }
+                    plan = new Aggregate(
+                        Source.EMPTY,
+                        aggregateWithSampledId,
+                        aggregate.groupings().stream().map(e -> e instanceof Alias a ? a.toAttribute() : e).toList(),
+                        aggregates
+                    );
                 }
             }
             return plan;
         });
 
+        logger.info("### AFTER APPROXIMATE:\n{}", approximatePlan);
 
         approximatePlan.setPreOptimized();
         return approximatePlan;

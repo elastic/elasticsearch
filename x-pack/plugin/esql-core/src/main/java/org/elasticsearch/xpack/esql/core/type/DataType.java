@@ -532,6 +532,14 @@ public enum DataType {
         return type == DATETIME;
     }
 
+    public static boolean isTimeDuration(DataType t) {
+        return t == TIME_DURATION;
+    }
+
+    public static boolean isDateNanos(DataType t) {
+        return t == DATE_NANOS;
+    }
+
     public static boolean isNullOrTimeDuration(DataType t) {
         return t == TIME_DURATION || isNull(t);
     }
@@ -591,7 +599,15 @@ public enum DataType {
     }
 
     public static boolean isSpatialPoint(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT;
+        return isGeoPoint(t) || isCartesianPoint(t);
+    }
+
+    public static boolean isGeoPoint(DataType t) {
+        return t == GEO_POINT;
+    }
+
+    public static boolean isCartesianPoint(DataType t) {
+        return t == CARTESIAN_POINT;
     }
 
     public static boolean isSpatialShape(DataType t) {

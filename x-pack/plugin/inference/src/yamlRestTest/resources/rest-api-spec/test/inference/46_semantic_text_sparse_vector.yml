@@ -212,7 +212,7 @@ setup:
               query: "inference test"
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "inference_id required to perform vector search on query string" }
+  - match: { error.reason: "Either query vector or inference ID must be specified" }
 
 ---
 "sparse_vector query against combined sparse_vector and semantic_text fields using query vectors":

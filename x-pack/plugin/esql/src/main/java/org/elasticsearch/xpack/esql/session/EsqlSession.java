@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -124,6 +125,7 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
+    private final BlockFactory blockFactory;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -160,6 +162,7 @@ public class EsqlSession {
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
+        this.blockFactory = services.blockFactoryProvider().blockFactory();
     }
 
     public String sessionId() {
@@ -305,11 +308,10 @@ public class EsqlSession {
         }));
     }
 
-    private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
         List<Page> pages = result.pages();
         List<Attribute> schema = result.schema();
-        // if (pages.size() > 1) {
-        Block[] blocks = SessionUtils.fromPages(schema, pages);
+        Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
         return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
     }
 

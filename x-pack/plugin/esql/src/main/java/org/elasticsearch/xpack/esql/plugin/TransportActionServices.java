@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
@@ -24,5 +25,5 @@ public record TransportActionServices(
     ProjectResolver projectResolver,
     IndexNameExpressionResolver indexNameExpressionResolver,
     UsageService usageService,
-    InferenceService inferenceService
-) {}
+    InferenceService inferenceService,
+    BlockFactoryProvider blockFactoryProvider) {}

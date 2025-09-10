@@ -166,7 +166,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceService(client)
+            new InferenceService(client),
+            blockFactoryProvider
         );
 
         this.computeService = new ComputeService(

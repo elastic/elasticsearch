@@ -59,7 +59,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
-        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
+        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.REENABLED_TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
             && context.getIndexSettings().useDocValuesSkipper();
         return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
     }

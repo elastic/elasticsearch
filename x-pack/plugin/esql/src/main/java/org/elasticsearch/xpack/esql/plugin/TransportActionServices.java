@@ -26,4 +26,5 @@ public record TransportActionServices(
     IndexNameExpressionResolver indexNameExpressionResolver,
     UsageService usageService,
     InferenceService inferenceService,
-    BlockFactoryProvider blockFactoryProvider) {}
+    BlockFactoryProvider blockFactoryProvider
+) {}

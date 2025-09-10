@@ -433,7 +433,8 @@ public final class EsqlTestUtils {
         mock(IndexNameExpressionResolver.class),
         null,
         new InferenceService(mock(Client.class)),
-        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY));
+        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY)
+    );
 
     private static TransportService createMockTransportService() {
         var service = mock(TransportService.class);

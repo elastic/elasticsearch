@@ -101,7 +101,7 @@ import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilde
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.BwCSemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -614,7 +614,7 @@ public class InferencePlugin extends Plugin
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
             new SemanticMatchQueryRewriteInterceptor(),
-            new SemanticSparseVectorQueryRewriteInterceptor()
+            new BwCSemanticSparseVectorQueryRewriteInterceptor()
         );
     }
 

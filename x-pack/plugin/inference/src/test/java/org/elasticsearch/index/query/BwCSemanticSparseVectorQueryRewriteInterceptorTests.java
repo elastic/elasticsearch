@@ -24,14 +24,14 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.BwCSemanticSparseVectorQueryRewriteInterceptor;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase {
+public class BwCSemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
@@ -158,6 +158,6 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new SemanticSparseVectorQueryRewriteInterceptor();
+        return new BwCSemanticSparseVectorQueryRewriteInterceptor();
     }
 }

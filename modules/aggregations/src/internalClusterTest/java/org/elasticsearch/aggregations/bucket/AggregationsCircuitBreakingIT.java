@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 // Repeating to ensure everything was properly closed in the cluster.
 // Failing to close objects on CB exception led to errors only visible with @Repeat.
 @Repeat(iterations = 3)
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 1)
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 1, maxNumDataNodes = 2, numClientNodes = 1)
 public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -80,7 +80,6 @@ public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
         addDocs(100, 100, 100);
 
         assertCBTrip(
-            Settings.builder(),
             () -> internalCluster().coordOnlyNodeClient()
                 .prepareSearch("index")
                 .setSize(0)
@@ -105,27 +104,15 @@ public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
     }
 
     public void assertCBTrip(
-        Settings.Builder settingsBuilder,
         Supplier<SearchRequestBuilder> requestSupplier,
         Consumer<SearchPhaseExecutionException> exceptionCallback
     ) {
-        if (settingsBuilder.keys().isEmpty() == false) {
-            updateClusterSettings(settingsBuilder);
-        }
-
         try {
             requestSupplier.get().get().decRef();
 
             fail("Expected the breaker to trip");
         } catch (SearchPhaseExecutionException e) {
             exceptionCallback.accept(e);
-        } finally {
-            if (settingsBuilder.keys().isEmpty() == false) {
-                // Cleanup settings
-                var nullifiedSettings = Settings.builder();
-                settingsBuilder.keys().forEach(nullifiedSettings::putNull);
-                updateClusterSettings(nullifiedSettings);
-            }
         }
     }
 

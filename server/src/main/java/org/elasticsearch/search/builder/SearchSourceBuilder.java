@@ -129,6 +129,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
+    public static final ParseField METADATA = new ParseField("metadata");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -1440,6 +1441,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         new RetrieverParserContext(searchUsage, clusterSupportsFeature)
                     );
                     searchUsage.trackSectionUsage(RETRIEVER.getPreferredName());
+                    searchUsage.trackSectionUsage(METADATA.getPreferredName());
                 } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(

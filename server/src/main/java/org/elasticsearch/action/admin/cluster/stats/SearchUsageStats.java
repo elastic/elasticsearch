@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.RETRIEVERS_TELEMETRY_EXTENDED;
 import static org.elasticsearch.TransportVersions.V_8_12_0;
 import static org.elasticsearch.TransportVersions.V_8_16_0;
 
@@ -36,6 +37,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
     private final Map<String, Long> rescorers;
     private final Map<String, Long> sections;
     private final Map<String, Long> retrievers;
+    private final Map<String, Long> metadata;
 
     /**
      * Creates a new empty stats instance, that will get additional stats added through {@link #add(SearchUsageStats)}
@@ -46,6 +48,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = new HashMap<>();
         this.rescorers = new HashMap<>();
         this.retrievers = new HashMap<>();
+        this.metadata = new HashMap<>();
     }
 
     /**
@@ -57,6 +60,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         Map<String, Long> rescorers,
         Map<String, Long> sections,
         Map<String, Long> retrievers,
+        Map<String, Long> metadata,
         long totalSearchCount
     ) {
         this.totalSearchCount = totalSearchCount;
@@ -64,6 +68,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = sections;
         this.rescorers = rescorers;
         this.retrievers = retrievers;
+        this.metadata = metadata;
     }
 
     public SearchUsageStats(StreamInput in) throws IOException {
@@ -72,6 +77,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.totalSearchCount = in.readVLong();
         this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
         this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
+        this.metadata = in.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_EXTENDED) ? in.readMap(StreamInput::readLong) : Map.of();
     }
 
     @Override
@@ -86,6 +92,9 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(V_8_16_0)) {
             out.writeMap(retrievers, StreamOutput::writeLong);
         }
+        if (out.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_EXTENDED)) {
+            out.writeMap(metadata, StreamOutput::writeLong);
+        }
     }
 
     /**
@@ -96,6 +105,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         stats.rescorers.forEach((rescorer, count) -> rescorers.merge(rescorer, count, Long::sum));
         stats.sections.forEach((query, count) -> sections.merge(query, count, Long::sum));
         stats.retrievers.forEach((query, count) -> retrievers.merge(query, count, Long::sum));
+        stats.metadata.forEach((meta, count) -> metadata.merge(meta, count, Long::sum));
         this.totalSearchCount += stats.totalSearchCount;
     }
 
@@ -112,6 +122,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
             builder.map(sections);
             builder.field("retrievers");
             builder.map(retrievers);
+            builder.field("metadata");
+            builder.map(metadata);
         }
         builder.endObject();
         return builder;
@@ -133,6 +145,10 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(retrievers);
     }
 
+    public Map<String, Long> getMetadataUsage() {
+        return Collections.unmodifiableMap(metadata);
+    }
+
     public long getTotalSearchCount() {
         return totalSearchCount;
     }
@@ -150,12 +166,13 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
             && queries.equals(that.queries)
             && rescorers.equals(that.rescorers)
             && sections.equals(that.sections)
-            && retrievers.equals(that.retrievers);
+            && retrievers.equals(that.retrievers)
+            && metadata.equals(that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalSearchCount, queries, rescorers, sections, retrievers);
+        return Objects.hash(totalSearchCount, queries, rescorers, sections, retrievers, metadata);
     }
 
     @Override

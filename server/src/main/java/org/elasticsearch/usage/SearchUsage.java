@@ -21,6 +21,7 @@ public final class SearchUsage {
     private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
     private final Set<String> retrievers = new HashSet<>();
+    private final Set<String> metadata = new HashSet<>();
 
     /**
      * Track the usage of the provided query
@@ -44,10 +45,19 @@ public final class SearchUsage {
     }
 
     /**
-     * Track retrieve usage
+     * Track retriever usage
      */
-    public void trackRetrieverUsage(String retriever) {
+    public void trackRetrieverUsage(String retriever, Set<String> metadata) {
+        trackRetrieverUsage(retriever);
+        metadata(metadata);
+    }
+
+    private void trackRetrieverUsage(String retriever) {
         retrievers.add(retriever);
+    }
+
+    private void metadata(Set<String> metadata) {
+        this.metadata.addAll(metadata);
     }
 
     /**
@@ -76,5 +86,12 @@ public final class SearchUsage {
      */
     public Set<String> getRetrieverUsage() {
         return Collections.unmodifiableSet(retrievers);
+    }
+
+    /**
+     * Returns the retriever names that have been used at least once in the tracked search request
+     */
+    public Set<String> getMetadataUsage() {
+        return Collections.unmodifiableSet(metadata);
     }
 }

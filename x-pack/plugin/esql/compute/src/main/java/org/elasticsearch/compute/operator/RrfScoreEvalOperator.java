@@ -65,8 +65,7 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
             int rank = counters.getOrDefault(discriminator, 1);
             counters.put(discriminator, rank + 1);
 
-            var weight = weights.get(discriminator);
-            weight = weight == null ? 1 : weight;
+            var weight = weights.getOrDefault(discriminator, 1.0);
 
             scores.appendDouble(1.0 / (this.rankConstant + rank) * weight);
         }

@@ -8,7 +8,7 @@ navigation_title: Analyze the index disk usage
 
 # Analyze index disk usage API example
 
-This page shows an example request and response for the [Analyze index disk usage API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-disk-usage).
+The `_disk_usage` API analyzes how much disk space each field in an index or data stream consumes. It helps you understand storage distribution and identify fields that use the most space. This page shows an example request and response for the [Analyze index disk usage API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-disk-usage).
 
 ## Example request
 

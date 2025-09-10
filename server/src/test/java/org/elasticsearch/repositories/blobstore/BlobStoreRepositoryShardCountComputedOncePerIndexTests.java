@@ -144,11 +144,11 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
         }
 
         assertAcked(
-                client().admin()
-                        .cluster()
-                        .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
-                        .setType(TEST_REPO_TYPE)
-                        .setSettings(Settings.builder().put("location", repoPath))
+            client().admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setType(TEST_REPO_TYPE)
+                .setSettings(Settings.builder().put("location", repoPath))
         );
 
         int numberOfSnapshots = randomIntBetween(3, 10);
@@ -157,10 +157,10 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             String snapshotName = "snapshot-" + i;
             snapshotNames.add(snapshotName);
             client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
-                    .setWaitForCompletion(true)
-                    .get();
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
+                .setWaitForCompletion(true)
+                .get();
         }
 
         for (String snapshotName : snapshotNames) {

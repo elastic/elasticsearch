@@ -1034,7 +1034,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     blob must not change until it is updated by this deletion and the {@code repositoryDataUpdateListener} is completed.
      * </p>
      */
-     class SnapshotsDeletion {
+    class SnapshotsDeletion {
 
         /**
          * The IDs of the snapshots to delete. This collection is empty if the deletion is a repository cleanup.

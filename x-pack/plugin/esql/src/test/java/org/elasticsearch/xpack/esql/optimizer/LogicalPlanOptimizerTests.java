@@ -9056,4 +9056,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("Reference [language_code] is ambiguous; matches any of "));
     }
+
+    public void testLookupJoinExpressionAnd() {
+        String query = """
+            from test
+            | rename languages as language_code_left
+            | lookup join languages_lookup ON language_code_left != language_code and language_code_left > language_code
+            """;
+
+        LogicalPlan plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+    }
 }

@@ -1,6 +1,0 @@
-pr: 106953
-summary: Optimize usage calculation in ILM policies retrieval API
-area: ILM+SLM
-type: enhancement
-issues:
- - 105773

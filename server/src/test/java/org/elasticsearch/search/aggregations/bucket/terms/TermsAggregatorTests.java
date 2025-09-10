@@ -37,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
@@ -88,7 +89,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -174,7 +175,13 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override
@@ -1109,7 +1116,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                                 .field("field")
                         );
-                        result = ((Filter) searchAndReduce(
+                        result = ((SingleBucketAggregation) searchAndReduce(
                             indexReader,
                             new AggTestConfig(aggregationBuilder, fieldType, filterFieldType).withSplitLeavesIntoSeperateAggregators(false)
                         )).getAggregations().get("_name2");
@@ -1328,6 +1335,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false
         );
         testCase(iw -> {
@@ -2252,7 +2260,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, keywordFt);
     }
 
-    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+        SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+    );
 
     private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
         List<Iterable<IndexableField>> documents = new ArrayList<>();

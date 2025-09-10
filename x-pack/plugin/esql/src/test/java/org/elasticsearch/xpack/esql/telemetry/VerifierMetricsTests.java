@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -28,8 +30,10 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ENRICH;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.EVAL;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINESTATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ROW;
@@ -37,7 +41,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
-import static org.elasticsearch.xpack.esql.telemetry.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
@@ -61,7 +65,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
         assertEquals(1, function("concat", c));
     }
 
@@ -82,7 +87,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
         assertEquals(1, function("length", c));
     }
 
@@ -103,7 +109,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
         assertEquals(1, function("concat", c));
     }
 
@@ -124,6 +131,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
     }
 
     public void testSortQuery() {
@@ -143,6 +152,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
     }
 
     public void testStatsQuery() {
@@ -162,7 +173,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
         assertEquals(1, function("max", c));
     }
 
@@ -183,6 +195,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
     }
 
     public void testTwoWhereQuery() {
@@ -202,6 +216,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
     }
 
     public void testTwoQueriesExecuted() {
@@ -241,6 +257,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(0, inlinestats(c));
 
         assertEquals(1, function("length", c));
         assertEquals(1, function("concat", c));
@@ -324,7 +342,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
-
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
         assertEquals(1, function("to_string", c));
     }
 
@@ -354,6 +373,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
     }
 
     public void testShowInfo() {
@@ -373,7 +394,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
         assertEquals(1, function("count", c));
     }
 
@@ -394,6 +416,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
     }
 
     public void testDropAndRename() {
@@ -413,7 +437,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
-
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
         assertEquals(1, function("count", c));
     }
 
@@ -439,66 +464,209 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
+    }
+
+    public void testCategorize() {
+        Counters c = esql("""
+            from employees
+            | keep emp_no, languages, gender
+            | where languages is null or emp_no <= 10030
+            | STATS COUNT() BY CATEGORIZE(gender)""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(1L, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(1L, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(0, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(1, function("count", c));
+        assertEquals(1, function("categorize", c));
+    }
+
+    public void testInlinestatsStandalone() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        Counters c = esql("""
+            from employees
+            | inlinestats max(salary) by gender
+            | where languages is not null""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(0, stats(c));
+        assertEquals(1L, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(1L, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(1, function("max", c));
+    }
+
+    public void testInlinestatsWithOtherStats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        Counters c = esql("""
+            from employees
+            | inlinestats m = max(salary) by gender
+            | where languages is not null
+            | stats max(m) by languages""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(1L, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(1L, inlinestats(c));
+        assertEquals(0, lookupjoin(c));
+        assertEquals(1, function("max", c));
+    }
+
+    public void testBinaryPlanAfterStats() {
+        Counters c = esql("""
+            from employees
+            | eval language_code = languages
+            | stats m = max(salary) by language_code
+            | lookup join languages_lookup on language_code""");
+        assertEquals(0, dissect(c));
+        assertEquals(1L, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(0, inlinestats(c));
+        assertEquals(1L, lookupjoin(c));
+        assertEquals(1, function("max", c));
+    }
+
+    public void testBinaryPlanAfterInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        Counters c = esql("""
+            from employees
+            | eval language_code = languages
+            | inlinestats m = max(salary) by language_code
+            | lookup join languages_lookup on language_code""");
+        assertEquals(0, dissect(c));
+        assertEquals(1L, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(0, stats(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(1L, inlinestats(c));
+        assertEquals(1L, lookupjoin(c));
+        assertEquals(1, function("max", c));
     }
 
     private long dissect(Counters c) {
-        return c.get(FPREFIX + DISSECT);
+        return c.get(FEATURES_PREFIX + DISSECT);
     }
 
     private long eval(Counters c) {
-        return c.get(FPREFIX + EVAL);
+        return c.get(FEATURES_PREFIX + EVAL);
     }
 
     private long grok(Counters c) {
-        return c.get(FPREFIX + GROK);
+        return c.get(FEATURES_PREFIX + GROK);
     }
 
     private long limit(Counters c) {
-        return c.get(FPREFIX + LIMIT);
+        return c.get(FEATURES_PREFIX + LIMIT);
     }
 
     private long sort(Counters c) {
-        return c.get(FPREFIX + SORT);
+        return c.get(FEATURES_PREFIX + SORT);
     }
 
     private long stats(Counters c) {
-        return c.get(FPREFIX + STATS);
+        return c.get(FEATURES_PREFIX + STATS);
     }
 
     private long where(Counters c) {
-        return c.get(FPREFIX + WHERE);
+        return c.get(FEATURES_PREFIX + WHERE);
     }
 
     private long enrich(Counters c) {
-        return c.get(FPREFIX + ENRICH);
+        return c.get(FEATURES_PREFIX + ENRICH);
     }
 
     private long mvExpand(Counters c) {
-        return c.get(FPREFIX + MV_EXPAND);
+        return c.get(FEATURES_PREFIX + MV_EXPAND);
     }
 
     private long show(Counters c) {
-        return c.get(FPREFIX + SHOW);
+        return c.get(FEATURES_PREFIX + SHOW);
     }
 
     private long row(Counters c) {
-        return c.get(FPREFIX + ROW);
+        return c.get(FEATURES_PREFIX + ROW);
     }
 
     private long from(Counters c) {
-        return c.get(FPREFIX + FROM);
+        return c.get(FEATURES_PREFIX + FROM);
     }
 
     private long drop(Counters c) {
-        return c.get(FPREFIX + DROP);
+        return c.get(FEATURES_PREFIX + DROP);
     }
 
     private long keep(Counters c) {
-        return c.get(FPREFIX + KEEP);
+        return c.get(FEATURES_PREFIX + KEEP);
     }
 
     private long rename(Counters c) {
-        return c.get(FPREFIX + RENAME);
+        return c.get(FEATURES_PREFIX + RENAME);
+    }
+
+    private long inlinestats(Counters c) {
+        return c.get(FEATURES_PREFIX + INLINESTATS);
+    }
+
+    private long lookupjoin(Counters c) {
+        return c.get(FEATURES_PREFIX + LOOKUP_JOIN);
     }
 
     private long function(String function, Counters c) {
@@ -529,7 +697,7 @@ public class VerifierMetricsTests extends ESTestCase {
             metrics = new Metrics(new EsqlFunctionRegistry());
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
-        analyzer(verifier).analyze(parser.createStatement(esql));
+        analyzer(verifier).analyze(parser.createStatement(esql, EsqlTestUtils.TEST_CFG));
 
         return metrics == null ? null : metrics.stats();
     }

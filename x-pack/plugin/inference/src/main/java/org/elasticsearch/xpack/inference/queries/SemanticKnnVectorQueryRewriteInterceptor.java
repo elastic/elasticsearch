@@ -52,16 +52,20 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
+        QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
             // Simple case, everything uses the same inference ID
             Map.Entry<String, List<String>> inferenceIdIndex = inferenceIdsIndices.entrySet().iterator().next();
             String searchInferenceId = inferenceIdIndex.getKey();
             List<String> indices = inferenceIdIndex.getValue();
-            return buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
+            finalQueryBuilder = buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
         } else {
             // Multiple inference IDs, construct a boolean query
-            return buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
+            finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
         }
+        finalQueryBuilder.boost(queryBuilder.boost());
+        finalQueryBuilder.queryName(queryBuilder.queryName());
+        return finalQueryBuilder;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(
@@ -102,6 +106,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 )
             );
         }
+        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
 
@@ -135,6 +141,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 original.queryVectorBuilder(),
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.getVectorSimilarity()
             );
         } else {
@@ -143,6 +150,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 original.queryVector(),
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.rescoreVectorBuilder(),
                 original.getVectorSimilarity()
             );
@@ -174,6 +182,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 queryVectorBuilder,
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.getVectorSimilarity()
             );
         } else {
@@ -182,6 +191,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 original.queryVector(),
                 original.k(),
                 original.numCands(),
+                original.visitPercentage(),
                 original.rescoreVectorBuilder(),
                 original.getVectorSimilarity()
             );

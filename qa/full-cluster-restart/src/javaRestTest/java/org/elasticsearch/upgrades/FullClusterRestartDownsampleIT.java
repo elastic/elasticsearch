@@ -55,8 +55,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
             .setting("xpack.security.enabled", "false")
             .setting("indices.lifecycle.poll_interval", "5s")
             .apply(() -> clusterConfig)
-            .feature(FeatureFlag.TIME_SERIES_MODE)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+            .feature(FeatureFlag.TIME_SERIES_MODE);
 
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");

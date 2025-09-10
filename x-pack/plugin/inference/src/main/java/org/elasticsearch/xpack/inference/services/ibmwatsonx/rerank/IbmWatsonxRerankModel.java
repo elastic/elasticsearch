@@ -22,10 +22,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.ML;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.RERANKS;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.RERANKS;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.TEXT;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.V1;
 
 public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     public static IbmWatsonxRerankModel of(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
@@ -100,8 +100,8 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor _
-     * @param taskSettings _
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM watsonx models.
+     * @param taskSettings     Settings in the request to override the model's defaults
      * @return the rerank action
      */
     @Override

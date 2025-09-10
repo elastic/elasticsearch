@@ -93,6 +93,7 @@ import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -524,6 +525,88 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
+    private void populateIndices() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("index-1").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=keyword", "field3", "type=keyword"),
+            prepareCreate("index-2").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field2", "type=long", "field3", "type=long")
+        );
+    }
+
+    public void testIncludeIndices() throws Exception {
+        populateIndices();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("index-*");
+        request.fields("*");
+        request.includeIndices(true);
+
+        final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
+
+    }
+
+    public void testRandomIncludeIndices() throws Exception {
+        populateIndices();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("index-*");
+        request.fields("*");
+        boolean shouldAlwaysIncludeIndices = randomBoolean();
+        request.includeIndices(shouldAlwaysIncludeIndices);
+
+        final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        } else {
+            assertNull(response.getField("timestamp").get("date").indices());
+        }
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+        } else {
+            assertNull(response.getField("field1").get("keyword").indices());
+        }
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+        } else {
+            assertNull(response.getField("field2").get("long").indices());
+        }
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
+
+    }
+
     public void testNoActiveCopy() throws Exception {
         assertAcked(
             prepareCreate("log-index-inactive").setSettings(
@@ -718,7 +801,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
                     Level.TRACE,
-                    "clear index responses on cancellation"
+                    "clear index responses on cancellation submitted"
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
@@ -906,6 +989,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            // skip rewriting on the coordinator
+            if (queryRewriteContext.convertToCoordinatorRewriteContext() != null) {
+                return this;
+            }
             try {
                 blockingLatch.await();
             } catch (InterruptedException e) {

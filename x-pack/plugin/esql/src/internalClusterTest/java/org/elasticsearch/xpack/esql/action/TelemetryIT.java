@@ -148,35 +148,35 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    "TS time_series_idx | LIMIT 10",
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
+                        ? Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1))
+                        : Collections.emptyMap(),
                     Map.ofEntries(),
-                    Build.current().isSnapshot()
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx | STATS max(id) BY host | LIMIT 10",
-                    Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
+                    "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
+                        ? Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
                         : Collections.emptyMap(),
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled()
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | EVAL ip = TO_IP(host), x = TO_STRING(host), y = TO_STRING(host)
+                        | INLINESTATS MAX(id)
+                        """,
+                    Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1) : Collections.emptyMap(),
+                    Build.current().isSnapshot()
+                        ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
+                        : Collections.emptyMap(),
                     Build.current().isSnapshot()
                 ) }
-            // awaits fix for https://github.com/elastic/elasticsearch/issues/116003
-            // ,
-            // new Object[] {
-            // new Test(
-            // """
-            // FROM idx
-            // | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-            // | INLINESTATS max(id)
-            // """,
-            // Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1) : Collections.emptyMap(),
-            // Build.current().isSnapshot()
-            // ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
-            // : Collections.emptyMap(),
-            // Build.current().isSnapshot()
-            // ) }
         );
     }
 
@@ -313,6 +313,22 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 )
                 .setMapping("ip", "type=ip", "host", "type=keyword")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("time_series_idx")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build())
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "id",
+                    "type=keyword",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
         );
     }
 

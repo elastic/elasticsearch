@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * IndexReshardingState is an abstract class holding the persistent state of a generic resharding operation. It contains
@@ -349,8 +350,12 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return sourceShards[shardNum];
         }
 
+        public boolean isSourceShard(int shardId) {
+            return shardId < shardCountBefore();
+        }
+
         public boolean isTargetShard(int shardId) {
-            return shardId >= shardCountBefore();
+            return isSourceShard(shardId) == false;
         }
 
         /**
@@ -366,6 +371,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return targetShards[targetShardNum];
         }
 
+        public boolean targetStateAtLeast(int shardNum, TargetShardState targetShardState) {
+            return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
+        }
+
         /**
          * Check whether this metadata represents an incomplete split
          * @return true if the split is incomplete (not all source shards are DONE)
@@ -378,6 +387,14 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             }
 
             return false;
+        }
+
+        public Stream<TargetShardState> targetStates() {
+            return Arrays.stream(targetShards);
+        }
+
+        public Stream<SourceShardState> sourceStates() {
+            return Arrays.stream(sourceShards);
         }
 
         /**

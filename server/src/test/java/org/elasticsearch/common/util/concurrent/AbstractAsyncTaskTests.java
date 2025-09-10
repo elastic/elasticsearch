@@ -59,12 +59,14 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 try {
                     barrier1.await();
                 } catch (Exception e) {
+                    logger.error("barrier1 interrupted", e);
                     fail("interrupted");
                 }
                 count.incrementAndGet();
                 try {
                     barrier2.await();
                 } catch (Exception e) {
+                    logger.error("barrier2 interrupted", e);
                     fail("interrupted");
                 }
                 if (shouldRunThrowException) {
@@ -112,6 +114,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 try {
                     barrier.await();
                 } catch (Exception e) {
+                    logger.error("barrier interrupted", e);
                     fail("interrupted");
                 }
                 if (shouldRunThrowException) {

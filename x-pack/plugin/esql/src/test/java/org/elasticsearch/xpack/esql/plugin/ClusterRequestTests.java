@@ -39,6 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -164,7 +165,6 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
         assertThat(cloned.sessionId(), equalTo(request.sessionId()));
         RemoteClusterPlan plan = cloned.remoteClusterPlan();
-        assertThat(plan.plan(), equalTo(request.remoteClusterPlan().plan()));
         assertThat(plan.targetIndices(), equalTo(request.remoteClusterPlan().targetIndices()));
         OriginalIndices originalIndices = plan.originalIndices();
         assertThat(originalIndices.indices(), equalTo(request.remoteClusterPlan().originalIndices().indices()));
@@ -191,10 +191,16 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                emptyPolicyResolution(),
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     @Override

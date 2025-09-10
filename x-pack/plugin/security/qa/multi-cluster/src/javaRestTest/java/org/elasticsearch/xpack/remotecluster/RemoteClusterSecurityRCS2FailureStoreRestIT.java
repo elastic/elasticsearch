@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
@@ -35,7 +34,6 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
@@ -49,7 +47,6 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             .distribution(DistributionType.DEFAULT)
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")

@@ -34,13 +34,14 @@ class KqlBaseParser extends Parser {
         RULE_nestedParenthesizedQuery = 7, RULE_matchAllQuery = 8, RULE_parenthesizedQuery = 9, 
         RULE_rangeQuery = 10, RULE_rangeQueryValue = 11, RULE_existsQuery = 12, 
         RULE_fieldQuery = 13, RULE_fieldLessQuery = 14, RULE_fieldQueryValue = 15, 
-        RULE_fieldName = 16;
+        RULE_booleanFieldQueryValue = 16, RULE_fieldName = 17;
     private static String[] makeRuleNames() {
         return new String[] {
             "topLevelQuery", "query", "simpleQuery", "notQuery", "nestedQuery", "nestedSubQuery", 
             "nestedSimpleSubQuery", "nestedParenthesizedQuery", "matchAllQuery", 
             "parenthesizedQuery", "rangeQuery", "rangeQueryValue", "existsQuery", 
-            "fieldQuery", "fieldLessQuery", "fieldQueryValue", "fieldName"
+            "fieldQuery", "fieldLessQuery", "fieldQueryValue", "booleanFieldQueryValue", 
+            "fieldName"
         };
     }
     public static final String[] ruleNames = makeRuleNames();
@@ -142,17 +143,17 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(35);
+            setState(37);
             _errHandler.sync(this);
             _la = _input.LA(1);
             if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 115740L) != 0)) {
                 {
-                setState(34);
+                setState(36);
                 query(0);
                 }
             }
 
-            setState(37);
+            setState(39);
             match(EOF);
             }
         }
@@ -247,11 +248,11 @@ class KqlBaseParser extends Parser {
             _ctx = _localctx;
             _prevctx = _localctx;
 
-            setState(40);
+            setState(42);
             simpleQuery();
             }
             _ctx.stop = _input.LT(-1);
-            setState(47);
+            setState(49);
             _errHandler.sync(this);
             _alt = getInterpreter().adaptivePredict(_input,1,_ctx);
             while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
@@ -262,9 +263,9 @@ class KqlBaseParser extends Parser {
                     {
                     _localctx = new BooleanQueryContext(new QueryContext(_parentctx, _parentState));
                     pushNewRecursionContext(_localctx, _startState, RULE_query);
-                    setState(42);
+                    setState(44);
                     if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
-                    setState(43);
+                    setState(45);
                     ((BooleanQueryContext)_localctx).operator = _input.LT(1);
                     _la = _input.LA(1);
                     if ( !(_la==AND || _la==OR) ) {
@@ -275,12 +276,12 @@ class KqlBaseParser extends Parser {
                         _errHandler.reportMatch(this);
                         consume();
                     }
-                    setState(44);
+                    setState(46);
                     query(2);
                     }
                     } 
                 }
-                setState(49);
+                setState(51);
                 _errHandler.sync(this);
                 _alt = getInterpreter().adaptivePredict(_input,1,_ctx);
             }
@@ -346,62 +347,62 @@ class KqlBaseParser extends Parser {
         SimpleQueryContext _localctx = new SimpleQueryContext(_ctx, getState());
         enterRule(_localctx, 4, RULE_simpleQuery);
         try {
-            setState(58);
+            setState(60);
             _errHandler.sync(this);
             switch ( getInterpreter().adaptivePredict(_input,2,_ctx) ) {
             case 1:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(50);
+                setState(52);
                 notQuery();
                 }
                 break;
             case 2:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(51);
+                setState(53);
                 nestedQuery();
                 }
                 break;
             case 3:
                 enterOuterAlt(_localctx, 3);
                 {
-                setState(52);
+                setState(54);
                 parenthesizedQuery();
                 }
                 break;
             case 4:
                 enterOuterAlt(_localctx, 4);
                 {
-                setState(53);
+                setState(55);
                 matchAllQuery();
                 }
                 break;
             case 5:
                 enterOuterAlt(_localctx, 5);
                 {
-                setState(54);
+                setState(56);
                 existsQuery();
                 }
                 break;
             case 6:
                 enterOuterAlt(_localctx, 6);
                 {
-                setState(55);
+                setState(57);
                 rangeQuery();
                 }
                 break;
             case 7:
                 enterOuterAlt(_localctx, 7);
                 {
-                setState(56);
+                setState(58);
                 fieldQuery();
                 }
                 break;
             case 8:
                 enterOuterAlt(_localctx, 8);
                 {
-                setState(57);
+                setState(59);
                 fieldLessQuery();
                 }
                 break;
@@ -450,9 +451,9 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(60);
+            setState(62);
             match(NOT);
-            setState(61);
+            setState(63);
             ((NotQueryContext)_localctx).subQuery = simpleQuery();
             }
         }
@@ -503,15 +504,15 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(63);
-            fieldName();
-            setState(64);
-            match(COLON);
             setState(65);
-            match(LEFT_CURLY_BRACKET);
+            fieldName();
             setState(66);
-            nestedSubQuery(0);
+            match(COLON);
             setState(67);
+            match(LEFT_CURLY_BRACKET);
+            setState(68);
+            nestedSubQuery(0);
+            setState(69);
             match(RIGHT_CURLY_BRACKET);
             }
         }
@@ -606,11 +607,11 @@ class KqlBaseParser extends Parser {
             _ctx = _localctx;
             _prevctx = _localctx;
 
-            setState(70);
+            setState(72);
             nestedSimpleSubQuery();
             }
             _ctx.stop = _input.LT(-1);
-            setState(77);
+            setState(79);
             _errHandler.sync(this);
             _alt = getInterpreter().adaptivePredict(_input,3,_ctx);
             while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
@@ -621,9 +622,9 @@ class KqlBaseParser extends Parser {
                     {
                     _localctx = new BooleanNestedQueryContext(new NestedSubQueryContext(_parentctx, _parentState));
                     pushNewRecursionContext(_localctx, _startState, RULE_nestedSubQuery);
-                    setState(72);
+                    setState(74);
                     if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
-                    setState(73);
+                    setState(75);
                     ((BooleanNestedQueryContext)_localctx).operator = _input.LT(1);
                     _la = _input.LA(1);
                     if ( !(_la==AND || _la==OR) ) {
@@ -634,12 +635,12 @@ class KqlBaseParser extends Parser {
                         _errHandler.reportMatch(this);
                         consume();
                     }
-                    setState(74);
+                    setState(76);
                     nestedSubQuery(2);
                     }
                     } 
                 }
-                setState(79);
+                setState(81);
                 _errHandler.sync(this);
                 _alt = getInterpreter().adaptivePredict(_input,3,_ctx);
             }
@@ -663,6 +664,9 @@ class KqlBaseParser extends Parser {
         }
         public NestedQueryContext nestedQuery() {
             return getRuleContext(NestedQueryContext.class,0);
+        }
+        public MatchAllQueryContext matchAllQuery() {
+            return getRuleContext(MatchAllQueryContext.class,0);
         }
         public NestedParenthesizedQueryContext nestedParenthesizedQuery() {
             return getRuleContext(NestedParenthesizedQueryContext.class,0);
@@ -699,48 +703,55 @@ class KqlBaseParser extends Parser {
         NestedSimpleSubQueryContext _localctx = new NestedSimpleSubQueryContext(_ctx, getState());
         enterRule(_localctx, 12, RULE_nestedSimpleSubQuery);
         try {
-            setState(86);
+            setState(89);
             _errHandler.sync(this);
             switch ( getInterpreter().adaptivePredict(_input,4,_ctx) ) {
             case 1:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(80);
+                setState(82);
                 notQuery();
                 }
                 break;
             case 2:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(81);
+                setState(83);
                 nestedQuery();
                 }
                 break;
             case 3:
                 enterOuterAlt(_localctx, 3);
                 {
-                setState(82);
-                nestedParenthesizedQuery();
+                setState(84);
+                matchAllQuery();
                 }
                 break;
             case 4:
                 enterOuterAlt(_localctx, 4);
                 {
-                setState(83);
-                existsQuery();
+                setState(85);
+                nestedParenthesizedQuery();
                 }
                 break;
             case 5:
                 enterOuterAlt(_localctx, 5);
                 {
-                setState(84);
-                rangeQuery();
+                setState(86);
+                existsQuery();
                 }
                 break;
             case 6:
                 enterOuterAlt(_localctx, 6);
                 {
-                setState(85);
+                setState(87);
+                rangeQuery();
+                }
+                break;
+            case 7:
+                enterOuterAlt(_localctx, 7);
+                {
+                setState(88);
                 fieldQuery();
                 }
                 break;
@@ -789,11 +800,11 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(88);
+            setState(91);
             match(LEFT_PARENTHESIS);
-            setState(89);
+            setState(92);
             nestedSubQuery(0);
-            setState(90);
+            setState(93);
             match(RIGHT_PARENTHESIS);
             }
         }
@@ -840,19 +851,19 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(94);
+            setState(97);
             _errHandler.sync(this);
             switch ( getInterpreter().adaptivePredict(_input,5,_ctx) ) {
             case 1:
                 {
-                setState(92);
+                setState(95);
                 match(WILDCARD);
-                setState(93);
+                setState(96);
                 match(COLON);
                 }
                 break;
             }
-            setState(96);
+            setState(99);
             match(WILDCARD);
             }
         }
@@ -899,11 +910,11 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(98);
+            setState(101);
             match(LEFT_PARENTHESIS);
-            setState(99);
+            setState(102);
             query(0);
-            setState(100);
+            setState(103);
             match(RIGHT_PARENTHESIS);
             }
         }
@@ -957,9 +968,9 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(102);
+            setState(105);
             fieldName();
-            setState(103);
+            setState(106);
             ((RangeQueryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
             if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 960L) != 0)) ) {
@@ -970,7 +981,7 @@ class KqlBaseParser extends Parser {
                 _errHandler.reportMatch(this);
                 consume();
             }
-            setState(104);
+            setState(107);
             rangeQueryValue();
             }
         }
@@ -1021,14 +1032,14 @@ class KqlBaseParser extends Parser {
         int _la;
         try {
             int _alt;
-            setState(112);
+            setState(115);
             _errHandler.sync(this);
             switch (_input.LA(1)) {
             case UNQUOTED_LITERAL:
             case WILDCARD:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(107); 
+                setState(110); 
                 _errHandler.sync(this);
                 _alt = 1;
                 do {
@@ -1036,7 +1047,7 @@ class KqlBaseParser extends Parser {
                     case 1:
                         {
                         {
-                        setState(106);
+                        setState(109);
                         _la = _input.LA(1);
                         if ( !(_la==UNQUOTED_LITERAL || _la==WILDCARD) ) {
                         _errHandler.recoverInline(this);
@@ -1052,7 +1063,7 @@ class KqlBaseParser extends Parser {
                     default:
                         throw new NoViableAltException(this);
                     }
-                    setState(109); 
+                    setState(112); 
                     _errHandler.sync(this);
                     _alt = getInterpreter().adaptivePredict(_input,6,_ctx);
                 } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -1061,7 +1072,7 @@ class KqlBaseParser extends Parser {
             case QUOTED_STRING:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(111);
+                setState(114);
                 match(QUOTED_STRING);
                 }
                 break;
@@ -1112,11 +1123,11 @@ class KqlBaseParser extends Parser {
         try {
             enterOuterAlt(_localctx, 1);
             {
-            setState(114);
+            setState(117);
             fieldName();
-            setState(115);
+            setState(118);
             match(COLON);
-            setState(116);
+            setState(119);
             match(WILDCARD);
             }
         }
@@ -1140,8 +1151,6 @@ class KqlBaseParser extends Parser {
         public FieldQueryValueContext fieldQueryValue() {
             return getRuleContext(FieldQueryValueContext.class,0);
         }
-        public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
-        public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
         public FieldQueryContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
@@ -1165,35 +1174,14 @@ class KqlBaseParser extends Parser {
         FieldQueryContext _localctx = new FieldQueryContext(_ctx, getState());
         enterRule(_localctx, 26, RULE_fieldQuery);
         try {
-            setState(128);
-            _errHandler.sync(this);
-            switch ( getInterpreter().adaptivePredict(_input,8,_ctx) ) {
-            case 1:
-                enterOuterAlt(_localctx, 1);
-                {
-                setState(118);
-                fieldName();
-                setState(119);
-                match(COLON);
-                setState(120);
-                fieldQueryValue();
-                }
-                break;
-            case 2:
-                enterOuterAlt(_localctx, 2);
-                {
-                setState(122);
-                fieldName();
-                setState(123);
-                match(COLON);
-                setState(124);
-                match(LEFT_PARENTHESIS);
-                setState(125);
-                fieldQueryValue();
-                setState(126);
-                match(RIGHT_PARENTHESIS);
-                }
-                break;
+            enterOuterAlt(_localctx, 1);
+            {
+            setState(121);
+            fieldName();
+            setState(122);
+            match(COLON);
+            setState(123);
+            fieldQueryValue();
             }
         }
         catch (RecognitionException re) {
@@ -1212,8 +1200,6 @@ class KqlBaseParser extends Parser {
         public FieldQueryValueContext fieldQueryValue() {
             return getRuleContext(FieldQueryValueContext.class,0);
         }
-        public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
-        public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
         public FieldLessQueryContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
@@ -1237,34 +1223,10 @@ class KqlBaseParser extends Parser {
         FieldLessQueryContext _localctx = new FieldLessQueryContext(_ctx, getState());
         enterRule(_localctx, 28, RULE_fieldLessQuery);
         try {
-            setState(135);
-            _errHandler.sync(this);
-            switch (_input.LA(1)) {
-            case AND:
-            case OR:
-            case NOT:
-            case UNQUOTED_LITERAL:
-            case QUOTED_STRING:
-            case WILDCARD:
-                enterOuterAlt(_localctx, 1);
-                {
-                setState(130);
-                fieldQueryValue();
-                }
-                break;
-            case LEFT_PARENTHESIS:
-                enterOuterAlt(_localctx, 2);
-                {
-                setState(131);
-                match(LEFT_PARENTHESIS);
-                setState(132);
-                fieldQueryValue();
-                setState(133);
-                match(RIGHT_PARENTHESIS);
-                }
-                break;
-            default:
-                throw new NoViableAltException(this);
+            enterOuterAlt(_localctx, 1);
+            {
+            setState(125);
+            fieldQueryValue();
             }
         }
         catch (RecognitionException re) {
@@ -1280,18 +1242,7 @@ class KqlBaseParser extends Parser {
 
     @SuppressWarnings("CheckReturnValue")
     public static class FieldQueryValueContext extends ParserRuleContext {
-        public List<TerminalNode> AND() { return getTokens(KqlBaseParser.AND); }
-        public TerminalNode AND(int i) {
-            return getToken(KqlBaseParser.AND, i);
-        }
-        public List<TerminalNode> OR() { return getTokens(KqlBaseParser.OR); }
-        public TerminalNode OR(int i) {
-            return getToken(KqlBaseParser.OR, i);
-        }
-        public List<TerminalNode> NOT() { return getTokens(KqlBaseParser.NOT); }
-        public TerminalNode NOT(int i) {
-            return getToken(KqlBaseParser.NOT, i);
-        }
+        public Token operator;
         public List<TerminalNode> UNQUOTED_LITERAL() { return getTokens(KqlBaseParser.UNQUOTED_LITERAL); }
         public TerminalNode UNQUOTED_LITERAL(int i) {
             return getToken(KqlBaseParser.UNQUOTED_LITERAL, i);
@@ -1300,7 +1251,24 @@ class KqlBaseParser extends Parser {
         public TerminalNode WILDCARD(int i) {
             return getToken(KqlBaseParser.WILDCARD, i);
         }
+        public List<TerminalNode> OR() { return getTokens(KqlBaseParser.OR); }
+        public TerminalNode OR(int i) {
+            return getToken(KqlBaseParser.OR, i);
+        }
+        public List<TerminalNode> AND() { return getTokens(KqlBaseParser.AND); }
+        public TerminalNode AND(int i) {
+            return getToken(KqlBaseParser.AND, i);
+        }
+        public TerminalNode NOT() { return getToken(KqlBaseParser.NOT, 0); }
         public TerminalNode QUOTED_STRING() { return getToken(KqlBaseParser.QUOTED_STRING, 0); }
+        public FieldQueryValueContext fieldQueryValue() {
+            return getRuleContext(FieldQueryValueContext.class,0);
+        }
+        public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
+        public BooleanFieldQueryValueContext booleanFieldQueryValue() {
+            return getRuleContext(BooleanFieldQueryValueContext.class,0);
+        }
+        public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
         public FieldQueryValueContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
@@ -1326,31 +1294,13 @@ class KqlBaseParser extends Parser {
         int _la;
         try {
             int _alt;
-            setState(157);
+            setState(151);
             _errHandler.sync(this);
-            switch ( getInterpreter().adaptivePredict(_input,15,_ctx) ) {
+            switch ( getInterpreter().adaptivePredict(_input,12,_ctx) ) {
             case 1:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(138);
-                _errHandler.sync(this);
-                _la = _input.LA(1);
-                if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) {
-                    {
-                    setState(137);
-                    _la = _input.LA(1);
-                    if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
-                    _errHandler.recoverInline(this);
-                    }
-                    else {
-                        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
-                        _errHandler.reportMatch(this);
-                        consume();
-                    }
-                    }
-                }
-
-                setState(141); 
+                setState(128); 
                 _errHandler.sync(this);
                 _alt = 1;
                 do {
@@ -1358,7 +1308,7 @@ class KqlBaseParser extends Parser {
                     case 1:
                         {
                         {
-                        setState(140);
+                        setState(127);
                         _la = _input.LA(1);
                         if ( !(_la==UNQUOTED_LITERAL || _la==WILDCARD) ) {
                         _errHandler.recoverInline(this);
@@ -1374,18 +1324,23 @@ class KqlBaseParser extends Parser {
                     default:
                         throw new NoViableAltException(this);
                     }
-                    setState(143); 
+                    setState(130); 
                     _errHandler.sync(this);
-                    _alt = getInterpreter().adaptivePredict(_input,11,_ctx);
+                    _alt = getInterpreter().adaptivePredict(_input,8,_ctx);
                 } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
-                setState(146);
+                }
+                break;
+            case 2:
+                enterOuterAlt(_localctx, 2);
+                {
+                setState(133);
                 _errHandler.sync(this);
-                switch ( getInterpreter().adaptivePredict(_input,12,_ctx) ) {
-                case 1:
+                _la = _input.LA(1);
+                if (_la==UNQUOTED_LITERAL || _la==WILDCARD) {
                     {
-                    setState(145);
+                    setState(132);
                     _la = _input.LA(1);
-                    if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
+                    if ( !(_la==UNQUOTED_LITERAL || _la==WILDCARD) ) {
                     _errHandler.recoverInline(this);
                     }
                     else {
@@ -1394,14 +1349,24 @@ class KqlBaseParser extends Parser {
                         consume();
                     }
                     }
-                    break;
+                }
+
+                setState(135);
+                _la = _input.LA(1);
+                if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
+                _errHandler.recoverInline(this);
+                }
+                else {
+                    if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                    _errHandler.reportMatch(this);
+                    consume();
                 }
                 }
                 break;
-            case 2:
-                enterOuterAlt(_localctx, 2);
+            case 3:
+                enterOuterAlt(_localctx, 3);
                 {
-                setState(148);
+                setState(136);
                 _la = _input.LA(1);
                 if ( !(_la==AND || _la==OR) ) {
                 _errHandler.recoverInline(this);
@@ -1411,39 +1376,14 @@ class KqlBaseParser extends Parser {
                     _errHandler.reportMatch(this);
                     consume();
                 }
-                setState(150);
+                setState(138);
                 _errHandler.sync(this);
-                switch ( getInterpreter().adaptivePredict(_input,13,_ctx) ) {
+                switch ( getInterpreter().adaptivePredict(_input,10,_ctx) ) {
                 case 1:
                     {
-                    setState(149);
+                    setState(137);
                     _la = _input.LA(1);
-                    if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
-                    _errHandler.recoverInline(this);
-                    }
-                    else {
-                        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
-                        _errHandler.reportMatch(this);
-                        consume();
-                    }
-                    }
-                    break;
-                }
-                }
-                break;
-            case 3:
-                enterOuterAlt(_localctx, 3);
-                {
-                setState(152);
-                match(NOT);
-                setState(154);
-                _errHandler.sync(this);
-                switch ( getInterpreter().adaptivePredict(_input,14,_ctx) ) {
-                case 1:
-                    {
-                    setState(153);
-                    _la = _input.LA(1);
-                    if ( !(_la==AND || _la==OR) ) {
+                    if ( !(_la==UNQUOTED_LITERAL || _la==WILDCARD) ) {
                     _errHandler.recoverInline(this);
                     }
                     else {
@@ -1459,8 +1399,61 @@ class KqlBaseParser extends Parser {
             case 4:
                 enterOuterAlt(_localctx, 4);
                 {
-                setState(156);
+                setState(140);
+                _la = _input.LA(1);
+                if ( !(_la==AND || _la==OR) ) {
+                _errHandler.recoverInline(this);
+                }
+                else {
+                    if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                    _errHandler.reportMatch(this);
+                    consume();
+                }
+                setState(141);
+                _la = _input.LA(1);
+                if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
+                _errHandler.recoverInline(this);
+                }
+                else {
+                    if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                    _errHandler.reportMatch(this);
+                    consume();
+                }
+                }
+                break;
+            case 5:
+                enterOuterAlt(_localctx, 5);
+                {
+                setState(142);
                 match(QUOTED_STRING);
+                }
+                break;
+            case 6:
+                enterOuterAlt(_localctx, 6);
+                {
+                setState(143);
+                ((FieldQueryValueContext)_localctx).operator = match(NOT);
+                setState(145);
+                _errHandler.sync(this);
+                switch ( getInterpreter().adaptivePredict(_input,11,_ctx) ) {
+                case 1:
+                    {
+                    setState(144);
+                    fieldQueryValue();
+                    }
+                    break;
+                }
+                }
+                break;
+            case 7:
+                enterOuterAlt(_localctx, 7);
+                {
+                setState(147);
+                match(LEFT_PARENTHESIS);
+                setState(148);
+                booleanFieldQueryValue(0);
+                setState(149);
+                match(RIGHT_PARENTHESIS);
                 }
                 break;
             }
@@ -1472,6 +1465,121 @@ class KqlBaseParser extends Parser {
         }
         finally {
             exitRule();
+        }
+        return _localctx;
+    }
+
+    @SuppressWarnings("CheckReturnValue")
+    public static class BooleanFieldQueryValueContext extends ParserRuleContext {
+        public Token operator;
+        public TerminalNode LEFT_PARENTHESIS() { return getToken(KqlBaseParser.LEFT_PARENTHESIS, 0); }
+        public BooleanFieldQueryValueContext booleanFieldQueryValue() {
+            return getRuleContext(BooleanFieldQueryValueContext.class,0);
+        }
+        public TerminalNode RIGHT_PARENTHESIS() { return getToken(KqlBaseParser.RIGHT_PARENTHESIS, 0); }
+        public FieldQueryValueContext fieldQueryValue() {
+            return getRuleContext(FieldQueryValueContext.class,0);
+        }
+        public TerminalNode AND() { return getToken(KqlBaseParser.AND, 0); }
+        public TerminalNode OR() { return getToken(KqlBaseParser.OR, 0); }
+        public BooleanFieldQueryValueContext(ParserRuleContext parent, int invokingState) {
+            super(parent, invokingState);
+        }
+        @Override public int getRuleIndex() { return RULE_booleanFieldQueryValue; }
+        @Override
+        public void enterRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).enterBooleanFieldQueryValue(this);
+        }
+        @Override
+        public void exitRule(ParseTreeListener listener) {
+            if ( listener instanceof KqlBaseListener ) ((KqlBaseListener)listener).exitBooleanFieldQueryValue(this);
+        }
+        @Override
+        public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+            if ( visitor instanceof KqlBaseVisitor ) return ((KqlBaseVisitor<? extends T>)visitor).visitBooleanFieldQueryValue(this);
+            else return visitor.visitChildren(this);
+        }
+    }
+
+    public final BooleanFieldQueryValueContext booleanFieldQueryValue() throws RecognitionException {
+        return booleanFieldQueryValue(0);
+    }
+
+    private BooleanFieldQueryValueContext booleanFieldQueryValue(int _p) throws RecognitionException {
+        ParserRuleContext _parentctx = _ctx;
+        int _parentState = getState();
+        BooleanFieldQueryValueContext _localctx = new BooleanFieldQueryValueContext(_ctx, _parentState);
+        BooleanFieldQueryValueContext _prevctx = _localctx;
+        int _startState = 32;
+        enterRecursionRule(_localctx, 32, RULE_booleanFieldQueryValue, _p);
+        int _la;
+        try {
+            int _alt;
+            enterOuterAlt(_localctx, 1);
+            {
+            setState(159);
+            _errHandler.sync(this);
+            switch ( getInterpreter().adaptivePredict(_input,13,_ctx) ) {
+            case 1:
+                {
+                setState(154);
+                match(LEFT_PARENTHESIS);
+                setState(155);
+                booleanFieldQueryValue(0);
+                setState(156);
+                match(RIGHT_PARENTHESIS);
+                }
+                break;
+            case 2:
+                {
+                setState(158);
+                fieldQueryValue();
+                }
+                break;
+            }
+            _ctx.stop = _input.LT(-1);
+            setState(166);
+            _errHandler.sync(this);
+            _alt = getInterpreter().adaptivePredict(_input,14,_ctx);
+            while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
+                if ( _alt==1 ) {
+                    if ( _parseListeners!=null ) triggerExitRuleEvent();
+                    _prevctx = _localctx;
+                    {
+                    {
+                    _localctx = new BooleanFieldQueryValueContext(_parentctx, _parentState);
+                    pushNewRecursionContext(_localctx, _startState, RULE_booleanFieldQueryValue);
+                    setState(161);
+                    if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
+                    setState(162);
+                    ((BooleanFieldQueryValueContext)_localctx).operator = _input.LT(1);
+                    _la = _input.LA(1);
+                    if ( !(_la==AND || _la==OR) ) {
+                        ((BooleanFieldQueryValueContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
+                    }
+                    else {
+                        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+                        _errHandler.reportMatch(this);
+                        consume();
+                    }
+                    setState(163);
+                    fieldQueryValue();
+                    }
+                    } 
+                }
+                setState(168);
+                _errHandler.sync(this);
+                _alt = getInterpreter().adaptivePredict(_input,14,_ctx);
+            }
+            }
+        }
+        catch (RecognitionException re) {
+            _localctx.exception = re;
+            _errHandler.reportError(this, re);
+            _errHandler.recover(this, re);
+        }
+        finally {
+            unrollRecursionContexts(_parentctx);
         }
         return _localctx;
     }
@@ -1503,29 +1611,29 @@ class KqlBaseParser extends Parser {
 
     public final FieldNameContext fieldName() throws RecognitionException {
         FieldNameContext _localctx = new FieldNameContext(_ctx, getState());
-        enterRule(_localctx, 32, RULE_fieldName);
+        enterRule(_localctx, 34, RULE_fieldName);
         try {
-            setState(162);
+            setState(172);
             _errHandler.sync(this);
             switch (_input.LA(1)) {
             case UNQUOTED_LITERAL:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(159);
+                setState(169);
                 ((FieldNameContext)_localctx).value = match(UNQUOTED_LITERAL);
                 }
                 break;
             case QUOTED_STRING:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(160);
+                setState(170);
                 ((FieldNameContext)_localctx).value = match(QUOTED_STRING);
                 }
                 break;
             case WILDCARD:
                 enterOuterAlt(_localctx, 3);
                 {
-                setState(161);
+                setState(171);
                 ((FieldNameContext)_localctx).value = match(WILDCARD);
                 }
                 break;
@@ -1550,6 +1658,8 @@ class KqlBaseParser extends Parser {
             return query_sempred((QueryContext)_localctx, predIndex);
         case 5:
             return nestedSubQuery_sempred((NestedSubQueryContext)_localctx, predIndex);
+        case 16:
+            return booleanFieldQueryValue_sempred((BooleanFieldQueryValueContext)_localctx, predIndex);
         }
         return true;
     }
@@ -1567,110 +1677,124 @@ class KqlBaseParser extends Parser {
         }
         return true;
     }
+    private boolean booleanFieldQueryValue_sempred(BooleanFieldQueryValueContext _localctx, int predIndex) {
+        switch (predIndex) {
+        case 2:
+            return precpred(_ctx, 3);
+        }
+        return true;
+    }
 
     public static final String _serializedATN =
-        "\u0004\u0001\u0010\u00a5\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+        "\u0004\u0001\u0010\u00af\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
         "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
         "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
         "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
         "\u0002\f\u0007\f\u0002\r\u0007\r\u0002\u000e\u0007\u000e\u0002\u000f\u0007"+
-        "\u000f\u0002\u0010\u0007\u0010\u0001\u0000\u0003\u0000$\b\u0000\u0001"+
-        "\u0000\u0001\u0000\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
-        "\u0001\u0001\u0001\u0005\u0001.\b\u0001\n\u0001\f\u00011\t\u0001\u0001"+
-        "\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0001"+
-        "\u0002\u0001\u0002\u0003\u0002;\b\u0002\u0001\u0003\u0001\u0003\u0001"+
-        "\u0003\u0001\u0004\u0001\u0004\u0001\u0004\u0001\u0004\u0001\u0004\u0001"+
-        "\u0004\u0001\u0005\u0001\u0005\u0001\u0005\u0001\u0005\u0001\u0005\u0001"+
-        "\u0005\u0005\u0005L\b\u0005\n\u0005\f\u0005O\t\u0005\u0001\u0006\u0001"+
-        "\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0003\u0006W\b"+
-        "\u0006\u0001\u0007\u0001\u0007\u0001\u0007\u0001\u0007\u0001\b\u0001\b"+
-        "\u0003\b_\b\b\u0001\b\u0001\b\u0001\t\u0001\t\u0001\t\u0001\t\u0001\n"+
-        "\u0001\n\u0001\n\u0001\n\u0001\u000b\u0004\u000bl\b\u000b\u000b\u000b"+
-        "\f\u000bm\u0001\u000b\u0003\u000bq\b\u000b\u0001\f\u0001\f\u0001\f\u0001"+
-        "\f\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001"+
-        "\r\u0001\r\u0003\r\u0081\b\r\u0001\u000e\u0001\u000e\u0001\u000e\u0001"+
-        "\u000e\u0001\u000e\u0003\u000e\u0088\b\u000e\u0001\u000f\u0003\u000f\u008b"+
-        "\b\u000f\u0001\u000f\u0004\u000f\u008e\b\u000f\u000b\u000f\f\u000f\u008f"+
-        "\u0001\u000f\u0003\u000f\u0093\b\u000f\u0001\u000f\u0001\u000f\u0003\u000f"+
-        "\u0097\b\u000f\u0001\u000f\u0001\u000f\u0003\u000f\u009b\b\u000f\u0001"+
-        "\u000f\u0003\u000f\u009e\b\u000f\u0001\u0010\u0001\u0010\u0001\u0010\u0003"+
-        "\u0010\u00a3\b\u0010\u0001\u0010\u0000\u0002\u0002\n\u0011\u0000\u0002"+
+        "\u000f\u0002\u0010\u0007\u0010\u0002\u0011\u0007\u0011\u0001\u0000\u0003"+
+        "\u0000&\b\u0000\u0001\u0000\u0001\u0000\u0001\u0001\u0001\u0001\u0001"+
+        "\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0005\u00010\b\u0001\n\u0001"+
+        "\f\u00013\t\u0001\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0001"+
+        "\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0003\u0002=\b\u0002\u0001"+
+        "\u0003\u0001\u0003\u0001\u0003\u0001\u0004\u0001\u0004\u0001\u0004\u0001"+
+        "\u0004\u0001\u0004\u0001\u0004\u0001\u0005\u0001\u0005\u0001\u0005\u0001"+
+        "\u0005\u0001\u0005\u0001\u0005\u0005\u0005N\b\u0005\n\u0005\f\u0005Q\t"+
+        "\u0005\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001"+
+        "\u0006\u0001\u0006\u0003\u0006Z\b\u0006\u0001\u0007\u0001\u0007\u0001"+
+        "\u0007\u0001\u0007\u0001\b\u0001\b\u0003\bb\b\b\u0001\b\u0001\b\u0001"+
+        "\t\u0001\t\u0001\t\u0001\t\u0001\n\u0001\n\u0001\n\u0001\n\u0001\u000b"+
+        "\u0004\u000bo\b\u000b\u000b\u000b\f\u000bp\u0001\u000b\u0003\u000bt\b"+
+        "\u000b\u0001\f\u0001\f\u0001\f\u0001\f\u0001\r\u0001\r\u0001\r\u0001\r"+
+        "\u0001\u000e\u0001\u000e\u0001\u000f\u0004\u000f\u0081\b\u000f\u000b\u000f"+
+        "\f\u000f\u0082\u0001\u000f\u0003\u000f\u0086\b\u000f\u0001\u000f\u0001"+
+        "\u000f\u0001\u000f\u0003\u000f\u008b\b\u000f\u0001\u000f\u0001\u000f\u0001"+
+        "\u000f\u0001\u000f\u0001\u000f\u0003\u000f\u0092\b\u000f\u0001\u000f\u0001"+
+        "\u000f\u0001\u000f\u0001\u000f\u0003\u000f\u0098\b\u000f\u0001\u0010\u0001"+
+        "\u0010\u0001\u0010\u0001\u0010\u0001\u0010\u0001\u0010\u0003\u0010\u00a0"+
+        "\b\u0010\u0001\u0010\u0001\u0010\u0001\u0010\u0005\u0010\u00a5\b\u0010"+
+        "\n\u0010\f\u0010\u00a8\t\u0010\u0001\u0011\u0001\u0011\u0001\u0011\u0003"+
+        "\u0011\u00ad\b\u0011\u0001\u0011\u0000\u0003\u0002\n \u0012\u0000\u0002"+
         "\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c\u001e"+
-        " \u0000\u0004\u0001\u0000\u0002\u0003\u0001\u0000\u0006\t\u0002\u0000"+
-        "\u000e\u000e\u0010\u0010\u0001\u0000\u0002\u0004\u00b1\u0000#\u0001\u0000"+
-        "\u0000\u0000\u0002\'\u0001\u0000\u0000\u0000\u0004:\u0001\u0000\u0000"+
-        "\u0000\u0006<\u0001\u0000\u0000\u0000\b?\u0001\u0000\u0000\u0000\nE\u0001"+
-        "\u0000\u0000\u0000\fV\u0001\u0000\u0000\u0000\u000eX\u0001\u0000\u0000"+
-        "\u0000\u0010^\u0001\u0000\u0000\u0000\u0012b\u0001\u0000\u0000\u0000\u0014"+
-        "f\u0001\u0000\u0000\u0000\u0016p\u0001\u0000\u0000\u0000\u0018r\u0001"+
-        "\u0000\u0000\u0000\u001a\u0080\u0001\u0000\u0000\u0000\u001c\u0087\u0001"+
-        "\u0000\u0000\u0000\u001e\u009d\u0001\u0000\u0000\u0000 \u00a2\u0001\u0000"+
-        "\u0000\u0000\"$\u0003\u0002\u0001\u0000#\"\u0001\u0000\u0000\u0000#$\u0001"+
-        "\u0000\u0000\u0000$%\u0001\u0000\u0000\u0000%&\u0005\u0000\u0000\u0001"+
-        "&\u0001\u0001\u0000\u0000\u0000\'(\u0006\u0001\uffff\uffff\u0000()\u0003"+
-        "\u0004\u0002\u0000)/\u0001\u0000\u0000\u0000*+\n\u0002\u0000\u0000+,\u0007"+
-        "\u0000\u0000\u0000,.\u0003\u0002\u0001\u0002-*\u0001\u0000\u0000\u0000"+
-        ".1\u0001\u0000\u0000\u0000/-\u0001\u0000\u0000\u0000/0\u0001\u0000\u0000"+
-        "\u00000\u0003\u0001\u0000\u0000\u00001/\u0001\u0000\u0000\u00002;\u0003"+
-        "\u0006\u0003\u00003;\u0003\b\u0004\u00004;\u0003\u0012\t\u00005;\u0003"+
-        "\u0010\b\u00006;\u0003\u0018\f\u00007;\u0003\u0014\n\u00008;\u0003\u001a"+
-        "\r\u00009;\u0003\u001c\u000e\u0000:2\u0001\u0000\u0000\u0000:3\u0001\u0000"+
-        "\u0000\u0000:4\u0001\u0000\u0000\u0000:5\u0001\u0000\u0000\u0000:6\u0001"+
-        "\u0000\u0000\u0000:7\u0001\u0000\u0000\u0000:8\u0001\u0000\u0000\u0000"+
-        ":9\u0001\u0000\u0000\u0000;\u0005\u0001\u0000\u0000\u0000<=\u0005\u0004"+
-        "\u0000\u0000=>\u0003\u0004\u0002\u0000>\u0007\u0001\u0000\u0000\u0000"+
-        "?@\u0003 \u0010\u0000@A\u0005\u0005\u0000\u0000AB\u0005\f\u0000\u0000"+
-        "BC\u0003\n\u0005\u0000CD\u0005\r\u0000\u0000D\t\u0001\u0000\u0000\u0000"+
-        "EF\u0006\u0005\uffff\uffff\u0000FG\u0003\f\u0006\u0000GM\u0001\u0000\u0000"+
-        "\u0000HI\n\u0002\u0000\u0000IJ\u0007\u0000\u0000\u0000JL\u0003\n\u0005"+
-        "\u0002KH\u0001\u0000\u0000\u0000LO\u0001\u0000\u0000\u0000MK\u0001\u0000"+
-        "\u0000\u0000MN\u0001\u0000\u0000\u0000N\u000b\u0001\u0000\u0000\u0000"+
-        "OM\u0001\u0000\u0000\u0000PW\u0003\u0006\u0003\u0000QW\u0003\b\u0004\u0000"+
-        "RW\u0003\u000e\u0007\u0000SW\u0003\u0018\f\u0000TW\u0003\u0014\n\u0000"+
-        "UW\u0003\u001a\r\u0000VP\u0001\u0000\u0000\u0000VQ\u0001\u0000\u0000\u0000"+
-        "VR\u0001\u0000\u0000\u0000VS\u0001\u0000\u0000\u0000VT\u0001\u0000\u0000"+
-        "\u0000VU\u0001\u0000\u0000\u0000W\r\u0001\u0000\u0000\u0000XY\u0005\n"+
-        "\u0000\u0000YZ\u0003\n\u0005\u0000Z[\u0005\u000b\u0000\u0000[\u000f\u0001"+
-        "\u0000\u0000\u0000\\]\u0005\u0010\u0000\u0000]_\u0005\u0005\u0000\u0000"+
-        "^\\\u0001\u0000\u0000\u0000^_\u0001\u0000\u0000\u0000_`\u0001\u0000\u0000"+
-        "\u0000`a\u0005\u0010\u0000\u0000a\u0011\u0001\u0000\u0000\u0000bc\u0005"+
-        "\n\u0000\u0000cd\u0003\u0002\u0001\u0000de\u0005\u000b\u0000\u0000e\u0013"+
-        "\u0001\u0000\u0000\u0000fg\u0003 \u0010\u0000gh\u0007\u0001\u0000\u0000"+
-        "hi\u0003\u0016\u000b\u0000i\u0015\u0001\u0000\u0000\u0000jl\u0007\u0002"+
-        "\u0000\u0000kj\u0001\u0000\u0000\u0000lm\u0001\u0000\u0000\u0000mk\u0001"+
-        "\u0000\u0000\u0000mn\u0001\u0000\u0000\u0000nq\u0001\u0000\u0000\u0000"+
-        "oq\u0005\u000f\u0000\u0000pk\u0001\u0000\u0000\u0000po\u0001\u0000\u0000"+
-        "\u0000q\u0017\u0001\u0000\u0000\u0000rs\u0003 \u0010\u0000st\u0005\u0005"+
-        "\u0000\u0000tu\u0005\u0010\u0000\u0000u\u0019\u0001\u0000\u0000\u0000"+
-        "vw\u0003 \u0010\u0000wx\u0005\u0005\u0000\u0000xy\u0003\u001e\u000f\u0000"+
-        "y\u0081\u0001\u0000\u0000\u0000z{\u0003 \u0010\u0000{|\u0005\u0005\u0000"+
-        "\u0000|}\u0005\n\u0000\u0000}~\u0003\u001e\u000f\u0000~\u007f\u0005\u000b"+
-        "\u0000\u0000\u007f\u0081\u0001\u0000\u0000\u0000\u0080v\u0001\u0000\u0000"+
-        "\u0000\u0080z\u0001\u0000\u0000\u0000\u0081\u001b\u0001\u0000\u0000\u0000"+
-        "\u0082\u0088\u0003\u001e\u000f\u0000\u0083\u0084\u0005\n\u0000\u0000\u0084"+
-        "\u0085\u0003\u001e\u000f\u0000\u0085\u0086\u0005\u000b\u0000\u0000\u0086"+
-        "\u0088\u0001\u0000\u0000\u0000\u0087\u0082\u0001\u0000\u0000\u0000\u0087"+
-        "\u0083\u0001\u0000\u0000\u0000\u0088\u001d\u0001\u0000\u0000\u0000\u0089"+
-        "\u008b\u0007\u0003\u0000\u0000\u008a\u0089\u0001\u0000\u0000\u0000\u008a"+
-        "\u008b\u0001\u0000\u0000\u0000\u008b\u008d\u0001\u0000\u0000\u0000\u008c"+
-        "\u008e\u0007\u0002\u0000\u0000\u008d\u008c\u0001\u0000\u0000\u0000\u008e"+
-        "\u008f\u0001\u0000\u0000\u0000\u008f\u008d\u0001\u0000\u0000\u0000\u008f"+
-        "\u0090\u0001\u0000\u0000\u0000\u0090\u0092\u0001\u0000\u0000\u0000\u0091"+
-        "\u0093\u0007\u0003\u0000\u0000\u0092\u0091\u0001\u0000\u0000\u0000\u0092"+
-        "\u0093\u0001\u0000\u0000\u0000\u0093\u009e\u0001\u0000\u0000\u0000\u0094"+
-        "\u0096\u0007\u0000\u0000\u0000\u0095\u0097\u0007\u0003\u0000\u0000\u0096"+
-        "\u0095\u0001\u0000\u0000\u0000\u0096\u0097\u0001\u0000\u0000\u0000\u0097"+
-        "\u009e\u0001\u0000\u0000\u0000\u0098\u009a\u0005\u0004\u0000\u0000\u0099"+
-        "\u009b\u0007\u0000\u0000\u0000\u009a\u0099\u0001\u0000\u0000\u0000\u009a"+
-        "\u009b\u0001\u0000\u0000\u0000\u009b\u009e\u0001\u0000\u0000\u0000\u009c"+
-        "\u009e\u0005\u000f\u0000\u0000\u009d\u008a\u0001\u0000\u0000\u0000\u009d"+
-        "\u0094\u0001\u0000\u0000\u0000\u009d\u0098\u0001\u0000\u0000\u0000\u009d"+
-        "\u009c\u0001\u0000\u0000\u0000\u009e\u001f\u0001\u0000\u0000\u0000\u009f"+
-        "\u00a3\u0005\u000e\u0000\u0000\u00a0\u00a3\u0005\u000f\u0000\u0000\u00a1"+
-        "\u00a3\u0005\u0010\u0000\u0000\u00a2\u009f\u0001\u0000\u0000\u0000\u00a2"+
-        "\u00a0\u0001\u0000\u0000\u0000\u00a2\u00a1\u0001\u0000\u0000\u0000\u00a3"+
-        "!\u0001\u0000\u0000\u0000\u0011#/:MV^mp\u0080\u0087\u008a\u008f\u0092"+
-        "\u0096\u009a\u009d\u00a2";
+        " \"\u0000\u0004\u0001\u0000\u0002\u0003\u0001\u0000\u0006\t\u0002\u0000"+
+        "\u000e\u000e\u0010\u0010\u0001\u0000\u0002\u0004\u00bd\u0000%\u0001\u0000"+
+        "\u0000\u0000\u0002)\u0001\u0000\u0000\u0000\u0004<\u0001\u0000\u0000\u0000"+
+        "\u0006>\u0001\u0000\u0000\u0000\bA\u0001\u0000\u0000\u0000\nG\u0001\u0000"+
+        "\u0000\u0000\fY\u0001\u0000\u0000\u0000\u000e[\u0001\u0000\u0000\u0000"+
+        "\u0010a\u0001\u0000\u0000\u0000\u0012e\u0001\u0000\u0000\u0000\u0014i"+
+        "\u0001\u0000\u0000\u0000\u0016s\u0001\u0000\u0000\u0000\u0018u\u0001\u0000"+
+        "\u0000\u0000\u001ay\u0001\u0000\u0000\u0000\u001c}\u0001\u0000\u0000\u0000"+
+        "\u001e\u0097\u0001\u0000\u0000\u0000 \u009f\u0001\u0000\u0000\u0000\""+
+        "\u00ac\u0001\u0000\u0000\u0000$&\u0003\u0002\u0001\u0000%$\u0001\u0000"+
+        "\u0000\u0000%&\u0001\u0000\u0000\u0000&\'\u0001\u0000\u0000\u0000\'(\u0005"+
+        "\u0000\u0000\u0001(\u0001\u0001\u0000\u0000\u0000)*\u0006\u0001\uffff"+
+        "\uffff\u0000*+\u0003\u0004\u0002\u0000+1\u0001\u0000\u0000\u0000,-\n\u0002"+
+        "\u0000\u0000-.\u0007\u0000\u0000\u0000.0\u0003\u0002\u0001\u0002/,\u0001"+
+        "\u0000\u0000\u000003\u0001\u0000\u0000\u00001/\u0001\u0000\u0000\u0000"+
+        "12\u0001\u0000\u0000\u00002\u0003\u0001\u0000\u0000\u000031\u0001\u0000"+
+        "\u0000\u00004=\u0003\u0006\u0003\u00005=\u0003\b\u0004\u00006=\u0003\u0012"+
+        "\t\u00007=\u0003\u0010\b\u00008=\u0003\u0018\f\u00009=\u0003\u0014\n\u0000"+
+        ":=\u0003\u001a\r\u0000;=\u0003\u001c\u000e\u0000<4\u0001\u0000\u0000\u0000"+
+        "<5\u0001\u0000\u0000\u0000<6\u0001\u0000\u0000\u0000<7\u0001\u0000\u0000"+
+        "\u0000<8\u0001\u0000\u0000\u0000<9\u0001\u0000\u0000\u0000<:\u0001\u0000"+
+        "\u0000\u0000<;\u0001\u0000\u0000\u0000=\u0005\u0001\u0000\u0000\u0000"+
+        ">?\u0005\u0004\u0000\u0000?@\u0003\u0004\u0002\u0000@\u0007\u0001\u0000"+
+        "\u0000\u0000AB\u0003\"\u0011\u0000BC\u0005\u0005\u0000\u0000CD\u0005\f"+
+        "\u0000\u0000DE\u0003\n\u0005\u0000EF\u0005\r\u0000\u0000F\t\u0001\u0000"+
+        "\u0000\u0000GH\u0006\u0005\uffff\uffff\u0000HI\u0003\f\u0006\u0000IO\u0001"+
+        "\u0000\u0000\u0000JK\n\u0002\u0000\u0000KL\u0007\u0000\u0000\u0000LN\u0003"+
+        "\n\u0005\u0002MJ\u0001\u0000\u0000\u0000NQ\u0001\u0000\u0000\u0000OM\u0001"+
+        "\u0000\u0000\u0000OP\u0001\u0000\u0000\u0000P\u000b\u0001\u0000\u0000"+
+        "\u0000QO\u0001\u0000\u0000\u0000RZ\u0003\u0006\u0003\u0000SZ\u0003\b\u0004"+
+        "\u0000TZ\u0003\u0010\b\u0000UZ\u0003\u000e\u0007\u0000VZ\u0003\u0018\f"+
+        "\u0000WZ\u0003\u0014\n\u0000XZ\u0003\u001a\r\u0000YR\u0001\u0000\u0000"+
+        "\u0000YS\u0001\u0000\u0000\u0000YT\u0001\u0000\u0000\u0000YU\u0001\u0000"+
+        "\u0000\u0000YV\u0001\u0000\u0000\u0000YW\u0001\u0000\u0000\u0000YX\u0001"+
+        "\u0000\u0000\u0000Z\r\u0001\u0000\u0000\u0000[\\\u0005\n\u0000\u0000\\"+
+        "]\u0003\n\u0005\u0000]^\u0005\u000b\u0000\u0000^\u000f\u0001\u0000\u0000"+
+        "\u0000_`\u0005\u0010\u0000\u0000`b\u0005\u0005\u0000\u0000a_\u0001\u0000"+
+        "\u0000\u0000ab\u0001\u0000\u0000\u0000bc\u0001\u0000\u0000\u0000cd\u0005"+
+        "\u0010\u0000\u0000d\u0011\u0001\u0000\u0000\u0000ef\u0005\n\u0000\u0000"+
+        "fg\u0003\u0002\u0001\u0000gh\u0005\u000b\u0000\u0000h\u0013\u0001\u0000"+
+        "\u0000\u0000ij\u0003\"\u0011\u0000jk\u0007\u0001\u0000\u0000kl\u0003\u0016"+
+        "\u000b\u0000l\u0015\u0001\u0000\u0000\u0000mo\u0007\u0002\u0000\u0000"+
+        "nm\u0001\u0000\u0000\u0000op\u0001\u0000\u0000\u0000pn\u0001\u0000\u0000"+
+        "\u0000pq\u0001\u0000\u0000\u0000qt\u0001\u0000\u0000\u0000rt\u0005\u000f"+
+        "\u0000\u0000sn\u0001\u0000\u0000\u0000sr\u0001\u0000\u0000\u0000t\u0017"+
+        "\u0001\u0000\u0000\u0000uv\u0003\"\u0011\u0000vw\u0005\u0005\u0000\u0000"+
+        "wx\u0005\u0010\u0000\u0000x\u0019\u0001\u0000\u0000\u0000yz\u0003\"\u0011"+
+        "\u0000z{\u0005\u0005\u0000\u0000{|\u0003\u001e\u000f\u0000|\u001b\u0001"+
+        "\u0000\u0000\u0000}~\u0003\u001e\u000f\u0000~\u001d\u0001\u0000\u0000"+
+        "\u0000\u007f\u0081\u0007\u0002\u0000\u0000\u0080\u007f\u0001\u0000\u0000"+
+        "\u0000\u0081\u0082\u0001\u0000\u0000\u0000\u0082\u0080\u0001\u0000\u0000"+
+        "\u0000\u0082\u0083\u0001\u0000\u0000\u0000\u0083\u0098\u0001\u0000\u0000"+
+        "\u0000\u0084\u0086\u0007\u0002\u0000\u0000\u0085\u0084\u0001\u0000\u0000"+
+        "\u0000\u0085\u0086\u0001\u0000\u0000\u0000\u0086\u0087\u0001\u0000\u0000"+
+        "\u0000\u0087\u0098\u0007\u0003\u0000\u0000\u0088\u008a\u0007\u0000\u0000"+
+        "\u0000\u0089\u008b\u0007\u0002\u0000\u0000\u008a\u0089\u0001\u0000\u0000"+
+        "\u0000\u008a\u008b\u0001\u0000\u0000\u0000\u008b\u0098\u0001\u0000\u0000"+
+        "\u0000\u008c\u008d\u0007\u0000\u0000\u0000\u008d\u0098\u0007\u0003\u0000"+
+        "\u0000\u008e\u0098\u0005\u000f\u0000\u0000\u008f\u0091\u0005\u0004\u0000"+
+        "\u0000\u0090\u0092\u0003\u001e\u000f\u0000\u0091\u0090\u0001\u0000\u0000"+
+        "\u0000\u0091\u0092\u0001\u0000\u0000\u0000\u0092\u0098\u0001\u0000\u0000"+
+        "\u0000\u0093\u0094\u0005\n\u0000\u0000\u0094\u0095\u0003 \u0010\u0000"+
+        "\u0095\u0096\u0005\u000b\u0000\u0000\u0096\u0098\u0001\u0000\u0000\u0000"+
+        "\u0097\u0080\u0001\u0000\u0000\u0000\u0097\u0085\u0001\u0000\u0000\u0000"+
+        "\u0097\u0088\u0001\u0000\u0000\u0000\u0097\u008c\u0001\u0000\u0000\u0000"+
+        "\u0097\u008e\u0001\u0000\u0000\u0000\u0097\u008f\u0001\u0000\u0000\u0000"+
+        "\u0097\u0093\u0001\u0000\u0000\u0000\u0098\u001f\u0001\u0000\u0000\u0000"+
+        "\u0099\u009a\u0006\u0010\uffff\uffff\u0000\u009a\u009b\u0005\n\u0000\u0000"+
+        "\u009b\u009c\u0003 \u0010\u0000\u009c\u009d\u0005\u000b\u0000\u0000\u009d"+
+        "\u00a0\u0001\u0000\u0000\u0000\u009e\u00a0\u0003\u001e\u000f\u0000\u009f"+
+        "\u0099\u0001\u0000\u0000\u0000\u009f\u009e\u0001\u0000\u0000\u0000\u00a0"+
+        "\u00a6\u0001\u0000\u0000\u0000\u00a1\u00a2\n\u0003\u0000\u0000\u00a2\u00a3"+
+        "\u0007\u0000\u0000\u0000\u00a3\u00a5\u0003\u001e\u000f\u0000\u00a4\u00a1"+
+        "\u0001\u0000\u0000\u0000\u00a5\u00a8\u0001\u0000\u0000\u0000\u00a6\u00a4"+
+        "\u0001\u0000\u0000\u0000\u00a6\u00a7\u0001\u0000\u0000\u0000\u00a7!\u0001"+
+        "\u0000\u0000\u0000\u00a8\u00a6\u0001\u0000\u0000\u0000\u00a9\u00ad\u0005"+
+        "\u000e\u0000\u0000\u00aa\u00ad\u0005\u000f\u0000\u0000\u00ab\u00ad\u0005"+
+        "\u0010\u0000\u0000\u00ac\u00a9\u0001\u0000\u0000\u0000\u00ac\u00aa\u0001"+
+        "\u0000\u0000\u0000\u00ac\u00ab\u0001\u0000\u0000\u0000\u00ad#\u0001\u0000"+
+        "\u0000\u0000\u0010%1<OYaps\u0082\u0085\u008a\u0091\u0097\u009f\u00a6\u00ac";
     public static final ATN _ATN =
         new ATNDeserializer().deserialize(_serializedATN.toCharArray());
     static {

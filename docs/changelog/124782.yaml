@@ -1,5 +1,0 @@
-pr: 124782
-summary: "Aggs: Let terms run in global ords mode no match"
-area: Aggregations
-type: bug
-issues: []

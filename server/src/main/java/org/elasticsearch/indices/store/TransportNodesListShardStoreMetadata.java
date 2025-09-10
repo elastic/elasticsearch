@@ -11,6 +11,7 @@ package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
@@ -45,7 +46,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -142,7 +143,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         );
                         exists = true;
                         return storeFilesMetadata;
-                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                    } catch (IndexNotFoundException e) {
                         logger.trace(() -> "[" + shardId + "] node is missing index, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
@@ -306,7 +307,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         private final ShardId shardId;
         @Nullable

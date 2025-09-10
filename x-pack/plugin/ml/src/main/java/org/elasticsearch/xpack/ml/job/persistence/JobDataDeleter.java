@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
@@ -108,15 +109,7 @@ public class JobDataDeleter {
      */
     public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(
-                new BulkByScrollResponse(
-                    TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    false
-                )
-            );
+            listener.onResponse(emptyBulkByScrollResponse());
             return;
         }
 
@@ -133,7 +126,15 @@ public class JobDataDeleter {
             indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
         }
 
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0])).setRefresh(true)
+        String[] indicesToQuery = removeReadOnlyIndices(
+            new ArrayList<>(indices),
+            listener,
+            "model snapshots",
+            () -> listener.onResponse(emptyBulkByScrollResponse())
+        );
+        if (indicesToQuery.length == 0) return;
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
 
@@ -141,6 +142,16 @@ public class JobDataDeleter {
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+    }
+
+    private static BulkByScrollResponse emptyBulkByScrollResponse() {
+        return new BulkByScrollResponse(
+            TimeValue.ZERO,
+            new BulkByScrollTask.Status(Collections.emptyList(), null),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            false
+        );
     }
 
     /**
@@ -181,7 +192,16 @@ public class JobDataDeleter {
             boolQuery.filter(QueryBuilders.termsQuery(Annotation.EVENT.getPreferredName(), eventsToDelete));
         }
         QueryBuilder query = QueryBuilders.constantScoreQuery(boolQuery);
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setQuery(query)
+
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnnotationIndex.READ_ALIAS_NAME),
+            listener,
+            "annotations",
+            () -> listener.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
@@ -197,6 +217,28 @@ public class JobDataDeleter {
             dbqRequest,
             ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
         );
+    }
+
+    private <T> String[] removeReadOnlyIndices(
+        List<String> indicesToQuery,
+        ActionListener<T> listener,
+        String entityType,
+        Runnable onEmpty
+    ) {
+        try {
+            indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indicesToQuery);
+        } catch (Exception e) {
+            logger.error("Failed to get writable indices for [" + jobId + "]", e);
+            listener.onFailure(e);
+            return new String[0];
+        }
+        if (indicesToQuery.isEmpty()) {
+            logger.info("No writable {} indices found for [{}] job. No {} to remove.", entityType, jobId, entityType);
+            if (onEmpty != null) {
+                onEmpty.run();
+            }
+        }
+        return indicesToQuery.toArray(String[]::new);
     }
 
     /**
@@ -220,7 +262,14 @@ public class JobDataDeleter {
                 )
             )
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(query)
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
+            listener,
+            "results",
+            () -> listener.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
@@ -265,9 +314,14 @@ public class JobDataDeleter {
      * @param listener Response listener
      */
     public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setRefresh(
-            true
-        )
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
+            listener,
+            "datafeed timing stats",
+            () -> listener.onResponse(emptyBulkByScrollResponse())
+        );
+        if (indicesToQuery.length == 0) return;
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
 
@@ -457,7 +511,14 @@ public class JobDataDeleter {
         ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
             logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
             ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-            DeleteByQueryRequest request = new DeleteByQueryRequest(indices).setQuery(query)
+            String[] indicesToQuery = removeReadOnlyIndices(
+                List.of(indices),
+                listener,
+                "results",
+                () -> listener.onResponse(emptyBulkByScrollResponse())
+            );
+            if (indicesToQuery.length == 0) return;
+            DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
                 .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
                 .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
                 .setAbortOnVersionConflict(false)
@@ -530,7 +591,16 @@ public class JobDataDeleter {
     private void deleteQuantiles(@SuppressWarnings("HiddenField") String jobId, ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
+
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            finishedHandler,
+            "quantiles",
+            () -> finishedHandler.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
@@ -560,7 +630,14 @@ public class JobDataDeleter {
     ) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            finishedHandler,
+            "categorizer state",
+            () -> finishedHandler.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);

@@ -26,12 +26,12 @@ For information about circuit breaker errors, see [Circuit breaker errors](docs-
 The parent-level breaker can be configured with the following settings:
 
 `indices.breaker.total.use_real_memory`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Determines whether the parent breaker should take real memory usage into account (`true`) or only consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Determines whether the parent breaker should take real memory usage into account (`true`) or only consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`.
 
 $$$indices-breaker-total-limit$$$
 
 `indices.breaker.total.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Starting limit for overall parent breaker. Defaults to 70% of JVM heap if `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory` is `true`, defaults to 95% of the JVM heap.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Starting limit for overall parent breaker. Defaults to 70% of JVM heap if `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory` is `true`, defaults to 95% of the JVM heap.
 
 
 ### Field data circuit breaker [fielddata-circuit-breaker]
@@ -41,12 +41,12 @@ The field data circuit breaker estimates the heap memory required to load a fiel
 $$$fielddata-circuit-breaker-limit$$$
 
 `indices.breaker.fielddata.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limit for fielddata breaker. Defaults to 40% of JVM heap.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limit for fielddata breaker. Defaults to 40% of JVM heap.
 
 $$$fielddata-circuit-breaker-overhead$$$
 
 `indices.breaker.fielddata.overhead` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A constant that all field data estimations are multiplied with to determine a final estimation. Defaults to `1.03`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all field data estimations are multiplied with to determine a final estimation. Defaults to `1.03`.
 
 
 ### Request circuit breaker [request-circuit-breaker]
@@ -56,12 +56,12 @@ The request circuit breaker allows Elasticsearch to prevent per-request data str
 $$$request-breaker-limit$$$
 
 `indices.breaker.request.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limit for request breaker, defaults to 60% of JVM heap.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limit for request breaker, defaults to 60% of JVM heap.
 
 $$$request-breaker-overhead$$$
 
 `indices.breaker.request.overhead` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A constant that all request estimations are multiplied with to determine a final estimation. Defaults to `1`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all request estimations are multiplied with to determine a final estimation. Defaults to `1`.
 
 
 ### In flight requests circuit breaker [in-flight-circuit-breaker]
@@ -69,10 +69,10 @@ $$$request-breaker-overhead$$$
 The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all currently active incoming requests on transport or HTTP level from exceeding a certain amount of memory on a node. The memory usage is based on the content length of the request itself. This circuit breaker also considers that memory is not only needed for representing the raw request but also as a structured object which is reflected by default overhead.
 
 `network.breaker.inflight_requests.limit`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limit for in flight requests breaker, defaults to 100% of JVM heap. This means that it is bound by the limit configured for the parent circuit breaker.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limit for in flight requests breaker, defaults to 100% of JVM heap. This means that it is bound by the limit configured for the parent circuit breaker.
 
 `network.breaker.inflight_requests.overhead`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A constant that all in flight requests estimations are multiplied with to determine a final estimation. Defaults to 2.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all in flight requests estimations are multiplied with to determine a final estimation. Defaults to 2.
 
 
 ### Script compilation circuit breaker [script-compilation-circuit-breaker]
@@ -82,7 +82,7 @@ Slightly different than the previous memory-based circuit breaker, the script co
 See the "prefer-parameters" section of the [scripting](docs-content://explore-analyze/scripting/modules-scripting-using.md) documentation for more information.
 
 `script.max_compilations_rate`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limit for the number of unique dynamic scripts within a certain interval that are allowed to be compiled. Defaults to `150/5m`, meaning 150 every 5 minutes.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limit for the number of unique dynamic scripts within a certain interval that are allowed to be compiled. Defaults to `150/5m`, meaning 150 every 5 minutes.
 
 If the cluster regularly hits the given `max_compilation_rate`, it’s possible the script cache is undersized, use [Nodes Stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) to inspect the number of recent cache evictions, `script.cache_evictions_history` and compilations `script.compilations_history`.  If there are a large number of recent cache evictions or compilations, the script cache may be undersized, consider doubling the size of the script cache via the setting `script.cache.max_size`.
 
@@ -94,7 +94,7 @@ Poorly written regular expressions can degrade cluster stability and performance
 $$$script-painless-regex-enabled$$$
 
 `script.painless.regex.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Enables regex in Painless scripts. Accepts:
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables regex in Painless scripts. Accepts:
 
     `limited` (Default)
     :   Enables regex but limits complexity using the [`script.painless.regex.limit-factor`](#script-painless-regex-limit-factor) cluster setting.
@@ -109,7 +109,7 @@ $$$script-painless-regex-enabled$$$
 $$$script-painless-regex-limit-factor$$$
 
 `script.painless.regex.limit-factor`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Limits the number of characters a regular expression in a Painless script can consider. {{es}} calculates this limit by multiplying the setting value by the script input’s character length.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Limits the number of characters a regular expression in a Painless script can consider. {{es}} calculates this limit by multiplying the setting value by the script input’s character length.
 
     For example, the input `foobarbaz` has a character length of `9`. If `script.painless.regex.limit-factor` is `6`, a regular expression on `foobarbaz` can consider up to 54 (9 * 6) characters. If the expression exceeds this limit, it triggers the regex circuit breaker and returns an error.
 
@@ -126,13 +126,13 @@ To prevent this from happening, a special circuit breaker is used, which limits 
 This circuit breaker can be configured using the following settings:
 
 `breaker.eql_sequence.limit`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) The limit for circuit breaker used to restrict the memory utilisation during the execution of an EQL sequence query. This value is defined as a percentage of the JVM heap. Defaults to `50%`. If the [parent circuit breaker](#parent-circuit-breaker) is set to a value less than `50%`, this setting uses that value as its default instead.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The limit for circuit breaker used to restrict the memory utilisation during the execution of an EQL sequence query. This value is defined as a percentage of the JVM heap. Defaults to `50%`. If the [parent circuit breaker](#parent-circuit-breaker) is set to a value less than `50%`, this setting uses that value as its default instead.
 
 `breaker.eql_sequence.overhead`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) A constant that sequence query memory estimates are multiplied by to determine a final estimate. Defaults to `1`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that sequence query memory estimates are multiplied by to determine a final estimate. Defaults to `1`.
 
 `breaker.eql_sequence.type`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Circuit breaker type. Valid values are:
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Circuit breaker type. Valid values are:
 
     `memory` (Default)
     :   The breaker limits memory usage for EQL sequence queries.
@@ -145,11 +145,11 @@ This circuit breaker can be configured using the following settings:
 ### {{ml-cap}} circuit breaker [circuit-breakers-page-model-inference]
 
 `breaker.model_inference.limit`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) The limit for the trained model circuit breaker. This value is defined as a percentage of the JVM heap. Defaults to `50%`. If the [parent circuit breaker](#parent-circuit-breaker) is set to a value less than `50%`, this setting uses that value as its default instead.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The limit for the trained model circuit breaker. This value is defined as a percentage of the JVM heap. Defaults to `50%`. If the [parent circuit breaker](#parent-circuit-breaker) is set to a value less than `50%`, this setting uses that value as its default instead.
 
 `breaker.model_inference.overhead`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) A constant that all trained model estimations are multiplied by to determine a final estimation. Defaults to `1`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all trained model estimations are multiplied by to determine a final estimation. Defaults to `1`.
 
 `breaker.model_inference.type`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The underlying type of the circuit breaker. There are two valid options: `noop` and `memory`. `noop` means the circuit breaker does nothing to prevent too much memory usage. `memory` means the circuit breaker tracks the memory used by trained models and can potentially break and prevent `OutOfMemory` errors. The default value is `memory`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The underlying type of the circuit breaker. There are two valid options: `noop` and `memory`. `noop` means the circuit breaker does nothing to prevent too much memory usage. `memory` means the circuit breaker tracks the memory used by trained models and can potentially break and prevent `OutOfMemory` errors. The default value is `memory`.
 

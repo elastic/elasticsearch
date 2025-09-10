@@ -15,24 +15,24 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.transport.LinkedProjectConfig;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
@@ -58,10 +58,14 @@ class IndicesAndAliasesResolver {
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
 
-    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
+    IndicesAndAliasesResolver(
+        Settings settings,
+        LinkedProjectConfigService linkedProjectConfigService,
+        IndexNameExpressionResolver resolver
+    ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
-        this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
     }
 
     /**
@@ -315,11 +319,7 @@ class IndicesAndAliasesResolver {
                 // First, if a selector is present, check to make sure that selectors are even allowed here
                 if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
                     String originalIndexExpression = indicesRequest.indices()[0];
-                    throw new IllegalArgumentException(
-                        "Index component selectors are not supported in this context but found selector in expression ["
-                            + originalIndexExpression
-                            + "]"
-                    );
+                    throw new UnsupportedSelectorException(originalIndexExpression);
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
@@ -548,18 +548,20 @@ class IndicesAndAliasesResolver {
 
         private final CopyOnWriteArraySet<String> clusters;
 
-        private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+        private RemoteClusterResolver(Settings settings, LinkedProjectConfigService linkedProjectConfigService) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
-            listenForUpdates(clusterSettings);
+            clusters = new CopyOnWriteArraySet<>(
+                linkedProjectConfigService.getInitialLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+            );
+            linkedProjectConfigService.register(this);
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-            if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
-                clusters.add(clusterAlias);
+        public void updateLinkedProject(LinkedProjectConfig config) {
+            if (config.isConnectionEnabled()) {
+                clusters.add(config.linkedProjectAlias());
             } else {
-                clusters.remove(clusterAlias);
+                clusters.remove(config.linkedProjectAlias());
             }
         }
 

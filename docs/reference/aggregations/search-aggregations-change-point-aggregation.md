@@ -46,14 +46,13 @@ A `change_point` aggregation looks like this in isolation:
 `bucket`
 :   (Optional, object) Values of the bucket that indicates the discovered change point. Not returned if no change point was found. All the aggregations in the bucket are returned as well.
 
-    ::::{dropdown} Properties of bucket
+    **Properties of `bucket**:
+
     `key`
     :   (value) The key of the bucket matched. Could be string or numeric.
 
     `doc_count`
     :   (number) The document count of the bucket.
-
-    ::::
 
 
 `type`

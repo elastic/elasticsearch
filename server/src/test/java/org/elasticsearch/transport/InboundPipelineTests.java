@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -50,7 +49,7 @@ public class InboundPipelineTests extends ESTestCase {
         final List<Tuple<MessageData, Exception>> actual = new ArrayList<>();
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
         final BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {
-            try {
+            try (m) {
                 final Header header = m.getHeader();
                 final MessageData actualData;
                 final TransportVersion version = header.getVersion();
@@ -99,7 +98,7 @@ public class InboundPipelineTests extends ESTestCase {
             toRelease.clear();
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
-                    final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
+                    final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersion.minimumCompatible());
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
                     Compression.Scheme compressionScheme = getCompressionScheme();
@@ -204,7 +203,7 @@ public class InboundPipelineTests extends ESTestCase {
     }
 
     public void testDecodeExceptionIsPropagated() throws IOException {
-        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> m.close();
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(recycler);
@@ -214,7 +213,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final TransportVersion invalidVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+            final TransportVersion invalidVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
@@ -245,7 +244,7 @@ public class InboundPipelineTests extends ESTestCase {
     }
 
     public void testEnsureBodyIsNotPrematurelyReleased() throws IOException {
-        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> m.close();
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(recycler);

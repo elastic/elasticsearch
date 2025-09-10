@@ -78,6 +78,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
     }
 
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -377,7 +382,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 return new SyntheticSourceExample(
                     example.expectedForSyntheticSource(),
                     example.expectedForSyntheticSource(),
-                    example.expectedForBlockLoader(),
                     example.mapping()
                 );
             }
@@ -400,7 +404,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 if (v.malformedOutput == null) {
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
-                return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
             }
             List<Value> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
@@ -477,11 +481,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
-    }
-
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        assumeTrue("Disabled, tested by ScaledFloatFieldBlockLoaderTests instead", false);
-        return null;
     }
 
     @Override

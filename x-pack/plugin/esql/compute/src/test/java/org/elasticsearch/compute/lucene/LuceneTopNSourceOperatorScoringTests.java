@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -22,6 +21,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -53,12 +53,12 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
     private IndexReader reader;
 
     @After
-    private void closeIndex() throws IOException {
+    public void closeScoringIndex() throws IOException {
         IOUtils.close(reader, directory);
     }
 
     @Override
-    protected LuceneTopNSourceOperator.Factory simple() {
+    protected LuceneTopNSourceOperator.Factory simple(SimpleOptions options) {
         return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 
@@ -91,10 +91,13 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
                 return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { null }));
             }
         };
-        Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
+            new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
+        );
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
@@ -103,6 +106,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             maxPageSize,
             limit,
             sorts,
+            estimatedPerRowSortSize,
             true // scoring
         );
     }

@@ -50,6 +50,6 @@ public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort
     @Override
     protected double randomValue() {
         // 2L^50 fits in the mantisa of a double which the test sort of needs.
-        return randomLongBetween(-2L ^ 50, 2L ^ 50);
+        return randomLongBetween(-(1L << 50), (1L << 50));
     }
 }

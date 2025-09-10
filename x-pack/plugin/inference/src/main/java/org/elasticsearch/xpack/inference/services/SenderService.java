@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -41,11 +43,13 @@ public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
+    private final ClusterService clusterService;
 
-    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     public Sender getSender() {
@@ -66,33 +70,36 @@ public abstract class SenderService implements InferenceService {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
         init();
-        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
+        var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
+        var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
     private static InferenceInputs createInput(
         SenderService service,
         Model model,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         InputType inputType,
         @Nullable String query,
         @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
         boolean stream
     ) {
+        List<String> textInput = ChunkInferenceInput.inputs(input);
         return switch (model.getTaskType()) {
-            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(textInput, stream);
             case RERANK -> {
                 ValidationException validationException = new ValidationException();
                 service.validateRerankParameters(returnDocuments, topN, validationException);
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
-                yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
+                yield new QueryAndDocsInputs(query, textInput, returnDocuments, topN, stream);
             }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
@@ -124,7 +131,7 @@ public abstract class SenderService implements InferenceService {
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

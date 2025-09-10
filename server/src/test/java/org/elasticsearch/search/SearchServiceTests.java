@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
@@ -51,15 +53,26 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
+import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -124,7 +137,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         doTestCanMatch(searchRequest, sortField, true, null, false);
     }
 
-    public void testMaybeWrapListenerForStackTrace() {
+    public void testWrapListenerForErrorHandling() {
+        ShardId shardId = new ShardId("index", "index", 0);
         // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
         AtomicBoolean isWrapped = new AtomicBoolean(false);
         ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
@@ -146,9 +160,161 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), threadPool);
+        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool);
         isWrapped.set(true);
         listener.onFailure(e);
+    }
+
+    public void testWrapListenerForErrorHandlingDebugLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            Configurator.setLevel(SearchService.class, Level.DEBUG);
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG, // We will throw a 400-level exception, so it should only be logged at the debug level
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
+                    IllegalArgumentException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
+            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener.onFailure(e);
+        }
+    }
+
+    public void testWrapListenerForErrorHandlingWarnLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
+                    SearchService.class.getCanonicalName(),
+                    Level.WARN, // We will throw a 500-level exception, so it should be logged at the warn level
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
+                    IllegalStateException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
+            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener.onFailure(e);
+        }
+    }
+
+    public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {
+        {
+            final String threadPoolName = randomFrom(
+                ThreadPool.THREAD_POOL_TYPES.entrySet()
+                    .stream()
+                    .filter(t -> t.getValue().equals(ThreadPool.ThreadPoolType.FIXED))
+                    .map(Map.Entry::getKey)
+                    .sorted()
+                    .toList()
+            );
+            final int size = 6;
+            final int queueSize = size * 100;
+
+            ThreadPool threadPool = null;
+            final Settings nodeSettings = Settings.builder()
+                .put("node.name", "testPrewarmingBasedOnQueuedItems")
+                .put("thread_pool." + threadPoolName + ".size", size)
+                .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
+                .build();
+            final CountDownLatch blockThreadPoolToQueueItems = new CountDownLatch(1);
+
+            try {
+                threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+                ExecutorService executor = threadPool.executor(threadPoolName);
+
+                // these tasks will consume the thread pool causing further
+                // submissions to queue
+                final CountDownLatch occupyAllThreads = new CountDownLatch(size);
+                for (int i = 0; i < size; i++) {
+                    executor.execute(() -> {
+                        try {
+                            occupyAllThreads.countDown();
+                            blockThreadPoolToQueueItems.await();
+                        } catch (InterruptedException e) {
+                            fail(e.toString());
+                        }
+                    });
+                }
+
+                // wait for all threads to have an active task in their hands
+                occupyAllThreads.await();
+
+                // now on to the fun stuff, let's queue up items - 2 queued items
+                // for every thread in the pool (plus one more for one thread)
+                for (int i = 0; i < 13; i++) {
+                    executor.execute(() -> {});
+                }
+
+                // 13 queued up items
+                assertThat(isExecutorQueuedBeyondPrewarmingFactor(executor, 10), is(false));
+                assertThat(isExecutorQueuedBeyondPrewarmingFactor(executor, 2), is(true));
+
+                // let's get us at the 10 factor (6 threads * 10 + 1= 61 queued up items - at which point we should indicate
+                // prewarming should not happen)
+                for (int i = 0; i < 48; i++) {
+                    executor.execute(() -> {});
+                }
+
+                // 61 queued up items
+                assertThat(isExecutorQueuedBeyondPrewarmingFactor(executor, 10), is(true));
+                blockThreadPoolToQueueItems.countDown();
+            } catch (AssertionError e) {
+                // terminate more gracefully if there's an assertion error above
+                blockThreadPoolToQueueItems.countDown();
+                throw e;
+            } finally {
+                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            }
+        }
+
+        {
+            // executors that are not ThreadPoolExecutor (i.e. no stats available) are always
+            // allowing prewarming
+            assertThat(isExecutorQueuedBeyondPrewarmingFactor(DIRECT_EXECUTOR_SERVICE, 2), is(false));
+        }
     }
 
     private void doTestCanMatch(

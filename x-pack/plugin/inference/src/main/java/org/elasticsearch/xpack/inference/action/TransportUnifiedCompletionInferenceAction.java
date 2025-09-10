@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionExcep
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.concurrent.Flow;
 
@@ -89,7 +89,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), null, listener);
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), listener);
     }
 
     @Override

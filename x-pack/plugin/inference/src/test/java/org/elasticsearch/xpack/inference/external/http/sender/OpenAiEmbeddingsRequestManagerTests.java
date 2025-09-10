@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequest;
 
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;

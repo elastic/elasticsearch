@@ -306,13 +306,16 @@ public class MetadataPersistentTasksTests extends ESTestCase {
                     ClusterPersistentTasksCustomMetadata::new
                 )
             )
-            .putProjectCustom(
-                PersistentTasksCustomMetadata.TYPE,
-                mutatePersistentTasks(
-                    PersistentTasksCustomMetadata.get(before.getProject(Metadata.DEFAULT_PROJECT_ID)),
-                    MetadataPersistentTasksTests::oneProjectPersistentTask,
-                    PersistentTasksCustomMetadata::new
-                )
+            .put(
+                ProjectMetadata.builder(before.getProject(Metadata.DEFAULT_PROJECT_ID))
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        mutatePersistentTasks(
+                            PersistentTasksCustomMetadata.get(before.getProject(Metadata.DEFAULT_PROJECT_ID)),
+                            MetadataPersistentTasksTests::oneProjectPersistentTask,
+                            PersistentTasksCustomMetadata::new
+                        )
+                    )
             )
             .build();
         return new Tuple<>(before, after);

@@ -52,13 +52,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final var projectId = randomProjectIdOrDefault();
-        indexNameExpressionResolver = new IndexNameExpressionResolver(
-            new ThreadContext(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProject(projectId)
-        );
-        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
         // Try to resist failing at midnight on the first/last day of the month. Time generally moves forward, so make a timestamp for
         // the next day and if they're different, add both to the cluster state. Check for either in date math tests.
@@ -67,8 +60,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         dateTimeIndexToday = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>", timeMillis);
         dateTimeIndexTomorrow = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>", timeTomorrow);
 
-        projectMetadata = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        projectMetadata = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("data-stream1", 2), new Tuple<>("data-stream2", 2)),
             List.of("index1", "index2", "index3", dateTimeIndexToday, dateTimeIndexTomorrow),
             randomMillisUpToYear9999(),
@@ -76,7 +68,15 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             0,
             false,
             true
-        ).metadata().getProject(projectId);
+        );
+
+        indexNameExpressionResolver = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProject(projectMetadata.id())
+        );
+        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
     }
 
     public void testResolveIndexAbstractions() {

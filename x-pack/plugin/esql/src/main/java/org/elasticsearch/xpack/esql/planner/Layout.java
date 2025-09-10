@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,7 +65,7 @@ public interface Layout {
         private final List<ChannelSet> channels;
 
         public Builder() {
-            channels = new ArrayList<>();
+            this(new ArrayList<>());
         }
 
         Builder(List<ChannelSet> channels) {
@@ -76,7 +76,7 @@ public interface Layout {
          * Appends a new channel to the layout. The channel is mapped to one or more attribute ids.
          */
         public Builder append(ChannelSet set) {
-            if (set.nameIds.size() < 1) {
+            if (set.nameIds.isEmpty()) {
                 throw new IllegalArgumentException("Channel must be mapped to at least one id.");
             }
             channels.add(set);
@@ -104,29 +104,20 @@ public interface Layout {
          * Build a new {@link Layout}.
          */
         public Layout build() {
-            Map<NameId, ChannelAndType> layout = new HashMap<>();
+            int size = 0;
+            for (ChannelSet channel : channels) {
+                size += channel.nameIds.size();
+            }
+            Map<NameId, ChannelAndType> layout = Maps.newHashMapWithExpectedSize(size);
             int numberOfChannels = 0;
             for (ChannelSet set : channels) {
-                boolean createNewChannel = true;
-                int channel = 0;
+                int channel = numberOfChannels++;
                 for (NameId id : set.nameIds) {
-                    if (layout.containsKey(id)) {
-                        // If a NameId already exists in the map, do not increase the numberOfChannels, it can cause inverse() to create
-                        // a null in the list of channels, and NullPointerException when build() is called.
-                        // TODO avoid adding duplicated attributes with the same id in the plan, ReplaceMissingFieldWithNull may add nulls
-                        // with the same ids as the missing field ids.
-                        continue;
-                    }
-                    if (createNewChannel) {
-                        channel = numberOfChannels++;
-                        createNewChannel = false;
-                    }
+                    // Duplicate name ids would mean that have 2 channels that are declared under the same id. That makes no sense - which
+                    // channel should subsequent operators use, then, when they want to refer to this id?
+                    assert (layout.containsKey(id) == false) : "Duplicate name ids are not allowed in layouts";
                     ChannelAndType next = new ChannelAndType(channel, set.type);
-                    ChannelAndType prev = layout.put(id, next);
-                    // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238
-                    // if (prev != null) {
-                    // throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
-                    // }
+                    layout.put(id, next);
                 }
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);

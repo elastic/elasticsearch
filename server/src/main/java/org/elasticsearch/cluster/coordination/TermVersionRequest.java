@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
-abstract class TermVersionRequest extends TransportRequest implements Writeable {
+abstract class TermVersionRequest extends AbstractTransportRequest implements Writeable {
     protected final DiscoveryNode sourceNode;
     protected final long term;
     protected final long version;

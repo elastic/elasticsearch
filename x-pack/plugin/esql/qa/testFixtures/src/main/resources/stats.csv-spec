@@ -5,6 +5,14 @@ l:long
 5
 ;
 
+maxOfUnsignedLong
+required_capability: agg_max_min_unsigned_long
+from ul_logs | stats ul = max(bytes_in);
+
+ul:ul
+18446744073709551615
+;
+
 maxOfInteger
 // tag::max[]
 FROM employees
@@ -16,6 +24,21 @@ FROM employees
 MAX(languages):integer
 5
 // end::max-result[]
+;
+
+minOfLong
+from employees | stats l = min(languages.long);
+
+l:long
+1
+;
+
+minOfUnsignedLong
+required_capability: agg_max_min_unsigned_long
+from ul_logs | stats ul = min(bytes_in);
+
+ul:ul
+0
 ;
 
 minOfInteger
@@ -1428,6 +1451,7 @@ docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
 | STATS total_salary_changes = SUM(MV_MAX(salary_change))
 // end::docsStatsSumNestedExpression[]
+| EVAL total_salary_changes = ROUND(total_salary_changes, 2)
 ;
 
 // tag::docsStatsSumNestedExpression-result[]
@@ -3096,4 +3120,28 @@ ROW a = [1,2,3], b = 5
 
 STD_DEV(a):double | STD_DEV(b):double
 0.816496580927726 | 0.0
+;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date) BY d = (date == "2025-01-01")
+;
+
+m:datetime               | d:boolean
+1999-04-30T00:00:00.000Z | true
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date), x = d::int + 1 BY d = (date == "2025-01-01")
+;
+
+m:datetime               | x:integer | d:boolean
+1999-04-30T00:00:00.000Z | 2         | true
 ;

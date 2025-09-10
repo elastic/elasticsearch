@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InternalRandomSampler extends InternalSingleBucketAggregation implements Sampler {
+public class InternalRandomSampler extends InternalSingleBucketAggregation {
     public static final String NAME = "mapped_random_sampler";
     public static final String PARSER_NAME = "random_sampler";
 

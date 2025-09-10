@@ -173,6 +173,8 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRecordCorrectSegmentCountsWithBackgroundMerges() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().ensureAtLeastNumDataNodes(2);
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
 

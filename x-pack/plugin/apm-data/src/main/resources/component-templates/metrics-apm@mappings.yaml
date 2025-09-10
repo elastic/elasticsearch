@@ -6,6 +6,8 @@ _meta:
 template:
   mappings:
     properties:
+      system.process.cpu.start_time:
+        type: date
       processor.event:
         type: constant_keyword
         value: metric

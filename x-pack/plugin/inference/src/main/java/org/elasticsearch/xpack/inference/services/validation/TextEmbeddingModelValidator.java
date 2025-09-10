@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.inference.services.validation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
@@ -26,8 +28,8 @@ public class TextEmbeddingModelValidator implements ModelValidator {
     }
 
     @Override
-    public void validate(InferenceService service, Model model, ActionListener<Model> listener) {
-        serviceIntegrationValidator.validate(service, model, listener.delegateFailureAndWrap((delegate, r) -> {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+        serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
             delegate.onResponse(postValidate(service, model, r));
         }));
     }

@@ -1,5 +1,0 @@
-pr: 125352
-summary: Fix NPE in rolling over unknown target and return 404
-area: Indices APIs
-type: bug
-issues: []

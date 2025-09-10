@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.core.rest.action;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -112,10 +110,10 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            final ArrayList<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>(super.getActions());
-            actions.add(new ActionHandler<>(BLOCKING_XPACK_USAGE, BlockingXPackUsageAction.class));
-            actions.add(new ActionHandler<>(NON_BLOCKING_XPACK_USAGE, NonBlockingXPackUsageAction.class));
+        public List<ActionHandler> getActions() {
+            final ArrayList<ActionHandler> actions = new ArrayList<>(super.getActions());
+            actions.add(new ActionHandler(BLOCKING_XPACK_USAGE, BlockingXPackUsageAction.class));
+            actions.add(new ActionHandler(NON_BLOCKING_XPACK_USAGE, NonBlockingXPackUsageAction.class));
             return actions;
         }
     }

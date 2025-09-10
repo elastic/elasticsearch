@@ -48,7 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -89,6 +89,7 @@ import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.integration.FieldLevelSecurityTests.openPointInTime;
@@ -892,7 +893,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, 50, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
+            "vector",
+            queryVector,
+            50,
+            50,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
 
         if (randomBoolean()) {
             query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
@@ -960,7 +969,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 3);
                 assertSearchHits(response, "1", "2", "3");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(3L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value2"));
@@ -975,7 +984,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "1");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(1L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().size(), equalTo(0));
@@ -989,7 +998,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "2");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(1L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().size(), equalTo(1));
@@ -1003,7 +1012,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertHitCount(response, 2);
                 assertSearchHits(response, "1", "2");
 
-                Global globalAgg = response.getAggregations().get("global");
+                SingleBucketAggregation globalAgg = response.getAggregations().get("global");
                 assertThat(globalAgg.getDocCount(), equalTo(2L));
                 Terms termsAgg = globalAgg.getAggregations().get("field2");
                 assertThat(termsAgg.getBuckets().size(), equalTo(1));

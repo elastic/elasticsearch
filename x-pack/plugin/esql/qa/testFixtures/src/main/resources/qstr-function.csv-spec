@@ -8,10 +8,10 @@ required_capability: qstr_function
 // tag::qstr-with-field[]
 FROM books 
 | WHERE QSTR("author: Faulkner")
+// end::qstr-with-field[]
 | KEEP book_no, author 
 | SORT book_no 
 | LIMIT 5
-// end::qstr-with-field[]
 ;
 
 // tag::qstr-with-field-result[]
@@ -196,10 +196,10 @@ required_capability: query_string_function_options
 // tag::qstr-with-options[]
 FROM books 
 | WHERE QSTR("title: Hobbjt~", {"fuzziness": 2})
+// end::qstr-with-options[]
 | KEEP book_no, title 
 | SORT book_no 
 | LIMIT 5
-// end::qstr-with-options[]
 ;
 ignoreOrder: true
 
@@ -209,4 +209,112 @@ book_no:keyword | title:text
 6405            | The Hobbit or There and Back Again
 7480            | The Hobbit                                     
 // end::qstr-with-options-result[]
+;
+
+testQstrInStatsNonPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where qstr("title:Lord")
+;
+
+c:long
+3
+;
+
+testMatchInStatsPushableAndNonPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where (qstr("title: lord") and ratings > 4.5) or (qstr("author: dostoevsky") and length(title) > 50)
+;
+
+c:long
+6
+;
+
+testQstrInStatsPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where qstr("author:tolkien")
+;
+
+c:long
+22
+;
+
+testQstrInStatsWithOptions
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+FROM books
+| STATS c = count(*) where qstr("title: Hobbit Back Again", {"default_operator": "AND"})
+;
+
+c:long
+1
+;
+
+testQstrInStatsWithNonPushableDisjunctions
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where qstr("title: lord") or length(title) > 130 
+;
+
+c:long
+5
+;
+
+testQstrInStatsWithMultipleAggs
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where qstr("title: lord"), m = max(book_no::integer) where qstr("author: tolkien"), n = min(book_no::integer) where qstr("author: dostoevsky") 
+;
+
+c:long | m:integer | n:integer
+4      | 9607      | 1211
+;
+
+testQstrInStatsWithGrouping
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS r = AVG(ratings) where qstr("title: Lord Rings", {"default_operator": "AND"}) by author | WHERE r is not null
+;
+ignoreOrder: true
+
+r:double           | author: text
+4.75               | Alan Lee                 
+4.674999952316284  | J. R. R. Tolkien         
+4.670000076293945  | John Ronald Reuel Tolkien
+4.670000076293945  | Agnes Perkins            
+4.670000076293945  | Charles Adolph Huttar    
+4.670000076293945  | Walter Scheps            
+4.559999942779541  | J.R.R. Tolkien           
+;
+
+testQstrInStatsWithGroupingBy
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+FROM airports 
+| STATS c = COUNT(*) where qstr("country: \"United States\"") BY scalerank
+| SORT scalerank desc
+;
+
+c: long     |   scalerank: long   
+0              | 9              
+44             | 8              
+10             | 7              
+28             | 6              
+10             | 5              
+12             | 4              
+10             | 3              
+15             | 2              
 ;

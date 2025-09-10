@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
@@ -25,41 +22,10 @@ import java.util.function.Supplier;
  *     {@link UnsupportedOperationException}.
  * </p>
  */
-public interface LocalSupplier extends Supplier<Block[]>, Writeable {
-
-    LocalSupplier EMPTY = new LocalSupplier() {
-        @Override
-        public Block[] get() {
-            return BlockUtils.NO_BLOCKS;
-        }
-
-        @Override
-        public String toString() {
-            return "EMPTY";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(0);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj == EMPTY;
-        }
-
-        @Override
-        public int hashCode() {
-            return 0;
-        }
-    };
+public interface LocalSupplier extends Supplier<Block[]>, NamedWriteable {
 
     static LocalSupplier of(Block[] blocks) {
         return new ImmediateLocalSupplier(blocks);
     }
 
-    static LocalSupplier readFrom(PlanStreamInput in) throws IOException {
-        Block[] blocks = in.readCachedBlockArray();
-        return blocks.length == 0 ? EMPTY : of(blocks);
-    }
 }

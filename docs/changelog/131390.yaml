@@ -1,0 +1,5 @@
+pr: 131390
+summary: Add optimized path for intermediate values aggregator
+area: ES|QL
+type: enhancement
+issues: []

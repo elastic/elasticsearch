@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +21,10 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -86,11 +92,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         """;
 
     public void testUseBloomFilter() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, randomBoolean(), false);
+        boolean timeSeries = randomBoolean();
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, timeSeries, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
+
+        Class<? extends PostingsFormat> expectedPostingsFormat = timeSeries ? ES812PostingsFormat.class : Lucene101PostingsFormat.class;
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(expectedPostingsFormat));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
@@ -104,7 +113,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene101PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
@@ -194,6 +203,33 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
+    }
+
+    public void testMetaFields() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
+        // See: PerFieldFormatSupplier why these fields shouldn't use tsdb codec
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_NAME)), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)), is(false));
+    }
+
+    public void testSeqnoField() throws IOException {
+        assumeTrue(
+            "seqno_field_use_tsdb_doc_values_format should be enabled",
+            PerFieldFormatSupplier.SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()
+        );
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
+    }
+
+    public void testSeqnoFieldFeatureFlagDisabled() throws IOException {
+        assumeTrue(
+            "seqno_field_use_tsdb_doc_values_format should be disabled",
+            PerFieldFormatSupplier.SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled() == false
+        );
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(false));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, IndexMode mode, String mapping) throws IOException {

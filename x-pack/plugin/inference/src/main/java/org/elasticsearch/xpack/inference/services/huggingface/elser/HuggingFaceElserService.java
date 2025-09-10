@@ -11,13 +11,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -34,10 +35,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelParameters;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -58,8 +59,16 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     private static final String SERVICE_NAME = "Hugging Face ELSER";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
-    public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public HuggingFaceElserService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -68,18 +77,17 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    protected HuggingFaceModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
-        ConfigurationParseContext context
-    ) {
-        return switch (taskType) {
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
+        return switch (input.taskType()) {
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+                input.inferenceEntityId(),
+                input.taskType(),
+                NAME,
+                input.serviceSettings(),
+                input.secretSettings(),
+                input.context()
+            );
+            default -> throw new ElasticsearchStatusException(input.failureMessage(), RestStatus.BAD_REQUEST);
         };
     }
 
@@ -112,7 +120,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     private static List<ChunkedInference> translateToChunkedResults(EmbeddingsInput inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            validateInputSizeAgainstEmbeddings(inputs.getInputs(), textEmbeddingResults.embeddings().size());
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs.getInputs()), textEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.getInputs().size());
 
@@ -122,7 +130,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new EmbeddingResults.Chunk(
                                 textEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
+                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).input().length())
                             )
                         )
                     )
@@ -130,7 +138,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             }
             return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = EmbeddingsInput.of(inputs).getInputs();
+            var inputsAsList = ChunkInferenceInput.inputs(EmbeddingsInput.of(inputs).getInputs());
             return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));

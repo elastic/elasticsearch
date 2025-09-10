@@ -68,7 +68,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
         boolean singleIndex = request.query().startsWith("from test |");
         if (singleIndex && randomIntBetween(0, 100) <= 20) {

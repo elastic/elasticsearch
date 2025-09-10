@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-metric-agg-reduce-context.html
+products:
+  - id: painless
 ---
 
 # Metric aggregation reduce context [painless-metric-agg-reduce-context]

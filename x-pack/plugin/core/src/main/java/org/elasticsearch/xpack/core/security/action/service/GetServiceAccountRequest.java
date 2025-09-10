@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -16,7 +16,7 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetServiceAccountRequest extends ActionRequest {
+public class GetServiceAccountRequest extends LegacyActionRequest {
 
     @Nullable
     private final String namespace;

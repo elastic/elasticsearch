@@ -34,8 +34,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -522,16 +520,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(putMappingRequest, TransportPutMappingAction.TYPE.name());
-    }
-
-    public void testGetSettings() {
-        interceptTransportActions(GetSettingsAction.NAME);
-
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().getSettings(getSettingsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(getSettingsRequest, GetSettingsAction.NAME);
     }
 
     public void testUpdateSettings() {

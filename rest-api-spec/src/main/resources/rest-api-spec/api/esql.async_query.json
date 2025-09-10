@@ -1,8 +1,8 @@
 {
   "esql.async_query":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-api.html",
-      "description":"Executes an ESQL request asynchronously"
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query",
+      "description":"Run an async ES|QL query"
     },
     "stability":"stable",
     "visibility":"public",
@@ -37,8 +37,8 @@
       },
       "allow_partial_results": {
         "type": "boolean",
-        "description": "If `true`, partial results will be returned if there are shard failures, but\nthe query can continue to execute on other clusters and shards.",
-        "default": false
+        "description": "If `true`, partial results will be returned if there are shard failures, but\nthe query can continue to execute on other clusters and shards.\nIf `false`, the entire query will fail if there are\nany failures.",
+        "default": true
       }
     },
     "body":{

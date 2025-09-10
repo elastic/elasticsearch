@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Replace any evaluation from the inlined aggregation side (right side) to the left side (source) to perform the matching.
- * In INLINE m = MIN(x) BY a + b the right side contains STATS m = MIN(X) BY a + b.
+ * In INLINESTATS m = MIN(x) BY a + b the right side contains STATS m = MIN(X) BY a + b.
  * As the grouping key is used to perform the join, the evaluation required for creating it has to be copied to the left side
  * as well.
  */

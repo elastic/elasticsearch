@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.repositories.metering.s3;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
@@ -21,7 +22,7 @@ import java.util.Map;
 
 public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
 
-    static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
 

@@ -7,25 +7,23 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AlibabaCloudSearchCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 final class AlibabaCloudSearchCompletionAction implements ExecutableAction {
@@ -57,16 +55,14 @@ final class AlibabaCloudSearchCompletionAction implements ExecutableAction {
             return;
         }
 
+        ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
+            failedToSendRequestErrorMessage,
+            listener
+        );
         try {
-            ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
-                failedToSendRequestErrorMessage,
-                listener
-            );
             sender.send(requestCreator, inferenceInputs, timeout, wrappedListener);
-        } catch (ElasticsearchException e) {
-            listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(createInternalServerError(e, failedToSendRequestErrorMessage));
+            wrappedListener.onFailure(e);
         }
     }
 }

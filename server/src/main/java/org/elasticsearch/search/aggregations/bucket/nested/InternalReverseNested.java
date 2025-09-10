@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Result of the {@link ReverseNestedAggregator}.
  */
-public class InternalReverseNested extends InternalSingleBucketAggregation implements ReverseNested {
+public class InternalReverseNested extends InternalSingleBucketAggregation {
     public InternalReverseNested(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);
     }

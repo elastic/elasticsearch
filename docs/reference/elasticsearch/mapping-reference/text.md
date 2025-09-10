@@ -99,16 +99,17 @@ The following parameters are accepted by `text` fields:
 
 ## Synthetic `_source` [text-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
+`text` fields can use a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field to support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) without storing values of the text field itself.
 
+In this case, the synthetic source of the `text` field will have the same [modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) as a `keyword` field.
 
-`text` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) if they have a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field that supports synthetic `_source` or if the `text` field sets `store` to `true`. Either way, it may not have [`copy_to`](/reference/elasticsearch/mapping-reference/copy-to.md).
+These modifications can impact usage of `text` fields:
+* Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more details. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
+* Handling of `null` values is different. `text` fields ignore `null` values, but `keyword` fields support replacing `null` values with a value specified in the `null_value` parameter. This replacement is represented in synthetic source.
 
-If using a sub-`keyword` field, then the values are sorted in the same way as a `keyword` field’s values are sorted. By default, that means sorted with duplicates removed. So:
+For example:
 
-$$$synthetic-source-text-example-default$$$
+$$$synthetic-source-text-example-multi-field$$$
 
 ```console
 PUT idx
@@ -127,8 +128,9 @@ PUT idx
       "text": {
         "type": "text",
         "fields": {
-          "raw": {
-            "type": "keyword"
+          "kwd": {
+            "type": "keyword",
+            "null_value": "NA"
           }
         }
       }
@@ -138,6 +140,7 @@ PUT idx
 PUT idx/_doc/1
 {
   "text": [
+    null,
     "the quick brown fox",
     "the quick brown fox",
     "jumped over the lazy dog"
@@ -150,18 +153,15 @@ Will become:
 ```console-result
 {
   "text": [
+    "NA",
     "jumped over the lazy dog",
     "the quick brown fox"
   ]
 }
 ```
 
-::::{note}
-Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
-::::
 
-
-If the `text` field sets `store` to true then order and duplicates are preserved.
+If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied. For example:
 
 $$$synthetic-source-text-example-stored$$$
 
@@ -179,7 +179,15 @@ PUT idx
   },
   "mappings": {
     "properties": {
-      "text": { "type": "text", "store": true }
+      "text": {
+        "type": "text",
+        "store": true,
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
     }
   }
 }

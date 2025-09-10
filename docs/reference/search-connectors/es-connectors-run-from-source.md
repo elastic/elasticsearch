@@ -44,7 +44,7 @@ Follow these steps:
 * Open the `config.yml` configuration file in your editor of choice.
 * Replace the values for `host` (your Elasticsearch endpoint), `api_key`, `connector_id`, and `service_type`.
 
-    :::::{dropdown} **Expand** to see an example `config.yml` file
+    :::::{dropdown} Expand to see an example config.yml file
     Replace the values for `api_key`, `connector_id`, and `service_type` with the values you copied earlier.
 
     ```yaml

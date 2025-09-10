@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,6 +53,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
+        Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null
             : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
@@ -61,6 +63,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             vector,
             k,
             numCands,
+            visitPercentage,
             rescoreVectorBuilder,
             randomBoolean() ? null : randomFloat()
         );
@@ -110,93 +113,120 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
-        switch (random().nextInt(8)) {
-            case 0:
+        return switch (IVF_FORMAT.isEnabled() ? random().nextInt(9) : random().nextInt(8)) {
+            case 0 -> {
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     newField,
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
+                    instance.visitPercentage,
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 1:
+            }
+            case 1 -> {
                 float[] newVector = randomValueOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     newVector,
                     instance.k,
                     instance.numCands,
+                    instance.visitPercentage,
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 2:
+            }
+            case 2 -> {
                 // given how the test instance is created, we have a 20-value gap between `k` and `numCands` so we SHOULD be safe
                 Integer newK = randomValueOtherThan(instance.k, () -> instance.k + ESTestCase.randomInt(10));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     newK,
                     instance.numCands,
+                    instance.visitPercentage,
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 3:
+            }
+            case 3 -> {
                 Integer newNumCands = randomValueOtherThan(instance.numCands, () -> instance.numCands + ESTestCase.randomInt(100));
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     instance.k,
                     newNumCands,
+                    instance.visitPercentage,
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).boost(instance.boost);
-            case 4:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k,
-                    instance.numCands,
-                    instance.getRescoreVectorBuilder(),
-                    instance.similarity
-                ).addFilterQueries(instance.filterQueries)
-                    .addFilterQuery(QueryBuilders.termQuery("new_field", "new-value"))
-                    .boost(instance.boost);
-            case 5:
+            }
+            case 4 -> new KnnSearchBuilder(
+                instance.field,
+                instance.queryVector,
+                instance.k,
+                instance.numCands,
+                instance.visitPercentage,
+                instance.getRescoreVectorBuilder(),
+                instance.similarity
+            ).addFilterQueries(instance.filterQueries)
+                .addFilterQuery(QueryBuilders.termQuery("new_field", "new-value"))
+                .boost(instance.boost);
+            case 5 -> {
                 float newBoost = randomValueOtherThan(instance.boost, ESTestCase::randomFloat);
-                return new KnnSearchBuilder(
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
+                    instance.visitPercentage,
                     instance.getRescoreVectorBuilder(),
                     instance.similarity
                 ).addFilterQueries(instance.filterQueries).boost(newBoost);
-            case 6:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k,
-                    instance.numCands,
+            }
+            case 6 -> new KnnSearchBuilder(
+                instance.field,
+                instance.queryVector,
+                instance.k,
+                instance.numCands,
+                instance.visitPercentage,
+                instance.getRescoreVectorBuilder(),
+                randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
+            ).addFilterQueries(instance.filterQueries).boost(instance.boost);
+            case 7 -> new KnnSearchBuilder(
+                instance.field,
+                instance.queryVector,
+                instance.k,
+                instance.numCands,
+                instance.visitPercentage,
+                randomValueOtherThan(
                     instance.getRescoreVectorBuilder(),
-                    randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
-                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
-            case 7:
-                return new KnnSearchBuilder(
+                    () -> new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false))
+                ),
+                instance.similarity
+            ).addFilterQueries(instance.filterQueries).boost(instance.boost);
+            case 8 -> {
+                Float newVisitPercentage = null;
+                if (IVF_FORMAT.isEnabled()) {
+                    newVisitPercentage = randomValueOtherThan(
+                        instance.visitPercentage,
+                        () -> ESTestCase.randomBoolean() ? null : ESTestCase.randomFloatBetween(0f, 100f, true)
+                    );
+                }
+                yield new KnnSearchBuilder(
                     instance.field,
                     instance.queryVector,
                     instance.k,
                     instance.numCands,
-                    randomValueOtherThan(
-                        instance.getRescoreVectorBuilder(),
-                        () -> new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false))
-                    ),
+                    newVisitPercentage,
+                    instance.getRescoreVectorBuilder(),
                     instance.similarity
-                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
-            default:
-                throw new IllegalStateException();
-        }
+                ).boost(instance.boost);
+            }
+            default -> throw new IllegalStateException();
+        };
     }
 
     public void testToQueryBuilder() {
@@ -204,11 +234,12 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         float[] vector = randomVector(randomIntBetween(2, 30));
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
+        Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         Float similarity = randomBoolean() ? null : randomFloat();
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null
             : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
-        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands, rescoreVectorBuilder, similarity);
+        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         if (randomBoolean()) {
@@ -224,16 +255,22 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             builder.addFilterQuery(filter);
         }
 
-        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands, numCands, rescoreVectorBuilder, similarity)
-            .addFilterQueries(filterQueries)
-            .boost(boost);
+        QueryBuilder expected = new KnnVectorQueryBuilder(
+            field,
+            vector,
+            numCands,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity
+        ).addFilterQueries(filterQueries).boost(boost);
         assertEquals(expected, builder.toQueryBuilder());
     }
 
     public void testNumCandsLessThanK() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 50, 10, null, null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 50, 10, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
         );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
@@ -241,15 +278,33 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     public void testNumCandsExceedsLimit() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 100, 10002, null, null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 100, 10002, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
         );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
+    }
+
+    public void testVisitPercentageLessThan0() {
+        assumeTrue("requires visit_percentage to be enabled", IVF_FORMAT.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnnSearchBuilder("field", randomVector(3), 50, 100, -190f, null, null)
+        );
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
+    }
+
+    public void testVisitPercentageGreaterThan100() {
+        assumeTrue("requires visit_percentage to be enabled", IVF_FORMAT.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnnSearchBuilder("field", randomVector(3), 100, 1000, 100000f, null, null)
+        );
+        assertThat(e.getMessage(), containsString("[visit_percentage] must be between 0 and 100"));
     }
 
     public void testInvalidK() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 0, 100, null, null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 0, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
         );
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
     }
@@ -257,7 +312,15 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     public void testInvalidRescoreVectorBuilder() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 10, 100, new RescoreVectorBuilder(0.99F), null)
+            () -> new KnnSearchBuilder(
+                "field",
+                randomVector(3),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                new RescoreVectorBuilder(0.99F),
+                null
+            )
         );
         assertThat(e.getMessage(), containsString("[oversample] must be >= 1.0"));
     }
@@ -270,6 +333,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
             5,
             10,
+            IVF_FORMAT.isEnabled() ? 10f : null,
             expectedRescore,
             1f
         );

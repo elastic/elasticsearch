@@ -25,6 +25,8 @@ public abstract class AbstractSystemIndicesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .plugin("system-indices-qa")
+        .module("ingest-common")
+        .module("x-pack-migrate")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user("rest_user", "rest-user-password")

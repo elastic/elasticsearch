@@ -54,7 +54,7 @@ import java.util.Arrays;
  *
  * Of course, decoding follows the opposite order with respect to encoding.
  */
-public class TSDBDocValuesEncoder {
+public final class TSDBDocValuesEncoder {
     private final DocValuesForUtil forUtil;
     private final int numericBlockSize;
 
@@ -175,7 +175,7 @@ public class TSDBDocValuesEncoder {
     /**
      * Encode the given longs using a combination of delta-coding, GCD factorization and bit packing.
      */
-    void encode(long[] in, DataOutput out) throws IOException {
+    public void encode(long[] in, DataOutput out) throws IOException {
         assert in.length == numericBlockSize;
 
         deltaEncode(0, 0, in, out);
@@ -193,7 +193,7 @@ public class TSDBDocValuesEncoder {
      *   <li>3: cycle</li>
      * </ul>
      */
-    void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
+    public void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
         assert in.length == numericBlockSize;
         int numRuns = 1;
         long firstValue = in[0];
@@ -260,7 +260,7 @@ public class TSDBDocValuesEncoder {
         }
     }
 
-    void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
+    public void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
         assert out.length == numericBlockSize : out.length;
 
         long v1 = in.readVLong();
@@ -294,7 +294,7 @@ public class TSDBDocValuesEncoder {
     }
 
     /** Decode longs that have been encoded with {@link #encode}. */
-    void decode(DataInput in, long[] out) throws IOException {
+    public void decode(DataInput in, long[] out) throws IOException {
         assert out.length == numericBlockSize : out.length;
 
         final int token = in.readVInt();
@@ -346,8 +346,10 @@ public class TSDBDocValuesEncoder {
     }
 
     private void deltaDecode(long[] arr) {
-        for (int i = 1; i < numericBlockSize; ++i) {
-            arr[i] += arr[i - 1];
+        long sum = 0;
+        for (int i = 0; i < numericBlockSize; ++i) {
+            sum += arr[i];
+            arr[i] = sum;
         }
     }
 }

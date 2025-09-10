@@ -9,11 +9,13 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -40,6 +42,18 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    }
+
+    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    }
+
+    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension);
+    }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
@@ -143,5 +157,246 @@ public class ESVectorUtil {
             distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
         }
         return distance;
+    }
+
+    /**
+     * Calculate the loss for optimized-scalar quantization for the given parameteres
+     * @param target The vector being quantized, assumed to be centered
+     * @param lowerInterval The lower interval value for which to calculate the loss
+     * @param upperInterval The upper interval value for which to calculate the loss
+     * @param points the quantization points
+     * @param norm2 The norm squared of the target vector
+     * @param lambda The lambda parameter for controlling anisotropic loss calculation
+     * @param quantize array to store the computed quantize vector.
+     *
+     * @return The loss for the given parameters
+     */
+    public static float calculateOSQLoss(
+        float[] target,
+        float lowerInterval,
+        float upperInterval,
+        int points,
+        float norm2,
+        float lambda,
+        int[] quantize
+    ) {
+        assert upperInterval >= lowerInterval;
+        float step = ((upperInterval - lowerInterval) / (points - 1.0F));
+        float invStep = 1f / step;
+        return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);
+    }
+
+    /**
+     * Calculate the grid points for optimized-scalar quantization
+     * @param target The vector being quantized, assumed to be centered
+     * @param quantize The quantize vector which should have at least the target vector length
+     * @param points the quantization points
+     * @param pts The array to store the grid points, must be of length 5
+     */
+    public static void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
+        assert target.length <= quantize.length;
+        assert pts.length == 5;
+        IMPL.calculateOSQGridPoints(target, quantize, points, pts);
+    }
+
+    /**
+     * Center the target vector and calculate the optimized-scalar quantization statistics
+     * @param target The vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 5
+     */
+    public static void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
+        assert target.length == centroid.length;
+        assert stats.length == 5;
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
+    }
+
+    /**
+     * Center the target vector and calculate the optimized-scalar quantization statistics
+     * @param target The vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 6
+     */
+    public static void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        assert stats.length == 6;
+        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /**
+     * Calculates the difference between two vectors and stores the result in a third vector.
+     * @param v1 the first vector
+     * @param v2 the second vector
+     * @param result the result vector, must be the same length as the input vectors
+     */
+    public static void subtract(float[] v1, float[] v2, float[] result) {
+        if (v1.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + v2.length);
+        }
+        if (result.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + result.length + "!=" + v1.length);
+        }
+        for (int i = 0; i < v1.length; i++) {
+            result[i] = v1[i] - v2[i];
+        }
+    }
+
+    /**
+     * calculates the soar distance for a vector and a centroid
+     * @param v1 the vector
+     * @param centroid the centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @return the soar distance
+     */
+    public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Optimized-scalar quantization of the provided vector to the provided destination array.
+     *
+     * @param vector the vector to quantize
+     * @param destination the array to store the result
+     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
+     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
+     * @param bit the number of bits to use for quantization, must be between 1 and 8
+     *
+     * @return return the sum of all the elements of the resulting quantized vector.
+     */
+    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
+        if (vector.length > destination.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
+        }
+        if (bit <= 0 || bit > Byte.SIZE) {
+            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
+        }
+        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distances an array to store the computed square distances, must have length 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        if (q.length != v0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v0.length);
+        }
+        if (q.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v1.length);
+        }
+        if (q.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v2.length);
+        }
+        if (q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v3.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distances);
+    }
+
+    /**
+     * Bulk computation of the soar distance for a vector to four centroids
+     * @param v1 the vector
+     * @param c0 the first centroid
+     * @param c1 the second centroid
+     * @param c2 the third centroid
+     * @param c3 the fourth centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @param distances an array to store the computed soar distances, must have length 4
+     */
+    public static void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
+     * Packs the provided int array populated with "0" and "1" values into a byte array.
+     *
+     * @param vector the int array to pack, must contain only "0" and "1" values.
+     * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
+     */
+    public static void packAsBinary(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
+        }
+        IMPL.packAsBinary(vector, packed);
+    }
+
+    /**
+     * The idea here is to organize the query vector bits such that the first bit
+     * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
+     * third, and fourth bits are in the second, third, and fourth set of dimensions bits,
+     * respectively. This allows for direct bitwise comparisons with the stored index vectors through
+     * summing the bitwise results with the relative required bit shifts.
+     *
+     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
+     * @param quantQueryByte the byte array to store the transposed query vector.
+     *
+     **/
+    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        if (quantQueryByte.length * Byte.SIZE < 4 * q.length) {
+            throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
+        }
+        IMPL.transposeHalfByte(q, quantQueryByte);
     }
 }

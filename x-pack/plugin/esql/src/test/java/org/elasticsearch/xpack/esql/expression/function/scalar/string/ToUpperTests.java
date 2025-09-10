@@ -48,15 +48,13 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
         supplier(suppliers, "keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10));
         supplier(suppliers, "text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10));
         supplier(suppliers, "text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
-        supplier(suppliers, "semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10));
-        supplier(suppliers, "semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
         Configuration cfg = randomLocaleConfig();
-        ToUpper func = new ToUpper(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
+        ToUpper func = new ToUpper(Source.EMPTY, Literal.keyword(Source.EMPTY, testString), cfg);
         assertThat(BytesRefs.toBytesRef(testString.toUpperCase(cfg.locale())), equalTo(func.fold(FoldContext.small())));
     }
 

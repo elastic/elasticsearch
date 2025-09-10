@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -84,7 +85,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         super(
             clusterService,
@@ -95,7 +97,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            onlinePrewarmingService
         );
     }
 
@@ -149,7 +152,12 @@ public class MockSearchService extends SearchService {
     @Override
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         SearchContext searchContext = super.createSearchContext(request, timeout);
-        onPutContext.accept(searchContext.readerContext());
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
         searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
         return searchContext;
     }

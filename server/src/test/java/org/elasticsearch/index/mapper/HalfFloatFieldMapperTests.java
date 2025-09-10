@@ -16,7 +16,6 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -66,18 +65,12 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> {
-            // The test converts the float into a string so we do do
-            Number n = (Number) v;
-            return Double.parseDouble(
-                Float.toString(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())))
-            );
-        };
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
     }
 }

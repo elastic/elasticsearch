@@ -23,11 +23,11 @@ PUT my-index-000001
 }
 ```
 
-Many APIs which support date values also support [date math](/reference/elasticsearch/rest-apis/common-options.md#date-math) expressions, such as `now-1m/d` — the current time, minus one month, rounded down to the nearest day.
+Many APIs which support date values also support [date math](/reference/elasticsearch/rest-apis/common-options.md#date-math) expressions, such as `now-1m/d` — the current time, minus one month, rounded down to the nearest day.
 
 ## Custom date formats [custom-date-formats]
 
-Completely customizable date formats are supported. The syntax for these is explained in [DateTimeFormatter docs](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/time/format/DateTimeFormatter.md).
+Completely customizable date formats are supported. The syntax for these is explained in [DateTimeFormatter docs](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/time/format/DateTimeFormatter.html).
 
 Note that while the built-in formats for week dates use the ISO definition of weekyears, custom formatters using the `Y`, `W`, or `w` field specifiers use the JDK locale definition of weekyears. This can result in different values between the built-in formats and custom formats for week dates.
 

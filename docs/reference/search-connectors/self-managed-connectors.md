@@ -18,7 +18,8 @@ Self-managed [Elastic connectors](/reference/search-connectors/index.md) are run
 ## Availability and Elastic prerequisites [es-build-connector-prerequisites]
 
 ::::{note}
-Self-managed connectors currently don’t support Windows. Use this [compatibility matrix](https://www.elastic.co/support/matrix#matrix_os) to check which operating systems are supported by self-managed connectors. Find this information under **self-managed connectors** on that page.
+Self-managed connectors currently don’t support Windows. Use this [compatibility matrix](https://www.elastic.co/support/matrix#matrix_os) to check which operating systems are supported by self-managed connectors.
+% Find this information under **self-managed connectors** on that page.
 
 ::::
 
@@ -28,7 +29,7 @@ Your Elastic deployment must include the following Elastic services:
 * **Elasticsearch**
 * **Kibana**
 
-(A new Elastic Cloud deployment includes these services by default.)
+A new {{ech}} deployment or {{es-serverless}} project includes these services by default.
 
 To run self-managed connectors, your self-deployed connector service version must match your Elasticsearch version. For example, if you’re running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x. Elastic does not support deployments running mismatched versions (except during upgrades).
 

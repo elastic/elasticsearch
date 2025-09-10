@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -547,6 +548,198 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     public static void disableIndexBlock(String index, APIBlock block) {
         disableIndexBlock(index, block.settingName());
+    }
+
+    public void testRemoveBlockToMissingIndex() {
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), "test")
+        );
+        assertThat(e.getMessage(), is("no such index [test]"));
+    }
+
+    public void testRemoveBlockToOneMissingIndex() {
+        createIndex("test1");
+        final IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), "test1", "test2")
+        );
+        assertThat(e.getMessage(), is("no such index [test2]"));
+    }
+
+    public void testRemoveBlockNoIndex() {
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock())
+        );
+        assertThat(e.getMessage(), containsString("index is missing"));
+    }
+
+    public void testRemoveBlockNullIndex() {
+        expectThrows(
+            NullPointerException.class,
+            () -> indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), (String[]) null)
+        );
+    }
+
+    public void testCannotRemoveReadOnlyAllowDeleteBlock() {
+        createIndex("test1");
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, APIBlock.READ_ONLY_ALLOW_DELETE, "test1")
+        );
+        assertThat(e.getMessage(), containsString("read_only_allow_delete block is for internal use only"));
+    }
+
+    public void testRemoveIndexBlock() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final int nbDocs = randomIntBetween(0, 50);
+        indexRandom(
+            randomBoolean(),
+            false,
+            randomBoolean(),
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
+        );
+
+        final APIBlock block = randomAddableBlock();
+        try {
+            // First add the block
+            AddIndexBlockResponse addResponse = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue(
+                "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + addResponse,
+                addResponse.isAcknowledged()
+            );
+            assertIndexHasBlock(block, indexName);
+
+            // Then remove the block
+            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                block,
+                indexName
+            ).get();
+            assertTrue(
+                "Remove block [" + block + "] from index [" + indexName + "] not acknowledged: " + removeResponse,
+                removeResponse.isAcknowledged()
+            );
+            assertIndexDoesNotHaveBlock(block, indexName);
+        } finally {
+            // Ensure cleanup
+            disableIndexBlock(indexName, block);
+        }
+
+        indicesAdmin().prepareRefresh(indexName).get();
+        assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
+    }
+
+    public void testRemoveBlockIdempotent() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final APIBlock block = randomAddableBlock();
+        try {
+            // First add the block
+            assertAcked(indicesAdmin().prepareAddBlock(block, indexName));
+            assertIndexHasBlock(block, indexName);
+
+            // Remove the block
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, indexName));
+            assertIndexDoesNotHaveBlock(block, indexName);
+
+            // Second remove should be acked too (idempotent behavior)
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, indexName));
+            assertIndexDoesNotHaveBlock(block, indexName);
+        } finally {
+            disableIndexBlock(indexName, block);
+        }
+    }
+
+    public void testRemoveBlockOneMissingIndexIgnoreMissing() throws Exception {
+        createIndex("test1");
+        final APIBlock block = randomAddableBlock();
+        try {
+            // First add the block to test1
+            assertAcked(indicesAdmin().prepareAddBlock(block, "test1"));
+            assertIndexHasBlock(block, "test1");
+
+            // Remove from both test1 and test2 (missing), with lenient options
+            assertBusy(
+                () -> assertAcked(
+                    indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, "test1", "test2")
+                        .setIndicesOptions(lenientExpandOpen())
+                )
+            );
+            assertIndexDoesNotHaveBlock(block, "test1");
+        } finally {
+            disableIndexBlock("test1", block);
+        }
+    }
+
+    static void assertIndexDoesNotHaveBlock(APIBlock block, final String... indices) {
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        for (String index : indices) {
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).indices().get(index);
+            final Settings indexSettings = indexMetadata.getSettings();
+            assertThat(
+                "Index " + index + " should not have block setting [" + block.settingName() + "]",
+                indexSettings.getAsBoolean(block.settingName(), false),
+                is(false)
+            );
+            assertThat(
+                "Index " + index + " should not have block [" + block.getBlock() + "]",
+                clusterState.blocks().hasIndexBlock(projectId, index, block.getBlock()),
+                is(false)
+            );
+        }
+    }
+
+    public void testRemoveWriteBlockAlsoRemovesVerifiedReadOnlySetting() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        try {
+            // Add write block
+            AddIndexBlockResponse addResponse = indicesAdmin().prepareAddBlock(APIBlock.WRITE, indexName).get();
+            assertTrue("Add write block not acknowledged: " + addResponse, addResponse.isAcknowledged());
+            assertIndexHasBlock(APIBlock.WRITE, indexName);
+
+            // Verify VERIFIED_READ_ONLY_SETTING is set
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            IndexMetadata indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+            assertThat(
+                "VERIFIED_READ_ONLY_SETTING should be true",
+                MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()),
+                is(true)
+            );
+
+            // Remove write block
+            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                APIBlock.WRITE,
+                indexName
+            ).get();
+            assertTrue("Remove write block not acknowledged: " + removeResponse, removeResponse.isAcknowledged());
+            assertIndexDoesNotHaveBlock(APIBlock.WRITE, indexName);
+
+            // Verify VERIFIED_READ_ONLY_SETTING is also removed
+            state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+            assertThat(
+                "VERIFIED_READ_ONLY_SETTING should be false after removing write block",
+                MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()),
+                is(false)
+            );
+
+        } finally {
+            disableIndexBlock(indexName, APIBlock.WRITE);
+        }
     }
 
     /**

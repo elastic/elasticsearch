@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedStreamingProcessor;
 
 import java.util.Locale;
@@ -49,7 +49,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
             var restStatus = toRestStatus(responseStatusCode);
             return new UnifiedChatCompletionException(
                 restStatus,
-                errorMessage(message, request, result, errorResponse, responseStatusCode),
+                constructErrorMessage(message, request, errorResponse, responseStatusCode),
                 "error",
                 restStatus.name().toLowerCase(Locale.ROOT)
             );

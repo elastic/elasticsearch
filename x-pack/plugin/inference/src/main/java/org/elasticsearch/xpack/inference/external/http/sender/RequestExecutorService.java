@@ -55,17 +55,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class RequestExecutorService implements RequestExecutor {
+public class RequestExecutorService implements RequestExecutor {
 
-    /**
-     * Provides dependency injection mainly for testing
-     */
-    interface Sleeper {
-        void sleep(TimeValue sleepTime) throws InterruptedException;
-    }
-
-    // default for tests
-    static final Sleeper DEFAULT_SLEEPER = sleepTime -> sleepTime.timeUnit().sleep(sleepTime.duration());
     // default for tests
     static final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> DEFAULT_QUEUE_CREATOR =
         new AdjustableCapacityBlockingQueue.QueueCreator<>() {
@@ -118,37 +109,26 @@ class RequestExecutorService implements RequestExecutor {
     private final Clock clock;
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator;
-    private final Sleeper sleeper;
     private final RateLimiterCreator rateLimiterCreator;
     private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    RequestExecutorService(
+    public RequestExecutorService(
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
         RequestSender requestSender
     ) {
-        this(
-            threadPool,
-            DEFAULT_QUEUE_CREATOR,
-            startupLatch,
-            settings,
-            requestSender,
-            Clock.systemUTC(),
-            DEFAULT_SLEEPER,
-            DEFAULT_RATE_LIMIT_CREATOR
-        );
+        this(threadPool, DEFAULT_QUEUE_CREATOR, startupLatch, settings, requestSender, Clock.systemUTC(), DEFAULT_RATE_LIMIT_CREATOR);
     }
 
-    RequestExecutorService(
+    public RequestExecutorService(
         ThreadPool threadPool,
         AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
         RequestSender requestSender,
         Clock clock,
-        Sleeper sleeper,
         RateLimiterCreator rateLimiterCreator
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -157,7 +137,6 @@ class RequestExecutorService implements RequestExecutor {
         this.requestSender = Objects.requireNonNull(requestSender);
         this.settings = Objects.requireNonNull(settings);
         this.clock = Objects.requireNonNull(clock);
-        this.sleeper = Objects.requireNonNull(sleeper);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
     }
 
@@ -213,15 +192,10 @@ class RequestExecutorService implements RequestExecutor {
             startCleanupTask();
             signalStartInitiated();
 
-            while (isShutdown() == false) {
-                handleTasks();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            shutdown();
-            notifyRequestsOfShutdown();
-            terminationLatch.countDown();
+            handleTasks();
+        } catch (Exception e) {
+            logger.warn("Failed to start request executor", e);
+            cleanup();
         }
     }
 
@@ -256,13 +230,48 @@ class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void handleTasks() throws InterruptedException {
-        var timeToWait = settings.getTaskPollFrequency();
-        for (var endpoint : rateLimitGroupings.values()) {
-            timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+    private void scheduleNextHandleTasks(TimeValue timeToWait) {
+        if (shutdown.get()) {
+            logger.debug("Shutdown requested while scheduling next handle task call, cleaning up");
+            cleanup();
+            return;
         }
 
-        sleeper.sleep(timeToWait);
+        threadPool.schedule(this::handleTasks, timeToWait, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+    }
+
+    private void cleanup() {
+        try {
+            shutdown();
+            notifyRequestsOfShutdown();
+            terminationLatch.countDown();
+        } catch (Exception e) {
+            logger.warn("Encountered an error while cleaning up", e);
+        }
+    }
+
+    private void handleTasks() {
+        try {
+            TimeValue timeToWait;
+            do {
+                if (shutdown.get()) {
+                    logger.debug("Shutdown requested while handling tasks, cleaning up");
+                    cleanup();
+                    return;
+                }
+
+                timeToWait = settings.getTaskPollFrequency();
+                for (var endpoint : rateLimitGroupings.values()) {
+                    timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+                }
+                // if we execute a task the timeToWait will be 0 so we'll immediately look for more work
+            } while (timeToWait.compareTo(TimeValue.ZERO) <= 0);
+
+            scheduleNextHandleTasks(timeToWait);
+        } catch (Exception e) {
+            logger.warn("Encountered an error while handling tasks", e);
+            cleanup();
+        }
     }
 
     private void notifyRequestsOfShutdown() {
@@ -444,9 +453,11 @@ class RequestExecutorService implements RequestExecutor {
         }
 
         private TimeValue executeEnqueuedTaskInternal() {
-            var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
-            if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
-                return timeBeforeAvailableToken;
+            if (rateLimitSettings.isEnabled()) {
+                var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
+                if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
+                    return timeBeforeAvailableToken;
+                }
             }
 
             var task = queue.poll();
@@ -458,9 +469,11 @@ class RequestExecutorService implements RequestExecutor {
                 return NO_TASKS_AVAILABLE;
             }
 
-            // We should never have to wait because we checked above
-            var reserveRes = rateLimiter.reserve(1);
-            assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
+            if (rateLimitSettings.isEnabled()) {
+                // We should never have to wait because we checked above
+                var reserveRes = rateLimiter.reserve(1);
+                assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
+            }
 
             task.getRequestManager()
                 .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());

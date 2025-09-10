@@ -21,6 +21,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +35,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -88,7 +89,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
-        inferenceStats = new InferenceStats(mock(), mock());
+        inferenceStats = InferenceStatsTests.mockInferenceStats();
         streamingTaskManager = mock();
 
         action = createAction(
@@ -175,7 +176,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         verify(listener).onFailure(assertArg(e -> {
             assertThat(e, isA(ElasticsearchException.class));
-            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]. "));
+            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]"));
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
@@ -425,7 +426,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
@@ -458,7 +459,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
     }
 
-    private void mockNodeClient(){
+    private void mockNodeClient() {
         when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
     }
 }

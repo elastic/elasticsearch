@@ -50,11 +50,11 @@ import java.util.List;
 public class VectorTileRestIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("vector-tile")
-        .module("test-error-query")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("vector-tile").apply(c -> {
+        if (Build.current().isSnapshot()) {
+            c.module("test-error-query");
+        }
+    }).setting("xpack.license.self_generated.type", "trial").build();
 
     private static final String INDEX_POINTS = "index-points";
     private static final String INDEX_POLYGON = "index-polygon";

@@ -83,7 +83,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         var model = createModel("model", Boolean.FALSE, InputType.SEARCH);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, Map.of());
 
-        MatcherAssert.assertThat(overriddenModel.uri(), is(model.uri()));
+        MatcherAssert.assertThat(overriddenModel.nonStreamingUri(), is(model.nonStreamingUri()));
     }
 
     public static GoogleVertexAiEmbeddingsModel createModel(

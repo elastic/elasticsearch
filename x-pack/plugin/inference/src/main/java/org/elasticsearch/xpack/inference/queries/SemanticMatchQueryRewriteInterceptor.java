@@ -36,7 +36,10 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
 
     @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
-        return new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
+        semanticQueryBuilder.boost(queryBuilder.boost());
+        semanticQueryBuilder.queryName(queryBuilder.queryName());
+        return semanticQueryBuilder;
     }
 
     @Override
@@ -45,7 +48,10 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
         InferenceIndexInformationForField indexInformation
     ) {
         assert (queryBuilder instanceof MatchQueryBuilder);
-        MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
+        MatchQueryBuilder originalMatchQueryBuilder = (MatchQueryBuilder) queryBuilder;
+        // Create a copy for non-inference fields without boost and _name
+        MatchQueryBuilder matchQueryBuilder = copyMatchQueryBuilder(originalMatchQueryBuilder);
+
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.should(
             createSemanticSubQuery(
@@ -55,11 +61,33 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
             )
         );
         boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
+        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
 
     @Override
     public String getQueryName() {
         return MatchQueryBuilder.NAME;
+    }
+
+    private MatchQueryBuilder copyMatchQueryBuilder(MatchQueryBuilder queryBuilder) {
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(queryBuilder.fieldName(), queryBuilder.value());
+        matchQueryBuilder.operator(queryBuilder.operator());
+        matchQueryBuilder.prefixLength(queryBuilder.prefixLength());
+        matchQueryBuilder.maxExpansions(queryBuilder.maxExpansions());
+        matchQueryBuilder.fuzzyTranspositions(queryBuilder.fuzzyTranspositions());
+        matchQueryBuilder.lenient(queryBuilder.lenient());
+        matchQueryBuilder.zeroTermsQuery(queryBuilder.zeroTermsQuery());
+        matchQueryBuilder.analyzer(queryBuilder.analyzer());
+        matchQueryBuilder.minimumShouldMatch(queryBuilder.minimumShouldMatch());
+        matchQueryBuilder.fuzzyRewrite(queryBuilder.fuzzyRewrite());
+
+        if (queryBuilder.fuzziness() != null) {
+            matchQueryBuilder.fuzziness(queryBuilder.fuzziness());
+        }
+
+        matchQueryBuilder.autoGenerateSynonymsPhraseQuery(queryBuilder.autoGenerateSynonymsPhraseQuery());
+        return matchQueryBuilder;
     }
 }

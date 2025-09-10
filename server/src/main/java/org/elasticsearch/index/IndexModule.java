@@ -370,7 +370,7 @@ public final class IndexModule {
     /**
      * Adds a new instance of factory creating new {@link DirectoryReader} wrapper instances.
      * The factory ({@link Function}) is called once the IndexService is fully constructed.
-     * All added wrappers are applied in the order they have been added.
+     * The order of execution of wrappers is not guaranteed.
      * <p>
      * The {@link CheckedFunction} is invoked each time a {@link Engine.Searcher} is requested to do an operation,
      * for example search, and must return a new directory reader wrapping the provided directory reader or if no
@@ -499,13 +499,25 @@ public final class IndexModule {
         QueryRewriteInterceptor queryRewriteInterceptor
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
-        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrappers
-            .isEmpty() ? indexService -> null : indexService -> (directoryReader) -> {
-                var wrapped = indexReaderWrappers.get(0).apply(indexService).apply(directoryReader);
-                for (int i = 1; i < indexReaderWrappers.size(); i++) {
-                    wrapped = indexReaderWrappers.get(i).apply(indexService).apply(wrapped);
-                }
-                return wrapped;
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
+            switch (indexReaderWrappers.size()) {
+                case 0 -> indexService -> null;
+                case 1 -> indexReaderWrappers.get(0);
+                default -> indexService -> {
+                    // Call factories only one time when creating index service to avoid duplicate work.
+                    var wrappers = new ArrayList<CheckedFunction<DirectoryReader, DirectoryReader, IOException>>();
+                    for (var indexReaderWrapper : indexReaderWrappers) {
+                        wrappers.add(indexReaderWrapper.apply(indexService));
+                    }
+
+                    return directoryReader -> {
+                        var wrapped = wrappers.get(0).apply(directoryReader);
+                        for (int i = 1; i < wrappers.size(); i++) {
+                            wrapped = wrappers.get(i).apply(wrapped);
+                        }
+                        return wrapped;
+                    };
+                };
             };
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);

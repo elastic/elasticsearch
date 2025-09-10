@@ -12,7 +12,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermStatistics;
@@ -272,6 +275,70 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
+        closeIndexService(indexService);
+    }
+
+    public void testMultipleReaderWrappers() throws IOException {
+        final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            engineFactory,
+            Collections.emptyMap(),
+            () -> true,
+            indexNameExpressionResolver,
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
+        );
+
+        class Wrapper extends FilterDirectoryReader {
+            final String name;
+            final DirectoryReader wrappedReader;
+
+            Wrapper(String name, DirectoryReader in) throws IOException {
+                super(in, new SubReaderWrapper() {
+                    @Override
+                    public LeafReader wrap(LeafReader reader) {
+                        return reader;
+                    }
+                });
+                this.name = name;
+                this.wrappedReader = in;
+            }
+
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return null;
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        }
+
+        module.addReaderWrapper(s -> reader -> new Wrapper("A", reader));
+        module.addReaderWrapper(s -> reader -> new Wrapper("B", reader));
+
+        IndexService indexService = newIndexService(module);
+
+        var wrapper = indexService.getReaderWrapper();
+
+        try (var directory = newDirectory(); var reader = new DummyDirectoryReader(directory)) {
+            var wrapped = wrapper.apply(reader);
+            // B is the outermost wrapper since it was added last.
+            assertTrue(wrapped instanceof Wrapper w && w.name.equals("B"));
+            var secondLevel = ((Wrapper) wrapped).wrappedReader;
+            assertTrue(secondLevel instanceof Wrapper w && w.name.equals("A"));
+            var thirdLevel = ((Wrapper) secondLevel).wrappedReader;
+            assertTrue(thirdLevel instanceof DummyDirectoryReader);
+        }
+
         closeIndexService(indexService);
     }
 
@@ -892,6 +959,52 @@ public class IndexModuleTests extends ESTestCase {
         protected WrappedDirectory(Directory in, ShardRouting shardRouting) {
             super(in);
             this.shardRouting = shardRouting;
+        }
+    }
+
+    private static class DummyDirectoryReader extends DirectoryReader {
+        DummyDirectoryReader(Directory directory) throws IOException {
+            super(directory, new LeafReader[0], null);
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged(IndexCommit commit) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) throws IOException {
+            return null;
+        }
+
+        @Override
+        public long getVersion() {
+            return 0;
+        }
+
+        @Override
+        public boolean isCurrent() throws IOException {
+            return false;
+        }
+
+        @Override
+        public IndexCommit getIndexCommit() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
         }
     }
 }

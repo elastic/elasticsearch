@@ -69,10 +69,12 @@ public class NodeUsageStatsForThreadPoolsCollector {
                 listener.map(response -> {
                     // Update last seen stats
                     lastNodeUsageStatsPerNode.putAll(response.getAllNodeUsageStatsForThreadPools());
-                    logger.warn(
-                        "Got no usage stats from nodes {}",
-                        response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(", "))
-                    );
+                    if (response.failures().isEmpty() == false) {
+                        logger.warn(
+                            "Got no usage stats from nodes {}",
+                            response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(", "))
+                        );
+                    }
                     return Map.copyOf(lastNodeUsageStatsPerNode);
                 })
             );

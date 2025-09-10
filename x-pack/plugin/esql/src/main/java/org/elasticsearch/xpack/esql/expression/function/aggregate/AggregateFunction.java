@@ -11,7 +11,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -150,6 +152,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return this;
         }
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
+    }
+
+    /**
+     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
+     */
+    public AttributeSet aggregateInputReferences() {
+        if (hasFilter()) {
+            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
+        } else {
+            return references();
+        }
     }
 
     @Override

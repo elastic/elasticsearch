@@ -332,6 +332,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
     public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_155_0_00);
     public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
+    public static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = def(9_157_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

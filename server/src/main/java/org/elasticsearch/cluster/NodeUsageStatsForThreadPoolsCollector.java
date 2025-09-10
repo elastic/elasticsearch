@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -18,9 +20,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Collects the thread pool usage stats for each node in the cluster.
@@ -43,6 +45,8 @@ public class NodeUsageStatsForThreadPoolsCollector {
         "transport_node_usage_stats_for_thread_pools_action"
     );
 
+    private static final Logger logger = LogManager.getLogger(NodeUsageStatsForThreadPoolsCollector.class);
+
     private final Map<String, NodeUsageStatsForThreadPools> lastNodeUsageStatsPerNode = new ConcurrentHashMap<>();
 
     /**
@@ -62,32 +66,18 @@ public class NodeUsageStatsForThreadPoolsCollector {
             client.execute(
                 TransportNodeUsageStatsForThreadPoolsAction.TYPE,
                 new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds),
-                listener.map(this::replaceFailuresWithLastSeenValues)
+                listener.map(response -> {
+                    // Update last seen stats
+                    lastNodeUsageStatsPerNode.putAll(response.getAllNodeUsageStatsForThreadPools());
+                    logger.warn(
+                        "Got no usage stats from nodes {}",
+                        response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(", "))
+                    );
+                    return Map.copyOf(lastNodeUsageStatsPerNode);
+                })
             );
         } else {
             listener.onResponse(Map.of());
         }
-    }
-
-    private Map<String, NodeUsageStatsForThreadPools> replaceFailuresWithLastSeenValues(
-        NodeUsageStatsForThreadPoolsAction.Response response
-    ) {
-        final Map<String, NodeUsageStatsForThreadPools> returnedUsageStats = response.getAllNodeUsageStatsForThreadPools();
-        // Update the last-seen usage stats
-        this.lastNodeUsageStatsPerNode.putAll(returnedUsageStats);
-
-        if (response.hasFailures() == false) {
-            return returnedUsageStats;
-        }
-
-        // Add in the last-seen usage stats for any nodes that failed to respond
-        final Map<String, NodeUsageStatsForThreadPools> cachedValuesForFailed = new HashMap<>(returnedUsageStats);
-        for (FailedNodeException failedNodeException : response.failures()) {
-            final var nodeUsageStatsForThreadPools = lastNodeUsageStatsPerNode.get(failedNodeException.nodeId());
-            if (nodeUsageStatsForThreadPools != null) {
-                cachedValuesForFailed.put(failedNodeException.nodeId(), nodeUsageStatsForThreadPools);
-            }
-        }
-        return cachedValuesForFailed;
     }
 }

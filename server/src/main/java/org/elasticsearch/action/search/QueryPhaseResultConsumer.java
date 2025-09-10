@@ -279,7 +279,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             );
             buffer = null;
         } finally {
-            // Buffer is only null on exception
+            // Buffer is non-null on exception
             if (buffer != null) {
                 releaseAggs(buffer);
                 if (aggsList != null) {

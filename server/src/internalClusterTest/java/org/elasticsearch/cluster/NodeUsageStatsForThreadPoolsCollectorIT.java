@@ -28,7 +28,6 @@ import java.util.Objects;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
 
     @Override

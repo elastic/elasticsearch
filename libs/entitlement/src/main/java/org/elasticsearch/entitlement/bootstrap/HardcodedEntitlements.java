@@ -118,7 +118,7 @@ class HardcodedEntitlements {
                 "java.desktop",
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
-                    new ManageThreadsEntitlement() // For sun.java2d.Disposer
+                    new ManageThreadsEntitlement() // For sun.java2d.Disposer. TODO: https://elasticco.atlassian.net/browse/ES-12888
                 )
             ),
             new Scope(

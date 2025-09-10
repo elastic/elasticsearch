@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -32,6 +34,8 @@ import java.util.Map;
 
 public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "intercepted_inference_knn";
+
+    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new BwCSemanticKnnVectorQueryRewriteInterceptor();
 
     public InterceptedInferenceKnnVectorQueryBuilder(KnnVectorQueryBuilder originalQuery) {
         super(originalQuery);
@@ -84,8 +88,12 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     @Override
     protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
-        // TODO: Implement BwC
-        return this;
+        QueryBuilder rewritten = this;
+        if (queryRewriteContext.getMinTransportVersion().before(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+            rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
+        }
+
+        return rewritten;
     }
 
     @Override

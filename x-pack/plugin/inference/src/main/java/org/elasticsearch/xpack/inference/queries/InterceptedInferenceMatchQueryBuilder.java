@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -14,6 +15,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -21,6 +23,8 @@ import java.util.Map;
 
 public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQueryBuilder<MatchQueryBuilder> {
     public static final String NAME = "intercepted_inference_match";
+
+    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new BwCSemanticMatchQueryRewriteInterceptor();
 
     public InterceptedInferenceMatchQueryBuilder(MatchQueryBuilder originalQuery) {
         super(originalQuery);
@@ -49,8 +53,12 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     @Override
     protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
-        // TODO: Implement BwC support
-        return this;
+        QueryBuilder rewritten = this;
+        if (queryRewriteContext.getMinTransportVersion().before(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+            rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
+        }
+
+        return rewritten;
     }
 
     @Override

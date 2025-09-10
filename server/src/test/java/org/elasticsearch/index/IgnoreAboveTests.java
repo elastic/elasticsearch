@@ -55,6 +55,14 @@ public class IgnoreAboveTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().build());
     }
 
+    public void test_negative_value_throws() {
+        assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().value(-1).build());
+    }
+
+    public void test_negative_default_value_throws() {
+        assertThrows(IllegalArgumentException.class, () -> IgnoreAbove.builder().defaultValue(-1).build());
+    }
+
     public void test_string_isIgnored() {
         // given
         IgnoreAbove ignoreAbove = IgnoreAbove.builder().value(10).defaultValue(456).build();

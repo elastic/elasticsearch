@@ -11,21 +11,19 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES;
-
 public class ParameterTests extends ESTestCase {
 
     public void test_ignore_above_param_default() {
         // when
-        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam((FieldMapper fm) -> 123);
+        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam((FieldMapper fm) -> 123, 456);
 
         // then
-        assertEquals(IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, ignoreAbove.getValue().intValue());
+        assertEquals(456, ignoreAbove.getValue().intValue());
     }
 
     public void test_ignore_above_param_invalid_value() {
         // when
-        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam((FieldMapper fm) -> -1);
+        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam((FieldMapper fm) -> -1, 456);
         ignoreAbove.setValue(-1);
 
         // then

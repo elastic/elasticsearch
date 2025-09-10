@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+import static org.elasticsearch.index.IndexSettings.getIgnoreAboveDefaultValue;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -153,6 +154,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).eagerGlobalOrdinals.get(),
             false
         );
+        private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
@@ -180,31 +182,22 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final IndexMode indexMode;
-        private final IndexVersion indexCreatedVersion;
-
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
         }
 
         public Builder(final String name) {
-            this(name, IndexMode.STANDARD, IndexVersion.current());
+            this(name, getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()));
         }
 
         private Builder(String name, MappingParserContext mappingParserContext) {
-            this(name, mappingParserContext.getIndexSettings().getMode(), mappingParserContext.indexVersionCreated());
-
-            // if ignore_above is configured at index-level, then set it now
-            if (IGNORE_ABOVE_SETTING.exists(mappingParserContext.getSettings())) {
-                this.ignoreAbove.setValue(IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()));
-            }
+            this(name, IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()));
         }
 
-        private Builder(String name, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        private Builder(String name, int ignoreAboveDefault) {
             super(name);
-            this.indexMode = indexMode;
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), indexMode, indexCreatedVersion);
+            this.ignoreAboveDefault = ignoreAboveDefault;
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
         }
 
@@ -905,7 +898,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexMode, builder.indexCreatedVersion).init(this);
+        return new Builder(leafName(), builder.ignoreAboveDefault).init(this);
     }
 
     @Override

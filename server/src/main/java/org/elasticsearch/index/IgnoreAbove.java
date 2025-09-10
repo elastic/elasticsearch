@@ -49,7 +49,7 @@ public class IgnoreAbove {
      */
     public boolean isSet() {
         // if ignore_above equals default, its not considered to be set, even if it was explicitly set to the default value
-        return value != null && value.equals(defaultValue) == false;
+        return Integer.valueOf(get()).equals(defaultValue) == false;
     }
 
     /**
@@ -81,11 +81,19 @@ public class IgnoreAbove {
         private Builder() {}
 
         public Builder value(Integer value) {
+            if (value != null && value < 0) {
+                throw new IllegalArgumentException("[ignore_above] must be positive, got [" + value + "]");
+            }
+
             this.value = value;
             return this;
         }
 
         public Builder defaultValue(Integer defaultValue) {
+            if (defaultValue != null && defaultValue < 0) {
+                throw new IllegalArgumentException("[ignore_above] must be positive, got [" + defaultValue + "]");
+            }
+
             this.defaultValue = defaultValue;
             return this;
         }

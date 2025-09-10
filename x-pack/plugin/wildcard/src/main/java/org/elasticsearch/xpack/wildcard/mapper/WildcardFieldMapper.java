@@ -95,6 +95,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+import static org.elasticsearch.index.IndexSettings.getIgnoreAboveDefaultValue;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -209,6 +210,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
+        final int ignoreAboveDefault;
         final Parameter<Integer> ignoreAbove;
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
@@ -218,23 +220,24 @@ public class WildcardFieldMapper extends FieldMapper {
         final IndexVersion indexCreatedVersion;
 
         public Builder(final String name, IndexVersion indexVersionCreated) {
-            this(name, IndexMode.STANDARD, indexVersionCreated);
+            this(name, getIgnoreAboveDefaultValue(IndexMode.STANDARD, indexVersionCreated), IndexMode.STANDARD, indexVersionCreated);
         }
 
         private Builder(String name, MappingParserContext mappingParserContext) {
-            this(name, mappingParserContext.getIndexSettings().getMode(), mappingParserContext.indexVersionCreated());
-
-            // if ignore_above is configured at index-level, then set it now
-            if (IGNORE_ABOVE_SETTING.exists(mappingParserContext.getSettings())) {
-                this.ignoreAbove.setValue(IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()));
-            }
+            this(
+                name,
+                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getMode(),
+                mappingParserContext.indexVersionCreated()
+            );
         }
 
-        private Builder(String name, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        private Builder(String name, int ignoreAboveDefault, IndexMode indexMode, IndexVersion indexCreatedVersion) {
             super(name);
+            this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), indexMode, indexCreatedVersion);
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), ignoreAboveDefault);
         }
 
         @Override
@@ -1009,6 +1012,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final IndexMode indexMode;
     private final IndexVersion indexVersionCreated;
+    private final int ignoreAboveDefault;
     private final IgnoreAbove ignoreAbove;
     private final boolean storeIgnored;
     private final String originalName;
@@ -1025,9 +1029,10 @@ public class WildcardFieldMapper extends FieldMapper {
         this.storeIgnored = storeIgnored;
         this.indexMode = builder.indexMode;
         this.indexVersionCreated = builder.indexCreatedVersion;
+        this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = IgnoreAbove.builder()
             .value(builder.ignoreAbove.getValue())
-            .defaultValue(builder.ignoreAbove.getDefaultValue())
+            .defaultValue(getIgnoreAboveDefaultValue(builder.indexMode, builder.indexCreatedVersion))
             .build();
         this.originalName = storeIgnored ? fullPath() + "._original" : null;
     }
@@ -1104,7 +1109,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexMode, indexVersionCreated).init(this);
+        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated).init(this);
     }
 
     @Override

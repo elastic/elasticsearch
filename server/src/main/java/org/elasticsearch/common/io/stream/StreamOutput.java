@@ -644,6 +644,25 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write an optional {@link Map} of {@code K}-type keys to {@code V}-type.
+     * <pre><code>
+     * Map&lt;String, String&gt; map = ...;
+     * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeOptionalMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
+        if (map == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeMap(map, keyWriter, valueWriter);
+        }
+    }
+
+    /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
      * <pre><code>
      * Map&lt;String, String&gt; map = ...;

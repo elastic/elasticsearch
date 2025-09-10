@@ -114,7 +114,7 @@ public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
         }
 
         try {
-            requestSupplier.get().get();
+            requestSupplier.get().get().decRef();
 
             fail("Expected the breaker to trip");
         } catch (SearchPhaseExecutionException e) {

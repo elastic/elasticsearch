@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -40,7 +41,7 @@ public class MockSearchService extends SearchService {
      */
     public static class TestPlugin extends Plugin {}
 
-    private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+    private static final Map<ShardSearchContextId, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
     private Consumer<ReaderContext> onRemoveContext = context -> {};
@@ -51,7 +52,7 @@ public class MockSearchService extends SearchService {
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
-        final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
+        final Map<ShardSearchContextId, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
             throw new AssertionError(
                 "There are still ["
@@ -65,15 +66,15 @@ public class MockSearchService extends SearchService {
     /**
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
-    static void addActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
+    static void addActiveContext(ShardSearchContextId contextId) {
+        ACTIVE_SEARCH_CONTEXTS.put(contextId, new RuntimeException(contextId.toString()));
     }
 
     /**
      * Clear an active search context from the list of tracked contexts. Package private for testing.
      */
-    static void removeActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.remove(context);
+    static void removeActiveContext(ShardSearchContextId contextId) {
+        ACTIVE_SEARCH_CONTEXTS.remove(contextId);
     }
 
     public MockSearchService(
@@ -105,16 +106,16 @@ public class MockSearchService extends SearchService {
     @Override
     protected void putReaderContext(ReaderContext context) {
         onPutContext.accept(context);
-        addActiveContext(context);
+        addActiveContext(context.id());
         super.putReaderContext(context);
     }
 
     @Override
-    protected ReaderContext removeReaderContext(long id) {
+    protected ReaderContext removeReaderContext(ShardSearchContextId id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             onRemoveContext.accept(removed);
-            removeActiveContext(removed);
+            removeActiveContext(removed.id());
         }
         return removed;
     }

@@ -22,13 +22,18 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -36,6 +41,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockSearchService.TestPlugin.class);
+        return plugins;
+    }
 
     public void testSearcherId() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -161,13 +173,28 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreFilterShardSize(between(1, 10))
-                    .setAllowPartialSearchResults(true)
+                    .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
                     .setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> {
-                    assertThat(resp.pointInTimeId(), equalTo(pitId));
-                    assertHitCount(resp, docCount);
-                }
+                resp -> { assertHitCount(resp, docCount); }
             );
+
+            // at this point we should have re-created all contexts, so no need to create them again
+            // running the search a second time should not re-trigger creation of new contexts
+            final AtomicLong newContexts = new AtomicLong(0);
+            for (String allocatedNode : allocatedNodes) {
+                MockSearchService searchService = (MockSearchService) internalCluster().getInstance(SearchService.class, allocatedNode);
+                searchService.setOnPutContext(context -> { newContexts.incrementAndGet(); });
+            }
+
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreFilterShardSize(between(1, 10))
+                    .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> { assertHitCount(resp, docCount); }
+            );
+            assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }

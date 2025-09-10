@@ -27,14 +27,4 @@ public interface NonPreferredShardIteratorFactory {
      * @return An iterator containing shards we'd like to move to a preferred allocation
      */
     Iterator<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation);
-
-    /**
-     * The default iterator factory
-     */
-    class Default implements NonPreferredShardIteratorFactory {
-        @Override
-        public Iterator<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation) {
-            return Collections.emptyIterator();
-        }
-    }
 }

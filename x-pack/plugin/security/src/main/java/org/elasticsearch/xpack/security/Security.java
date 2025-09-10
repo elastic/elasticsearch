@@ -418,10 +418,10 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
-import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;

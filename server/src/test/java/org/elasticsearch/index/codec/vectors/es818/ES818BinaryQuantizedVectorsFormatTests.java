@@ -251,9 +251,11 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     }
                     KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
 
+                    float[] scratch = new float[dims];
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
                         OptimizedScalarQuantizer.QuantizationResult corrections = quantizer.scalarQuantize(
                             vectorValues.vectorValue(docIndexIterator.index()),
+                            scratch,
                             quantizedVector,
                             (byte) 1,
                             centroid

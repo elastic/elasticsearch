@@ -172,7 +172,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
         if (runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
-        if(projectRouting != null) {
+        if (projectRouting != null) {
             builder.field(PROJECT_ROUTING.getPreferredName(), projectRouting);
         }
         builder.endObject();

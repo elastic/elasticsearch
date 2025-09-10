@@ -47,7 +47,6 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.exchange.DirectExchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -116,13 +115,11 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -295,10 +292,6 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
-        } else if (node instanceof ParallelExec parallelExec) {
-            return planParallelNode(parallelExec, context);
-        } else if (node instanceof TimeSeriesSourceExec ts) {
-            return planTimeSeriesSource(ts, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -373,10 +366,6 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
-    }
-
-    private PhysicalOperation planTimeSeriesSource(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.timeSeriesSourceOperation(ts, context);
     }
 
     private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
@@ -463,33 +452,6 @@ public class LocalExecutionPlanner {
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
 
         return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
-    }
-
-    private PhysicalOperation planParallelNode(ParallelExec parallelExec, LocalExecutionPlannerContext context) {
-        var exchange = new DirectExchange(context.queryPragmas.exchangeBufferSize());
-        {
-            PhysicalOperation source = plan(parallelExec.child(), context);
-            var sinkOperator = source.withSink(new ExchangeSinkOperatorFactory(exchange::exchangeSink), source.layout);
-            final TimeValue statusInterval = configuration.pragmas().statusInterval();
-            context.addDriverFactory(
-                new DriverFactory(
-                    new DriverSupplier(
-                        context.description,
-                        ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
-                        Node.NODE_NAME_SETTING.get(settings),
-                        context.bigArrays,
-                        context.blockFactory,
-                        sinkOperator,
-                        statusInterval,
-                        settings
-                    ),
-                    DriverParallelism.SINGLE
-                )
-            );
-            context.driverParallelism.set(DriverParallelism.SINGLE);
-        }
-        var exchangeSource = new ExchangeSourceExec(parallelExec.source(), parallelExec.output(), false);
-        return planExchangeSource(exchangeSource, exchange::exchangeSource);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

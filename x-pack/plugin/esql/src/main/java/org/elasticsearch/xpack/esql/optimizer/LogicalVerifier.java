@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<LogicalPlan> {
 
@@ -33,12 +38,17 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
 
     @Override
     void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+        List<BiConsumer<LogicalPlan, Failures>> checkers = new ArrayList<>();
+
         optimizedPlan.forEachUp(p -> {
             PlanConsistencyChecker.checkPlan(p, depFailures);
 
             if (failures.hasFailures() == false) {
                 if (p instanceof PostOptimizationVerificationAware pova) {
                     pova.postOptimizationVerification(failures);
+                }
+                if (p instanceof PostOptimizationPlanVerificationAware popva) {
+                    checkers.add(popva.postOptimizationPlanVerification());
                 }
                 p.forEachExpression(ex -> {
                     if (ex instanceof PostOptimizationVerificationAware va) {
@@ -47,5 +57,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
                 });
             }
         });
+
+        optimizedPlan.forEachUp(p -> checkers.forEach(checker -> checker.accept(p, failures)));
     }
 }

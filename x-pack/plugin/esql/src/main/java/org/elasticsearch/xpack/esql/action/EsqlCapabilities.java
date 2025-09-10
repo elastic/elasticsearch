@@ -1474,7 +1474,6 @@ public class EsqlCapabilities {
          */
         QUERY_PARAMS_MULTI_VALUES(Build.current().isSnapshot());
 
-
         private final boolean enabled;
 
         Cap() {

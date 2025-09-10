@@ -49,6 +49,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -87,6 +89,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -200,28 +203,34 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
+        final int ignoreAboveDefault;
         final Parameter<Integer> ignoreAbove;
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final IndexVersion indexVersionCreated;
-
-        final int ignoreAboveDefault;
+        final IndexMode indexMode;
+        final IndexVersion indexCreatedVersion;
 
         public Builder(final String name, IndexVersion indexVersionCreated) {
-            this(name, Integer.MAX_VALUE, indexVersionCreated);
+            this(name, getIgnoreAboveDefaultValue(IndexMode.STANDARD, indexVersionCreated), IndexMode.STANDARD, indexVersionCreated);
         }
 
-        private Builder(String name, int ignoreAboveDefault, IndexVersion indexVersionCreated) {
+        private Builder(String name, MappingParserContext mappingParserContext) {
+            this(
+                name,
+                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getMode(),
+                mappingParserContext.indexVersionCreated()
+            );
+        }
+
+        private Builder(String name, int ignoreAboveDefault, IndexMode indexMode, IndexVersion indexCreatedVersion) {
             super(name);
-            this.indexVersionCreated = indexVersionCreated;
             this.ignoreAboveDefault = ignoreAboveDefault;
-            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, ignoreAboveDefault).addValidator(v -> {
-                if (v < 0) {
-                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
-                }
-            });
+            this.indexMode = indexMode;
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), ignoreAboveDefault);
         }
 
         @Override
@@ -243,18 +252,15 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 leafName(),
-                new WildcardFieldType(context.buildFullName(leafName()), indexVersionCreated, meta.get(), this),
+                new WildcardFieldType(context.buildFullName(leafName()), indexCreatedVersion, meta.get(), this),
                 context.isSourceSynthetic(),
                 builderParams(this, context),
-                indexVersionCreated,
                 this
             );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.indexVersionCreated())
-    );
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
     public static final char TOKEN_START_OR_END_CHAR = 0;
     public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);
@@ -266,7 +272,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private final String nullValue;
         private final NamedAnalyzer analyzer;
-        private final int ignoreAbove;
+        private final IgnoreAbove ignoreAbove;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
@@ -276,7 +282,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
             }
             this.nullValue = builder.nullValue.getValue();
-            this.ignoreAbove = builder.ignoreAbove.getValue();
+            this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         }
 
         @Override
@@ -872,7 +878,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
+                    if (ignoreAbove.isIgnored(keywordValue)) {
                         return null;
                     }
                     return keywordValue;
@@ -891,10 +897,10 @@ public class WildcardFieldMapper extends FieldMapper {
         assert NGRAM_FIELD_TYPE.indexOptions() == IndexOptions.DOCS;
     }
     private final String nullValue;
+    private final IndexMode indexMode;
     private final IndexVersion indexVersionCreated;
-
-    private final int ignoreAbove;
     private final int ignoreAboveDefault;
+    private final IgnoreAbove ignoreAbove;
     private final boolean storeIgnored;
 
     private WildcardFieldMapper(
@@ -902,15 +908,15 @@ public class WildcardFieldMapper extends FieldMapper {
         WildcardFieldType mappedFieldType,
         boolean storeIgnored,
         BuilderParams builderParams,
-        IndexVersion indexVersionCreated,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.nullValue = builder.nullValue.getValue();
         this.storeIgnored = storeIgnored;
-        this.indexVersionCreated = indexVersionCreated;
-        this.ignoreAbove = builder.ignoreAbove.getValue();
+        this.indexMode = builder.indexMode;
+        this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
+        this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
     }
 
     @Override
@@ -921,7 +927,7 @@ public class WildcardFieldMapper extends FieldMapper {
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
     // pkg-private for testing
-    int ignoreAbove() {
+    IgnoreAbove ignoreAbove() {
         return ignoreAbove;
     }
 
@@ -943,13 +949,13 @@ public class WildcardFieldMapper extends FieldMapper {
 
         List<IndexableField> fields = new ArrayList<>();
         if (value != null) {
-            if (value.length() <= ignoreAbove) {
-                createFields(value, parseDoc, fields);
-            } else {
+            if (ignoreAbove.isIgnored(value)) {
                 context.addIgnoredField(fullPath());
                 if (storeIgnored) {
                     parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                 }
+            } else {
+                createFields(value, parseDoc, fields);
             }
         }
         parseDoc.addAll(fields);
@@ -985,7 +991,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreAboveDefault, indexVersionCreated).init(this);
+        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated).init(this);
     }
 
     @Override
@@ -993,7 +999,7 @@ public class WildcardFieldMapper extends FieldMapper {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
             layers.add(new WildcardSyntheticFieldLoader());
-            if (ignoreAbove != Integer.MAX_VALUE) {
+            if (ignoreAbove.isSet()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override
                     protected void writeValue(Object value, XContentBuilder b) throws IOException {

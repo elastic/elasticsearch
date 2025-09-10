@@ -2352,12 +2352,20 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
 
-        checkDenseVectorCastingHexKnn("float_vector");
-        checkDenseVectorCastingHexKnn("byte_vector");
-        checkDenseVectorCastingKnn("float_vector");
-        checkDenseVectorCastingKnn("byte_vector");
-        checkDenseVectorEvalCastingKnn("float_vector");
-        checkDenseVectorEvalCastingKnn("byte_vector");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
+            checkDenseVectorCastingHexKnn("float_vector");
+            checkDenseVectorCastingKnn("float_vector");
+        }
+        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS.isEnabled()) {
+            checkDenseVectorCastingKnn("byte_vector");
+            checkDenseVectorCastingHexKnn("byte_vector");
+            checkDenseVectorEvalCastingKnn("byte_vector");
+        }
+        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+            checkDenseVectorCastingKnn("bit_vector");
+            checkDenseVectorCastingHexKnn("bit_vector");
+            checkDenseVectorEvalCastingKnn("bit_vector");
+        }
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
@@ -2429,6 +2437,10 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1, 2, 3));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
+            }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
@@ -2436,6 +2448,9 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1, 2));
+            }
         }
     }
 
@@ -2450,7 +2465,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
+        assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ToDenseVector.class);
         var literal = as(right.field(), Literal.class);
         assertThat(literal.value(), equalTo(expectedElems));
@@ -3564,7 +3579,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
@@ -3588,7 +3603,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test

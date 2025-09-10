@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -173,6 +174,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
 /**
@@ -950,10 +952,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // some attributes were unresolved - we return Fuse here so that the Verifier can raise an error message
             if (score instanceof UnresolvedAttribute || discriminator instanceof UnresolvedAttribute) {
-                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType());
+                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
             }
 
-            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator);
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
@@ -1402,6 +1404,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
         if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
             b.set(LIMIT.ordinal());
+        }
+
+        // count only the Aggregate (STATS command) that is "standalone" not also the one that is part of an INLINESTATS command
+        if (plan instanceof Aggregate) {
+            b.set(STATS.ordinal());
+        } else {
+            plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+                if (p instanceof InlineStats) {
+                    return;
+                }
+                for (var c : p.children()) {
+                    if (c instanceof Aggregate) {
+                        b.set(STATS.ordinal());
+                        breakEarly.set(true);
+                        return;
+                    }
+                }
+            });
         }
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         return b;

@@ -632,7 +632,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().sourceContext().bytes().length());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().sourceContext().byteLength());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -728,6 +728,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             SourceContext sourceContext = indexRequest.sourceContext();
+            int originalSourceSize = sourceContext.byteLength();
             BytesReference originalSource = sourceContext.bytes();
             if (useLegacyFormat) {
                 var newDocMap = sourceContext.sourceAsMap();
@@ -741,13 +742,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     sourceContext.source(builder);
                 }
             }
-            long modifiedSourceSize = sourceContext.bytes().length();
+            long modifiedSourceSize = sourceContext.byteLength();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
             } catch (EsRejectedExecutionException e) {
                 sourceContext.source(originalSource, sourceContext.contentType());
                 item.abort(

@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,7 +29,7 @@ import java.util.Map;
 public class SourceContext implements Writeable, Releasable {
 
     private XContentType contentType;
-    private ReleasableBytesReference source;
+    private BytesReference source;
     private boolean isClosed = false;
 
     public SourceContext() {}
@@ -72,11 +71,6 @@ public class SourceContext implements Writeable, Releasable {
         return source;
     }
 
-    public ReleasableBytesReference retainedBytes() {
-        assert isClosed == false;
-        return source.retain();
-    }
-
     public boolean hasSource() {
         assert isClosed == false;
         return source != null;
@@ -95,7 +89,6 @@ public class SourceContext implements Writeable, Releasable {
     public void close() {
         assert isClosed == false;
         isClosed = true;
-        Releasables.close(source);
         source = null;
         contentType = null;
     }
@@ -246,7 +239,7 @@ public class SourceContext implements Writeable, Releasable {
     }
 
     private void setSource(BytesReference source, XContentType contentType) {
-        setSource(ReleasableBytesReference.wrap(source), contentType);
+        setSource(source, contentType);
     }
 
     private void setSource(ReleasableBytesReference source, XContentType contentType) {

@@ -85,16 +85,6 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     /**
-     * Similar to {@link #retain} except that it retains the current instance and then returns a new instance with its own dedicated
-     * ref-count. This is primarily useful if you are splitting off a reference for a different purpose and want to separate the ref-counts
-     * for less contention or making the counts easier to reason about.
-     */
-    public ReleasableBytesReference retainChild() {
-        refCounted.incRef();
-        return new ReleasableBytesReference(delegate, refCounted::decRef);
-    }
-
-    /**
      * Same as {@link #slice} except that the slice is not guaranteed to share the same underlying reference count as this instance.
      * This method is equivalent to calling {@code .slice(from, length).retain()} but might be more efficient through the avoidance of
      * retaining unnecessary buffers.

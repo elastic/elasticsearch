@@ -18,10 +18,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
-import org.elasticsearch.index.cache.query.ElasticsearchUsageTrackingQueryCachingPolicy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -63,10 +63,10 @@ public class CachingEnableFilterQueryTests extends ESTestCase {
                 assertThat(searcher.rewrite(query), instanceOf(CachingEnableFilterQuery.class));
                 assertEquals(5, searcher.count(query));
 
-                var cachingPolicy = new ElasticsearchUsageTrackingQueryCachingPolicy();
+                var cachingPolicy = new UsageTrackingQueryCachingPolicy();
                 searcher.setQueryCachingPolicy(cachingPolicy);
                 var rewritten = searcher.rewrite(query);
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 5; i++) {
                     assertThat(searcher.search(rewritten, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5));
                 }
                 assertTrue(cachingPolicy.shouldCache(rewritten));
@@ -105,10 +105,10 @@ public class CachingEnableFilterQueryTests extends ESTestCase {
                 assertThat(searcher.rewrite(query), instanceOf(CachingEnableFilterQuery.class));
                 assertEquals(5, searcher.count(query));
 
-                var cachingPolicy = new ElasticsearchUsageTrackingQueryCachingPolicy();
+                var cachingPolicy = new UsageTrackingQueryCachingPolicy();
                 searcher.setQueryCachingPolicy(cachingPolicy);
                 var rewritten = searcher.rewrite(query);
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 5; i++) {
                     assertThat(searcher.search(rewritten, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5));
                 }
                 assertTrue(cachingPolicy.shouldCache(rewritten));

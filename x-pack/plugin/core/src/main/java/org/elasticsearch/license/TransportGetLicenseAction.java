@@ -57,6 +57,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
         ClusterState state,
         final ActionListener<GetLicenseResponse> listener
     ) throws ElasticsearchException {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
             listener.onResponse(new GetLicenseResponse(clusterStateLicenseService.getLicense(state.metadata())));
         } else {

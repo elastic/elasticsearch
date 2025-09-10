@@ -1364,15 +1364,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            // We find all indices that are used in the query, and check their indexmode.
+            boolean isTimeseriesIndexModeOnly = logicalPlan.collectFirstChildren(EsRelation.class::isInstance)
+                .stream()
+                .map(child -> (EsRelation) child)
+                .map(EsRelation::indexMode)
+                .allMatch(mode -> mode == IndexMode.TIME_SERIES);
             int limit;
             if (limits.isEmpty()) {
-                HeaderWarning.addWarning(
-                    "No limit defined, adding default limit of [{}]",
-                    context.configuration().resultTruncationDefaultSize()
-                );
-                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+                // Find out the indexmode or whether there is a "TS" source
+                limit = context.configuration().resultTruncationDefaultSize(isTimeseriesIndexModeOnly); // user provided no limit: cap to a
+                                                                                                        // default
+                HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
             } else {
-                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+                limit = context.configuration().resultTruncationMaxSize(isTimeseriesIndexModeOnly); // user provided a limit: cap result
+                                                                                                    // entries to the max
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);

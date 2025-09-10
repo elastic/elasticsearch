@@ -168,6 +168,9 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
     private static final int DEFAULT_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_TIMESERIES_LIMIT = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
+        Settings.EMPTY
+    );
 
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -2474,6 +2477,15 @@ public class AnalyzerTests extends ESTestCase {
             error.getMessage(),
             containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
         );
+    }
+
+    public void testTimeseriesDefaultLimitIs1B() {
+        assumeTrue("timeseries requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+        var limit = as(plan, Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_TIMESERIES_LIMIT));
+        assertWarnings("No limit defined, adding default limit of [1000000]");
     }
 
     public void testRateRequiresCounterTypes() {

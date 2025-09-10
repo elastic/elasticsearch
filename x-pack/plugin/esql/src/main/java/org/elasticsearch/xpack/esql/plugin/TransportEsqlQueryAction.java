@@ -235,7 +235,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            request.allowPartialResults()
+            request.allowPartialResults(),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE)
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task

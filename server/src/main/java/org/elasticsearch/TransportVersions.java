@@ -345,6 +345,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion TIME_SERIES_TELEMETRY = def(9_155_0_00);
     public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
+    public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_157_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

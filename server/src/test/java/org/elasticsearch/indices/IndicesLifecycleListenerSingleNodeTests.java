@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -31,11 +32,14 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -107,6 +111,12 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 counter.incrementAndGet();
             }
 
+            @Override
+            public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(30));
+                assertThat(indexShard.state(), equalTo(IndexShardState.RECOVERING));
+                listener.onResponse(null);
+            }
         };
         indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
         try {

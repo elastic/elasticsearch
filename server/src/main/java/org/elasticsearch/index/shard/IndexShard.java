@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -1889,7 +1890,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert postRecoveryComplete == null;
         SubscribableListener<Void> subscribableListener = new SubscribableListener<>();
         postRecoveryComplete = subscribableListener;
-        final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
+        final ActionListener<Void> intermediateListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
         try {
             // Some engine implementations try to acquire the engine reset write lock during refresh: in case something else is holding the
             // engine read lock at the same time then the refresh is a no-op for those engines. Here we acquire the engine reset write lock
@@ -1904,19 +1905,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 engineResetLock.writeLock().unlock();
             }
-            synchronized (mutex) {
-                if (state == IndexShardState.CLOSED) {
-                    throw new IndexShardClosedException(shardId);
+            indexEventListener.afterIndexShardRecovery(this, intermediateListener.delegateFailureAndWrap((finalListener, unused) -> {
+                synchronized (mutex) {
+                    if (state == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(shardId);
+                    }
+                    if (state == IndexShardState.STARTED) {
+                        throw new IndexShardStartedException(shardId);
+                    }
+                    recoveryState.setStage(RecoveryState.Stage.DONE);
+                    changeState(IndexShardState.POST_RECOVERY, reason);
                 }
-                if (state == IndexShardState.STARTED) {
-                    throw new IndexShardStartedException(shardId);
-                }
-                recoveryState.setStage(RecoveryState.Stage.DONE);
-                changeState(IndexShardState.POST_RECOVERY, reason);
-            }
-            indexEventListener.afterIndexShardRecovery(this, finalListener);
+                finalListener.onResponse(null);
+            }));
         } catch (Exception e) {
-            finalListener.onFailure(e);
+            intermediateListener.onFailure(e);
         }
     }
 

@@ -67,12 +67,12 @@ public class CachingEnableFilterQueryTests extends ESTestCase {
                 searcher.setQueryCachingPolicy(cachingPolicy);
                 var rewritten = searcher.rewrite(query);
                 for (int i = 0; i < 5; i++) {
-                    assertThat(searcher.search(rewritten, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5));
+                    assertThat(searcher.search(rewritten, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5L));
                 }
                 assertTrue(cachingPolicy.shouldCache(rewritten));
 
                 for (int i = 0; i < 10; i++) {
-                    assertThat(searcher.search(termQuery, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5));
+                    assertThat(searcher.search(termQuery, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5L));
                 }
                 assertFalse(cachingPolicy.shouldCache(termQuery));
             }
@@ -109,7 +109,7 @@ public class CachingEnableFilterQueryTests extends ESTestCase {
                 searcher.setQueryCachingPolicy(cachingPolicy);
                 var rewritten = searcher.rewrite(query);
                 for (int i = 0; i < 5; i++) {
-                    assertThat(searcher.search(rewritten, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5));
+                    assertThat(searcher.search(rewritten, 10, Sort.INDEXORDER).totalHits.value(), equalTo(5L));
                 }
                 assertTrue(cachingPolicy.shouldCache(rewritten));
             }

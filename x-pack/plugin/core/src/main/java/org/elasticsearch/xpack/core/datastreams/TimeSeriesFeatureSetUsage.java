@@ -70,6 +70,7 @@ import java.util.Objects;
  * }
  */
 public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
+
     private final long timeSeriesDataStreamCount;
     private final long timeSeriesIndexCount;
     private final DownsamplingUsage downsamplingUsage;

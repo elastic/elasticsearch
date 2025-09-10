@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -118,9 +118,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier();
-            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier();
-            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier();
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier();
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier();
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

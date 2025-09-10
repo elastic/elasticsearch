@@ -9,7 +9,16 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FilterWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.Objects;

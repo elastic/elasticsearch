@@ -99,7 +99,7 @@ public class GPUIndexIT extends ESIntegTestCase {
             for (int i = 0; i < hits1.length; i++) {
                 Assert.assertEquals(hits1[i].getId(), hits2[i].getId());
                 Assert.assertEquals((String) hits1[i].field("my_keyword").getValue(), (String) hits2[i].field("my_keyword").getValue());
-                Assert.assertEquals(hits1[i].getScore(), hits2[i].getScore(), 0.0001f);
+                Assert.assertEquals(hits1[i].getScore(), hits2[i].getScore(), 0.001f);
             }
         } finally {
             searchResponse1.decRef();

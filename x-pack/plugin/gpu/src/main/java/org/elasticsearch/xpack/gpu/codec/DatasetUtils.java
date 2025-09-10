@@ -19,6 +19,10 @@ public interface DatasetUtils {
         return DatasetUtilsImpl.getInstance();
     }
 
-    /** Returns a Dataset over the float32 vectors in the input. */
+    /** Returns a Dataset over the vectors of type {@code dataType} in the input. */
     CuVSMatrix fromInput(MemorySegmentAccessInput input, int numVectors, int dims, CuVSMatrix.DataType dataType) throws IOException;
+
+    /** Returns a Dataset over an input slice */
+    CuVSMatrix fromSlice(MemorySegmentAccessInput input, long pos, long len, int numVectors, int dims, CuVSMatrix.DataType dataType)
+        throws IOException;
 }

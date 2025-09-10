@@ -17,6 +17,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Drop is an intermediary object used during the {@link org.elasticsearch.xpack.esql.analysis.Analyzer} phase of query planning.
+ * DROP commands are parsed into Drop objects, which the {@link org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs} rule then
+ * rewrites into {@link org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject} plans, along with other projection-like commands.
+ * As such, Drop is neither serializable nor able to be mapped to a corresponding physical plan.
+ */
 public class Drop extends UnaryPlan implements TelemetryAware, SortAgnostic {
     private final List<NamedExpression> removals;
 

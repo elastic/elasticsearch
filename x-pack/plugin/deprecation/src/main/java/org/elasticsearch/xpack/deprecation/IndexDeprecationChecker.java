@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
@@ -99,6 +100,21 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
         if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            List<String> cldrIncompatibleFieldMappings = new ArrayList<>();
+            fieldLevelMappingIssue(
+                indexMetadata,
+                (mappingMetadata, sourceAsMap) -> cldrIncompatibleFieldMappings.addAll(
+                    findInPropertiesRecursively(
+                        mappingMetadata.type(),
+                        sourceAsMap,
+                        this::isDateFieldWithCompatFormatPattern,
+                        this::cldrIncompatibleFormatPattern,
+                        "",
+                        ""
+                    )
+                )
+            );
+
             var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
@@ -115,6 +131,17 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     ),
                     false,
                     Map.of("reindex_required", true, "transform_ids", transforms)
+                );
+            } else if (cldrIncompatibleFieldMappings.isEmpty() == false) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Field mappings with incompatible date format patterns in old index",
+                    "https://www.elastic.co/blog/locale-changes-elasticsearch-8-16-jdk-23",
+                    "The index was created before 8.0 and contains mappings that must be reindexed due to locale changes in 8.16+. "
+                        + "Manual reindexing is required. "
+                        + String.join(", ", cldrIncompatibleFieldMappings),
+                    false,
+                    null
                 );
             } else {
                 return new DeprecationIssue(
@@ -394,6 +421,24 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             );
         }
         return null;
+    }
+
+    private boolean isDateFieldWithCompatFormatPattern(Map<?, ?> property) {
+        if ("date".equals(property.get("type")) && property.containsKey("format")) {
+            String[] patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
+            for (String pattern : patterns) {
+                if (DateUtils.containsCompatOnlyDateFormat(pattern)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String cldrIncompatibleFormatPattern(String type, Map.Entry<?, ?> entry) {
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        final String formatFieldValue = (String) value.get("format");
+        return "Field [" + entry.getKey() + "] with format pattern [" + formatFieldValue + "].";
     }
 
     private boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {

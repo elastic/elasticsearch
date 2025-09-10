@@ -653,7 +653,8 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public final <K, V> void writeOptionalMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
+    public final <K, V> void writeOptionalMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+        throws IOException {
         if (map == null) {
             writeBoolean(false);
         } else {

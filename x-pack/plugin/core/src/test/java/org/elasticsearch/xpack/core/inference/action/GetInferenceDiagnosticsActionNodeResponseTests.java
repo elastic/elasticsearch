@@ -26,7 +26,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         var randomExternalPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
         var randomEisPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
 
-        return new GetInferenceDiagnosticsAction.NodeResponse(node, randomExternalPoolStats, randomEisPoolStats);
+        return new GetInferenceDiagnosticsAction.NodeResponse(node, randomExternalPoolStats, randomEisPoolStats, randomCacheStats());
     }
 
     @Override
@@ -45,11 +45,16 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         if (randomBoolean()) {
             PoolStats mutatedConnPoolStats = mutatePoolStats(instance.getExternalConnectionPoolStats());
             PoolStats eisPoolStats = copyPoolStats(instance.getEisMtlsConnectionPoolStats());
-            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), mutatedConnPoolStats, eisPoolStats);
+            return new GetInferenceDiagnosticsAction.NodeResponse(
+                instance.getNode(),
+                mutatedConnPoolStats,
+                eisPoolStats,
+                randomCacheStats()
+            );
         } else {
             PoolStats connPoolStats = copyPoolStats(instance.getExternalConnectionPoolStats());
             PoolStats mutatedEisPoolStats = mutatePoolStats(instance.getEisMtlsConnectionPoolStats());
-            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), connPoolStats, mutatedEisPoolStats);
+            return new GetInferenceDiagnosticsAction.NodeResponse(instance.getNode(), connPoolStats, mutatedEisPoolStats, null);
         }
     }
 
@@ -79,24 +84,50 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         );
     }
 
+    private static GetInferenceDiagnosticsAction.NodeResponse.Stats randomCacheStats() {
+        return new GetInferenceDiagnosticsAction.NodeResponse.Stats(
+            randomInt(),
+            randomLongBetween(0, Long.MAX_VALUE),
+            randomLongBetween(0, Long.MAX_VALUE),
+            randomLongBetween(0, Long.MAX_VALUE)
+        );
+    }
+
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse mutateInstanceForVersion(
         GetInferenceDiagnosticsAction.NodeResponse instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
-            return new GetInferenceDiagnosticsAction.NodeResponse(
-                instance.getNode(),
-                new PoolStats(
-                    instance.getExternalConnectionPoolStats().getLeasedConnections(),
-                    instance.getExternalConnectionPoolStats().getPendingConnections(),
-                    instance.getExternalConnectionPoolStats().getAvailableConnections(),
-                    instance.getExternalConnectionPoolStats().getMaxConnections()
-                ),
-                new PoolStats(0, 0, 0, 0)
-            );
-        } else {
+        return mutateNodeResponseForVersion(instance, version);
+    }
+
+    public static GetInferenceDiagnosticsAction.NodeResponse mutateNodeResponseForVersion(
+        GetInferenceDiagnosticsAction.NodeResponse instance,
+        TransportVersion version
+    ) {
+        if (version.onOrAfter(TransportVersions.ML_INFERENCE_ENDPOINT_CACHE)) {
             return instance;
         }
+
+        var eisMltsConnectionPoolStats = version.onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)
+            ? new PoolStats(
+                instance.getEisMtlsConnectionPoolStats().getLeasedConnections(),
+                instance.getEisMtlsConnectionPoolStats().getPendingConnections(),
+                instance.getEisMtlsConnectionPoolStats().getAvailableConnections(),
+                instance.getEisMtlsConnectionPoolStats().getMaxConnections()
+            )
+            : new PoolStats(0, 0, 0, 0);
+
+        return new GetInferenceDiagnosticsAction.NodeResponse(
+            instance.getNode(),
+            new PoolStats(
+                instance.getExternalConnectionPoolStats().getLeasedConnections(),
+                instance.getExternalConnectionPoolStats().getPendingConnections(),
+                instance.getExternalConnectionPoolStats().getAvailableConnections(),
+                instance.getExternalConnectionPoolStats().getMaxConnections()
+            ),
+            eisMltsConnectionPoolStats,
+            null
+        );
     }
 }

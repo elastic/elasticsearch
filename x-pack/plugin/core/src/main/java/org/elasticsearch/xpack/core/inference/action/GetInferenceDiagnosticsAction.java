@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -27,6 +28,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
 
 public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagnosticsAction.Response> {
 
@@ -119,14 +122,23 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         private static final String EXTERNAL_FIELD = "external";
         private static final String EIS_FIELD = "eis_mtls";
         private static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        static final String INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME = "inference_endpoint_registry";
 
         private final ConnectionPoolStats externalConnectionPoolStats;
         private final ConnectionPoolStats eisMtlsConnectionPoolStats;
+        @Nullable
+        private final Stats inferenceEndpointRegistryStats;
 
-        public NodeResponse(DiscoveryNode node, PoolStats poolStats, PoolStats eisPoolStats) {
+        public NodeResponse(
+            DiscoveryNode node,
+            PoolStats poolStats,
+            PoolStats eisPoolStats,
+            @Nullable Stats inferenceEndpointRegistryStats
+        ) {
             super(node);
             externalConnectionPoolStats = ConnectionPoolStats.of(poolStats);
             eisMtlsConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
+            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -138,6 +150,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             } else {
                 eisMtlsConnectionPoolStats = ConnectionPoolStats.EMPTY;
             }
+            inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)
+                ? in.readOptionalWriteable(Stats::new)
+                : null;
         }
 
         @Override
@@ -147,6 +162,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
             if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
                 eisMtlsConnectionPoolStats.writeTo(out);
+            }
+            if (out.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)) {
+                out.writeOptionalWriteable(inferenceEndpointRegistryStats);
             }
         }
 
@@ -163,6 +181,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
                 builder.field(CONNECTION_POOL_STATS_FIELD_NAME, eisMtlsConnectionPoolStats, params);
             }
             builder.endObject();
+            if (inferenceEndpointRegistryStats != null) {
+                builder.field(INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME, inferenceEndpointRegistryStats, params);
+            }
             return builder;
         }
 
@@ -172,12 +193,13 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse response = (NodeResponse) o;
             return Objects.equals(externalConnectionPoolStats, response.externalConnectionPoolStats)
-                && Objects.equals(eisMtlsConnectionPoolStats, response.eisMtlsConnectionPoolStats);
+                && Objects.equals(eisMtlsConnectionPoolStats, response.eisMtlsConnectionPoolStats)
+                && Objects.equals(inferenceEndpointRegistryStats, response.inferenceEndpointRegistryStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(externalConnectionPoolStats, eisMtlsConnectionPoolStats);
+            return Objects.hash(externalConnectionPoolStats, eisMtlsConnectionPoolStats, inferenceEndpointRegistryStats);
         }
 
         ConnectionPoolStats getExternalConnectionPoolStats() {
@@ -186,6 +208,10 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
         ConnectionPoolStats getEisMtlsConnectionPoolStats() {
             return eisMtlsConnectionPoolStats;
+        }
+
+        public Stats getInferenceEndpointRegistryStats() {
+            return inferenceEndpointRegistryStats;
         }
 
         static class ConnectionPoolStats implements ToXContentObject, Writeable {
@@ -268,6 +294,36 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
             int getMaxConnections() {
                 return maxConnections;
+            }
+        }
+
+        public record Stats(int entryCount, long hits, long misses, long evictions) implements ToXContentObject, Writeable {
+
+            private static final String NUM_OF_CACHE_ENTRIES = "cache_count";
+            private static final String CACHE_HITS = "cache_hits";
+            private static final String CACHE_MISSES = "cache_misses";
+            private static final String CACHE_EVICTIONS = "cache_evictions";
+
+            public Stats(StreamInput in) throws IOException {
+                this(in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong());
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeVInt(entryCount);
+                out.writeVLong(hits);
+                out.writeVLong(misses);
+                out.writeVLong(evictions);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject()
+                    .field(NUM_OF_CACHE_ENTRIES, entryCount)
+                    .field(CACHE_HITS, hits)
+                    .field(CACHE_MISSES, misses)
+                    .field(CACHE_EVICTIONS, evictions)
+                    .endObject();
             }
         }
     }

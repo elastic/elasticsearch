@@ -29,15 +29,15 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for double.
+ * A rate grouping aggregation definition for double. This implementation supports the `irate` and `idelta` functions.
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 public class IrateDoubleAggregator {
-    public static DoubleIrateGroupingState initGrouping(DriverContext driverContext) {
-        return new DoubleIrateGroupingState(driverContext.bigArrays(), driverContext.breaker());
+    public static DoubleIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta) {
+        return new DoubleIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta);
     }
 
     public static void combine(DoubleIrateGroupingState current, int groupId, double value, long timestamp) {
@@ -83,11 +83,13 @@ public class IrateDoubleAggregator {
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
+        private final boolean isDelta;
 
-        DoubleIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+        DoubleIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
+            this.isDelta = isDelta;
         }
 
         void ensureCapacity(int groupId) {
@@ -201,7 +203,12 @@ public class IrateDoubleAggregator {
                         ? state.lastValue - state.secondLastValue
                         : state.lastValue;
                     final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                    rates.appendDouble(ydiff / xdiff * 1000);
+                    if (isDelta) {
+                        // delta: just return the difference
+                        rates.appendDouble(ydiff);
+                    } else {
+                        rates.appendDouble(ydiff / xdiff * 1000);
+                    }
                 }
                 return rates.build();
             }

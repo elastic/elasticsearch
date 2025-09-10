@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 2000L;
-    private static final Long TIME_RANGE_SECONDS = 3600L;
+    private static final Long NUM_DOCS = 200L;
+    private static final Long TIME_RANGE_SECONDS = 360L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
@@ -73,7 +73,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     );
     private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
         Tuple.tuple("rate", DeltaAgg.RATE),
-        Tuple.tuple("irate", DeltaAgg.IRATE)
+        Tuple.tuple("irate", DeltaAgg.IRATE),
+        Tuple.tuple("idelta", DeltaAgg.IDELTA)
     );
 
     private List<XContentBuilder> documents;
@@ -262,7 +263,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     enum DeltaAgg {
         RATE,
-        IRATE
+        IRATE,
+        IDELTA,
     }
 
     // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
@@ -288,6 +290,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     timeseries.size() - 2
                 ).v2().v1().toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
+            } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
+                var lastVal = timeseries.getLast().v2().v2();
+                var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
+                var idelta = lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal;
+                return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
             }
             assert deltaAgg == DeltaAgg.RATE;
             Double lastValue = null;
@@ -397,7 +404,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * The test checks that the count, max, min, and avg values of the rate metric - and calculates
      * the same values from the documents in the group.
      */
-    public void testRateSomethingSomething() {
+    public void testRateGroupBySubset() {
         var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();

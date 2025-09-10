@@ -12,7 +12,9 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -27,12 +29,14 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -43,6 +47,17 @@ import java.util.function.Supplier;
 public class PatternedTextFieldMapper extends FieldMapper {
 
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
+
+    /**
+     * A setting that indicates that patterned text fields should behave as match_only_text fields, usually because there is
+     * no valid license.
+     */
+    public static final Setting<Boolean> PATTERNED_TEXT_FALLBACK_SETTING = Setting.boolSetting(
+        "index.mapping.patterned_text_fallback_to_match_only_text",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE_DOCS;
@@ -76,6 +91,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
         private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
+        private final Parameter<Boolean> fallbackToMatchOnlyText;
 
         public Builder(String name, MappingParserContext context) {
             this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
@@ -91,11 +107,13 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
+
+            this.fallbackToMatchOnlyText = fallbackToMatchOnlyTextParameter(indexSettings);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, indexOptions };
+            return new Parameter<?>[] { meta, indexOptions, fallbackToMatchOnlyText };
         }
 
         private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
@@ -131,6 +149,27 @@ public class PatternedTextFieldMapper extends FieldMapper {
             });
         }
 
+        /**
+         * A parameter that indicates the patterned_text mapper should fall back to behaving as a match_only_text mapper, usually
+         * because there is no valid license.
+         * <p>
+         * The parameter can only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
+         * associated index setting, which is set from the current license status.
+         */
+        private static Parameter<Boolean> fallbackToMatchOnlyTextParameter(IndexSettings indexSettings) {
+            boolean forceFallback = indexSettings.getValue(PATTERNED_TEXT_FALLBACK_SETTING);
+            return new Parameter<>("fallback_to_match_only_text", false, () -> forceFallback, (n, c, o) -> {
+                if (XContentMapValues.nodeBooleanValue(o) == false) {
+                    throw new MapperParsingException(
+                        "Illegal value [false] for field [fallback_to_match_only_text] - accepted values are [true]"
+                    );
+                }
+                return true;
+            }, m -> ((PatternedTextFieldMapper) m).fallbackToMatchOnlyText, XContentBuilder::field, Objects::toString).setSerializerCheck(
+                (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value
+            );
+        }
+
         @Override
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = buildLuceneFieldType(indexOptions);
@@ -157,6 +196,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
+    private final boolean fallbackToMatchOnlyText;
+
     private PatternedTextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -176,6 +217,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
+        this.fallbackToMatchOnlyText = builder.fallbackToMatchOnlyText.getValue();
     }
 
     @Override

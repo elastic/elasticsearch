@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -191,6 +192,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     additionalSettings.put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
                 }
             }
+        }
+
+        if (licenseService.allowPatternedText(isTemplateValidation) == false) {
+            additionalSettings.put(PatternedTextFieldMapper.PATTERNED_TEXT_FALLBACK_SETTING.getKey(), true);
         }
     }
 

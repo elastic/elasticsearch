@@ -59,6 +59,12 @@ final class LogsdbLicenseService {
         License.OperationMode.ENTERPRISE
     );
 
+    static final LicensedFeature.Momentary PATTERNED_TEXT_FEATURE = LicensedFeature.momentary(
+        MAPPINGS_FEATURE_FAMILY,
+        "patterned-text",
+        License.OperationMode.ENTERPRISE
+    );
+
     private final long cutoffDate;
     private LicenseService licenseService;
     private XPackLicenseState licenseState;
@@ -101,6 +107,13 @@ final class LogsdbLicenseService {
         }
 
         return true;
+    }
+
+    /**
+     * @return whether patterned_text fields should work as normal or instead fall back to behaving as match_only_text fields.
+     */
+    public boolean allowPatternedText(boolean isTemplateValidation) {
+        return checkFeature(PATTERNED_TEXT_FEATURE, licenseState.copyCurrentLicenseState(), isTemplateValidation);
     }
 
     /**

@@ -24,6 +24,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.SERVER;
 
 public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
 
@@ -31,7 +32,16 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
 
     PolicyManager.PolicyScope getScope(Class<?> callerClass) {
         var callerCodeSource = callerClass.getProtectionDomain().getCodeSource();
-        assert callerCodeSource != null;
+        if (callerCodeSource == null) {
+            // This case happens for JDK modules. Usually those are trivially allowed, but some are excluded,
+            // and those end up here.
+            // We have no test build info for those modules, so for now, let's just guess.
+            if (callerClass.getPackageName().equals("sun.java2d")) {
+                return new PolicyManager.PolicyScope(SERVER, SERVER.componentName, "java.desktop");
+            } else {
+                throw new IllegalArgumentException("Cannot identify scope for JDK class [" + callerClass + "]");
+            }
+        }
 
         var location = callerCodeSource.getLocation().toString();
         var scope = scopeMap.get(location);

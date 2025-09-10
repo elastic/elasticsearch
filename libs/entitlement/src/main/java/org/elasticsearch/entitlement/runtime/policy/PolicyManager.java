@@ -94,7 +94,7 @@ public class PolicyManager {
          * If this kind corresponds to a single component, this is that component's name;
          * otherwise null.
          */
-        final String componentName;
+        public final String componentName;
 
         ComponentKind(String componentName) {
             this.componentName = componentName;

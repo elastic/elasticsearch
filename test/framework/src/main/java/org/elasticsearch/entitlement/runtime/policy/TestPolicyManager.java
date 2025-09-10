@@ -97,6 +97,10 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     protected boolean isTrustedSystemClass(Class<?> requestingClass) {
+        if (requestingClass.getPackageName().startsWith("sun.java2d")) {
+            // This is part of the java.desktop module
+            return false;
+        }
         ClassLoader loader = requestingClass.getClassLoader();
         return loader == null || loader == ClassLoader.getPlatformClassLoader();
     }

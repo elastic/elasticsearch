@@ -1644,8 +1644,8 @@ public class MetadataCreateIndexService {
             if (setting == null) {
                 assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
             } else if (setting.isPrivateIndex() && isSystemProvided(key, settings, systemProvided) == false) {
-                    validationErrors.add("private index setting [" + key + "] can not be set explicitly");
-                }
+                validationErrors.add("private index setting [" + key + "] can not be set explicitly");
+            }
         }
         return validationErrors;
     }

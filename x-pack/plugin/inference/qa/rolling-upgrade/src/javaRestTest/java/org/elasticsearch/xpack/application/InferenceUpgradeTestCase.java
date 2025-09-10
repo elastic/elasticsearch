@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
@@ -44,6 +45,7 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         .nodes(NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .feature(FeatureFlag.RERANK_RESCORE_CHUNKS)
         .build();
 
     @Override

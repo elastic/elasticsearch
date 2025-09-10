@@ -28,6 +28,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -76,6 +77,8 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -83,7 +86,6 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -131,31 +133,38 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
-        entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
-        entry(BOOLEAN, ToBoolean::new),
-        entry(CARTESIAN_POINT, ToCartesianPoint::new),
-        entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        entry(DATETIME, ToDatetime::new),
-        entry(DATE_NANOS, ToDateNanos::new),
+    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION;
+
+    static {
+        Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> typeToConverter = new HashMap<>();
+        typeToConverter.put(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new);
+        typeToConverter.put(BOOLEAN, ToBoolean::new);
+        typeToConverter.put(CARTESIAN_POINT, ToCartesianPoint::new);
+        typeToConverter.put(CARTESIAN_SHAPE, ToCartesianShape::new);
+        typeToConverter.put(DATETIME, ToDatetime::new);
+        typeToConverter.put(DATE_NANOS, ToDateNanos::new);
         // ToDegrees, typeless
-        entry(DOUBLE, ToDouble::new),
-        entry(GEO_POINT, ToGeoPoint::new),
-        entry(GEO_SHAPE, ToGeoShape::new),
-        entry(GEOHASH, ToGeohash::new),
-        entry(GEOTILE, ToGeotile::new),
-        entry(GEOHEX, ToGeohex::new),
-        entry(INTEGER, ToInteger::new),
-        entry(IP, ToIpLeadingZerosRejected::new),
-        entry(LONG, ToLong::new),
+        typeToConverter.put(DOUBLE, ToDouble::new);
+        typeToConverter.put(GEO_POINT, ToGeoPoint::new);
+        typeToConverter.put(GEO_SHAPE, ToGeoShape::new);
+        typeToConverter.put(GEOHASH, ToGeohash::new);
+        typeToConverter.put(GEOTILE, ToGeotile::new);
+        typeToConverter.put(GEOHEX, ToGeohex::new);
+        typeToConverter.put(INTEGER, ToInteger::new);
+        typeToConverter.put(IP, ToIpLeadingZerosRejected::new);
+        typeToConverter.put(LONG, ToLong::new);
         // ToRadians, typeless
-        entry(KEYWORD, ToString::new),
-        entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        entry(VERSION, ToVersion::new),
-        entry(DATE_PERIOD, ToDatePeriod::new),
-        entry(TIME_DURATION, ToTimeDuration::new),
-        entry(DENSE_VECTOR, ToDenseVector::new)
-    );
+        typeToConverter.put(KEYWORD, ToString::new);
+        typeToConverter.put(UNSIGNED_LONG, ToUnsignedLong::new);
+        typeToConverter.put(VERSION, ToVersion::new);
+        typeToConverter.put(DATE_PERIOD, ToDatePeriod::new);
+        typeToConverter.put(TIME_DURATION, ToTimeDuration::new);
+
+        if (EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled()) {
+            typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
+        }
+        TYPE_TO_CONVERTER_FUNCTION = Collections.unmodifiableMap(typeToConverter);
+    }
 
     public enum INTERVALS {
         // TIME_DURATION,

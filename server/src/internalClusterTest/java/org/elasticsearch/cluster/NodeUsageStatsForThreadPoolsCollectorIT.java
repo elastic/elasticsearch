@@ -90,7 +90,7 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         );
 
         // This info should contain our fake values
-        assertThreadPoolHasStats(
+        refreshClusterInfoAndAssertThreadPoolHasStats(
             dataNodeClusterService.localNode().getId(),
             threadPoolName,
             totalThreadPoolThreads,
@@ -107,7 +107,7 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         );
 
         // The next response should also contain our fake values
-        assertThreadPoolHasStats(
+        refreshClusterInfoAndAssertThreadPoolHasStats(
             dataNodeClusterService.localNode().getId(),
             threadPoolName,
             totalThreadPoolThreads,
@@ -116,7 +116,7 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         );
     }
 
-    private void assertThreadPoolHasStats(
+    private void refreshClusterInfoAndAssertThreadPoolHasStats(
         String nodeId,
         String threadPoolName,
         int totalThreadPoolThreads,

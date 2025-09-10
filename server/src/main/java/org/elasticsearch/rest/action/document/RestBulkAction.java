@@ -10,13 +10,10 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -43,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -60,7 +58,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestBulkAction extends BaseRestHandler {
 
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
@@ -96,51 +93,31 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
+        String refresh = request.param("refresh");
         if (request.isStreamedContent() == false) {
-            BulkRequest bulkRequest = new BulkRequest();
-            String defaultIndex = request.param("index");
-            String defaultRouting = request.param("routing");
-            FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
-            String defaultPipeline = request.param("pipeline");
-            boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
-            String waitForActiveShards = request.param("wait_for_active_shards");
-            if (waitForActiveShards != null) {
-                bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
-            }
-            Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
-            boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
-            bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
-            bulkRequest.setRefreshPolicy(request.param("refresh"));
-            bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
-            bulkRequest.requestParamsUsed(request.params().keySet());
             ReleasableBytesReference content = request.requiredContent();
+            ChunkHandler chunkHandler = new ChunkHandler(
+                allowExplicitIndex,
+                request,
+                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
+            );
+            return new RestChannelConsumer() {
+                @Override
+                public void accept(RestChannel restChannel) throws Exception {
+                    content.mustIncRef();
+                    chunkHandler.acceptWithoutCallingStreamNext(restChannel);
+                    chunkHandler.handleChunk(restChannel, content, true);
+                }
 
-            try {
-                bulkRequest.add(
-                    content,
-                    defaultIndex,
-                    defaultRouting,
-                    defaultFetchSourceContext,
-                    defaultPipeline,
-                    defaultRequireAlias,
-                    defaultRequireDataStream,
-                    defaultListExecutedPipelines,
-                    allowExplicitIndex,
-                    request.getXContentType(),
-                    request.getRestApiVersion()
-                );
-            } catch (Exception e) {
-                return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
-            }
-            return channel -> {
-                content.mustIncRef();
-                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
+                @Override
+                public void close() {
+                    chunkHandler.close();
+                }
             };
         } else {
             request.ensureContent();
-            String waitForActiveShards = request.param("wait_for_active_shards");
-            TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
-            String refresh = request.param("refresh");
             return new ChunkHandler(
                 allowExplicitIndex,
                 request,
@@ -177,29 +154,19 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
-                .incrementalParser(
-                    request.param("index"),
-                    request.param("routing"),
-                    FetchSourceContext.parseFromRestRequest(request),
-                    request.param("pipeline"),
-                    request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
-                    request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
-                    request.paramAsBoolean("list_executed_pipelines", false),
-                    allowExplicitIndex,
-                    request.getXContentType(),
-                    (indexRequest, type) -> items.add(indexRequest),
-                    items::add,
-                    items::add
-                );
+            this.parser = parserFromRequest(request, allowExplicitIndex, items::add);
         }
 
         @Override
         public void accept(RestChannel restChannel) {
+            acceptWithoutCallingStreamNext(restChannel);
+            request.contentStream().next();
+        }
+
+        public void acceptWithoutCallingStreamNext(RestChannel restChannel) {
             this.restChannel = restChannel;
             this.handler = handlerSupplier.get();
             requestNextChunkTime = System.nanoTime();
-            request.contentStream().next();
         }
 
         @Override
@@ -310,5 +277,27 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         return capabilities;
+    }
+
+    public static BulkRequestParser.IncrementalParser parserFromRequest(
+        RestRequest request,
+        boolean allowExplicitIndex,
+        Consumer<DocWriteRequest<?>> consumer
+    ) {
+        BulkRequestParser parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion());
+        return parser.incrementalParser(
+            request.param("index"),
+            request.param("routing"),
+            FetchSourceContext.parseFromRestRequest(request),
+            request.param("pipeline"),
+            request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+            request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+            request.paramAsBoolean("list_executed_pipelines", false),
+            allowExplicitIndex,
+            request.getXContentType(),
+            (r, t) -> consumer.accept(r),
+            consumer::accept,
+            consumer::accept
+        );
     }
 }

@@ -46,7 +46,6 @@ public class IncrementalBulkService {
         Setting.Property.Dynamic
     );
     private final Client client;
-    private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
 
     /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
@@ -63,7 +62,6 @@ public class IncrementalBulkService {
     }
 
     public Handler newBulkRequest() {
-        ensureEnabled();
         return newBulkRequest(null, null, null, emptySet());
     }
 
@@ -73,19 +71,7 @@ public class IncrementalBulkService {
         @Nullable String refresh,
         Set<String> paramsUsed
     ) {
-        ensureEnabled();
         return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
-    }
-
-    private void ensureEnabled() {
-        if (enabledForTests.get() == false) {
-            throw new AssertionError("Unexpected incremental bulk request");
-        }
-    }
-
-    // This method only exists to tests that the feature flag works. Remove once we no longer need the flag.
-    public void setForTests(boolean value) {
-        enabledForTests.set(value);
     }
 
     public static class Enabled implements Supplier<Boolean> {
@@ -308,19 +294,42 @@ public class IncrementalBulkService {
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
             assert bulkRequest == null;
-            bulkRequest = new BulkRequest();
+            bulkRequest = bulkRequest(waitForActiveShards, timeout, refresh, paramsUsed);
             bulkRequest.incrementalState(incrementalState);
-
-            if (waitForActiveShards != null) {
-                bulkRequest.waitForActiveShards(waitForActiveShards);
-            }
-            if (timeout != null) {
-                bulkRequest.timeout(timeout);
-            }
-            if (refresh != null) {
-                bulkRequest.setRefreshPolicy(refresh);
-            }
-            bulkRequest.requestParamsUsed(paramsUsed);
         }
+    }
+
+    public static BulkRequest bulkRequest(
+        @Nullable String waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh,
+        Set<String> requestParamsUsed
+    ) {
+        return bulkRequest(
+            waitForActiveShards == null ? null : ActiveShardCount.parseString(waitForActiveShards),
+            timeout,
+            refresh,
+            requestParamsUsed
+        );
+    }
+
+    private static BulkRequest bulkRequest(
+        @Nullable ActiveShardCount waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh,
+        Set<String> requestParamsUsed
+    ) {
+        BulkRequest bulkRequest = new BulkRequest();
+        if (waitForActiveShards != null) {
+            bulkRequest.waitForActiveShards(waitForActiveShards);
+        }
+        if (timeout != null) {
+            bulkRequest.timeout(timeout);
+        }
+        if (refresh != null) {
+            bulkRequest.setRefreshPolicy(refresh);
+        }
+        bulkRequest.requestParamsUsed(requestParamsUsed);
+        return bulkRequest;
     }
 }

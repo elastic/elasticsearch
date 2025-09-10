@@ -58,6 +58,7 @@ public class RestBulkActionTests extends ESTestCase {
 
     public void testBulkPipelineUpsert() throws Exception {
         SetOnce<Boolean> bulkCalled = new SetOnce<>();
+        IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         try (var threadPool = createThreadPool()) {
             final var verifyingClient = new NoOpNodeClient(threadPool) {
                 @Override
@@ -73,7 +74,7 @@ public class RestBulkActionTests extends ESTestCase {
             new RestBulkAction(
                 settings(IndexVersion.current()).build(),
                 ClusterSettings.createBuiltInClusterSettings(),
-                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                new IncrementalBulkService(verifyingClient, indexingPressure, MeterRegistry.NOOP)
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
@@ -92,6 +93,7 @@ public class RestBulkActionTests extends ESTestCase {
         AtomicBoolean bulkCalled = new AtomicBoolean(false);
         AtomicBoolean listExecutedPipelinesRequest1 = new AtomicBoolean(false);
         AtomicBoolean listExecutedPipelinesRequest2 = new AtomicBoolean(false);
+        IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         try (var threadPool = createThreadPool()) {
             final var verifyingClient = new NoOpNodeClient(threadPool) {
                 @Override
@@ -109,7 +111,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                    new IncrementalBulkService(verifyingClient, indexingPressure, MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -134,7 +136,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                    new IncrementalBulkService(verifyingClient, indexingPressure, MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -158,7 +160,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                    new IncrementalBulkService(verifyingClient, indexingPressure, MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -183,7 +185,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                    new IncrementalBulkService(verifyingClient, indexingPressure, MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)

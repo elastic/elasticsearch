@@ -12,8 +12,9 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.shard.ShardId;
@@ -22,6 +23,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -50,33 +52,14 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest();
-        String defaultIndex = request.param("index");
-        String defaultRouting = request.param("routing");
-        String defaultPipeline = request.param("pipeline");
-        Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
-        Boolean defaultRequireDataStream = request.paramAsBoolean("require_data_stream", null);
-        Boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", null);
-
-        String waitForActiveShards = request.param("wait_for_active_shards");
-        if (waitForActiveShards != null) {
-            bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
-        }
-        bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
-        bulkRequest.setRefreshPolicy(request.param("refresh"));
-        bulkRequest.add(
-            request.requiredContent(),
-            defaultIndex,
-            defaultRouting,
-            null,
-            defaultPipeline,
-            defaultRequireAlias,
-            defaultRequireDataStream,
-            defaultListExecutedPipelines,
-            true,
-            request.getXContentType(),
-            request.getRestApiVersion()
+        BulkRequest bulkRequest = IncrementalBulkService.bulkRequest(
+            request.param("wait_for_active_shards"),
+            request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT),
+            request.param("refresh"),
+            request.params().keySet()
         );
+        BulkRequestParser.IncrementalParser parser = RestBulkAction.parserFromRequest(request, true, bulkRequest::add);
+        parser.parse(request.requiredContent(), true);
 
         // short circuit the call to the transport layer
         return channel -> {

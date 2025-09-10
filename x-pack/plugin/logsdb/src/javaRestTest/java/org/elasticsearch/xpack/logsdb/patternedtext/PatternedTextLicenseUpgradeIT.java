@@ -1,0 +1,79 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.logsdb.patternedtext;
+
+import org.elasticsearch.xpack.logsdb.DataStreamLicenseChangeTestCase;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+
+public class PatternedTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase {
+    @Before
+    public void checkClusterFeature() {
+        assumeTrue("patterned_text must be enabled", clusterHasFeature("mapper.patterned_text"));
+    }
+
+    private static final String patternedTextMapping = """
+        {
+          "template": {
+            "mappings": {
+              "properties": {
+                "patterned_field": {
+                  "type": "patterned_text"
+                }
+              }
+            }
+          }
+        }""";
+
+    @SuppressWarnings("unchecked")
+    public void testLicenseUpgrade() throws IOException {
+        final String dataStreamName = "logs-test-patterned-text";
+
+        assertOK(putComponentTemplate(client(), "logs@custom", patternedTextMapping));
+        assertOK(createDataStream(client(), dataStreamName));
+
+        String backingIndex0 = getDataStreamBackingIndex(client(), dataStreamName, 0);
+        {
+            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text_fallback_to_match_only_text"));
+            Map<String, Object> mapping = getMapping(client(), backingIndex0);
+            Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
+                "patterned_field"
+            );
+            assertThat(patternedFieldMapping, hasEntry("fallback_to_match_only_text", true));
+        }
+
+        startTrial();
+        rolloverDataStream(client(), dataStreamName);
+
+        {
+            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text_fallback_to_match_only_text"));
+            Map<String, Object> mapping = getMapping(client(), backingIndex0);
+            Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
+                "patterned_field"
+            );
+            assertThat(patternedFieldMapping, hasEntry("fallback_to_match_only_text", true));
+        }
+
+        String backingIndex1 = getDataStreamBackingIndex(client(), dataStreamName, 1);
+        {
+            assertEquals("false", getSetting(client(), backingIndex1, "index.mapping.patterned_text_fallback_to_match_only_text"));
+            Map<String, Object> mapping = getMapping(client(), backingIndex1);
+            Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
+                "patterned_field"
+            );
+            assertThat(patternedFieldMapping, not(hasKey("fallback_to_match_only_text")));
+        }
+
+    }
+}

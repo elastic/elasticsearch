@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -713,8 +714,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
             List<Expression> filters,
-            List<Attribute> leftOutput,
-            List<Attribute> rightOutput
+            AttributeSet leftOutput,
+            AttributeSet rightOutput
         ) {
             if (filters.isEmpty()) {
                 return emptyList();
@@ -730,7 +731,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedFilters;
         }
 
-        private Expression resolveAndOrientJoinCondition(Expression condition, List<Attribute> leftOutput, List<Attribute> rightOutput) {
+        private Expression resolveAndOrientJoinCondition(Expression condition, AttributeSet leftOutput, AttributeSet rightOutput) {
             if (condition instanceof EsqlBinaryComparison comp
                 && comp.left() instanceof Attribute leftAttr
                 && comp.right() instanceof Attribute rightAttr) {
@@ -751,7 +752,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // Invalid orientation (e.g., both from left or both from right)
                 throw new EsqlIllegalArgumentException(
-                    "Join condition must be between attributes on the left and right side, but found: " + condition.sourceText()
+                    "Join condition must be between one attribute on the left side and "
+                        + "one attribute on the right side of the join, but found: "
+                        + condition.sourceText()
                 );
             }
             return condition; // Not a binary comparison between two attributes, no change needed.
@@ -788,8 +791,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (join.config().joinOnConditions() != null) {
                     resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
                         Predicates.splitAnd(join.config().joinOnConditions()),
-                        join.left().output(),
-                        join.right().output()
+                        join.left().outputSet(),
+                        join.right().outputSet()
                     );
                     // build leftKeys and rightKeys using the correct side of the resolvedFilters.
                     // resolveJoinFiltersAndSwapIfNeeded already put the left and right on the correct side

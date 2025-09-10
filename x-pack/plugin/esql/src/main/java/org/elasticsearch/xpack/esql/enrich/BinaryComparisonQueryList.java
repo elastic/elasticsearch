@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -86,7 +85,7 @@ public class BinaryComparisonQueryList extends QueryList {
                     .toQueryBuilder()
                     .toQuery(searchExecutionContext);
             } else {
-                throw new EsqlIllegalArgumentException("Cannot translate join condition: " + binaryComparison);
+                throw new IllegalStateException("Cannot translate join condition: " + binaryComparison);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Error while building query for join on filter:", e);

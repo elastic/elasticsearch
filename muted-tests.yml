@@ -525,6 +525,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithNulls {TestCase=<date_nanos>, <date_nanos>, <time_duration>, <_source> #11}"
   issue: https://github.com/elastic/elasticsearch/issues/134509
+- class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
+  method: testAliasFilters
+  issue: https://github.com/elastic/elasticsearch/issues/134512
 
 # Examples:
 #

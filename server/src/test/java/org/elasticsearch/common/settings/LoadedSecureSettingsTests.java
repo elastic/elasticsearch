@@ -91,4 +91,27 @@ public class LoadedSecureSettingsTests extends ESTestCase {
         var loaded2 = LoadedSecureSettings.toLoadedSecureSettings(settings, null);
         assertTrue(loaded2.getSettingNames().isEmpty());
     }
+
+    public void testCopiesDoNotCloseOriginal() throws GeneralSecurityException, IOException {
+        var mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("secure.password", "changeme");
+        var settings = Settings.builder().put("some.other", "value").setSecureSettings(mockSecureSettings).build();
+        var securePasswordSetting = SecureSetting.secureString("secure.password", null);
+        var loaded = LoadedSecureSettings.toLoadedSecureSettings(settings, List.of(securePasswordSetting));
+        mockSecureSettings.close();
+
+        {
+            SecureString loadedSecureString = loaded.getString("secure.password");
+            assertArrayEquals(loadedSecureString.getChars(), "changeme".toCharArray());
+            loadedSecureString.close();
+            var exception = assertThrows(IllegalStateException.class, loadedSecureString::getChars);
+            assertThat(exception.getMessage(), equalTo("SecureString has already been closed"));
+        }
+        {
+            SecureString loadedSecureString = loaded.getString("secure.password");
+            assertArrayEquals(loadedSecureString.getChars(), "changeme".toCharArray());
+            assertFalse(loadedSecureString.isEmpty());
+        }
+    }
+
 }

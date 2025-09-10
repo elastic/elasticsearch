@@ -57,7 +57,8 @@ public class LoadedSecureSettings {
 
             @Override
             public SecureString getString(String setting) {
-                return copiedSettings.get(setting).value();
+                var secureSettingValue = copiedSettings.get(setting);
+                return secureSettingValue != null ? secureSettingValue.value().clone() : null;
             }
 
             @Override

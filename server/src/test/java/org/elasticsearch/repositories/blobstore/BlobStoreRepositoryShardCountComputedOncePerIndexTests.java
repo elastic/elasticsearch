@@ -133,10 +133,6 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
         }
     }
 
-    /*
-        This test generates N indices, and for each has M snapshots.
-        We're testing that for each of the N indices, it's metadata is only loaded into heap once
-     */
     public void testShardCountComputedOncePerIndex() {
         final var repoPath = ESIntegTestCase.randomRepoPath(node().settings());
 
@@ -147,14 +143,12 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             ensureGreen(indexName);
         }
 
-        // Set up the repository contents, including snapshots, using a regular 'fs' repo
-
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
-                .setType(FsRepository.TYPE)
-                .setSettings(Settings.builder().put("location", repoPath))
+                client().admin()
+                        .cluster()
+                        .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                        .setType(TEST_REPO_TYPE)
+                        .setSettings(Settings.builder().put("location", repoPath))
         );
 
         int numberOfSnapshots = randomIntBetween(3, 10);
@@ -163,30 +157,18 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             String snapshotName = "snapshot-" + i;
             snapshotNames.add(snapshotName);
             client().admin()
-                .cluster()
-                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
-                .setWaitForCompletion(true)
-                .get();
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
+                    .setWaitForCompletion(true)
+                    .get();
         }
-
-        assertAcked(client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME));
-
-        // Now delete one of the snapshots using the test repo implementation which verifies the shard count behaviour
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
-                .setType(TEST_REPO_TYPE)
-                .setSettings(Settings.builder().put("location", repoPath))
-        );
 
         for (String snapshotName : snapshotNames) {
             assertAcked(client().admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName).get());
         }
 
-        // We've loaded N indices over M snapshots but we should have only loaded each index into heap memory once
-        assertEquals(numberOfIndices, INDEX_LOADED_COUNT.get());
+        // All metadata should have been cached upon writing the snapshots, so no Index MetaData should have been written to memory
+        assertEquals(0, INDEX_LOADED_COUNT.get());
         assertAcked(client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME));
     }
 }

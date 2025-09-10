@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -53,9 +52,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -1369,7 +1367,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                          * before overwriting it here. We can discard it after sampling.
                          */
                         IndexRequest original = copyIndexRequest(indexRequest);
-                        updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
+                        updateIndexRequestMetadata(original, originalDocumentMetadata);
                         samplingService.maybeSample(project, original, ingestDocument);
                     } catch (IOException ex) {
                         logger.warn("unable to sample data");
@@ -1392,16 +1390,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private IndexRequest copyIndexRequest(IndexRequest original) throws IOException {
-        // This makes a whole new copy of the source, and removes it from the BytesReference. I think this is what we want here? That way
-        // if we have a huge bulk request and only one thing is sampled, we don't keep it all.
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.current());
-            original.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersion.current());
-                return new IndexRequest(in);
-            }
+        IndexRequest clonedRequest = new IndexRequest(original.index());
+        clonedRequest.id(original.id());
+        clonedRequest.routing(original.routing());
+        clonedRequest.version(original.version());
+        clonedRequest.versionType(original.versionType());
+        clonedRequest.setPipeline(original.getPipeline());
+        clonedRequest.setIfSeqNo(original.ifSeqNo());
+        clonedRequest.setIfPrimaryTerm(original.ifPrimaryTerm());
+        clonedRequest.setRefreshPolicy(original.getRefreshPolicy());
+        clonedRequest.waitForActiveShards(original.waitForActiveShards());
+        clonedRequest.timeout(original.timeout());
+        clonedRequest.opType(original.opType());
+        clonedRequest.setParentTask(original.getParentTask());
+        BytesReference source = original.source();
+        if (source != null) {
+            clonedRequest.source(source, original.getContentType());
         }
+        return clonedRequest;
     }
 
     private static void executePipeline(

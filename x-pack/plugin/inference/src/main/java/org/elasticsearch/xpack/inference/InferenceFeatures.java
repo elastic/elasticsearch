@@ -84,7 +84,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
                 SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
-                SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS
+                SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
+                SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX
             )
         );
         if (RERANK_RESCORE_CHUNKS.isEnabled()) {

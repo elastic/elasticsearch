@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -216,6 +218,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -254,6 +257,7 @@ public class EsqlFunctionRegistry {
             GEOTILE,
             BOOLEAN,
             UNSIGNED_LONG,
+            DENSE_VECTOR,
             UNSUPPORTED
         );
         DATA_TYPE_CASTING_PRIORITY = new HashMap<>();
@@ -422,6 +426,9 @@ public class EsqlFunctionRegistry {
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
                 def(StDistance.class, StDistance::new, "st_distance"),
                 def(StEnvelope.class, StEnvelope::new, "st_envelope"),
+                def(StGeohash.class, StGeohash::new, "st_geohash"),
+                def(StGeotile.class, StGeotile::new, "st_geotile"),
+                def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(StXMax.class, StXMax::new, "st_xmax"),
                 def(StXMin.class, StXMin::new, "st_xmin"),
                 def(StYMax.class, StYMax::new, "st_ymax"),
@@ -448,6 +455,9 @@ public class EsqlFunctionRegistry {
                 def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
+                def(ToGeohash.class, ToGeohash::new, "to_geohash"),
+                def(ToGeotile.class, ToGeotile::new, "to_geotile"),
+                def(ToGeohex.class, ToGeohex::new, "to_geohex"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
                 def(ToIp.class, ToIp::new, "to_ip"),
@@ -499,6 +509,7 @@ public class EsqlFunctionRegistry {
                 def(First.class, bi(First::new), "first"),
                 def(Last.class, bi(Last::new), "last"),
                 def(Rate.class, uni(Rate::new), "rate"),
+                def(Irate.class, uni(Irate::new), "irate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
@@ -509,13 +520,8 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
+                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
                 def(Knn.class, tri(Knn::new), "knn"),
-                def(ToGeohash.class, ToGeohash::new, "to_geohash"),
-                def(ToGeotile.class, ToGeotile::new, "to_geotile"),
-                def(ToGeohex.class, ToGeohex::new, "to_geohex"),
-                def(StGeohash.class, StGeohash::new, "st_geohash"),
-                def(StGeotile.class, StGeotile::new, "st_geotile"),
-                def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),

@@ -28,7 +28,6 @@ import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
-import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -76,8 +75,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesFieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -178,15 +175,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.append(attr);
         }
         var fields = extractFields(fieldExtractExec);
-        if (fieldExtractExec instanceof TimeSeriesFieldExtractExec) {
-            // TODO: consolidate with ValuesSourceReaderOperator
-            return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
-        } else {
-            return source.with(
-                new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
-                layout.build()
-            );
-        }
+        return source.with(
+            new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+            layout.build()
+        );
     }
 
     private static String getFieldName(Attribute attr) {
@@ -281,10 +273,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
-        if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-            assert false : "Time series source should be translated to TimeSeriesSourceExec";
-            throw new IllegalStateException("Time series source should be translated to TimeSeriesSourceExec");
-        }
         final LuceneOperator.Factory luceneFactory;
         logger.trace("Query Exec is {}", esQueryExec);
 
@@ -319,6 +307,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 estimatedPerRowSortSize,
                 scoring
             );
+        } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            luceneFactory = TimeSeriesSourceOperatorFactory.create(
+                limit,
+                context.pageSize(rowEstimatedSize),
+                context.queryPragmas().taskConcurrency(),
+                shardContexts,
+                querySupplier(esQueryExec.queryBuilderAndTags())
+            );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
@@ -335,22 +331,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         layout.append(esQueryExec.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
-        return PhysicalOperation.fromSource(luceneFactory, layout.build());
-    }
-
-    @Override
-    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
-        final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
-        LuceneOperator.Factory luceneFactory = TimeSeriesSourceOperatorFactory.create(
-            limit,
-            context.pageSize(ts.estimatedRowSize()),
-            context.queryPragmas().taskConcurrency(),
-            shardContexts,
-            querySupplier(ts.query())
-        );
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(ts.output());
-        context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
@@ -425,7 +405,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
-            shardContexts.size() == 1 && ts.anyMatch(p -> p instanceof TimeSeriesSourceExec),
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,

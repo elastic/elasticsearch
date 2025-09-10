@@ -34,8 +34,8 @@ import java.util.Objects;
  *   "time_series": {
  *      "enabled": true,
  *      "available": true,
- *      "data_streams_count": 10,
- *      "indices_count": 100,
+ *      "data_stream_count": 10,
+ *      "index_count": 100,
  *      "downsampling": {
  *         "index_count_per_interval": {
  *           "5m": 5,
@@ -70,6 +70,7 @@ import java.util.Objects;
  * }
  */
 public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
+
     private final long timeSeriesDataStreamCount;
     private final long timeSeriesIndexCount;
     private final DownsamplingUsage downsamplingUsage;

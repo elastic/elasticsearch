@@ -3,7 +3,8 @@
 ### TO GEOHASH
 Converts an input value to a `geohash` value.
 A string will only be successfully converted if it respects the
-`geohash` format.
+`geohash` format, as described for the
+[geohash grid aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation).
 
 ```esql
 ROW string = "u3bu"

@@ -52,7 +52,8 @@ public class ToGeotile extends AbstractConvertFunction {
         description = """
             Converts an input value to a `geotile` value.
             A string will only be successfully converted if it respects the
-            `geotile` format.""",
+            `geotile` format, as described for the
+            [geotile grid aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "to_geotile")
     )
     public ToGeotile(

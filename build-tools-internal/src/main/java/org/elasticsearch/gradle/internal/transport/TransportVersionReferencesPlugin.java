@@ -16,7 +16,6 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin.TRANSPORT_REFERENCES_TOPIC;
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -310,6 +311,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket)
         );
+        if (hasTopLevelOverTimeAggs) {
+            return new Drop(firstPhase.source(), firstPhase, List.of(tsid.get()));
+        }
         return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
     }
 

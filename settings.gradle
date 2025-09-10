@@ -175,25 +175,59 @@ dependencyResolutionManagement {
 
     // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
     // TODO: For org.apache.directory.api dependencies we use partially 1.0.1 and partially 1.0.0. We should align these.
-    withModule("org.apache.directory.api:api-util", ExcludeTransitivesRule)
+      withModule("org.apache.directory.api:api-util", ExcludeTransitivesRule)
 
     withModule("org.apache.directory.jdbm:apacheds-jdbm1", ExcludeTransitivesRule)
     withModule("org.apache.directory.mavibot:mavibot", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-core-annotations brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-core-annotations brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-core-annotations", ExcludeTransitivesRule)
+
+    // brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
+    withModule("org.apache.directory.server:apacheds-core", ExcludeTransitivesRule)
+    // brings in org.apache.directory.server:apacheds-core:2.0.0-M24
+    withModule("org.apache.directory.server:apacheds-interceptor-kerberos", ExcludeTransitivesRule)
+    withModule("org.apache.directory.server:apacheds-core-shared", ExcludeTransitiveOtherGroupsRule)
+    // brings in org.apache.directory.server:apacheds-core-shared:2.0.0-M24
+    withModule("org.apache.directory.server:apacheds-ldif-partition", ExcludeTransitivesRule)
+    withModule("org.apache.directory.server:apacheds-protocol-shared", ExcludeTransitiveOtherGroupsRule)
+    withModule("org.apache.directory.server:ldap-client-test", ExcludeTransitiveOtherGroupsRule)
+
+    // org.apache.directory.server:apacheds-core-api brings in org.apache.directory.api:api-asn1-api:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-core-api brings in org.apache.directory.api:api-i18n:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-core-api brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-core-api brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-core-api", ExcludeTransitivesRule)
     withModule("org.apache.directory.server:apacheds-i18n", ExcludeTransitivesRule)
-    withModule("org.apache.directory.server:apacheds-interceptor-kerberos", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-jdbm-partition brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-jdbm-partition brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-jdbm-partition", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-kerberos-codec brings in org.apache.directory.api:api-asn1-api:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-kerberos-codec brings in org.apache.directory.api:api-asn1-ber:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-kerberos-codec brings in org.apache.directory.api:api-i18n:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-kerberos-codec brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-kerberos-codec brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-kerberos-codec", ExcludeTransitivesRule)
-    withModule("org.apache.directory.server:apacheds-ldif-partition", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-mavibot-partition brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-mavibot-partition brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-mavibot-partition", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-protocol-kerberos brings in org.apache.directory.api:api-asn1-api:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-protocol-kerberos brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-protocol-kerberos", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-protocol-ldap brings in org.apache.directory.api:api-asn1-ber:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-protocol-ldap brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-protocol-ldap brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-protocol-ldap", ExcludeTransitivesRule)
-    withModule("org.apache.directory.server:apacheds-protocol-shared", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-server-annotations brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-server-annotations", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-test-framework brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-test-framework", ExcludeTransitivesRule)
+    // org.apache.directory.server:apacheds-xdbm-partition brings in org.apache.directory.api:api-ldap-model:1.0.0. We use 1.0.1.
+    // org.apache.directory.server:apacheds-xdbm-partition brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
     withModule("org.apache.directory.server:apacheds-xdbm-partition", ExcludeTransitivesRule)
-    withModule("org.apache.directory.server:ldap-client-test", ExcludeTransitivesRule)
+
+    // org.apache.directory.api:api-ldap-client-api brings in org.apache.mina:mina-core:2.0.16. We use 2.2.4
+    withModule("org.apache.directory.server:apacheds-interceptors-authn", ExcludeTransitivesRule)
 
     withModule("org.apache.hadoop:hadoop-client-api", ExcludeTransitivesRule)
     withModule("org.apache.hadoop:hadoop-client-runtime", ExcludeTransitivesRule)

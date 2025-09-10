@@ -248,16 +248,16 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                     scoredNames.add(new Tuple<>(distance, key));
                 }
             }
-            StringBuilder message = new StringBuilder("unknown transport version [");
+            StringBuilder message = new StringBuilder("Unknown transport version [");
             message.append(name);
-            message.append("];");
+            message.append("].");
             if (scoredNames.isEmpty() == false) {
                 List<String> names = scoredNames.stream().map(Tuple::v2).toList();
-                message.append(" did you mean ");
+                message.append(" Did you mean ");
                 message.append(names);
                 message.append("?");
             }
-            message.append(" if this is a new transport version, did you run './gradle generateTransportVersion'?");
+            message.append(" If this is a new transport version, run './gradle generateTransportVersion'.");
             throw new IllegalStateException(message.toString());
         }
         return known;

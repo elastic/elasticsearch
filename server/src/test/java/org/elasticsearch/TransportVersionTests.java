@@ -397,9 +397,9 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(
             ise.getMessage(),
             is(
-                "unknown transport version [to_child_lock_join_query]; "
-                    + "did you mean [to_child_block_join_query]? "
-                    + "if this is a new transport version, did you run './gradle generateTransportVersion'?"
+                "Unknown transport version [to_child_lock_join_query]. "
+                    + "Did you mean [to_child_block_join_query]? "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
             )
         );
 
@@ -407,8 +407,8 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(
             ise.getMessage(),
             is(
-                "unknown transport version [brand_new_version_unrelated_to_others]; "
-                    + "if this is a new transport version, did you run './gradle generateTransportVersion'?"
+                "Unknown transport version [brand_new_version_unrelated_to_others]. "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
             )
         );
     }

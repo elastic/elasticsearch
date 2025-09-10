@@ -2351,6 +2351,14 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         checkDenseVectorCastingKnn("float_vector");
+
+        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS.isEnabled()) {
+            checkDenseVectorCastingKnn("byte_vector");
+        }
+
+        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+            checkDenseVectorCastingKnn("bit_vector");
+        }
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
@@ -2394,6 +2402,10 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342f, 0.164f, 0.234f)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1f, 2f));
+            }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
@@ -2401,6 +2413,9 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342f, 0.164f, 0.234f)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1f, 2f));
+            }
         }
     }
 
@@ -2415,7 +2430,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
+        assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
         var right = as(similarity.right(), Literal.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
         assertThat(right.value(), equalTo(expectedElems));

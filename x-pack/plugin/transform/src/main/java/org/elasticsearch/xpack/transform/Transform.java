@@ -303,7 +303,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             settings,
-            clusterService,
+            services.linkedProjectConfigService(),
             configManager,
             auditor
         );

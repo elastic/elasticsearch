@@ -692,10 +692,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         Map<String, Object> responseMap = runEsql(
             RequestObjectBuilder.jsonBuilder()
-                .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e, f = ?f")
+                .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e")
                 .params(
                     "[{\"a\" : [\"a1\", \"a2\"]}, {\"b\" : [1, 2]}, {\"c\": [true, false]}, {\"d\": [1.1, 2.2]},"
-                        + " {\"e\": [1674835275193, 1674835275193]}, {\"f\": [null, null]}]"
+                        + " {\"e\": [1674835275193, 1674835275193]}]"
                 )
         );
         System.out.println(responseMap);
@@ -706,19 +706,31 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesList().item(true).item(false))
                 .item(matchesList().item(1.1).item(2.2))
                 .item(matchesList().item(1674835275193L).item(1674835275193L))
-                .item(null) // constant null block, no multi-value
+        );
+    }
+
+    public void testArrayValuesNullsNotAllowedInValueParams() throws IOException {
+        assumeTrue("multivalues for params", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                RequestObjectBuilder.jsonBuilder()
+                    .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e, f = ?f")
+                    .params(
+                        "[{\"a\" : [null, \"a2\"]}, {\"b\" : [null, 2]}, {\"c\": [null, false]}, {\"d\": [null, 2.2]},"
+                            + " {\"e\": [null, 1674835275193]}, {\"f\": [null, null]}]"
+                    )
+            )
         );
 
-        assertResultMap(
-            responseMap,
-            matchesList().item(matchesMap().entry("name", "a").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "b").entry("type", "integer"))
-                .item(matchesMap().entry("name", "c").entry("type", "boolean"))
-                .item(matchesMap().entry("name", "d").entry("type", "double"))
-                .item(matchesMap().entry("name", "e").entry("type", "long"))
-                .item(matchesMap().entry("name", "f").entry("type", "null")),
-            values
-        );
+        String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("[1:79] Parameter [a] contains a null value. Null values are not allowed for multivalues;"));
+        assertThat(error, containsString("[1:101] Parameter [b] contains a null value. Null values are not allowed for multivalues;"));
+        assertThat(error, containsString("[1:120] Parameter [c] contains a null value. Null values are not allowed for multivalues;"));
+        assertThat(error, containsString("[1:142] Parameter [d] contains a null value. Null values are not allowed for multivalues;"));
+        assertThat(error, containsString("[1:162] Parameter [e] contains a null value. Null values are not allowed for multivalues;"));
+        assertThat(error, containsString("[1:192] Parameter [f] contains a null value. Null values are not allowed for multivalues;"));
     }
 
     public void testArrayValuesAllowedInUnnamedParams() throws IOException {
@@ -726,8 +738,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         Map<String, Object> responseMap = runEsql(
             RequestObjectBuilder.jsonBuilder()
-                .query("row a = ? | eval b = ?, c = ?, d = ?, e = ?, f = ?")
-                .params("[[\"a1\", \"a2\"], [1, 2], [true, false], [1.1, 2.2], [1674835275193, 1674835275193], [null, null]]")
+                .query("row a = ? | eval b = ?, c = ?, d = ?, e = ?")
+                .params("[[\"a1\", \"a2\"], [1, 2], [true, false], [1.1, 2.2], [1674835275193, 1674835275193]]")
         );
         System.out.println(responseMap);
 
@@ -737,7 +749,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesList().item(true).item(false))
                 .item(matchesList().item(1.1).item(2.2))
                 .item(matchesList().item(1674835275193L).item(1674835275193L))
-                .item(null)
         );
 
         assertResultMap(
@@ -746,8 +757,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesMap().entry("name", "b").entry("type", "integer"))
                 .item(matchesMap().entry("name", "c").entry("type", "boolean"))
                 .item(matchesMap().entry("name", "d").entry("type", "double"))
-                .item(matchesMap().entry("name", "e").entry("type", "long"))
-                .item(matchesMap().entry("name", "f").entry("type", "null")),
+                .item(matchesMap().entry("name", "e").entry("type", "long")),
             values
         );
     }

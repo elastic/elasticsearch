@@ -195,26 +195,27 @@ final class RequestXContent {
                     }
                 } else {
                     if (token == XContentParser.Token.START_ARRAY) {
-                        DataType currentType = null;
+                        DataType arrayType = null;
                         List<Object> paramValues = new ArrayList<>();
                         while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
-                            if (currentType == null) {
-                                currentType = valueAndDataType.type;
-                            } else if (currentType != valueAndDataType.type) {
+                            DataType currentType = valueAndDataType.type;
+                            if (currentType == DataType.NULL) {
+                                errors.add(new XContentParseException(loc, "Unnamed parameter contains a null in a multivalued value"));
+                                continue;
+                            }
+                            if (arrayType != null && arrayType != currentType) {
                                 errors.add(
                                     new XContentParseException(
                                         loc,
-                                        "Unnamed parameter has values from different types, found "
-                                            + currentType
-                                            + " and "
-                                            + valueAndDataType.type
+                                        "Unnamed parameter has values from different types, found " + arrayType + " and " + currentType
                                     )
                                 );
                             }
+                            arrayType = currentType;
                             paramValues.add(valueAndDataType.value);
                         }
-                        unNamedParams.add(new QueryParam(null, paramValues, currentType, VALUE));
+                        unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
                     } else {
                         ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                         unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));
@@ -246,7 +247,7 @@ final class RequestXContent {
 
     private static ParamValueAndType parseSingleParamValue(XContentParser p, List<XContentParseException> errors) throws IOException {
         Object paramValue = null;
-        DataType type = null;
+        DataType type = DataType.NULL;
         XContentParser.Token token = p.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             paramValue = p.text();
@@ -363,20 +364,28 @@ final class RequestXContent {
                 return;
             }
             // Multivalued field
-            DataType type = null;
+            DataType arrayType = null;
             for (Object currentValue : valueList) {
                 checkParamValueValidity(entry, classification, currentValue, loc, errors);
                 DataType currentType = DataType.fromJava(currentValue);
-                if ((type != null) && (type != currentType)) {
+                if (currentType == DataType.NULL) {
                     errors.add(
                         new XContentParseException(
                             loc,
-                            entry.getKey() + " parameter has values from different types, found " + type + " and " + currentType
+                            "Parameter [" + entry.getKey() + "] contains a null value. Null values are not allowed for multivalues"
                         )
                     );
-                    break;
+                    continue;
+                } else if (arrayType != null && arrayType != currentType) {
+                    errors.add(
+                        new XContentParseException(
+                            loc,
+                            "Parameter [" + entry.getKey() + "] has values from different types, found " + arrayType + " and " + currentType
+                        )
+                    );
+                    continue;
                 }
-                type = currentType;
+                arrayType = currentType;
             }
             return;
         }

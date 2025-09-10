@@ -144,7 +144,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         private final Integer defaultValue;
 
         public IgnoreAbove(Integer value) {
-            this(Objects.requireNonNull(value), null, null);
+            this(Objects.requireNonNull(value), IndexMode.STANDARD, IndexVersion.current());
+        }
+
+        public IgnoreAbove(Integer value, IndexMode indexMode) {
+            this(value, indexMode, IndexVersion.current());
         }
 
         public IgnoreAbove(Integer value, IndexMode indexMode, IndexVersion indexCreatedVersion) {

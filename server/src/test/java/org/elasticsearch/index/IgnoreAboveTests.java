@@ -15,16 +15,12 @@ import org.elasticsearch.xcontent.Text;
 
 public class IgnoreAboveTests extends ESTestCase {
 
-    private static final Mapper.IgnoreAbove IGNORE_ABOVE_DEFAULT = new Mapper.IgnoreAbove(null, IndexMode.STANDARD, IndexVersion.current());
-    private static final Mapper.IgnoreAbove IGNORE_ABOVE_DEFAULT_LOGS = new Mapper.IgnoreAbove(
-        null,
-        IndexMode.LOGSDB,
-        IndexVersion.current()
-    );
+    private static final Mapper.IgnoreAbove IGNORE_ABOVE_DEFAULT = new Mapper.IgnoreAbove(null, IndexMode.STANDARD);
+    private static final Mapper.IgnoreAbove IGNORE_ABOVE_DEFAULT_LOGS = new Mapper.IgnoreAbove(null, IndexMode.LOGSDB);
 
     public void test_ignore_above_with_value_and_index_mode_and_index_version() {
         // given
-        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(123, IndexMode.STANDARD, IndexVersion.current());
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(123, IndexMode.STANDARD);
 
         // when/then
         assertEquals(123, ignoreAbove.get());
@@ -46,12 +42,12 @@ public class IgnoreAboveTests extends ESTestCase {
 
     public void test_ignore_above_with_negative_value_should_throw() {
         assertThrows(IllegalArgumentException.class, () -> new Mapper.IgnoreAbove(-1));
-        assertThrows(IllegalArgumentException.class, () -> new Mapper.IgnoreAbove(-1, IndexMode.STANDARD, IndexVersion.current()));
+        assertThrows(IllegalArgumentException.class, () -> new Mapper.IgnoreAbove(-1, IndexMode.STANDARD));
     }
 
     public void test_ignore_above_with_null_value() {
         // given
-        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(null, IndexMode.STANDARD, IndexVersion.current());
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(null, IndexMode.STANDARD);
 
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, ignoreAbove.get());
@@ -60,7 +56,7 @@ public class IgnoreAboveTests extends ESTestCase {
 
     public void test_ignore_above_with_null_value_and_logsdb_index_mode() {
         // given
-        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(null, IndexMode.LOGSDB, IndexVersion.current());
+        Mapper.IgnoreAbove ignoreAbove = new Mapper.IgnoreAbove(null, IndexMode.LOGSDB);
 
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, ignoreAbove.get());

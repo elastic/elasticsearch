@@ -71,7 +71,7 @@ public class NodeUsageStatsForThreadPoolsCollector {
                     lastNodeUsageStatsPerNode.putAll(response.getAllNodeUsageStatsForThreadPools());
                     if (response.failures().isEmpty() == false) {
                         logger.warn(
-                            "Got no usage stats from nodes {}",
+                            "Got no usage stats from nodes [{}], using last known stats for them",
                             response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(", "))
                         );
                     }

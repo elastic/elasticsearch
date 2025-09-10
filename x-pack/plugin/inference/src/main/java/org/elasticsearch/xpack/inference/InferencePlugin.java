@@ -98,10 +98,11 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.elasticsearch.xpack.inference.queries.BwCSemanticSparseVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -450,6 +451,13 @@ public class InferencePlugin extends Plugin
                 InterceptedInferenceKnnVectorQueryBuilder::new
             )
         );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                InterceptedInferenceQueryBuilder.class,
+                InterceptedInferenceSparseVectorQueryBuilder.NAME,
+                InterceptedInferenceSparseVectorQueryBuilder::new
+            )
+        );
         return entries;
     }
 
@@ -614,7 +622,7 @@ public class InferencePlugin extends Plugin
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
             new SemanticMatchQueryRewriteInterceptor(),
-            new BwCSemanticSparseVectorQueryRewriteInterceptor()
+            new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }
 

@@ -9,7 +9,11 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+$if(Tuple)$
+import org.elasticsearch.common.util.ObjectArray;
+$else$
 import org.elasticsearch.common.util.$Type$Array;
+$endif$
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,11 +27,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.stream.IntStream;
 
 /**
- * Aggregates the top N $type$ values per bucket.
+ * Aggregates the top N {@code $type$} values per bucket.
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
-public class $Type$BucketedSort implements Releasable {
+public class $Name$BucketedSort implements Releasable {
 
     private final BigArrays bigArrays;
     private final SortOrder order;
@@ -64,9 +68,9 @@ public class $Type$BucketedSort implements Releasable {
      *     </li>
      * </ul>
      */
-    private $Type$Array values;
+    private $Array$ values;
 
-    public $Type$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
+    public $Name$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
         this.bucketSize = bucketSize;
@@ -74,7 +78,11 @@ public class $Type$BucketedSort implements Releasable {
 
         boolean success = false;
         try {
+$if(Tuple)$
+            values = bigArrays.newObjectArray(0);
+$else$
             values = bigArrays.new$Type$Array(0, false);
+$endif$
             success = true;
         } finally {
             if (success == false) {
@@ -148,7 +156,7 @@ public class $Type$BucketedSort implements Releasable {
     /**
      * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
-    public void merge(int groupId, $Type$BucketedSort other, int otherGroupId) {
+    public void merge(int groupId, $Name$BucketedSort other, int otherGroupId) {
         var otherBounds = other.getBucketValuesIndexes(otherGroupId);
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
@@ -157,17 +165,67 @@ public class $Type$BucketedSort implements Releasable {
         }
     }
 
+$if(Tuple)$
+    /**
+     * Creates a block with the values from the {@code selected} groups.
+     */
+    public void toBlocks(BlockFactory blockFactory, Block[] blocks, int offset, IntVector selected) {
+        // Check if the selected groups are all empty, to avoid allocating extra memory
+        if (allSelectedGroupsAreEmpty(selected)) {
+            blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            blocks[offset + 1] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+        }
+
+        try (
+            var longBuilder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
+            var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())
+        ) {
+            for (int s = 0; s < selected.getPositionCount(); s++) {
+                int bucket = selected.getInt(s);
+
+                var bounds = getBucketValuesIndexes(bucket);
+                var rootIndex = bounds.v1();
+                var size = bounds.v2() - bounds.v1();
+
+                if (size == 0) {
+                    longBuilder.appendNull();
+                    builder.appendNull();
+                    continue;
+                }
+
+                if (size == 1) {
+                    longBuilder.appendLong(values.get(rootIndex).v1());
+                    builder.append$Type$(values.get(rootIndex).v2());
+                    continue;
+                }
+
+                // If we are in the gathering mode, we need to heapify before sorting.
+                if (inHeapMode(bucket) == false) {
+                    heapify(rootIndex, (int) size);
+                }
+                heapSort(rootIndex, (int) size);
+
+                longBuilder.beginPositionEntry();
+                builder.beginPositionEntry();
+                for (int i = 0; i < size; i++) {
+                    longBuilder.appendLong(values.get(rootIndex + i).v1());
+                    builder.append$Type$(values.get(rootIndex + i).v2());
+                }
+                longBuilder.endPositionEntry();
+                builder.endPositionEntry();
+            }
+            blocks[offset] = builder.build();
+            blocks[offset + 1] = longBuilder.build();
+        }
+    }
+
+$else$
     /**
      * Creates a block with the values from the {@code selected} groups.
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
-        if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
-            var bounds = this.getBucketValuesIndexes(bucket);
-            var size = bounds.v2() - bounds.v1();
-
-            return size > 0;
-        })) {
+        if (allSelectedGroupsAreEmpty(selected)) {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
@@ -185,7 +243,7 @@ public class $Type$BucketedSort implements Releasable {
                 }
 
                 if (size == 1) {
-                    builder.append$Type$(values.get(bounds.v1()));
+                    builder.append$Type$(values.get(rootIndex));
                     continue;
                 }
 
@@ -197,12 +255,24 @@ public class $Type$BucketedSort implements Releasable {
 
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
-                    builder.append$Type$(values.get(bounds.v1() + i));
+                    builder.append$Type$(values.get(rootIndex + i));
                 }
                 builder.endPositionEntry();
             }
             return builder.build();
         }
+    }
+$endif$
+
+    /**
+     * Checks if the selected groups are all empty.
+     */
+    private boolean allSelectedGroupsAreEmpty(IntVector selected) {
+        return IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
+            var bounds = this.getBucketValuesIndexes(bucket);
+            var size = bounds.v2() - bounds.v1();
+            return size > 0;
+        });
     }
 
     /**
@@ -219,6 +289,8 @@ public class $Type$BucketedSort implements Releasable {
     private int getNextGatherOffset(long rootIndex) {
 $if(int)$
         return values.get(rootIndex);
+$elseif(Tuple)$
+        return (int) values.get(rootIndex).v1().longValue();
 $else$
         return (int) values.get(rootIndex);
 $endif$
@@ -229,7 +301,11 @@ $endif$
      * at {@code rootIndex}.
      */
     private void setNextGatherOffset(long rootIndex, int offset) {
+$if(Tuple)$
+        values.set(rootIndex, Tuple.<Long, $Wrapper$>tuple((long) offset, null));
+$else$
         values.set(rootIndex, offset);
+$endif$
     }
 
     /**
@@ -238,7 +314,16 @@ $endif$
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan($type$ lhs, $type$ rhs) {
+$if(Tuple)$
+        int res = Long.compare(lhs.v1(), rhs.v1());
+        if (res != 0) {
+            return getOrder().reverseMul() * res < 0;
+        }
+        res = $Wrapper$.compare(lhs.v2(), rhs.v2());
+        return getOrder().reverseMul() * res < 0;
+$else$
         return getOrder().reverseMul() * $Wrapper$.compare(lhs, rhs) < 0;
+$endif$
     }
 
     /**

@@ -1467,7 +1467,12 @@ public class EsqlCapabilities {
         /**
          * Support for the Present function
          */
-        FN_PRESENT;
+        FN_PRESENT,
+
+        /**
+         * Support for sparkline function.
+         */
+        SPARKLINE;
 
         private final boolean enabled;
 

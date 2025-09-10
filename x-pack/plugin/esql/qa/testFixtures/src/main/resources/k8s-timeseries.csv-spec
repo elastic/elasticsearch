@@ -446,3 +446,30 @@ cost_per_mb:double | cluster:keyword | time_bucket:datetime
 2.071474095190272  | prod            | 2024-05-10T00:15:00.000Z
 1.59556462585034   | staging         | 2024-05-10T00:10:00.000Z
 ;
+
+present_over_time
+required_capability: metrics_command
+required_capability: present_over_time
+
+// tag::present_over_time[]
+TS k8s 
+| WHERE cluster == "prod" AND pod == "two" 
+| STATS events_received = max(present_over_time(events_received)) BY pod, time_bucket = tbucket(2 minute)
+// end::present_over_time[] 
+| SORT time_bucket
+;
+ignoreOrder:true
+
+// tag::present_over_time-result[]
+events_received:boolean | pod:keyword | time_bucket:datetime
+true                    | two         | 2024-05-10T00:02:00.000Z
+true                    | two         | 2024-05-10T00:08:00.000Z
+false                   | two         | 2024-05-10T00:10:00.000Z
+false                   | two         | 2024-05-10T00:12:00.000Z
+// end::present_over_time-result[]
+true                    | two         | 2024-05-10T00:14:00.000Z
+true                    | two         | 2024-05-10T00:16:00.000Z
+false                   | two         | 2024-05-10T00:18:00.000Z
+true                    | two         | 2024-05-10T00:20:00.000Z
+true                    | two         | 2024-05-10T00:22:00.000Z
+;

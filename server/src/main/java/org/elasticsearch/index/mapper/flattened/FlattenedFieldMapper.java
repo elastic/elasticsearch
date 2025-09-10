@@ -38,9 +38,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IgnoreAbove;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -190,7 +188,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         public Builder(final String name) {
-            this(name, IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES, IndexMode.STANDARD, IndexVersion.current());
+            this(
+                name,
+                IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()),
+                IndexMode.STANDARD,
+                IndexVersion.current()
+            );
         }
 
         private Builder(String name, MappingParserContext mappingParserContext) {

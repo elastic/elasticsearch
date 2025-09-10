@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -253,7 +252,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         final Parameter<Integer> ignoreAbove = Parameter.ignoreAboveParam(
             m -> toType(m).ignoreAbove,
-            IndexSettings.IGNORE_ABOVE_DEFAULT_STANDARD_INDICES
+            IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE
         );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 

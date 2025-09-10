@@ -41,9 +41,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IgnoreAbove;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -93,8 +91,8 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
-import static org.elasticsearch.index.IndexSettings.getIgnoreAboveDefaultValue;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -313,7 +311,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 name,
                 null,
                 ScriptCompiler.NONE,
-                IndexSettings.getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion),
+                getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion),
                 indexCreatedVersion,
                 indexMode,
                 // Sort config is used to decide if DocValueSkippers can be used. Since skippers are forced, a sort config is not needed.
@@ -534,6 +532,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
+        private static final IgnoreAbove IGNORE_ABOVE_DEFAULT = new IgnoreAbove(null, IndexMode.STANDARD, IndexVersion.current());
+
         private final IgnoreAbove ignoreAbove;
         private final String nullValue;
         private final NamedAnalyzer normalizer;
@@ -581,7 +581,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES;
+            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -602,7 +602,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 Collections.emptyMap()
             );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES;
+            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -616,7 +616,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = IgnoreAbove.IGNORE_ABOVE_STANDARD_INDICES;
+            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;

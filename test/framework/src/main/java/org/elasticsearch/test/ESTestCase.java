@@ -1243,18 +1243,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Generates a string containing a random number of random length alphas, all delimited by space.
-     */
-    public static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
-        int numAlphas = randomIntBetween(1, maxAlphas);
-        List<String> alphas = new ArrayList<>(numAlphas);
-        for (int i = 0; i < numAlphas; i++) {
-            alphas.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
-        }
-        return String.join(" ", alphas);
-    }
-
-    /**
      * Generate a random string containing only alphanumeric characters.
      * <b>The locale for the string is {@link Locale#ROOT}.</b>
      * @param length the length of the string to generate

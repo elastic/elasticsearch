@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -211,6 +212,18 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
         }
 
         return requestBody.toString();
+    }
+
+    /**
+     * Generates a string containing a random number of random length alphas, all delimited by space.
+     */
+    public static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
+        int numAlphas = randomIntBetween(1, maxAlphas);
+        List<String> alphas = new ArrayList<>(numAlphas);
+        for (int i = 0; i < numAlphas; i++) {
+            alphas.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+        }
+        return String.join(" ", alphas);
     }
 
     private void recordSmallestMessage(final String message) {

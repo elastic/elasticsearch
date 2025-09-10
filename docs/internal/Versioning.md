@@ -46,7 +46,7 @@ To create a transport version, declare a reference anywhere in java code. For ex
     private static final TransportVersion MY_NEW_TV = TransportVersion.fromName("my_new_tv");
 
 `fromName` takes an arbitrary String name. The String must be a String literal;
-it cannot a reference to a String. It must match the regex `[_0-9a-zA-Z]+`.
+it cannot be a reference to a String. It must match the regex `[_0-9a-zA-Z]+`.
 
 Once you have declared your `TransportVersion` you can use it in serialization code.
 For example, in a constructor that takes `StreamInput in`:
@@ -87,12 +87,13 @@ Transport versions can also have additional branches added after merging to
 `main`. When doing so, you must include all branches the transport version was
 added to in addition to new branch. For example, if you originally committed
 your transport version `my_tv` to `main` and `9.1`, and then realized you also
-needed to backport to `8.19` you would run:
+needed to backport to `8.19` you would run (in `main`):
 
     ./gradlew generateTransportVersion --name=my_tv --backport-branches=9.1,8.19
 
 In the above case CI will not know what transport version name to update, so you
-must update the transport version manually.
+must update the transport version manually. After merging the updated transport
+version it will need to be backported to all the applicable branches.
 
 ### Resolving merge conflicts
 

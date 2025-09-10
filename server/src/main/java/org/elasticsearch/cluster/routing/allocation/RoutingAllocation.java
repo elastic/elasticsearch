@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.NonPreferredShardIteratorFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
@@ -35,6 +36,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -85,6 +87,8 @@ public class RoutingAllocation {
     // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
     private final Map<String, Long> unaccountedSearchableSnapshotSizes;
 
+    private final NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory;
+
     public RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
@@ -112,7 +116,16 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        this(
+            deciders,
+            routingNodes,
+            clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime,
+            false,
+            NonPreferredShardIteratorFactory.NOOP
+        );
     }
 
     /**
@@ -130,7 +143,8 @@ public class RoutingAllocation {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        boolean isSimulating
+        boolean isSimulating,
+        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -156,6 +170,7 @@ public class RoutingAllocation {
                     resizeSourceIndexUpdater,
                     new ShardChangesObserver() }
         );
+        this.nonPreferredShardIteratorFactory = nonPreferredShardIteratorFactory;
     }
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
@@ -211,6 +226,10 @@ public class RoutingAllocation {
     @Deprecated
     public RoutingTable routingTable() {
         return globalRoutingTable().getRoutingTable();
+    }
+
+    public Iterator<ShardRouting> nonPreferredShards() {
+        return nonPreferredShardIteratorFactory.createNonPreferredShardIterator(this);
     }
 
     public GlobalRoutingTable globalRoutingTable() {
@@ -459,7 +478,8 @@ public class RoutingAllocation {
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            true
+            true,
+            nonPreferredShardIteratorFactory
         );
     }
 

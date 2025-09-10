@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.routing.allocation.allocator;
+
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+
+import java.util.Collections;
+import java.util.Iterator;
+
+public interface NonPreferredShardIteratorFactory {
+
+    NonPreferredShardIteratorFactory NOOP = ignored -> Collections.emptyIterator();
+
+    /**
+     * Create an iterator returning all shards that are in non-preferred allocations, ordered in
+     * descending desirability-to-move order
+     *
+     * @param allocation the current routing allocation
+     * @return An iterator containing shards we'd like to move to a preferred allocation
+     */
+    Iterator<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation);
+
+    /**
+     * The default iterator factory
+     */
+    class Default implements NonPreferredShardIteratorFactory {
+        @Override
+        public Iterator<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation) {
+            return Collections.emptyIterator();
+        }
+    }
+}

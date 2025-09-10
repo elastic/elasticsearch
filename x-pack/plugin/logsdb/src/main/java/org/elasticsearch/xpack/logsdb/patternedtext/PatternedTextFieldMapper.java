@@ -15,7 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -78,15 +78,15 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
 
         public Builder(String name, MappingParserContext context) {
-            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
+            this(name, context.indexVersionCreated(), context.getIndexSettings());
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
+                (type, name1) -> new NamedAnalyzer("logs", AnalyzerScope.GLOBAL, LogAnalyzer.INSTANCE),
                 m -> ((PatternedTextFieldMapper) m).indexAnalyzer,
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
@@ -149,7 +149,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
     private final IndexVersion indexCreatedVersion;
-    private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
     private final IndexSettings indexSettings;
     private final String indexOptions;
@@ -170,7 +169,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
@@ -185,7 +183,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings).init(this);
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 134253
+summary: Fixed text fields block loader
+area: Mapping
+type: bug
+issues: []

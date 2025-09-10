@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,7 +25,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SourceConfigTests extends AbstractBWCSerializationTestCase<SourceConfig> {
+public class SourceConfigTests extends AbstractSerializingTransformTestCase<SourceConfig> {
 
     private boolean lenient;
 
@@ -39,7 +38,7 @@ public class SourceConfigTests extends AbstractBWCSerializationTestCase<SourceCo
     }
 
     private static String randomProjectRouting() {
-        return randomBoolean() ? randomIdentifier() : null;
+        return null; // TODO replace me once projectRouting is supported
     }
 
     public static SourceConfig randomInvalidSourceConfig() {
@@ -189,11 +188,5 @@ public class SourceConfigTests extends AbstractBWCSerializationTestCase<SourceCo
         assertFalse(randomSourceConfig(new String[] { "index1,index2" }).requiresRemoteCluster());
 
         assertTrue(randomSourceConfig(new String[] { "index1,remote2:index2" }).requiresRemoteCluster());
-    }
-
-    @Override
-    protected SourceConfig mutateInstanceForVersion(SourceConfig instance, TransportVersion version) {
-        // when we start reading/writing projectRouting, this test should fail
-        return instance;
     }
 }

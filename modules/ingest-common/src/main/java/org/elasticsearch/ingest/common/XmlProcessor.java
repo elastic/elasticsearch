@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.XmlUtils;
@@ -24,6 +23,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.ByteArrayInputStream;
+import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -474,22 +474,10 @@ public final class XmlProcessor extends AbstractProcessor {
         }
     }
 
-    private static Map<SAXParserFactory, ThreadLocal<SAXParser>> PARSERS = new ConcurrentHashMap<>();
+    private static final Map<SAXParserFactory, ThreadLocal<SoftReference<SAXParser>>> PARSERS = new ConcurrentHashMap<>();
     static {
-        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY, ThreadLocal.withInitial(() -> {
-            try {
-                return XmlFactories.SAX_PARSER_FACTORY.newSAXParser();
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-        }));
-        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY_NS, ThreadLocal.withInitial(() -> {
-            try {
-                return XmlFactories.SAX_PARSER_FACTORY_NS.newSAXParser();
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-        }));
+        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY, new ThreadLocal<>());
+        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY_NS, new ThreadLocal<>());
     }
 
     /**
@@ -505,13 +493,28 @@ public final class XmlProcessor extends AbstractProcessor {
             return;
         }
 
-        SAXParser parser = PARSERS.get(factory).get();
-        parser.reset();
+        final SAXParser parser;
+        {
+            SAXParser innerParser;
+            final ThreadLocal<SoftReference<SAXParser>> threadLocal = PARSERS.get(factory);
+            final SoftReference<SAXParser> parserReference = threadLocal.get();
+            innerParser = parserReference != null ? parserReference.get() : null;
+            if (innerParser == null) {
+                innerParser = factory.newSAXParser();
+                threadLocal.set(new SoftReference<>(innerParser));
+            }
+            parser = innerParser;
+        }
 
-        // Use enhanced handler that can build DOM during streaming when needed
-        XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);
+        final XmlStreamingWithDomHandler handler;
+        try {
+            // Use enhanced handler that can build DOM during streaming when needed
+            handler = new XmlStreamingWithDomHandler(needsDom);
 
-        parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
+            parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
+        } finally {
+            parser.reset();
+        }
 
         // Store structured result if needed
         if (storeXml) {

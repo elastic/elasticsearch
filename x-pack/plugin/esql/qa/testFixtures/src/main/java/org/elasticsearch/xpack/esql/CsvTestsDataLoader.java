@@ -776,14 +776,14 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static final Pattern DATE_RANGE_PATTERN = Pattern.compile("([0-9\\-Z:]+)\\.\\.([0-9\\-Z:]+)");
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
 
     private static String toJson(String type, String value) {
         return switch (type == null ? "" : type) {
-            case "date_range" -> {
-                Matcher m = DATE_RANGE_PATTERN.matcher(value);
+            case "date_range", "double_range", "integer_range" -> {
+                Matcher m = RANGE_PATTERN.matcher(value);
                 if (m.matches() == false) {
-                    throw new IllegalArgumentException("can't parse date_range: " + value);
+                    throw new IllegalArgumentException("can't parse range: " + value);
                 }
                 yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
             }

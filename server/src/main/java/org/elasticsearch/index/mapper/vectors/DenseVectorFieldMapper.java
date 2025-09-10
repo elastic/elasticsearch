@@ -3047,18 +3047,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             format = fieldType().elementType == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
         } else {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
-            List<KnnVectorsFormat> extraKnnFormats = new ArrayList<>();
+            KnnVectorsFormat extraKnnFormat = null;
             for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
-                KnnVectorsFormat extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
+                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
                 if (extraKnnFormat != null) {
-                    extraKnnFormats.add(extraKnnFormat);
+                    break;
                 }
             }
-            if (extraKnnFormats.size() > 0) {
-                format = extraKnnFormats.get(0);
-            } else {
-                format = indexOptions.getVectorsFormat(fieldType().elementType);
-            }
+            format = extraKnnFormat != null ? extraKnnFormat : indexOptions.getVectorsFormat(fieldType().elementType);
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

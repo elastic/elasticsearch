@@ -82,7 +82,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
-    private final boolean canUseSkipUnavailable;
+    private final boolean crossProjectEnabled;
 
     RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
@@ -103,7 +103,7 @@ public final class RemoteClusterService extends RemoteClusterAware
          * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
          *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
          */
-        this.canUseSkipUnavailable = settings.getAsBoolean("serverless.cross_project.enabled", false) == false;
+        this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     /**
@@ -220,11 +220,15 @@ public final class RemoteClusterService extends RemoteClusterAware
      * it returns an empty value where we default/fall back to true.
      */
     public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
-        if (canUseSkipUnavailable == false) {
+        if (crossProjectEnabled) {
             return Optional.empty();
         } else {
             return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
         }
+    }
+
+    public boolean crossProjectEnabled() {
+        return crossProjectEnabled;
     }
 
     /**

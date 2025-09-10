@@ -333,10 +333,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
-        return new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true),
-            request.includeCCSMetadata()
-        );
+        Boolean includeCcsMetadata = request.includeCPSMetadata();
+        if (includeCcsMetadata == null) {
+            // include_ccs_metadata is considered only if include_cps_metadata is not set
+            includeCcsMetadata = request.includeCCSMetadata();
+        } else if (remoteClusterService.crossProjectEnabled() == false) {
+            throw new VerificationException("Unsupported parameter [include_cps_metadata]");
+        }
+        return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true), includeCcsMetadata);
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {

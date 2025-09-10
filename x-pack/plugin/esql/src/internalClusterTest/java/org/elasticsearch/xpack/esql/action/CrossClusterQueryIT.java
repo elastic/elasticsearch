@@ -55,8 +55,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
-    private static final String IDX_ALIAS = "alias1";
-    private static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
+    protected static final String IDX_ALIAS = "alias1";
+    protected static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -255,6 +255,10 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSearchesAgainstNonMatchingIndices() throws Exception {
+        testSearchesAgainstNonMatchingIndices(true);
+    }
+
+    protected void testSearchesAgainstNonMatchingIndices(boolean exceptionWithSkipUnavailableFalse) throws Exception {
         int numClusters = 3;
         Map<String, Object> testClusterInfo = setupClusters(numClusters);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -281,9 +285,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM logs*,cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            if (exceptionWithSkipUnavailableFalse) {
+                setSkipUnavailable(REMOTE_CLUSTER_1, false);
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+                setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            }
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -427,9 +433,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             String remote2IndexName = randomFrom(remote2Index, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            if (exceptionWithSkipUnavailableFalse) {
+                setSkipUnavailable(REMOTE_CLUSTER_1, false);
+                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+                setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            }
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -464,7 +472,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
      * Runs the provided query, expecting a VerificationError. It then runs the same query with a "| LIMIT 0"
      * extra processing step to ensure that ESQL coordinator-only operations throw the same VerificationError.
      */
-    private void expectVerificationExceptionForQuery(String query, String error, Boolean requestIncludeMeta) {
+    protected void expectVerificationExceptionForQuery(String query, String error, Boolean requestIncludeMeta) {
         VerificationException e = expectThrows(VerificationException.class, () -> runQuery(query, requestIncludeMeta));
         assertThat(e.getDetailedMessage(), containsString(error));
 
@@ -1069,5 +1077,21 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 assertThat(values.get(0).get(0), equalTo((long) totalDocs));
             }
         }
+    }
+
+    public void testNoCps() throws Exception {
+        setupTwoClusters();
+        var query = "from logs-*,c*:logs-* | stats sum (v)";
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        request.query(query);
+        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        request.profile(randomInt(5) == 2);
+        request.columnar(randomBoolean());
+        request.includeCPSMetadata(randomBoolean());
+
+        assertThat(
+            expectThrows(VerificationException.class, () -> runQuery(request)).getMessage(),
+            containsString("Unsupported parameter [include_cps_metadata]")
+        );
     }
 }

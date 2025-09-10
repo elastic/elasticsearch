@@ -41,6 +41,7 @@ import java.util.Objects;
  */
 public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";
+    private static final TransportVersion ESQL_FIXED_INDEX_LIKE = TransportVersion.fromName("esql_fixed_index_like");
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -130,7 +131,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
      * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
      */
     public static boolean expressionTransportSupported(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19);
+        return version.supports(ESQL_FIXED_INDEX_LIKE);
     }
 
     @Override

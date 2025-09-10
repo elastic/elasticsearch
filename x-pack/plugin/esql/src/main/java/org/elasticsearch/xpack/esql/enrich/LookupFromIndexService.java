@@ -60,6 +60,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
     private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
+    private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
+
     public LookupFromIndexService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -249,7 +251,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 source = new Source(source.source(), sourceText);
             }
             PhysicalPlan rightPreJoinPlan = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
             }
             TransportRequest result = new TransportRequest(
@@ -304,7 +306,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
             }
         }

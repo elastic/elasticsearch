@@ -13,6 +13,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class CrossClusterApiKeySignerTests extends ESTestCase {
 
     public void testLoadKeystore() {
@@ -39,9 +41,12 @@ public class CrossClusterApiKeySignerTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "secretpassword");
         builder.setSecureSettings(secureSettings);
-        var signer = new CrossClusterApiKeySigner(TestEnvironment.newEnvironment(builder.build()));
+        var exception = assertThrows(
+            IllegalStateException.class,
+            () -> new CrossClusterApiKeySigner(TestEnvironment.newEnvironment(builder.build()))
+        );
+        assertThat(exception.getMessage(), equalTo("Failed to load signing config for cluster [my_remote]"));
 
-        assertNull(signer.sign("my_remote", "a_header"));
     }
 
     public void testLoadSeveralAliasesWithoutAliasSettingKeystore() {
@@ -53,9 +58,11 @@ public class CrossClusterApiKeySignerTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "secretpassword");
         builder.setSecureSettings(secureSettings);
-        var signer = new CrossClusterApiKeySigner(TestEnvironment.newEnvironment(builder.build()));
-
-        assertNull(signer.sign("my_remote", "a_header"));
+        var exception = assertThrows(
+            IllegalStateException.class,
+            () -> new CrossClusterApiKeySigner(TestEnvironment.newEnvironment(builder.build()))
+        );
+        assertThat(exception.getMessage(), equalTo("Failed to load signing config for cluster [my_remote]"));
     }
 
     private void addKeyStorePathToBuilder(String remoteCluster, Settings.Builder builder) {

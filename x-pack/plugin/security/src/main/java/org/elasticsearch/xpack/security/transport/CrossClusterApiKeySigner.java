@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslUtil;
@@ -53,43 +52,29 @@ public class CrossClusterApiKeySigner {
         loadSigningConfigs();
     }
 
-    SigningConfig loadSigningConfig(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
+    SigningConfig loadSigningConfig(String clusterAlias, Settings settings) {
         return signingConfigByClusterAlias.compute(clusterAlias, (key, currentSigningConfig) -> {
-            var effectiveSettings = buildEffectiveSettings(
-                currentSigningConfig != null ? currentSigningConfig.settings : null,
-                settings,
-                updateSecureSettings
-            );
-            assert effectiveSettings != null : "Signing config settings must not be null";
-            logger.trace("Loading signing config for [{}] with settings [{}]", clusterAlias, effectiveSettings);
-
-            SigningConfig signingConfig = new SigningConfig(null, null, effectiveSettings);
-            if (effectiveSettings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
+            logger.trace("Loading signing config for [{}] with settings [{}]", clusterAlias, settings);
+            if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
                 try {
-                    SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(
-                        effectiveSettings,
-                        SETTINGS_PART_SIGNING + ".",
-                        environment,
-                        false
-                    );
+                    SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settings, SETTINGS_PART_SIGNING + ".", environment, false);
                     if (keyConfig.hasKeyMaterial()) {
-                        String alias = effectiveSettings.get(SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX);
+                        String alias = settings.get(SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX);
                         var keyPair = Strings.isNullOrEmpty(alias) ? buildKeyPair(keyConfig) : buildKeyPair(keyConfig, alias);
                         if (keyPair != null) {
                             logger.trace("Key pair [{}] found for [{}]", keyPair, clusterAlias);
-                            signingConfig = new SigningConfig(keyPair, keyConfig.getDependentFiles(), effectiveSettings);
+                            return new SigningConfig(keyPair, keyConfig.getDependentFiles());
                         }
                     } else {
                         logger.error(Strings.format("No signing credentials found in signing config for cluster [%s]", clusterAlias));
                     }
                 } catch (Exception e) {
-                    // Since this can be called by the settings applier we don't want to surface an error here
-                    logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
+                    throw new IllegalStateException(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
                 }
-            } else {
-                logger.trace("No signing settings found for [{}]", clusterAlias);
             }
-            return signingConfig;
+
+            logger.trace("No valid signing config settings found for [{}] with settings [{}]", clusterAlias, settings);
+            return SigningConfig.EMPTY;
         });
     }
 
@@ -121,44 +106,7 @@ public class CrossClusterApiKeySigner {
     }
 
     private void loadSigningConfigs() {
-        this.environment.settings()
-            .getGroups("cluster.remote.", true)
-            .forEach((alias, settings) -> loadSigningConfig(alias, settings, false));
-    }
-
-    /**
-     * Build the effective remote cluster settings by merging the currently configured (if any) and new/updated settings
-     * <p>
-     * - If newSettings is null - use existing settings, used to refresh the dependent files
-     * - If newSettings is empty - return empty settings, used for resetting signing config
-     * - If updateSecureSettings is true - merge secure settings from newSettings with current settings, used by secure settings refresh
-     * - If updateSecureSettings is false - merge new settings with existing secure settings, used for regular settings update
-     */
-    private Settings buildEffectiveSettings(
-        @Nullable Settings currentSettings,
-        @Nullable Settings newSettings,
-        boolean updateSecureSettings
-    ) {
-        if (currentSettings == null) {
-            return newSettings == null ? Settings.EMPTY : newSettings;
-        }
-        if (newSettings == null) {
-            return currentSettings;
-        }
-        if (newSettings.isEmpty()) {
-            return Settings.EMPTY;
-        }
-
-        Settings secureSettingsSource = updateSecureSettings ? newSettings : currentSettings;
-        Settings settingsSource = updateSecureSettings ? currentSettings : newSettings;
-
-        SecureSettings secureSettings = Settings.builder().put(secureSettingsSource, true).getSecureSettings();
-
-        var builder = Settings.builder().put(settingsSource, false);
-        if (secureSettings != null) {
-            builder.setSecureSettings(secureSettings);
-        }
-        return builder.build();
+        this.environment.settings().getGroups("cluster.remote.", true).forEach(this::loadSigningConfig);
     }
 
     private X509KeyPair buildKeyPair(SslKeyConfig keyConfig) {
@@ -213,8 +161,11 @@ public class CrossClusterApiKeySigner {
 
         final X509Certificate[] chain = keyManager.getCertificateChain(alias);
         logger.trace("KeyConfig [{}] has entry for alias: [{}] [{}]", keyConfig, alias, chain != null);
+        if (chain == null) {
+            throw new IllegalStateException("Key config missing certificate chain for alias [" + alias + "]");
+        }
 
-        return chain != null ? new X509KeyPair(chain[0], keyManager.getPrivateKey(alias)) : null;
+        return new X509KeyPair(chain[0], keyManager.getPrivateKey(alias));
     }
 
     private static byte[] getSignableBytes(final String... headers) {
@@ -249,6 +200,8 @@ public class CrossClusterApiKeySigner {
         }
     }
 
-    record SigningConfig(@Nullable X509KeyPair keyPair, @Nullable Collection<Path> dependentFiles, Settings settings) {}
+    record SigningConfig(@Nullable X509KeyPair keyPair, @Nullable Collection<Path> dependentFiles) {
+        static SigningConfig EMPTY = new SigningConfig(null, null);
+    }
 
 }

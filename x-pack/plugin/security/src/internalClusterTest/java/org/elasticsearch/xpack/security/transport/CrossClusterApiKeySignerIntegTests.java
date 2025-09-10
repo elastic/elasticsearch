@@ -92,14 +92,14 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
                 assertNotNull(signature);
             }
 
-            // Add an alias not in the keystore
+            // Add an alias not in the keystore, settings should silently fail to apply
             updateClusterSettings(
                 Settings.builder()
                     .put(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(), "idonotexist")
             );
             {
                 X509CertificateSignature signature = signer.sign(DYNAMIC_TEST_CLUSTER_ALIAS, "test", "test");
-                assertNull(signature);
+                assertNotNull(signature);
             }
         } finally {
             updateClusterSettings(

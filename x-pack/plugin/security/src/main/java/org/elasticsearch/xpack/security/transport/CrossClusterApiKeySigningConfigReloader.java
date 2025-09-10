@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -56,6 +57,7 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
     private static final Logger logger = LogManager.getLogger(CrossClusterApiKeySigningConfigReloader.class);
     private final Map<Path, ChangeListener> monitoredPathToChangeListener = new HashMap<>();
     private final ResourceWatcherService resourceWatcherService;
+    private final Map<String, Settings> settingsByClusterAlias = new ConcurrentHashMap<>();
 
     private final PlainActionFuture<CrossClusterApiKeySigner> crossClusterApiKeySignerFuture = new PlainActionFuture<>() {
         @Override
@@ -70,18 +72,22 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
         ClusterSettings clusterSettings
     ) {
         this.resourceWatcherService = resourceWatcherService;
+        settingsByClusterAlias.putAll(environment.settings().getGroups("cluster.remote.", true));
+        watchDependentFilesForClusterAliases(resourceWatcherService, getInitialFilesToMonitor(environment));
         clusterSettings.addAffixGroupUpdateConsumer(getDynamicSettings(), (key, val) -> {
             reloadConsumer(key, val.getByPrefix("cluster.remote." + key + "."), false);
             logger.info("Updated signing configuration for [{}] due to updated cluster settings", key);
         });
-
-        watchDependentFilesForClusterAliases(resourceWatcherService, getInitialFilesToMonitor(environment));
     }
 
     private void reloadConsumer(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
         try {
             var apiKeySigner = crossClusterApiKeySignerFuture.get();
-            var signingConfig = apiKeySigner.loadSigningConfig(clusterAlias, settings, updateSecureSettings);
+            Settings effectiveSettings = settingsByClusterAlias.compute(
+                clusterAlias,
+                (key, val) -> buildEffectiveSettings(val, settings, updateSecureSettings)
+            );
+            var signingConfig = apiKeySigner.loadSigningConfig(clusterAlias, effectiveSettings);
             if (signingConfig.dependentFiles() != null) {
                 watchDependentFilesForClusterAliases(
                     resourceWatcherService,
@@ -92,6 +98,8 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
             throw new ElasticsearchException("Failed to obtain crossClusterApiKeySigner", e);
+        } catch (IllegalStateException e) {
+            logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
         }
     }
 
@@ -102,22 +110,15 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
 
     private Map<Path, Set<String>> getInitialFilesToMonitor(Environment environment) {
         Map<Path, Set<String>> filesToMonitor = new HashMap<>();
-
-        var clusterGroups = environment.settings().getGroups("cluster.remote.", true);
-
-        for (var entry : clusterGroups.entrySet()) {
-            String clusterAlias = entry.getKey();
-            Settings settingsForCluster = entry.getValue();
-
+        this.settingsByClusterAlias.forEach((clusterAlias, settingsForCluster) -> {
             SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settingsForCluster, SETTINGS_PART_SIGNING + ".", environment, false);
-
             for (Path path : keyConfig.getDependentFiles()) {
                 filesToMonitor.compute(
                     path,
                     (p, aliases) -> aliases == null ? Set.of(clusterAlias) : Sets.addToCopy(aliases, clusterAlias)
                 );
             }
-        }
+        });
         return filesToMonitor;
     }
 
@@ -172,6 +173,41 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
                 logger.info("Updated signing configuration for [{}] config(s) due to update of file [{}]", clusterAliases.size(), file);
             }
         }
+    }
+
+    /**
+     * Build the effective remote cluster settings by merging the currently configured (if any) and new/updated settings
+     * <p>
+     * - If newSettings is null - use existing settings, used to refresh the dependent files
+     * - If newSettings is empty - return empty settings, used for resetting signing config
+     * - If updateSecureSettings is true - merge secure settings from newSettings with current settings, used by secure settings refresh
+     * - If updateSecureSettings is false - merge new settings with existing secure settings, used for regular settings update
+     */
+    private Settings buildEffectiveSettings(
+        @Nullable Settings currentSettings,
+        @Nullable Settings newSettings,
+        boolean updateSecureSettings
+    ) {
+        if (currentSettings == null) {
+            return newSettings == null ? Settings.EMPTY : newSettings;
+        }
+        if (newSettings == null) {
+            return currentSettings;
+        }
+        if (newSettings.isEmpty()) {
+            return Settings.EMPTY;
+        }
+
+        Settings secureSettingsSource = updateSecureSettings ? newSettings : currentSettings;
+        Settings settingsSource = updateSecureSettings ? currentSettings : newSettings;
+
+        SecureSettings secureSettings = Settings.builder().put(secureSettingsSource, true).getSecureSettings();
+
+        var builder = Settings.builder().put(settingsSource, false);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return builder.build();
     }
 
     @Override

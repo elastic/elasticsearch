@@ -655,6 +655,9 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate"
+        "internal:admin/repository/verify/coordinate",
+        "indices:admin/sample/stats",
+        "indices:admin/sample/config/update",
+        "indices:admin/sample"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

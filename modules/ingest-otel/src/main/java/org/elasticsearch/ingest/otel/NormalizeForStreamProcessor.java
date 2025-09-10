@@ -49,7 +49,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
     /**
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
      */
-    private static final Map<String, String> RENAME_KEYS = Map.ofEntries(
+    public static final Map<String, String> RENAME_KEYS = Map.ofEntries(
         entry("span.id", "span_id"),
         entry("message", "body.text"),
         entry("log.level", "severity_text"),

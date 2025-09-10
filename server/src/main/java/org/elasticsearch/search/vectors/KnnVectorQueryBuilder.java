@@ -645,6 +645,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
+        if (filterQuery != null && vectorFieldType.getIndexOptions().isFlat() == false) {
+            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
+            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
+            // default strategy, but once materialized as a bitset on every execution they become
+            // significantly more expensive, making caching essential.
+            filterQuery = new CachingEnableFilterQuery(filterQuery);
+        }
+
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,

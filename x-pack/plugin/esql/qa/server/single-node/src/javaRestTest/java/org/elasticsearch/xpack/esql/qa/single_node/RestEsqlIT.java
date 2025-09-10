@@ -981,7 +981,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("ConstantScore(*:*)"))
+                .entry("processed_queries", List.of("*:*"))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
@@ -1021,7 +1021,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("slice_max", 0)
                 .entry("slice_min", 0)
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("ConstantScore(*:*)"))
+                .entry("processed_queries", List.of("*:*"))
                 .entry("slice_index", 0)
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -118,7 +119,8 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);
-        TimeSeriesAggregate outerStats = as(limit.child(), TimeSeriesAggregate.class);
+        Drop drop = as(limit.child(), Drop.class);
+        TimeSeriesAggregate outerStats = as(drop.child(), TimeSeriesAggregate.class);
         // TODO: Add asserts about the specific aggregation details here
         Eval eval = as(outerStats.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);

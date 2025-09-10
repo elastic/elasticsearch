@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.util.List;
@@ -72,7 +73,14 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
             // We perform an optimizer run on every fragment. LookupJoinExec also contains such a fragment,
             // and currently it only contains an EsQueryExec after optimization.
             boolean hasLookupJoinExec = optimizedPlan instanceof EsQueryExec esQueryExec && esQueryExec.indexMode() == LOOKUP;
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec;
+            /*
+            The group by all branch of the TranslateTimeSeriesAggregate rule adds in new columns to the output.
+            Specifically, it adds columns for each of the dimensions in the relation being aggregated. This is kind of the
+            whole point of that branch.
+             */
+            // NOCOMMIT TODO: Make this more selective
+            boolean isTsGroupByAll = optimizedPlan.anyMatch(node -> node instanceof TimeSeriesAggregate);
+            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || isTsGroupByAll;
             if (ignoreError == false) {
                 failures.add(
                     fail(

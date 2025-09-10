@@ -266,7 +266,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
         // Construct the groupings for the new aggregations
         if (hasTopLevelOverTimeAggs) {
-            // Group by all dimensions case. In this path, there is only one tier, and it should have either a tbucket
+            // Group by all dimensions case. In this path, there is only one tier, and it should have either a single tbucket
             // or no groupings at all.
             if (aggregate.groupings().size() > 1) {
                 throw new EsqlIllegalArgumentException(
@@ -289,6 +289,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                     );
                 }
                 for (Attribute dimension : dimensions) {
+                    // We add the dimensions as Values aggs here as an optimization. Grouping by the _tsid should already ensure
+                    // one row per unique combination of dimensions, and collecting those values in a Values aggregation is less
+                    // computation than hashing them for a grouping operation.
                     firstPassAggs.add(new Alias(dimension.source(), dimension.name(), new Values(dimension.source(), dimension)));
                 }
             }

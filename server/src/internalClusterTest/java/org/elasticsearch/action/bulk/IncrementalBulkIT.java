@@ -11,13 +11,13 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.SourceContext;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -80,7 +80,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         IndexRequest indexRequest = indexRequest(index);
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        handler.lastItems(List.of(indexRequest), future);
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
 
         BulkResponse bulkResponse = safeGet(future);
         assertNoFailures(bulkResponse);
@@ -92,7 +93,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
         });
 
-        assertTrue(indexRequest.sourceContext().isClosed());
+        assertFalse(refCounted.hasReferences());
     }
 
     public void testBufferedResourcesReleasedOnClose() {
@@ -106,14 +107,15 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
         IndexRequest indexRequest = indexRequest(index);
 
-        handler.addItems(List.of(indexRequest), () -> {});
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        handler.addItems(List.of(indexRequest), refCounted::decRef, () -> {});
 
-        assertFalse(indexRequest.sourceContext().isClosed());
+        assertTrue(refCounted.hasReferences());
         assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), greaterThan(0L));
 
         handler.close();
 
-        assertTrue(indexRequest.sourceContext().isClosed());
+        assertFalse(refCounted.hasReferences());
         assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
@@ -127,20 +129,20 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         try (Releasable r = indexingPressure.markCoordinatingOperationStarted(1, indexingPressure.stats().getMemoryLimit(), true)) {
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
-            ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
 
             if (randomBoolean()) {
                 AtomicBoolean nextPage = new AtomicBoolean(false);
-                handler.addItems(List.of(indexRequest(index, contextsToClose)), () -> nextPage.set(true));
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
                 assertTrue(nextPage.get());
             }
 
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-            handler.lastItems(List.of(indexRequest(index, contextsToClose)), future);
+            handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
 
             expectThrows(EsRejectedExecutionException.class, future::actionGet);
-
-            assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
+            assertFalse(refCounted.hasReferences());
         }
     }
 
@@ -154,7 +156,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         IndexRequest indexRequest = indexRequest(index);
@@ -162,8 +164,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         long lowWaterMarkSplits = indexingPressure.stats().getLowWaterMarkSplits();
         long highWaterMarkSplits = indexingPressure.stats().getHighWaterMarkSplits();
         while (total < 2048) {
-            contextsToClose.add(indexRequest.sourceContext());
-            handler.addItems(List.of(indexRequest), () -> nextPage.set(true));
+            refCounted.incRef();
+            handler.addItems(List.of(indexRequest), refCounted::decRef, () -> nextPage.set(true));
             assertTrue(nextPage.get());
             nextPage.set(false);
             indexRequest = indexRequest(index);
@@ -171,18 +173,19 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
 
         assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(0L));
-        handler.addItems(List.of(indexRequest(index, contextsToClose)), () -> nextPage.set(true));
+        refCounted.incRef();
+        handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
         assertBusy(() -> assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(lowWaterMarkSplits + 1)));
         assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(highWaterMarkSplits));
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        handler.lastItems(List.of(indexRequest(index, contextsToClose)), future);
+        handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
 
         BulkResponse bulkResponse = safeGet(future);
         assertNoFailures(bulkResponse);
-        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
+        assertFalse(refCounted.hasReferences());
     }
 
     public void testIncrementalBulkHighWatermarkBackOff() throws Exception {
@@ -196,26 +199,28 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         long lowWaterMarkSplits = indexingPressure.stats().getLowWaterMarkSplits();
         long highWaterMarkSplits = indexingPressure.stats().getHighWaterMarkSplits();
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
         for (int i = 0; i < 4; ++i) {
             ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
-            add512BRequests(requests, contextsToClose, index);
+            add512BRequests(requests, index);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
             handlers.add(handler);
-            handler.addItems(requests, () -> nextPage.set(true));
+            refCounted.incRef();
+            handler.addItems(requests, refCounted::decRef, () -> nextPage.set(true));
             assertTrue(nextPage.get());
             nextPage.set(false);
         }
 
         // Test that a request smaller than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is not throttled
         ArrayList<DocWriteRequest<?>> requestsNoThrottle = new ArrayList<>();
-        add512BRequests(requestsNoThrottle, contextsToClose, index);
+        add512BRequests(requestsNoThrottle, index);
         IncrementalBulkService.Handler handlerNoThrottle = incrementalBulkService.newBulkRequest();
         handlers.add(handlerNoThrottle);
-        handlerNoThrottle.addItems(requestsNoThrottle, () -> nextPage.set(true));
+        refCounted.incRef();
+        handlerNoThrottle.addItems(requestsNoThrottle, refCounted::decRef, () -> nextPage.set(true));
         assertTrue(nextPage.get());
         nextPage.set(false);
         assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(highWaterMarkSplits));
@@ -223,13 +228,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         ArrayList<DocWriteRequest<?>> requestsThrottle = new ArrayList<>();
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
-        add512BRequests(requestsThrottle, contextsToClose, index);
-        add512BRequests(requestsThrottle, contextsToClose, index);
+        add512BRequests(requestsThrottle, index);
+        add512BRequests(requestsThrottle, index);
 
         CountDownLatch finishLatch = new CountDownLatch(1);
         blockWriteCoordinationPool(threadPool, finishLatch);
         IncrementalBulkService.Handler handlerThrottled = incrementalBulkService.newBulkRequest();
-        handlerThrottled.addItems(requestsThrottle, () -> nextPage.set(true));
+        refCounted.incRef();
+        handlerThrottled.addItems(requestsThrottle, refCounted::decRef, () -> nextPage.set(true));
         assertFalse(nextPage.get());
         finishLatch.countDown();
 
@@ -241,14 +247,16 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(lowWaterMarkSplits));
 
         for (IncrementalBulkService.Handler h : handlers) {
+            refCounted.incRef();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-            h.lastItems(List.of(indexRequest(index, contextsToClose)), future);
+            h.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
             BulkResponse bulkResponse = safeGet(future);
             assertNoFailures(bulkResponse);
         }
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
-        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
+        refCounted.decRef();
+        assertFalse(refCounted.hasReferences());
     }
 
     public void testMultipleBulkPartsWithBackoff() {
@@ -298,10 +306,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 );
             } else {
                 PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-                IndexRequest indexRequest = indexRequest(index);
-                handler.lastItems(List.of(indexRequest), future);
+                AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+                handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+                assertFalse(refCounted.hasReferences());
                 expectThrows(EsRejectedExecutionException.class, future::actionGet);
-                assertTrue(indexRequest.sourceContext().isClosed());
             }
         }
     }
@@ -317,7 +325,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
-            ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
 
             CountDownLatch blockingLatch1 = new CountDownLatch(1);
@@ -328,7 +336,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 blockWriteCoordinationPool(threadPool, blockingLatch1);
                 while (nextRequested.get()) {
                     nextRequested.set(false);
-                    handler.addItems(List.of(indexRequest(index, contextsToClose)), () -> nextRequested.set(true));
+                    refCounted.incRef();
+                    handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
                     hits.incrementAndGet();
                 }
             } finally {
@@ -342,7 +351,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 blockWriteCoordinationPool(threadPool, blockingLatch2);
                 fillWriteCoordinationQueue(threadPool);
 
-                handler.lastItems(List.of(indexRequest(index, contextsToClose)), future);
+                handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
             } finally {
                 blockingLatch2.countDown();
             }
@@ -370,7 +379,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
@@ -378,7 +387,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         AtomicLong hits = new AtomicLong(0);
         while (nextRequested.get()) {
             nextRequested.set(false);
-            handler.addItems(List.of(indexRequest(index, contextsToClose)), () -> nextRequested.set(true));
+            refCounted.incRef();
+            handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
             hits.incrementAndGet();
         }
 
@@ -393,11 +403,12 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                 while (nextRequested.get()) {
                     nextRequested.set(false);
+                    refCounted.incRef();
                     List<DocWriteRequest<?>> requests = new ArrayList<>();
                     for (int i = 0; i < 20; ++i) {
-                        requests.add(indexRequest(index, contextsToClose));
+                        requests.add(indexRequest(index));
                     }
-                    handler.addItems(requests, () -> nextRequested.set(true));
+                    handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
                 }
                 assertBusy(() -> assertTrue(nextRequested.get()));
             }
@@ -405,13 +416,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         while (nextRequested.get()) {
             nextRequested.set(false);
-            handler.addItems(List.of(indexRequest(index, contextsToClose)), () -> nextRequested.set(true));
+            refCounted.incRef();
+            handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
         }
 
         assertBusy(() -> assertTrue(nextRequested.get()));
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        handler.lastItems(List.of(indexRequest(index, contextsToClose)), future);
+        handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
 
         BulkResponse bulkResponse = safeGet(future);
         assertTrue(bulkResponse.hasFailures());
@@ -429,8 +441,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
             }
         }
-
-        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
     }
 
     public void testShortCircuitShardLevelFailureWithIngestNodeHop() throws Exception {
@@ -468,7 +478,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         // a node with the ingest role.
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
@@ -476,7 +486,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         AtomicLong hits = new AtomicLong(0);
         while (nextRequested.get()) {
             nextRequested.set(false);
-            handler.addItems(List.of(indexRequest(index, contextsToClose).setPipeline(pipelineId)), () -> nextRequested.set(true));
+            refCounted.incRef();
+            handler.addItems(List.of(indexRequest(index).setPipeline(pipelineId)), refCounted::decRef, () -> nextRequested.set(true));
             hits.incrementAndGet();
         }
 
@@ -489,7 +500,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         try (Releasable releasable = primaryPressure.validateAndMarkPrimaryOperationStarted(10, memoryLimit, 0, false, false)) {
             while (nextRequested.get()) {
                 nextRequested.set(false);
-                handler.addItems(List.of(indexRequest(index, contextsToClose).setPipeline(pipelineId)), () -> nextRequested.set(true));
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(index).setPipeline(pipelineId)), refCounted::decRef, () -> nextRequested.set(true));
             }
 
             assertBusy(() -> assertTrue(nextRequested.get()));
@@ -497,13 +509,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         while (nextRequested.get()) {
             nextRequested.set(false);
-            handler.addItems(List.of(indexRequest(index, contextsToClose).setPipeline(pipelineId)), () -> nextRequested.set(true));
+            refCounted.incRef();
+            handler.addItems(List.of(indexRequest(index).setPipeline(pipelineId)), refCounted::decRef, () -> nextRequested.set(true));
         }
 
         assertBusy(() -> assertTrue(nextRequested.get()));
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        handler.lastItems(List.of(indexRequest(index, contextsToClose)), future);
+        handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
 
         BulkResponse bulkResponse = safeGet(future);
         assertTrue(bulkResponse.hasFailures());
@@ -516,8 +529,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertTrue(item.isFailed());
             assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
         }
-
-        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
     }
 
     private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {
@@ -572,13 +583,13 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     }
 
     private BulkResponse executeBulk(long docs, String index, IncrementalBulkService.Handler handler, ExecutorService executorService) {
-        List<SourceContext> contextsToClose = new ArrayList<>();
-        ConcurrentLinkedQueue<IndexRequest> queue = new ConcurrentLinkedQueue<>();
+        ConcurrentLinkedQueue<DocWriteRequest<?>> queue = new ConcurrentLinkedQueue<>();
         for (int i = 0; i < docs; i++) {
-            IndexRequest indexRequest = indexRequest(index, contextsToClose);
+            IndexRequest indexRequest = indexRequest(index);
             queue.add(indexRequest);
         }
 
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         Runnable r = new Runnable() {
 
@@ -591,9 +602,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 }
 
                 if (queue.isEmpty()) {
-                    handler.lastItems(docs, future);
+                    handler.lastItems(docs, refCounted::decRef, future);
                 } else {
-                    handler.addItems(docs, () -> executorService.execute(this));
+                    refCounted.incRef();
+                    handler.addItems(docs, refCounted::decRef, () -> executorService.execute(this));
                 }
             }
         };
@@ -601,24 +613,18 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         executorService.execute(r);
 
         BulkResponse bulkResponse = future.actionGet();
-        assertThat(contextsToClose.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
+        assertFalse(refCounted.hasReferences());
         return bulkResponse;
     }
 
-    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, ArrayList<SourceContext> contextsToClose, String index) {
+    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, String index) {
         long total = 0;
         while (total < 512) {
-            IndexRequest indexRequest = indexRequest(index, contextsToClose);
+            IndexRequest indexRequest = indexRequest(index);
             requests.add(indexRequest);
             total += indexRequest.ramBytesUsed();
         }
         assertThat(total, lessThan(1024L));
-    }
-
-    private static IndexRequest indexRequest(String index, List<SourceContext> contextsToClose) {
-        IndexRequest indexRequest = indexRequest(index);
-        contextsToClose.add(indexRequest.sourceContext());
-        return indexRequest;
     }
 
     private static IndexRequest indexRequest(String index) {

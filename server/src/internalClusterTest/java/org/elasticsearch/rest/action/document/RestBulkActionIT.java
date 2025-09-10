@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 public class RestBulkActionIT extends ESIntegTestCase {
-
     @Override
     protected boolean addMockHttpTransport() {
         return false;

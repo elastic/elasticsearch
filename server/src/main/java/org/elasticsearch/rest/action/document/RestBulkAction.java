@@ -18,10 +18,12 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -111,10 +113,11 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
             bulkRequest.requestParamsUsed(request.params().keySet());
+            ReleasableBytesReference content = request.requiredContent();
 
             try {
                 bulkRequest.add(
-                    request.requiredContent(),
+                    content,
                     defaultIndex,
                     defaultRouting,
                     defaultFetchSourceContext,
@@ -127,16 +130,12 @@ public class RestBulkAction extends BaseRestHandler {
                     request.getRestApiVersion()
                 );
             } catch (Exception e) {
-                Releasables.close(bulkRequest.requests());
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-
-            // The actual bulk request items are mutable during the bulk process so we must create a copy
-            List<DocWriteRequest<?>> toClose = bulkRequest.requests();
-            return channel -> client.bulk(
-                bulkRequest,
-                ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> Releasables.close(toClose))
-            );
+            return channel -> {
+                content.mustIncRef();
+                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
+            };
         } else {
             request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
@@ -218,33 +217,25 @@ public class RestBulkAction extends BaseRestHandler {
                 return;
             }
 
+            final BytesReference data;
             int bytesConsumed;
             if (chunk.length() == 0) {
                 chunk.close();
                 bytesConsumed = 0;
             } else {
-                final ReleasableBytesReference data;
                 try {
                     handler.getIncrementalOperation().incrementUnparsedBytes(chunk.length());
                     unParsedChunks.add(chunk);
 
                     if (unParsedChunks.size() > 1) {
-                        ReleasableBytesReference[] components = unParsedChunks.toArray(new ReleasableBytesReference[0]);
-                        for (ReleasableBytesReference reference : components) {
-                            reference.incRef();
-                        }
-                        data = new ReleasableBytesReference(CompositeBytesReference.of(components), () -> Releasables.close(components));
+                        data = CompositeBytesReference.of(unParsedChunks.toArray(new ReleasableBytesReference[0]));
                     } else {
-                        // We are creating a dedicated ref count for the application layer here. Otherwise, the leak tracking infrastructure
-                        // will be hit every time a source is released for each doc. We still have leak tracking since the child references
-                        // the parent. There is just a single reference instead of one for every doc.
-                        data = chunk.retainChild();
+                        data = chunk;
                     }
 
-                    try (ReleasableBytesReference toClose = data) {
-                        bytesConsumed = parser.parse(data, isLast);
-                        handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
-                    }
+                    bytesConsumed = parser.parse(data, isLast);
+                    handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
+
                 } catch (Exception e) {
                     shortCircuit();
                     new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
@@ -252,8 +243,7 @@ public class RestBulkAction extends BaseRestHandler {
                 }
             }
 
-            releaseConsumeBytes(bytesConsumed);
-
+            final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
                 if (handler.getIncrementalOperation().totalParsedBytes() == 0) {
@@ -263,18 +253,19 @@ public class RestBulkAction extends BaseRestHandler {
                     assert channel != null;
                     ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                     items.clear();
-                    handler.lastItems(toPass, new RestRefCountedChunkedToXContentListener<>(channel));
+                    handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
                 }
                 handler.updateWaitForChunkMetrics(TimeUnit.NANOSECONDS.toMillis(totalChunkWaitTimeInNanos));
                 totalChunkWaitTimeInNanos = 0L;
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
-                handler.addItems(toPass, () -> {
+                handler.addItems(toPass, () -> Releasables.close(releasables), () -> {
                     requestNextChunkTime = System.nanoTime();
                     request.contentStream().next();
                 });
             } else {
+                Releasables.close(releasables);
                 requestNextChunkTime = System.nanoTime();
                 request.contentStream().next();
             }
@@ -292,24 +283,23 @@ public class RestBulkAction extends BaseRestHandler {
             shortCircuited = true;
             Releasables.close(handler);
             Releasables.close(unParsedChunks);
-            Releasables.close(items);
-            items.clear();
             unParsedChunks.clear();
         }
 
-        private void releaseConsumeBytes(int bytesConsumed) {
+        private ArrayList<Releasable> accountParsing(int bytesConsumed) {
+            ArrayList<Releasable> releasables = new ArrayList<>(unParsedChunks.size());
             while (bytesConsumed > 0) {
                 ReleasableBytesReference reference = unParsedChunks.removeFirst();
+                releasables.add(reference);
                 if (bytesConsumed >= reference.length()) {
                     bytesConsumed -= reference.length();
                 } else {
                     unParsedChunks.addFirst(reference.retainedSlice(bytesConsumed, reference.length() - bytesConsumed));
                     bytesConsumed = 0;
                 }
-                reference.close();
             }
+            return releasables;
         }
-
     }
 
     @Override

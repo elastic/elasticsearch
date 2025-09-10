@@ -18,7 +18,6 @@ import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.SourceContext;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -89,7 +89,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        final ArrayList<SourceContext> contextsToRelease = new ArrayList<>();
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
         try (IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest()) {
 
@@ -97,9 +97,8 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
             int successfullyStored = 0;
             while (nextRequested.get()) {
                 nextRequested.set(false);
-                IndexRequest indexRequest = indexRequest(DATA_STREAM_NAME);
-                contextsToRelease.add(indexRequest.sourceContext());
-                handler.addItems(List.of(indexRequest), () -> nextRequested.set(true));
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(DATA_STREAM_NAME)), refCounted::decRef, () -> nextRequested.set(true));
                 successfullyStored++;
             }
             assertBusy(() -> assertTrue(nextRequested.get()));
@@ -117,13 +116,12 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
                 while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                     while (nextRequested.get()) {
                         nextRequested.set(false);
+                        refCounted.incRef();
                         List<DocWriteRequest<?>> requests = new ArrayList<>();
                         for (int i = 0; i < 20; ++i) {
-                            IndexRequest indexRequest = indexRequest(DATA_STREAM_NAME);
-                            contextsToRelease.add(indexRequest.sourceContext());
-                            requests.add(indexRequest);
+                            requests.add(indexRequest(DATA_STREAM_NAME));
                         }
-                        handler.addItems(requests, () -> nextRequested.set(true));
+                        handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
                     }
                     assertBusy(() -> assertTrue(nextRequested.get()));
                 }
@@ -131,20 +129,16 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
             while (nextRequested.get()) {
                 nextRequested.set(false);
-                IndexRequest indexRequest = indexRequest(DATA_STREAM_NAME);
-                contextsToRelease.add(indexRequest.sourceContext());
-                handler.addItems(List.of(indexRequest), () -> nextRequested.set(true));
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(DATA_STREAM_NAME)), refCounted::decRef, () -> nextRequested.set(true));
             }
 
             assertBusy(() -> assertTrue(nextRequested.get()));
 
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-            IndexRequest lastRequest = indexRequest(DATA_STREAM_NAME);
-            contextsToRelease.add(lastRequest.sourceContext());
-            handler.lastItems(List.of(lastRequest), future);
+            handler.lastItems(List.of(indexRequest(DATA_STREAM_NAME)), refCounted::decRef, future);
 
             BulkResponse bulkResponse = safeGet(future);
-            assertThat(contextsToRelease.stream().filter(c -> c.isClosed() == false).count(), equalTo(0L));
 
             for (int i = 0; i < bulkResponse.getItems().length; ++i) {
                 // the first requests were successful

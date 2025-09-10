@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.RestChannel;
@@ -256,15 +256,15 @@ public class RestBulkActionTests extends ESTestCase {
             ) {
 
                 @Override
-                public void addItems(List<DocWriteRequest<?>> items, Runnable nextItems) {
+                public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
+                    releasable.close();
                     docs.addAll(items);
-                    Releasables.close(items);
                 }
 
                 @Override
-                public void lastItems(List<DocWriteRequest<?>> items, ActionListener<BulkResponse> listener) {
+                public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
+                    releasable.close();
                     docs.addAll(items);
-                    Releasables.close(items);
                     isLast.set(true);
                 }
             };

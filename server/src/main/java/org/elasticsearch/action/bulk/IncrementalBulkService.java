@@ -154,15 +154,15 @@ public class IncrementalBulkService {
             chunkWaitTimeMillisHistogram.record(chunkWaitTimeInMillis);
         }
 
-        public void addItems(List<DocWriteRequest<?>> items, Runnable nextItems) {
+        public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
             assert closed == false;
             assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
-                shortCircuitDueToTopLevelFailure(items);
+                shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
             } else {
                 assert bulkRequest != null;
-                if (internalAddItems(items)) {
+                if (internalAddItems(items, releasable)) {
                     Optional<Releasable> maybeSplit = incrementalOperation.maybeSplit();
                     if (maybeSplit.isPresent()) {
                         Releasable coordinating = maybeSplit.get();
@@ -200,14 +200,14 @@ public class IncrementalBulkService {
             }
         }
 
-        public void lastItems(List<DocWriteRequest<?>> items, ActionListener<BulkResponse> listener) {
+        public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
             assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
-                shortCircuitDueToTopLevelFailure(items);
+                shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(listener);
             } else {
                 assert bulkRequest != null;
-                if (internalAddItems(items)) {
+                if (internalAddItems(items, releasable)) {
                     Releasable coordinating = incrementalOperation.split();
                     final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                     releasables.clear();
@@ -248,14 +248,14 @@ public class IncrementalBulkService {
             }
         }
 
-        private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items) {
+        private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {
             assert releasables.isEmpty();
             assert incrementalOperation.currentOperationsSize() == 0;
             assert bulkRequest == null;
             if (globalFailure == false) {
                 addItemLevelFailures(items);
             }
-            Releasables.close(items);
+            Releasables.close(releasable);
         }
 
         private void errorResponse(ActionListener<BulkResponse> listener) {
@@ -290,10 +290,10 @@ public class IncrementalBulkService {
             responses.add(new BulkResponse(bulkItemResponses, 0, 0));
         }
 
-        private boolean internalAddItems(List<DocWriteRequest<?>> items) {
+        private boolean internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {
             try {
                 bulkRequest.add(items);
-                releasables.addAll(items);
+                releasables.add(releasable);
                 long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
                 incrementalOperation.increment(items.size(), size);
                 return true;

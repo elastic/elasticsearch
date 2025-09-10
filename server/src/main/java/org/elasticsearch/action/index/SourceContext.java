@@ -251,9 +251,7 @@ public class SourceContext implements Writeable, Releasable {
 
     private void setSource(ReleasableBytesReference source, XContentType contentType) {
         assert isClosed == false;
-        Releasable toClose = this.source;
         this.source = source;
         this.contentType = contentType;
-        Releasables.close(toClose);
     }
 }

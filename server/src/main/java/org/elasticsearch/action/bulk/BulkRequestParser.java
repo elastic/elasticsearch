@@ -14,7 +14,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -108,12 +107,11 @@ public final class BulkRequestParser {
      * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
      * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
      */
-    private static ReleasableBytesReference sliceTrimmingCarriageReturn(
-        ReleasableBytesReference bytesReference,
+    private static BytesReference sliceTrimmingCarriageReturn(
+        BytesReference bytesReference,
         int from,
         int nextMarker,
-        XContentType xContentType,
-        boolean retain
+        XContentType xContentType
     ) {
         final int length;
         if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
@@ -121,7 +119,7 @@ public final class BulkRequestParser {
         } else {
             length = nextMarker - from;
         }
-        return retain ? bytesReference.retainedSlice(from, length) : bytesReference.slice(from, length);
+        return bytesReference.slice(from, length);
     }
 
     /**
@@ -159,12 +157,7 @@ public final class BulkRequestParser {
             deleteRequestConsumer
         );
 
-        incrementalParser.parse(
-            data instanceof ReleasableBytesReference releasableBytesReference
-                ? releasableBytesReference
-                : ReleasableBytesReference.wrap(data),
-            true
-        );
+        incrementalParser.parse(data, true);
     }
 
     public IncrementalParser incrementalParser(
@@ -258,7 +251,7 @@ public final class BulkRequestParser {
             this.deleteRequestConsumer = deleteRequestConsumer;
         }
 
-        public int parse(ReleasableBytesReference data, boolean lastData) throws IOException {
+        public int parse(BytesReference data, boolean lastData) throws IOException {
             if (failure != null) {
                 assert false : failure.getMessage();
                 throw new IllegalStateException("Parser has already encountered exception", failure);
@@ -271,7 +264,7 @@ public final class BulkRequestParser {
             }
         }
 
-        private int tryParse(ReleasableBytesReference data, boolean lastData) throws IOException {
+        private int tryParse(BytesReference data, boolean lastData) throws IOException {
             int from = 0;
             int consumed = 0;
 
@@ -530,16 +523,16 @@ public final class BulkRequestParser {
             return true;
         }
 
-        private void parseAndConsumeDocumentLine(ReleasableBytesReference data, int from, int to) throws IOException {
+        private void parseAndConsumeDocumentLine(BytesReference data, int from, int to) throws IOException {
             assert currentRequest != null && currentRequest instanceof DeleteRequest == false;
             if (currentRequest instanceof IndexRequest indexRequest) {
-                indexRequest.sourceContext().source(sliceTrimmingCarriageReturn(data, from, to, xContentType, true), xContentType);
+                indexRequest.source(sliceTrimmingCarriageReturn(data, from, to, xContentType), xContentType);
                 indexRequestConsumer.accept(indexRequest, currentType);
             } else if (currentRequest instanceof UpdateRequest updateRequest) {
                 try (
                     XContentParser sliceParser = createParser(
                         xContentType.xContent(),
-                        sliceTrimmingCarriageReturn(data, from, to, xContentType, false)
+                        sliceTrimmingCarriageReturn(data, from, to, xContentType)
                     )
                 ) {
                     updateRequest.fromXContent(sliceParser);

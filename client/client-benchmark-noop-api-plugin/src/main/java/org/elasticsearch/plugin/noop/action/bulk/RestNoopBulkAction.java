@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -17,7 +16,6 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -27,7 +25,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -81,12 +78,10 @@ public class RestNoopBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
-        // The actual bulk request items are mutable during the bulk process so we must create a copy
-        List<DocWriteRequest<?>> toClose = new ArrayList<>(bulkRequest.requests());
         // short circuit the call to the transport layer
         return channel -> {
             BulkRestBuilderListener listener = new BulkRestBuilderListener(channel, request);
-            ActionListener.releaseAfter(listener, () -> Releasables.close(toClose)).onResponse(bulkRequest);
+            listener.onResponse(bulkRequest);
         };
     }
 

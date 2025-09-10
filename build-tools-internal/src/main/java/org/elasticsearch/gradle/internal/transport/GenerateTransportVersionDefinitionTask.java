@@ -69,7 +69,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     @Optional
-    @Option(option = "update", description = "Update the transport version currently being added to upstream")
+    @Option(option = "resolveConflict", description = "Regenerate the transport version currently being added to upstream to resolve a merge conflict")
     public abstract Property<Boolean> getIsUpdate();
 
     /**

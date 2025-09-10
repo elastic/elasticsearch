@@ -132,7 +132,7 @@ The API returns:
 is usually smaller than the index size specified in `<1>` as some small metadata
 files are ignored and some parts of data files might not be scanned by the API.
 
-3. The stored size of the `_id` field
+3. The disk space used by `_id` field values for direct document retrieval. This storage enables [getting a document by its ID](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), without needing to search the inverted index.
 
 4. The disk space used by the `_source` field. As stored fields are stored
 together in a compressed format, the sizes of stored fields are

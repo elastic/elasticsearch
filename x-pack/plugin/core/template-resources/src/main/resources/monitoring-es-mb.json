@@ -940,7 +940,8 @@
                                 "limit": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 }

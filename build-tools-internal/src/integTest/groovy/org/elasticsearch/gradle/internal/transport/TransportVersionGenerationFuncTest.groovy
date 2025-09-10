@@ -18,14 +18,14 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def runGenerateAndValidateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
         args.add(":myserver:validateTransportVersionResources")
-        args.add(":myserver:generateTransportVersionDefinition")
+        args.add(":myserver:generateTransportVersion")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
 
     def runGenerateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
-        args.add(":myserver:generateTransportVersionDefinition")
+        args.add(":myserver:generateTransportVersion")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
@@ -35,11 +35,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     void assertGenerateSuccess(BuildResult result) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.SUCCESS
     }
 
     void assertGenerateFailure(BuildResult result, String expectedOutput) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.FAILED
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 

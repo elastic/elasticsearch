@@ -540,3 +540,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/delete-snapshot-api/line_78}
   issue: https://github.com/elastic/elasticsearch/issues/133438
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test010Install
+  issue: https://github.com/elastic/elasticsearch/issues/131376

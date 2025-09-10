@@ -57,6 +57,71 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
         final int totalThreadPoolThreads = randomIntBetween(2, 40);
         final float averageThreadPoolUtilization = randomFloatBetween(0.0f, 1.0f, true);
         final long maxThreadPoolQueueLatencyMillis = randomLongBetween(0, 1000);
+        mockThreadPoolUsageStats(
+            dataNodeTransportService,
+            threadPoolName,
+            totalThreadPoolThreads,
+            averageThreadPoolUtilization,
+            maxThreadPoolQueueLatencyMillis
+        );
+
+        // This info should contain our fake values
+        refreshClusterInfoAndAssertThreadPoolHasStats(
+            dataNodeClusterService.localNode().getId(),
+            threadPoolName,
+            totalThreadPoolThreads,
+            averageThreadPoolUtilization,
+            maxThreadPoolQueueLatencyMillis
+        );
+
+        // Now simulate an error
+        dataNodeTransportService.clearInboundRules();
+        dataNodeTransportService.addRequestHandlingBehavior(
+            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+            (handler, request, channel, task) -> {
+                channel.sendResponse(new Exception("simulated error"));
+            }
+        );
+
+        // The next response should also contain our fake values
+        refreshClusterInfoAndAssertThreadPoolHasStats(
+            dataNodeClusterService.localNode().getId(),
+            threadPoolName,
+            totalThreadPoolThreads,
+            averageThreadPoolUtilization,
+            maxThreadPoolQueueLatencyMillis
+        );
+
+        // Now start returning values again
+        final int newTotalThreadPoolThreads = randomIntBetween(2, 40);
+        final float newAverageThreadPoolUtilization = randomFloatBetween(0.0f, 1.0f, true);
+        final long newMaxThreadPoolQueueLatencyMillis = randomLongBetween(0, 1000);
+        mockThreadPoolUsageStats(
+            dataNodeTransportService,
+            threadPoolName,
+            newTotalThreadPoolThreads,
+            newAverageThreadPoolUtilization,
+            newMaxThreadPoolQueueLatencyMillis
+        );
+
+        // The next response should contain the current values again
+        refreshClusterInfoAndAssertThreadPoolHasStats(
+            dataNodeClusterService.localNode().getId(),
+            threadPoolName,
+            newTotalThreadPoolThreads,
+            newAverageThreadPoolUtilization,
+            newMaxThreadPoolQueueLatencyMillis
+        );
+    }
+
+    private static void mockThreadPoolUsageStats(
+        MockTransportService dataNodeTransportService,
+        String threadPoolName,
+        int totalThreadPoolThreads,
+        float averageThreadPoolUtilization,
+        long maxThreadPoolQueueLatencyMillis
+    ) {
+        dataNodeTransportService.clearInboundRules();
         dataNodeTransportService.addRequestHandlingBehavior(
             TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
             (handler, request, channel, task) -> {
@@ -86,32 +151,6 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
                     )
                 );
             }
-        );
-
-        // This info should contain our fake values
-        refreshClusterInfoAndAssertThreadPoolHasStats(
-            dataNodeClusterService.localNode().getId(),
-            threadPoolName,
-            totalThreadPoolThreads,
-            averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
-        );
-
-        // Now simulate an error
-        dataNodeTransportService.addRequestHandlingBehavior(
-            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-            (handler, request, channel, task) -> {
-                channel.sendResponse(new Exception("simulated error"));
-            }
-        );
-
-        // The next response should also contain our fake values
-        refreshClusterInfoAndAssertThreadPoolHasStats(
-            dataNodeClusterService.localNode().getId(),
-            threadPoolName,
-            totalThreadPoolThreads,
-            averageThreadPoolUtilization,
-            maxThreadPoolQueueLatencyMillis
         );
     }
 

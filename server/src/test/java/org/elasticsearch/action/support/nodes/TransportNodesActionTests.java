@@ -58,12 +58,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 
@@ -393,12 +391,10 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         final var raceBarrier = new CyclicBarrier(3);
-        final var completedLatch = new CountDownLatch(1);
-        final var lastNodeResponseRef = new AtomicReference<TestNodeResponse>();
+        final var lastResponseFuture = new PlainActionFuture<TestNodeResponse>();
         final Thread completeThread = new Thread(() -> {
             safeAwait(raceBarrier);
-            lastNodeResponseRef.set(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
-            completedLatch.countDown();
+            lastResponseFuture.onResponse(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
         });
         final Thread cancelThread = new Thread(() -> {
             safeAwait(raceBarrier);
@@ -422,8 +418,7 @@ public class TransportNodesActionTests extends ESTestCase {
             assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
             // Wait for the last response to be gathered and assert it is also released by either the concurrent cancellation or
             // not tracked in onItemResponse at all due to already cancelled
-            safeAwait(completedLatch);
-            assertFalse(lastNodeResponseRef.get().hasReferences());
+            assertFalse(safeGet(lastResponseFuture).hasReferences());
         }
 
         completeThread.join(10_000);

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.NonPreferredShardIteratorFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -89,6 +90,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    private final NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -100,7 +102,14 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy);
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            shardRoutingRoleStrategy,
+            NonPreferredShardIteratorFactory.NOOP
+        );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -109,13 +118,15 @@ public class AllocationService {
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
+        this.nonPreferredShardIteratorFactory = nonPreferredShardIteratorFactory;
     }
 
     /**
@@ -764,7 +775,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            nonPreferredShardIteratorFactory
         );
     }
 

@@ -39,10 +39,12 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.DefaultNonPreferredShardIteratorFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
@@ -184,12 +186,14 @@ public class ClusterModule extends AbstractModule {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
         this.shardRoutingRoleStrategy = getShardRoutingRoleStrategy(clusterPlugins);
+        final var writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterService.getClusterSettings());
         this.allocationService = new AllocationService(
             allocationDeciders,
             shardsAllocator,
             clusterInfoService,
             snapshotsInfoService,
-            shardRoutingRoleStrategy
+            shardRoutingRoleStrategy,
+            new DefaultNonPreferredShardIteratorFactory(writeLoadConstraintSettings)
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);

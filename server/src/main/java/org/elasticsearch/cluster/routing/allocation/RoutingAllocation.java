@@ -96,7 +96,7 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, NonPreferredShardIteratorFactory.NOOP);
     }
 
     /**
@@ -123,18 +123,32 @@ public class RoutingAllocation {
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            false,
-            NonPreferredShardIteratorFactory.NOOP
+            NonPreferredShardIteratorFactory.NOOP,
+            false
         );
+    }
+
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        @Nullable RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime,
+        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
+    ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, nonPreferredShardIteratorFactory, false);
     }
 
     /**
      * Creates a new {@link RoutingAllocation}
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
-     * @param clusterState cluster state before rerouting
+     *
+     * @param deciders        {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes    Routing nodes in the current cluster or {@code null} if using those in the given cluster state
+     * @param clusterState    cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
-     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     * @param nonPreferredShardIteratorFactory factory for non-preferred shards iterator
+     * @param isSimulating    {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
      */
     private RoutingAllocation(
         AllocationDeciders deciders,
@@ -143,8 +157,8 @@ public class RoutingAllocation {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        boolean isSimulating,
-        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
+        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory,
+        boolean isSimulating
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -478,8 +492,8 @@ public class RoutingAllocation {
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            true,
-            nonPreferredShardIteratorFactory
+            nonPreferredShardIteratorFactory,
+            true
         );
     }
 

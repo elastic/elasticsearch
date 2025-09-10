@@ -24,6 +24,10 @@ public class WriteLoadConstraintSettings {
 
     private static final String SETTING_PREFIX = "cluster.routing.allocation.write_load_decider.";
 
+    public static final WriteLoadConstraintSettings DEFAULT = new WriteLoadConstraintSettings(
+        ClusterSettings.createBuiltInClusterSettings()
+    );
+
     public enum WriteLoadDeciderStatus {
         /**
          * The decider is disabled

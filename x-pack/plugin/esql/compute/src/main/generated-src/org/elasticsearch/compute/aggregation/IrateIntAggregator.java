@@ -197,16 +197,16 @@ public class IrateIntAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    // When the last value is less than the previous one, we assume a reset
-                    // and use the last value directly.
-                    final double ydiff = state.lastValue >= state.secondLastValue
-                        ? state.lastValue - state.secondLastValue
-                        : state.lastValue;
-                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
                     if (isDelta) {
                         // delta: just return the difference
-                        rates.appendDouble(ydiff);
+                        rates.appendDouble(state.lastValue - state.secondLastValue);
                     } else {
+                        // When the last value is less than the previous one, we assume a reset
+                        // and use the last value directly.
+                        final double ydiff = state.lastValue >= state.secondLastValue
+                            ? state.lastValue - state.secondLastValue
+                            : state.lastValue;
+                        final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
                         rates.appendDouble(ydiff / xdiff * 1000);
                     }
                 }

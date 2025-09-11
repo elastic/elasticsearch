@@ -76,6 +76,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         Tuple.tuple("irate", DeltaAgg.IRATE),
         Tuple.tuple("idelta", DeltaAgg.IDELTA)
     );
+    private static final Map<DeltaAgg, String> DELTA_AGG_METRIC_MAP = Map.of(
+        DeltaAgg.RATE,
+        "counterl_hdd.bytes.read",
+        DeltaAgg.IRATE,
+        "counterl_hdd.bytes.read",
+        DeltaAgg.IDELTA,
+        "gaugel_hdd.bytes.used"
+    );
 
     private List<XContentBuilder> documents;
     private TSDataGenerationHelper dataGenerationHelper;
@@ -293,8 +301,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
                 var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
-                var idelta = lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal;
-                return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
+                var idelta = lastVal - secondLastVal;
+                if (idelta < 0) {
+                    return new RateRange(idelta * 1.001, idelta * 0.999); // Add 0.1% tolerance
+                } else {
+                    return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
+                }
             }
             assert deltaAgg == DeltaAgg.RATE;
             Double lastValue = null;
@@ -406,6 +418,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testRateGroupBySubset() {
         var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+        var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
         var windowStr = window.v1();
@@ -415,14 +428,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
-            | STATS count(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
-                    max(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
-                    avg(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
-                    min(<DELTAGG>(metrics.counterl_hdd.bytes.read)),
-                    sum(<DELTAGG>(metrics.counterl_hdd.bytes.read))
+            | STATS count(<DELTAGG>(metrics.<METRIC>)),
+                    max(<DELTAGG>(metrics.<METRIC>)),
+                    avg(<DELTAGG>(metrics.<METRIC>)),
+                    min(<DELTAGG>(metrics.<METRIC>)),
+                    sum(<DELTAGG>(metrics.<METRIC>))
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1());
+            """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1()).replaceAll("<METRIC>", metricName);
         try (var resp = run(query)) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
@@ -430,7 +443,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
                 var windowDataPoints = groups.get(rowKey);
-                var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
+                var docsPerTimeseries = groupByTimeseries(windowDataPoints, metricName);
                 var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, deltaAgg.v2());
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));

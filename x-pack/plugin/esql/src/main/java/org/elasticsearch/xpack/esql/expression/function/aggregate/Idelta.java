@@ -33,8 +33,9 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
@@ -113,16 +114,22 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> DataType.isCounter(dt), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != AGGREGATE_METRIC_DOUBLE,
+            sourceText(),
+            DEFAULT,
+            "numeric except counter types"
+        );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(true);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(true);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true);
+            case LONG -> new IrateLongAggregatorFunctionSupplier(true);
+            case INTEGER -> new IrateIntAggregatorFunctionSupplier(true);
+            case DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

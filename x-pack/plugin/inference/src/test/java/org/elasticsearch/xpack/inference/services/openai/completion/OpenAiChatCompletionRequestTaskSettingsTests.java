@@ -28,9 +28,29 @@ public class OpenAiChatCompletionRequestTaskSettingsTests extends ESTestCase {
         assertNull(settings.user());
     }
 
-    public void testFromMap_ReturnsUser() {
-        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
+    public void testFromMap_ParsesCorrectly() {
+        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", "value"))))
+        );
+
         assertThat(settings.user(), is("user"));
+        assertThat(settings.headers(), is(Map.of("key", "value")));
+    }
+
+    public void testFromMap_ParsesCorrectly_WhenUserIsNull() {
+        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", "value"))))
+        );
+
+        assertNull(settings.user());
+        assertThat(settings.headers(), is(Map.of("key", "value")));
+    }
+
+    public void testFromMap_ParsesCorrectly_WhenHeadersIsNull() {
+        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
+
+        assertThat(settings.user(), is("user"));
+        assertNull(settings.headers());
     }
 
     public static Map<String, Object> getChatCompletionRequestTaskSettingsMap(@Nullable String user) {

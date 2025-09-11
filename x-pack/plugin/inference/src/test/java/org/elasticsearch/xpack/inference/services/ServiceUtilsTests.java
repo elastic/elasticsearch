@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
@@ -1166,7 +1167,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractOptionalMap() {
         var validation = new ValidationException();
-        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of("key", "value"))), "setting", "scope", validation);
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of("key", "value"))), "setting", validation);
 
         assertTrue(validation.validationErrors().isEmpty());
         assertThat(extractedMap, is(Map.of("key", "value")));
@@ -1174,7 +1175,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractOptionalMap_ReturnsNull_WhenTypeIsInvalid() {
         var validation = new ValidationException();
-        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", 123)), "setting", "scope", validation);
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", 123)), "setting", validation);
 
         assertNull(extractedMap);
         assertThat(
@@ -1185,7 +1186,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractOptionalMap_ReturnsNull_WhenMissingSetting() {
         var validation = new ValidationException();
-        var extractedMap = extractOptionalMap(modifiableMap(Map.of("not_setting", Map.of("key", "value"))), "setting", "scope", validation);
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("not_setting", Map.of("key", "value"))), "setting", validation);
 
         assertNull(extractedMap);
         assertTrue(validation.validationErrors().isEmpty());
@@ -1193,9 +1194,34 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractOptionalMap_ReturnsEmptyMap_WhenEmpty() {
         var validation = new ValidationException();
-        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of())), "setting", "scope", validation);
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of())), "setting", validation);
 
         assertThat(extractedMap, is(Map.of()));
+    }
+
+    public void testExtractOptionalMapRemoveNulls() {
+        var validation = new ValidationException();
+
+        var map = modifiableMap(Map.of("key", "value"));
+        map.put("null_key", null);
+
+        var extractedMap = extractOptionalMapRemoveNulls(modifiableMap(Map.of("setting", map)), "setting", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(extractedMap, is(Map.of("key", "value")));
+    }
+
+    public void testExtractOptionalMapRemoveNulls_HandlesNullMap_FromUnknownSetting() {
+        var validation = new ValidationException();
+
+        var extractedMap = extractOptionalMapRemoveNulls(
+            modifiableMap(Map.of("setting", Map.of("key", "value"))),
+            "key_that_does_not_exist",
+            validation
+        );
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNull(extractedMap);
     }
 
     public void testValidateMapValues() {
@@ -1273,6 +1299,11 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testValidateMapStringValues_ReturnsEmptyMap_WhenMapIsNull() {
         var validation = new ValidationException();
         assertThat(validateMapStringValues(null, "setting", validation, false), is(Map.of()));
+    }
+
+    public void testValidateMapStringValues_ReturnsNullDefaultValue_WhenMapIsNull() {
+        var validation = new ValidationException();
+        assertNull(validateMapStringValues(null, "setting", validation, false, null));
     }
 
     public void testValidateMapStringValues_ThrowsException_WhenMapContainsInvalidTypes() {

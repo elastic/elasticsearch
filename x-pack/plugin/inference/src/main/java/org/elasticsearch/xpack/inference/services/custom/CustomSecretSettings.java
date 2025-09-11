@@ -23,8 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 
 public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";
@@ -37,8 +36,7 @@ public class CustomSecretSettings implements SecretSettings {
 
         ValidationException validationException = new ValidationException();
 
-        Map<String, Object> requestSecretParamsMap = extractOptionalMap(map, SECRET_PARAMETERS, NAME, validationException);
-        removeNullValues(requestSecretParamsMap);
+        Map<String, Object> requestSecretParamsMap = extractOptionalMapRemoveNulls(map, SECRET_PARAMETERS, validationException);
         var secureStringMap = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {

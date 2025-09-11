@@ -13,7 +13,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
@@ -21,10 +24,11 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
  * {@link OpenAiChatCompletionTaskSettings} is that this class considers all fields as optional. It will not throw an error if a field
  * is missing. This allows overriding persistent task settings.
  * @param user a unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
+ * @param headers additional headers to include in the request to the OpenAI API
  */
-public record OpenAiChatCompletionRequestTaskSettings(@Nullable String user) {
+public record OpenAiChatCompletionRequestTaskSettings(@Nullable String user, @Nullable Map<String, String> headers) {
 
-    public static final OpenAiChatCompletionRequestTaskSettings EMPTY_SETTINGS = new OpenAiChatCompletionRequestTaskSettings(null);
+    public static final OpenAiChatCompletionRequestTaskSettings EMPTY_SETTINGS = new OpenAiChatCompletionRequestTaskSettings(null, null);
 
     /**
      * Extracts the task settings from a map. All settings are considered optional and the absence of a setting
@@ -41,11 +45,13 @@ public record OpenAiChatCompletionRequestTaskSettings(@Nullable String user) {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
+        var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiChatCompletionRequestTaskSettings(user);
+        return new OpenAiChatCompletionRequestTaskSettings(user, stringHeaders);
     }
 }

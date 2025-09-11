@@ -1636,6 +1636,15 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                                     "updatable": false,
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                },
+                                "headers": {
+                                    "description": "Custom headers to include in the requests to OpenAI.",
+                                    "label": "Custom Headers",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": true,
+                                    "type": "map",
+                                    "supported_task_types": ["completion", "chat_completion"]
                                 }
                             }
                         }

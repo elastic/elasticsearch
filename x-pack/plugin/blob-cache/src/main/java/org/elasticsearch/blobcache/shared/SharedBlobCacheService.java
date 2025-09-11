@@ -2084,16 +2084,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     private static String getFileExtension(String resourceDescription) {
-        int s, e;
-        if ((s = resourceDescription.lastIndexOf('(')) >= 0
-            && resourceDescription.endsWith(".cfs")
-            && (e = resourceDescription.lastIndexOf(')')) > s) {
-            resourceDescription = resourceDescription.substring(s + 1, e);
-        }
-        if (resourceDescription.endsWith(".cfs")) { // this handles edge cases of the above block logic
+        if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
             return LuceneFilesExtensions.CFS.getExtension();
         }
-        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
-        return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+        try {
+            LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
+            return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+        } catch (Throwable t) {
+            return NON_LUCENE_EXTENSION_TO_RECORD;
+        }
     }
 }

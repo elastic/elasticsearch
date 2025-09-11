@@ -19,14 +19,14 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerato
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LookupJoinGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MetricsStatsGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.FromGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.MetricGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.TimeSeriesGenerator;
 
 import java.util.List;
 import java.util.Set;
@@ -56,7 +56,7 @@ public class EsqlQueryGenerator {
     /**
      * Commands at the beginning of queries that begin queries on time series indices, eg. TS
      */
-    static List<CommandGenerator> TIME_SERIES_SOURCE_COMMANDS = List.of(MetricGenerator.INSTANCE);
+    static List<CommandGenerator> TIME_SERIES_SOURCE_COMMANDS = List.of(TimeSeriesGenerator.INSTANCE);
 
     /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
@@ -90,7 +90,7 @@ public class EsqlQueryGenerator {
         KeepGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
         LookupJoinGenerator.INSTANCE,
-        MetricsStatsGenerator.INSTANCE,
+        TimeSeriesStatsGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
         RenameGenerator.INSTANCE,
         SortGenerator.INSTANCE,
@@ -262,10 +262,12 @@ public class EsqlQueryGenerator {
                 if (numericPlusAggMetricFieldName == null) {
                     yield null;
                 }
-                yield switch ((randomIntBetween(0, 3))) {
+                yield switch ((randomIntBetween(0, 5))) {
                     case 0 -> "max_over_time(" + numericPlusAggMetricFieldName + ")";
                     case 1 -> "min_over_time(" + numericPlusAggMetricFieldName + ")";
                     case 2 -> "sum_over_time(" + numericPlusAggMetricFieldName + ")";
+                    case 3 -> "present_over_time(" + numericPlusAggMetricFieldName + ")";
+                    case 4 -> "count_over_time(" + numericPlusAggMetricFieldName + ")";
                     default -> "avg_over_time(" + numericPlusAggMetricFieldName + ")";
                 };
             }
@@ -279,7 +281,8 @@ public class EsqlQueryGenerator {
             }
             case 2 -> {
                 // numerics except aggregate_metric_double
-                // TODO: move to case 0 when support for aggregate_metric_double is added to these functions
+                // TODO: add to case 0 when support for aggregate_metric_double is added to these functions
+                // TODO: add to case 1 when support for counters is added
                 String numericFieldName = randomNumericField(previousOutput);
                 if (numericFieldName == null) {
                     yield null;

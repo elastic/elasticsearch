@@ -16,9 +16,9 @@ import java.util.Map;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.indexPattern;
 
-public class MetricGenerator implements CommandGenerator {
+public class TimeSeriesGenerator implements CommandGenerator {
 
-    public static final MetricGenerator INSTANCE = new MetricGenerator();
+    public static final TimeSeriesGenerator INSTANCE = new TimeSeriesGenerator();
 
     @Override
     public CommandDescription generate(

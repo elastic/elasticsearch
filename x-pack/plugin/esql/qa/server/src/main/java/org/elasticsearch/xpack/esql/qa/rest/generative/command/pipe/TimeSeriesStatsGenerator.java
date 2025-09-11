@@ -18,10 +18,10 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.randomDateField;
 
-public class MetricsStatsGenerator implements CommandGenerator {
+public class TimeSeriesStatsGenerator implements CommandGenerator {
 
     public static final String STATS = "stats";
-    public static final CommandGenerator INSTANCE = new MetricsStatsGenerator();
+    public static final CommandGenerator INSTANCE = new TimeSeriesStatsGenerator();
 
     @Override
     public CommandDescription generate(
@@ -31,8 +31,9 @@ public class MetricsStatsGenerator implements CommandGenerator {
     ) {
         // generates stats in the form of:
         // `STATS some_aggregation(some_field) by optional_grouping_field, non_optional = bucket(time_field, 5minute)`
-        // where `some_aggregation` can be a time series aggregation, or a regular aggregation
-        // There is a variable number of aggregations per command
+        // where `some_aggregation` can be a time series aggregation in the form of agg1(agg2_over_time(some_field)),
+        // or a regular aggregation.
+        // There is a variable number of aggregations per pipe
 
         List<EsqlQueryGenerator.Column> nonNull = previousOutput.stream()
             .filter(EsqlQueryGenerator::fieldCanBeUsed)

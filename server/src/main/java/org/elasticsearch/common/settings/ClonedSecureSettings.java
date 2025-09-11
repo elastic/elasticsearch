@@ -18,27 +18,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class LoadedSecureSettings {
+public class ClonedSecureSettings {
 
     /**
-     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The {@code Setting} argument has to have the
-     * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
-     * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
-     * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
+     * Creates a cloned (detached) {@link SecureSettings} instance by copying selected secure settings from the provided {@link Settings}.
+     * The returned instance does not require the original {@link SecureSettings} to remain open and will always report as loaded.
+     * <p>
+     * Only secure settings of type {@code String} are supported (file-based secure settings are not). The returned instance cannot be
+     * closed or serialized.
+     * <p>
+     * The cloned secure settings will remain in memory for the lifetime of the returned object. This bypasses the normal lifecycle of
+     * {@link SecureSettings}. Great care must be taken when using this method to avoid unintentionally retaining sensitive data in memory.
      *
-     * @param source               A {@code Settings} object with its {@code SecureSettings} open/available.
-     * @param settingsToCopy The list of settings to copy.
-     * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
+     * @param source          the {@link Settings} object with open/available {@link SecureSettings}
+     * @param settingsToClone the list of secure settings definitions to copy
+     * @return a cloned {@link SecureSettings} containing only the selected settings
+     * @throws GeneralSecurityException if any secure setting cannot be accessed
      */
-    public static SecureSettings toLoadedSecureSettings(Settings source, List<Setting<?>> settingsToCopy) throws GeneralSecurityException {
-        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
-        final Map<String, SecureSettingValue> copiedSettings = new HashMap<>();
 
-        if (sourceSecureSettings != null && settingsToCopy != null) {
+    public static SecureSettings cloneSecureSettings(Settings source, List<Setting<?>> settingsToClone) throws GeneralSecurityException {
+        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
+        final Map<String, SecureSettingValue> clonedSettings = new HashMap<>();
+
+        if (sourceSecureSettings != null && settingsToClone != null) {
             for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-                for (final Setting<?> secureSetting : settingsToCopy) {
+                for (final Setting<?> secureSetting : settingsToClone) {
                     if (secureSetting.match(settingKey)) {
-                        copiedSettings.put(
+                        clonedSettings.put(
                             settingKey,
                             new SecureSettingValue(
                                 sourceSecureSettings.getString(settingKey),
@@ -49,6 +55,7 @@ public class LoadedSecureSettings {
                 }
             }
         }
+
         return new SecureSettings() {
             @Override
             public boolean isLoaded() {
@@ -57,23 +64,23 @@ public class LoadedSecureSettings {
 
             @Override
             public SecureString getString(String setting) {
-                var secureSettingValue = copiedSettings.get(setting);
+                var secureSettingValue = clonedSettings.get(setting);
                 return secureSettingValue != null ? secureSettingValue.value().clone() : null;
             }
 
             @Override
             public Set<String> getSettingNames() {
-                return copiedSettings.keySet();
+                return clonedSettings.keySet();
             }
 
             @Override
             public InputStream getFile(String setting) {
-                throw new UnsupportedOperationException("A loaded SecureSetting cannot be a file");
+                throw new UnsupportedOperationException("A cloned SecureSetting cannot be a file");
             }
 
             @Override
             public byte[] getSHA256Digest(String setting) {
-                return copiedSettings.get(setting).sha256Digest();
+                return clonedSettings.get(setting).sha256Digest();
             }
 
             @Override
@@ -81,7 +88,7 @@ public class LoadedSecureSettings {
 
             @Override
             public void writeTo(StreamOutput out) {
-                throw new UnsupportedOperationException("A loaded SecureSetting cannot be serialized");
+                throw new UnsupportedOperationException("A cloned SecureSetting cannot be serialized");
             }
         };
     }

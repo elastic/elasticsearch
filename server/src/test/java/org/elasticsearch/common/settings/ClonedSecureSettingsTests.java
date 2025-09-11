@@ -19,9 +19,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class LoadedSecureSettingsTests extends ESTestCase {
+public class ClonedSecureSettingsTests extends ESTestCase {
 
-    public void testCopiesMatchingSecureSettings() throws GeneralSecurityException, IOException {
+    public void testClonesMatchingSecureSettings() throws GeneralSecurityException, IOException {
         var mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("secure.password", "changeme");
         mockSecureSettings.setString("secure.api_key", "abcd1234");
@@ -31,16 +31,16 @@ public class LoadedSecureSettingsTests extends ESTestCase {
         var securePasswordSetting = SecureSetting.secureString("secure.password", null);
         var secureApiKeySetting = SecureSetting.secureString("secure.api_key", null);
 
-        var loaded = LoadedSecureSettings.toLoadedSecureSettings(settings, List.of(securePasswordSetting, secureApiKeySetting));
+        var cloned = ClonedSecureSettings.cloneSecureSettings(settings, List.of(securePasswordSetting, secureApiKeySetting));
         mockSecureSettings.close();
 
-        assertTrue(loaded.isLoaded());
-        assertThat(loaded.getSettingNames(), containsInAnyOrder("secure.password", "secure.api_key"));
-        assertThat(loaded.getString("secure.password").toString(), equalTo("changeme"));
-        assertThat(loaded.getString("secure.api_key").toString(), equalTo("abcd1234"));
+        assertTrue(cloned.isLoaded());
+        assertThat(cloned.getSettingNames(), containsInAnyOrder("secure.password", "secure.api_key"));
+        assertThat(cloned.getString("secure.password").toString(), equalTo("changeme"));
+        assertThat(cloned.getString("secure.api_key").toString(), equalTo("abcd1234"));
 
-        assertThat(loaded.getSHA256Digest("secure.password"), notNullValue());
-        assertThat(loaded.getSHA256Digest("secure.api_key"), notNullValue());
+        assertThat(cloned.getSHA256Digest("secure.password"), notNullValue());
+        assertThat(cloned.getSHA256Digest("secure.api_key"), notNullValue());
     }
 
     public void testIgnoresNonMatchingSettings() throws GeneralSecurityException {
@@ -50,8 +50,8 @@ public class LoadedSecureSettingsTests extends ESTestCase {
         var settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         var differentSetting = SecureSetting.secureString("secure.token", null);
 
-        var loaded = LoadedSecureSettings.toLoadedSecureSettings(settings, List.of(differentSetting));
-        assertThat(loaded.getSettingNames().isEmpty(), equalTo(true));
+        var cloned = ClonedSecureSettings.cloneSecureSettings(settings, List.of(differentSetting));
+        assertThat(cloned.getSettingNames().isEmpty(), equalTo(true));
     }
 
     public void testFileSettingThrows() throws GeneralSecurityException {
@@ -59,10 +59,10 @@ public class LoadedSecureSettingsTests extends ESTestCase {
         mockSecureSettings.setFile("secure.file", randomByteArrayOfLength(16));
         var settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        var loaded = LoadedSecureSettings.toLoadedSecureSettings(settings, List.of());
+        var cloned = ClonedSecureSettings.cloneSecureSettings(settings, List.of());
 
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> loaded.getFile("secure.file"));
-        assertThat(ex.getMessage(), equalTo("A loaded SecureSetting cannot be a file"));
+        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> cloned.getFile("secure.file"));
+        assertThat(ex.getMessage(), equalTo("A cloned SecureSetting cannot be a file"));
     }
 
     public void testWriteToThrows() throws Exception {
@@ -70,47 +70,50 @@ public class LoadedSecureSettingsTests extends ESTestCase {
         mockSecureSettings.setString("secure.secret", "topsecret");
 
         var settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        var loaded = LoadedSecureSettings.toLoadedSecureSettings(settings, List.of());
+        var cloned = ClonedSecureSettings.cloneSecureSettings(settings, List.of());
 
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> loaded.writeTo(null));
-        assertThat(ex.getMessage(), equalTo("A loaded SecureSetting cannot be serialized"));
+        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> cloned.writeTo(null));
+        assertThat(ex.getMessage(), equalTo("A cloned SecureSetting cannot be serialized"));
     }
 
     public void testNullSourceOrSettingsList() throws Exception {
         var empty = Settings.EMPTY;
 
-        var loaded = LoadedSecureSettings.toLoadedSecureSettings(empty, null);
-        assertThat(loaded.isLoaded(), equalTo(true));
-        assertThat(loaded.getSettingNames().isEmpty(), equalTo(true));
+        {
+            var cloned = ClonedSecureSettings.cloneSecureSettings(empty, null);
+            assertThat(cloned.isLoaded(), equalTo(true));
+            assertThat(cloned.getSettingNames().isEmpty(), equalTo(true));
 
+        }
         var mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("secure.password", "changeme");
 
         var settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-
-        var loaded2 = LoadedSecureSettings.toLoadedSecureSettings(settings, null);
-        assertTrue(loaded2.getSettingNames().isEmpty());
+        {
+            var cloned = ClonedSecureSettings.cloneSecureSettings(settings, null);
+            assertTrue(cloned.getSettingNames().isEmpty());
+        }
     }
 
-    public void testCopiesDoNotCloseOriginal() throws GeneralSecurityException, IOException {
+    public void testClonesDoNotCloseSource() throws GeneralSecurityException, IOException {
         var mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("secure.password", "changeme");
         var settings = Settings.builder().put("some.other", "value").setSecureSettings(mockSecureSettings).build();
         var securePasswordSetting = SecureSetting.secureString("secure.password", null);
-        var loaded = LoadedSecureSettings.toLoadedSecureSettings(settings, List.of(securePasswordSetting));
+        var cloned = ClonedSecureSettings.cloneSecureSettings(settings, List.of(securePasswordSetting));
         mockSecureSettings.close();
 
         {
-            SecureString loadedSecureString = loaded.getString("secure.password");
-            assertArrayEquals(loadedSecureString.getChars(), "changeme".toCharArray());
-            loadedSecureString.close();
-            var exception = assertThrows(IllegalStateException.class, loadedSecureString::getChars);
+            SecureString clonedSecureString = cloned.getString("secure.password");
+            assertArrayEquals(clonedSecureString.getChars(), "changeme".toCharArray());
+            clonedSecureString.close();
+            var exception = assertThrows(IllegalStateException.class, clonedSecureString::getChars);
             assertThat(exception.getMessage(), equalTo("SecureString has already been closed"));
         }
         {
-            SecureString loadedSecureString = loaded.getString("secure.password");
-            assertArrayEquals(loadedSecureString.getChars(), "changeme".toCharArray());
-            assertFalse(loadedSecureString.isEmpty());
+            SecureString clonedSecureString = cloned.getString("secure.password");
+            assertArrayEquals(clonedSecureString.getChars(), "changeme".toCharArray());
+            assertFalse(clonedSecureString.isEmpty());
         }
     }
 

@@ -281,6 +281,9 @@ dependencies {
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
     api(buildLibs.snakeyaml)
+    api("org.slf4j:slf4j-api:2.0.6") {
+      because("Align with what we use in production")
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)

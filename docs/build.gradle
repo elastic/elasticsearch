@@ -37,17 +37,6 @@ ext.docsFileTree = fileTree(projectDir) {
   }
 }
 
-configurations {
-  testTransi
-}
-
-tasks.register('testTrans') {
-  doLast {
-    configurations.testTransi.each { File file ->
-      println file.name
-    }
-  }
-}
 tasks.named("yamlRestTest") {
   enabled = false
   if (buildParams.snapshotBuild == false) {

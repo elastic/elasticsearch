@@ -9,12 +9,10 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.DependencyContext;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.VersionCatalogsExtension;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -93,12 +91,6 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         project.getPluginManager().apply("checkstyle");
         CheckstyleExtension checkstyle = project.getExtensions().getByType(CheckstyleExtension.class);
         checkstyle.getConfigDirectory().set(checkstyleDir);
-        Configuration configuration = project.getConfigurations().getByName("checkstyle");
-        configuration.getAttributes()
-            .attribute(
-                DependencyContext.CONTEXT_ATTRIBUTE,
-                project.getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
-            );
         DependencyHandler dependencies = project.getDependencies();
         Provider<String> conventionsDependencyProvider = project.provider(
             () -> "org.elasticsearch:build-conventions:" + project.getVersion()

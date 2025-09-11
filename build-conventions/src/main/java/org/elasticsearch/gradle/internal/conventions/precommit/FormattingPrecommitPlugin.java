@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 import com.diffplug.gradle.spotless.SpotlessExtension;
 import com.diffplug.gradle.spotless.SpotlessPlugin;
 
-import org.elasticsearch.gradle.internal.DependencyContext;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -44,7 +43,6 @@ import java.io.File;
  */
 public class FormattingPrecommitPlugin implements Plugin<Project> {
 
-    @SuppressWarnings("checkstyle:RegexpMultiline")
     @Override
     public void apply(Project project) {
         project.getPluginManager().withPlugin("java-base", javaBasePlugin -> {
@@ -54,22 +52,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             // Spotless resolves required dependencies from project repositories, so we need maven central
             project.getRepositories().mavenCentral();
 
-//            project.getDependencies()
-//                .components(
-//                    metadataHandler -> metadataHandler.withModule(
-//                        "com.google.googlejavaformat:google-java-format",
-//                        componentMetadataDetails -> componentMetadataDetails.allVariants(
-//                            variant -> variant.withDependencies(depMetadata -> depMetadata.add("com.google.guava:guava:32.1.3-jre"))
-//                        )
-//                    )
-//                );
-            project.getConfigurations().matching(spec -> spec.getName().startsWith("spotless")).all(conf -> {
-                conf.getAttributes()
-                    .attribute(
-                        DependencyContext.CONTEXT_ATTRIBUTE,
-                        project.getObjects().named(DependencyContext.class, DependencyContext.CODE_QUALITY)
-                    );
-            });
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
                 File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project.getGradle());
                 String importOrderPath = "build-conventions/elastic.importorder";
@@ -92,7 +74,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // When running build benchmarks we alter the source in some scenarios.
                 // The gradle-profiler unfortunately does not generate compliant formatted
                 // sources so we ignore that altered file when running build benchmarks
-                if (Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
+                if(Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
                     java.targetExclude("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
                 }
             });

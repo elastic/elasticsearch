@@ -525,6 +525,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/134512
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.FiveFork}
+  issue: https://github.com/elastic/elasticsearch/issues/134560
 
 # Examples:
 #

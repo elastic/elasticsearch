@@ -197,12 +197,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        Builder(
-            String name,
-            IndexAnalyzers indexAnalyzers,
-            ScriptCompiler scriptCompiler,
-            IndexVersion indexCreatedVersion
-        ) {
+        Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
             this(
                 name,
                 indexAnalyzers,

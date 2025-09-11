@@ -43,16 +43,16 @@ querying. Supported inner (time-series) functions per
 [metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric)
 include:
 
- - `LAST_OVER_TIME()`: applies to gauges and counters
- - `FIRST_OVER_TIME()`: applies to gauges and counters
- - `RATE()`: applies to counters only
- - `MIN_OVER_TIME()`: applies to gauges only
- - `MAX_OVER_TIME()`: applies to gauges only
- - `SUM_OVER_TIME()`: applies to gauges only
- - `COUNT_OVER_TIME()`: applies to gauges only
- - `AVG_OVER_TIME()`: applies to gauges only
- - `PRESENT_OVER_TIME()`: applies to gauges only'
- - `ABSENT_OVER_TIME()`: applies to gauges only'
+ - `LAST_OVER_TIME()`: gauges and counters
+ - `FIRST_OVER_TIME()`: gauges and counters
+ - `RATE()`: counters only
+ - `MIN_OVER_TIME()`: gauges only
+ - `MAX_OVER_TIME()`: gauges only
+ - `SUM_OVER_TIME()`: gauges only
+ - `COUNT_OVER_TIME()`: gauges only
+ - `AVG_OVER_TIME()`: gauges only
+ - `PRESENT_OVER_TIME()`: gauges only
+ - `ABSENT_OVER_TIME()`: gauges only
 
 These functions are supported for downsampled data too, with the same semantics
 as for raw data. For instance, `RATE()` applies to downsampled counters only,

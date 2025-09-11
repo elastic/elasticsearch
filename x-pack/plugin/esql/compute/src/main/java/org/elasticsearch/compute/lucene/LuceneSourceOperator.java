@@ -78,7 +78,9 @@ public class LuceneSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                autoStrategy.pickStrategy(limit),
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
+                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
+                },
                 taskConcurrency,
                 limit,
                 needsScore,

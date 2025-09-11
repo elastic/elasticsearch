@@ -209,16 +209,16 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(
                 Map.of("field_1", 1.0f, "field_2", 1.0f),
-                List.of("test-index"),
+                List.of(indexName),
                 Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
-                List.of("test-another-index")
+                List.of(anotherIndexName)
             ),
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-index")), // field with different inference IDs, we filter on index name
+                new Tuple<>("semantic_field_2", List.of(indexName)), // field with different inference IDs, we filter on index name
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
                 1.0f
             ),
             "foo",
@@ -240,16 +240,16 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(
                 Map.of("field_1", 1.0f, "field_2", 1.0f),
-                List.of("test-index"),
+                List.of(indexName),
                 Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
-                List.of("test-another-index")
+                List.of(anotherIndexName)
             ),
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-index")),
+                new Tuple<>("semantic_field_2", List.of(indexName)),
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
                 1.0f
             ),
             "foo2",
@@ -271,16 +271,16 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(
                 Map.of("field_1", 1.0f, "field_2", 1.5f),
-                List.of("test-index"),
+                List.of(indexName),
                 Map.of("field_1", 1.0f, "field_2", 1.5f, "semantic_field_1", 1.0f),
-                List.of("test-another-index")
+                List.of(anotherIndexName)
             ),
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-index")),
+                new Tuple<>("semantic_field_2", List.of(indexName)),
                 2.0f,
-                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
                 2.0f
             ),
             "bar",
@@ -301,7 +301,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             retriever,
             queryRewriteContext,
             Map.of(Map.of("field_*", 1.5f, "*_field_1", 2.5f), List.of()),
-            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 2.5f),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 2.5f),
             "baz",
             MinMaxScoreNormalizer.INSTANCE
         );
@@ -321,13 +321,13 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f), List.of()),
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 3.75f,
-                new Tuple<>("semantic_field_2", List.of("test-index")),
+                new Tuple<>("semantic_field_2", List.of(indexName)),
                 1.5f,
-                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
                 1.5f,
-                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
                 1.5f
             ),
             "baz2",
@@ -349,13 +349,13 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(Map.of("*", 1.0f), List.of()), // no index filter for the lexical retriever
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-index")),
+                new Tuple<>("semantic_field_2", List.of(indexName)),
                 1.0f,
-                new Tuple<>("semantic_field_2", List.of("test-another-index")),
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
                 1.0f,
-                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
                 1.0f
             ),
             "qux",
@@ -401,11 +401,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(
                 Map.of("field_1", 1.0f, "field_2", 1.0f),
-                List.of("test-index"),
+                List.of(indexName),
                 Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
-                List.of("test-another-index")
+                List.of(anotherIndexName)
             ),
-            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
             "foo",
             MinMaxScoreNormalizer.INSTANCE
         );
@@ -425,11 +425,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(
                 Map.of("field_1", 1.0f, "field_2", 1.0f),
-                List.of("test-index"),
+                List.of(indexName),
                 Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
-                List.of("test-another-index")
+                List.of(anotherIndexName)
             ),
-            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
             "foo2",
             MinMaxScoreNormalizer.INSTANCE
         );
@@ -449,11 +449,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(
                 Map.of("field_1", 1.0f, "field_2", 1.5f),
-                List.of("test-index"),
+                List.of(indexName),
                 Map.of("field_1", 1.0f, "field_2", 1.5f, "semantic_field_1", 1.0f),
-                List.of("test-another-index")
+                List.of(anotherIndexName)
             ),
-            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 1.0f, new Tuple<>("semantic_field_2", List.of()), 2.0f),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 1.0f, new Tuple<>("semantic_field_2", List.of()), 2.0f),
             "bar",
             MinMaxScoreNormalizer.INSTANCE
         );
@@ -472,7 +472,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             retriever,
             queryRewriteContext,
             Map.of(Map.of("field_*", 1.5f, "*_field_1", 2.5f), List.of()), // on index filter on the lexical query
-            Map.of(new Tuple<>("semantic_field_1", List.of("test-index")), 2.5f),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 2.5f),
             "baz",
             MinMaxScoreNormalizer.INSTANCE
         );
@@ -492,11 +492,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f), List.of()),
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 3.75f,
                 new Tuple<>("semantic_field_2", List.of()), // no index filter since both indices have this field
                 1.5f,
-                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
                 1.5f
             ),
             "baz2",
@@ -518,11 +518,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             queryRewriteContext,
             Map.of(Map.of("*", 1.0f), List.of()), // on index filter on the lexical query
             Map.of(
-                new Tuple<>("semantic_field_1", List.of("test-index")),
+                new Tuple<>("semantic_field_1", List.of(indexName)),
                 1.0f,
                 new Tuple<>("semantic_field_2", List.of()), // no index filter since both indices have this field
                 1.0f,
-                new Tuple<>("semantic_field_3", List.of("test-another-index")),
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
                 1.0f
             ),
             "qux",
@@ -666,6 +666,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         assertNotSame(retriever, rewritten);
         assertTrue(rewritten instanceof LinearRetrieverBuilder);
         LinearRetrieverBuilder rewrittenLinear = (LinearRetrieverBuilder) rewritten;
+        assertEquals(retriever.rankWindowSize(), rewrittenLinear.rankWindowSize());
 
         boolean assertedLexical = false;
         boolean assertedSemantic = false;

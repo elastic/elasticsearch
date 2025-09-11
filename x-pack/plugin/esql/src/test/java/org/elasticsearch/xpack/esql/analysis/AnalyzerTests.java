@@ -2411,6 +2411,25 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(queryVector.name(), is("query"));
     }
 
+    public void testDenseVectorImplicitCastingKnnQueryParams() {
+        checkDenseVectorCastingKnnQueryParams("float_vector");
+        checkDenseVectorCastingKnnQueryParams("byte_vector");
+        checkDenseVectorCastingKnnQueryParams("bit_vector");
+    }
+
+    private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, ?query_vector)
+            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var queryVector = as(knn.query(), ToDenseVector.class);
+        var literal = as(queryVector.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
+    }
+
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
 

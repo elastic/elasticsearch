@@ -58,10 +58,7 @@ public class PatternedTextDocValues extends BinaryDocValues {
 
     @Override
     public boolean advanceExact(int i) throws IOException {
-        argsDocValues.advanceExact(i);
-        argsInfoDocValues.advanceExact(i);
-        // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
-        return templateDocValues.advanceExact(i);
+        return i == advance(i);
     }
 
     @Override
@@ -70,13 +67,19 @@ public class PatternedTextDocValues extends BinaryDocValues {
     }
 
     @Override
-    public int nextDoc() {
-        throw new UnsupportedOperationException();
+    public int nextDoc() throws IOException {
+        advance(docID() + 1);
+        return docID();
     }
 
     @Override
-    public int advance(int i) {
-        throw new UnsupportedOperationException();
+    public int advance(int i) throws IOException {
+        int templateAdvance = templateDocValues.advance(i);
+        var argsAdvance = argsDocValues.advance(templateAdvance);
+        var argsInfoAdvance = argsInfoDocValues.advance(templateAdvance);
+        assert argsAdvance >= templateAdvance;
+        assert argsInfoAdvance == templateAdvance;
+        return templateAdvance;
     }
 
     @Override

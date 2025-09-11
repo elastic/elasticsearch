@@ -7,33 +7,53 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.xpack.logsdb.patternedtext.PatternTextDocValuesTests.info;
 
 public class PatternTextCompositeValuesTests extends ESTestCase {
 
     private static PatternedTextCompositeValues makeValues() throws IOException {
-        var template = new SimpleSortedSetDocValues(removePlaceholders("% cheddar", "cat", null, "% cheese"));
-        var args = new SimpleSortedSetDocValues("1", null, null, "4");
-        var info = new SimpleSortedSetDocValues(info(0), info(), info(), info(0));
+        // values:
+        //  0: stored
+        //  1: doc
+        //  2: empty
+        //  3: doc
+        //  4: stored
+        var templateId = new PatternTextDocValuesTests.SimpleSortedSetDocValues("id1", "id2", "id3", "id4", "id5");
+        var template = new PatternTextDocValuesTests.SimpleSortedSetDocValues(null, " 2", null, " 4", null);
+        var args = new PatternTextDocValuesTests.SimpleSortedSetDocValues(null, null, null, null, null);
+        var info = new PatternTextDocValuesTests.SimpleSortedSetDocValues(PatternTextDocValuesTests.info(), info(0), info(), info(0), info());
+        var patternedTextDocValues = new PatternedTextDocValues(template, args, info);
 
-        return new PatternedTextDocValues(template, args, info);
+        String storedFieldName = "message.stored";
+        var storedValues = List.of(new BytesRef(" 1"), null, null, null, new BytesRef(" 5"));
+        var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
+        return new PatternedTextCompositeValues(storedLoader, storedFieldName, patternedTextDocValues, templateId);
     }
 
-    public void testNextDoc() throws IOException {
-        var docValues = randomBoolean() ? makeDocValueSparseArgs() : makeDocValuesDenseArgs();
-        assertEquals(-1, docValues.docID());
-        assertEquals(0, docValues.nextDoc());
+    public void testKnownValues() throws IOException {
+        var values = makeValues();
+
+        assertEquals(-1, values.docID());
+        assertEquals(0, value.nextDoc());
         assertEquals(1, docValues.nextDoc());
         assertEquals(2, docValues.nextDoc());
         assertEquals(3, docValues.nextDoc());
@@ -100,79 +120,40 @@ public class PatternTextCompositeValuesTests extends ESTestCase {
         assertEquals("4 cheese", docValues.binaryValue().utf8ToString());
     }
 
-    static class SimpleSortedSetDocValues extends SortedSetDocValues {
 
-        private final List<String> ordToValues;
-        private final List<Integer> docToOrds;
-        private int currDoc = -1;
+    static class SimpleStoredFieldLoader implements LeafStoredFieldLoader {
+        private final List<BytesRef> values;
+        private final String fieldName;
+        private int doc = -1;
 
-        // Single value for each docId, null if no value for a docId
-        SimpleSortedSetDocValues(String... docIdToValue) {
-            ordToValues = Arrays.stream(docIdToValue).filter(Objects::nonNull).collect(Collectors.toSet()).stream().sorted().toList();
-            docToOrds = Arrays.stream(docIdToValue).map(v -> v == null ? null : ordToValues.indexOf(v)).toList();
+        SimpleStoredFieldLoader(List<BytesRef> values, String fieldName) {
+            this.values = values;
+            this.fieldName = fieldName;
         }
 
         @Override
-        public long nextOrd() {
-            return docToOrds.get(currDoc);
+        public void advanceTo(int doc) throws IOException {
+            this.doc = doc;
         }
 
         @Override
-        public int docValueCount() {
-            return 1;
+        public BytesReference source() {
+            throw new UnsupportedOperationException();
         }
 
         @Override
-        public BytesRef lookupOrd(long ord) {
-            return new BytesRef(ordToValues.get((int) ord));
+        public String id() {
+            throw new UnsupportedOperationException();
         }
 
         @Override
-        public long getValueCount() {
-            return ordToValues.size();
+        public String routing() {
+            throw new UnsupportedOperationException();
         }
 
         @Override
-        public boolean advanceExact(int target) {
-            return advance(target) == target;
+        public Map<String, List<Object>> storedFields() {
+            return Map.of(fieldName, List.of(values.get(doc)));
         }
-
-        @Override
-        public int docID() {
-            return currDoc >= docToOrds.size() ? NO_MORE_DOCS : currDoc;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return advance(currDoc + 1);
-        }
-
-        @Override
-        public int advance(int target) {
-            for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
-                if (docToOrds.get(currDoc) != null) {
-                    return currDoc;
-                }
-            }
-            return NO_MORE_DOCS;
-        }
-
-        @Override
-        public long cost() {
-            return 1;
-        }
-    }
-
-    private static String info(int... offsets) throws IOException {
-        List<Arg.Info> argsInfo = new ArrayList<>();
-        for (var offset : offsets) {
-            argsInfo.add(new Arg.Info(Arg.Type.GENERIC, offset));
-        }
-        return Arg.encodeInfo(argsInfo);
-    }
-
-    // Placeholders are only included here to help in testing
-    private static String[] removePlaceholders(String... values) {
-        return Arrays.stream(values).map(s -> s == null ? null : s.replace("%", "")).toList().toArray(String[]::new);
     }
 }

@@ -69,23 +69,25 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
     }
 
     public boolean advanceExact(int i) throws IOException {
-        // templateId exists whether value is stored as doc value or as stored field
-        hasValue = templateIdDocValues.advanceExact(i);
-        hasDocValue = patternedTextDocValues.advanceExact(i);
+        return i == advance(i);
+    }
+
+    @Override
+    public int nextDoc() throws IOException {
+        advance(docID() + 1);
+        return docID();
+    }
+
+    @Override
+    public int advance(int i) throws IOException {
+        int templateIdPos = templateIdDocValues.advance(i);
+        hasValue = templateIdPos == i;
+        int docValuePos = patternedTextDocValues.advance(i);
+        hasDocValue = docValuePos == i;
         if (hasValue && hasDocValue == false) {
             storedTemplateLoader.advanceTo(i);
         }
-        return hasValue;
-    }
-
-    @Override
-    public int nextDoc() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int advance(int i) {
-        throw new UnsupportedOperationException();
+        return templateIdPos;
     }
 
     @Override

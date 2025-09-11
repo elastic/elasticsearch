@@ -197,7 +197,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
-    private final boolean fallbackToMatchOnlyText;
+    private final boolean disableEnterpriseFeatures;
 
     private PatternedTextFieldMapper(
         String simpleName,
@@ -218,11 +218,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
-        this.fallbackToMatchOnlyText = builder.disableEnterpriseFeatures.getValue();
+        this.disableEnterpriseFeatures = builder.disableEnterpriseFeatures.getValue();
     }
 
     public boolean disableEnterpriseFeatures() {
-        return this.fallbackToMatchOnlyText;
+        return this.disableEnterpriseFeatures;
     }
 
     @Override

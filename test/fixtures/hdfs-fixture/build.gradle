@@ -76,11 +76,6 @@ dependencies {
       matchingArtifacts = ["hadoop3-common"]
     }
   }
-  constraints {
-//    implementation("commons-codec:commons-codec:1.9")
-//    implementation("commons-logging:commons-logging:1.2")
-//    implementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  }
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
 
   compileOnly("commons-io:commons-io:2.16.1")
@@ -161,7 +156,7 @@ dependencies {
     hdfs2("org.apache.hadoop:hadoop-annotations:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
     hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5")
-  
+
     hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1")
     hdfs3("org.apache.hadoop:hadoop-common:3.3.1")
     hdfs3("org.apache.hadoop:hadoop-common:3.3.1:tests")

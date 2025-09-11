@@ -690,10 +690,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         runProcessorWithAccessPattern(accessPattern, document, processor);
     }
 
-    private void doWithRandomAccessPattern(
-        IngestDocument document,
-        Consumer<IngestDocument> action
-    ) {
+    private void doWithRandomAccessPattern(IngestDocument document, Consumer<IngestDocument> action) {
         doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, action);
     }
 

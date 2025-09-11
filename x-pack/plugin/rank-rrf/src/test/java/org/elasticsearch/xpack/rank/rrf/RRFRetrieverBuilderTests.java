@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,7 +63,17 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(
-                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                        new QueryRewriteContext(
+                            parserConfig(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
+                            null
+                        )
                     )
             );
             assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
@@ -79,7 +91,17 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(
-                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                        new QueryRewriteContext(
+                            parserConfig(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
+                            null
+                        )
                     )
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
@@ -149,8 +171,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -233,8 +258,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 

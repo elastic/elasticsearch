@@ -13,6 +13,7 @@ if [[ -z "${changed_files}" ]]; then
 fi
 
 # Compare those files against the main branch to ensure they are the same
+git fetch origin main --quiet
 while IFS= read -r file; do
   if ! git diff --quiet origin/main -- "${file}"; then
       echo "Changes to transport definition [${file}] missing from main branch."

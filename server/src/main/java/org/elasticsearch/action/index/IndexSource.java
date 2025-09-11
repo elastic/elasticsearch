@@ -26,20 +26,24 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-public class SourceContext implements Writeable, Releasable {
+/**
+ * The {@link IndexSource} is a class which holds the source for an {@link IndexRequest}. This class is designed to encapsulate the source
+ * lifecycle and allow the bytes to be accessed and released when reserialized.
+ */
+public class IndexSource implements Writeable, Releasable {
 
     private XContentType contentType;
     private BytesReference source;
     private boolean isClosed = false;
 
-    public SourceContext() {}
+    public IndexSource() {}
 
-    public SourceContext(XContentType contentType, BytesReference source) {
+    public IndexSource(XContentType contentType, BytesReference source) {
         this.contentType = contentType;
         this.source = ReleasableBytesReference.wrap(source);
     }
 
-    public SourceContext(StreamInput in) throws IOException {
+    public IndexSource(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             // faster than StreamInput::readEnum, do not replace we read a lot of these instances at times
             contentType = XContentType.ofOrdinal(in.readByte());

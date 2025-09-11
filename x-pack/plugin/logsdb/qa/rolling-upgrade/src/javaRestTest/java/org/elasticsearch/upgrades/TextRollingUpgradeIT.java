@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.upgrades;
@@ -24,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,14 +31,20 @@ import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgrade
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+
+    private static final String DATA_STREAM = "logs-bwc-test";
+
+    private static final int IGNORE_ABOVE_MAX = 256;
+    private static final int NUM_REQUESTS = 4;
+    private static final int NUM_DOCS_PER_REQUEST = 1024;
 
     static String BULK_ITEM_TEMPLATE =
         """
+            { "create": {} }
             {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
             """;
 
@@ -54,7 +59,13 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
                   "type": "keyword"
                 },
                 "message": {
-                  "type": "text"
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "ignore_above": $IGNORE_ABOVE,
+                      "type": "keyword"
+                    }
+                  }
                 },
                 "ip": {
                   "type": "ip"
@@ -69,55 +80,78 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
             }
         }""";
 
-    public LogsdbIndexingRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    // when sorted, this message will appear at the top and hence can be used to validate query results
+    private String smallestMessage;
+
+    public TextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     public void testIndexing() throws Exception {
-        String dataStreamName = "logs-bwc-test";
+
         if (isOldCluster()) {
+            // given - enable logsdb and create a template
             startTrial();
             enableLogsdbByDefault();
-            createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
+            createTemplate(DATA_STREAM, templateId, prepareTemplate());
 
-            Instant startTime = Instant.now().minusSeconds(60 * 60);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
+            // when - index some documents
+            bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
 
-            String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
+            // then - verify that logsdb and synthetic source are both enabled
+            String firstBackingIndex = getWriteBackingIndex(client(), DATA_STREAM, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
+            // when/then - run some queries and verify results
+            ensureGreen(DATA_STREAM);
+            search(DATA_STREAM);
+            query(DATA_STREAM);
+
         } else if (isMixedCluster()) {
-            Instant startTime = Instant.now().minusSeconds(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
+            // when
+            bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
 
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
+            // when/then
+            ensureGreen(DATA_STREAM);
+            search(DATA_STREAM);
+            query(DATA_STREAM);
+
         } else if (isUpgradedCluster()) {
-            ensureGreen(dataStreamName);
-            Instant startTime = Instant.now();
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-            search(dataStreamName);
-            query(dataStreamName);
+            // when/then
+            ensureGreen(DATA_STREAM);
+            bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
+            search(DATA_STREAM);
+            query(DATA_STREAM);
 
-            var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+            // when/then continued - force merge all shard segments into one
+            var forceMergeRequest = new Request("POST", "/" + DATA_STREAM + "/_forcemerge");
             forceMergeRequest.addParameter("max_num_segments", "1");
             assertOK(client().performRequest(forceMergeRequest));
 
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
+            // then continued
+            ensureGreen(DATA_STREAM);
+            search(DATA_STREAM);
+            query(DATA_STREAM);
         }
+    }
+
+    private String prepareTemplate() {
+        boolean shouldSetIgnoreAbove = randomBoolean();
+        if (shouldSetIgnoreAbove) {
+            return TEMPLATE.replace("$IGNORE_ABOVE", String.valueOf(randomInt(IGNORE_ABOVE_MAX)));
+        }
+
+        // removes the entire line that defines ignore_above
+        return TEMPLATE.replaceAll("(?m)^\\s*\"ignore_above\":\\s*\\$IGNORE_ABOVE\\s*,?\\s*\\n?", "");
     }
 
     static void createTemplate(String dataStreamName, String id, String template) throws IOException {
         final String INDEX_TEMPLATE = """
             {
+                "priority": 500,
                 "index_patterns": ["$DATASTREAM"],
                 "template": $TEMPLATE,
                 "data_stream": {
@@ -128,45 +162,71 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
         assertOK(client().performRequest(putIndexTemplateRequest));
     }
 
-    static String bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
+    private void bulkIndex(int numRequest, int numDocs) throws Exception {
         String firstIndex = null;
+        Instant startTime = Instant.now().minusSeconds(60 * 60);
+
         for (int i = 0; i < numRequest; i++) {
-            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-            StringBuilder requestBody = new StringBuilder();
-            for (int j = 0; j < numDocs; j++) {
-                String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
-                String methodName = "method" + j % 5;
-                String ip = NetworkAddress.format(randomIp(true));
-                String message = randomAlphaOfLength(128);
-                long length = randomLong();
-                double factor = randomDouble();
-
-                requestBody.append("{\"create\": {}}");
-                requestBody.append('\n');
-                requestBody.append(
-                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                        .replace("$host", hostName)
-                        .replace("$method", methodName)
-                        .replace("$ip", ip)
-                        .replace("$message", message)
-                        .replace("$length", Long.toString(length))
-                        .replace("$factor", Double.toString(factor))
-                );
-                requestBody.append('\n');
-
-                startTime = startTime.plusMillis(1);
-            }
-            bulkRequest.setJsonEntity(requestBody.toString());
+            var bulkRequest = new Request("POST", "/" + DATA_STREAM + "/_bulk");
+            bulkRequest.setJsonEntity(bulkIndexRequestBody(numDocs, startTime));
             bulkRequest.addParameter("refresh", "true");
+
             var response = client().performRequest(bulkRequest);
-            assertOK(response);
             var responseBody = entityAsMap(response);
+
+            assertOK(response);
             assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
             if (firstIndex == null) {
                 firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
             }
         }
-        return firstIndex;
+    }
+
+    private String bulkIndexRequestBody(int numDocs, Instant startTime) {
+        StringBuilder requestBody = new StringBuilder();
+
+        for (int j = 0; j < numDocs; j++) {
+            String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
+            String methodName = "method" + j % 5;
+            String ip = NetworkAddress.format(randomIp(true));
+            String message = randomAlphasDelimitedBySpace(10, 1, 15);
+            recordSmallestMessage(message);
+            long length = randomLong();
+            double factor = randomDouble();
+
+            requestBody.append(
+                BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
+                    .replace("$host", hostName)
+                    .replace("$method", methodName)
+                    .replace("$ip", ip)
+                    .replace("$message", message)
+                    .replace("$length", Long.toString(length))
+                    .replace("$factor", Double.toString(factor))
+            );
+            requestBody.append('\n');
+
+            startTime = startTime.plusMillis(1);
+        }
+
+        return requestBody.toString();
+    }
+
+    /**
+     * Generates a string containing a random number of random length alphas, all delimited by space.
+     */
+    public static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
+        int numAlphas = randomIntBetween(1, maxAlphas);
+        List<String> alphas = new ArrayList<>(numAlphas);
+        for (int i = 0; i < numAlphas; i++) {
+            alphas.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+        }
+        return String.join(" ", alphas);
+    }
+
+    private void recordSmallestMessage(final String message) {
+        if (smallestMessage == null || message.compareTo(smallestMessage) < 0) {
+            smallestMessage = message;
+        }
     }
 
     void search(String dataStreamName) throws Exception {
@@ -174,70 +234,44 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
         searchRequest.addParameter("pretty", "true");
         searchRequest.setJsonEntity("""
             {
-                "size": 0,
-                "aggs": {
-                    "host_name": {
-                        "terms": {
-                            "field": "host.name",
-                            "order": { "_key": "asc" }
-                        },
-                        "aggs": {
-                            "max_length": {
-                                "max": {
-                                    "field": "length"
-                                }
-                            },
-                            "max_factor": {
-                                "max": {
-                                    "field": "factor"
-                                }
-                            }
-                        }
-                    }
-                }
+                "size": 500
             }
             """);
         var response = client().performRequest(searchRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
+        logger.info("{}", responseBody);
 
         Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
-        assertThat(totalCount, greaterThanOrEqualTo(4096));
-        String key = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.key");
-        assertThat(key, equalTo("host0"));
-        Integer docCount = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.doc_count");
-        assertThat(docCount, greaterThan(0));
-        Double maxTx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_length.value");
-        assertThat(maxTx, notNullValue());
-        Double maxRx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_factor.value");
-        assertThat(maxRx, notNullValue());
+        assertThat(totalCount, greaterThanOrEqualTo(NUM_REQUESTS * NUM_DOCS_PER_REQUEST));
     }
 
-    void query(String dataStreamName) throws Exception {
+    private void query(String dataStreamName) throws Exception {
         var queryRequest = new Request("POST", "/_query");
         queryRequest.addParameter("pretty", "true");
         queryRequest.setJsonEntity("""
             {
-                "query": "FROM $ds | STATS max(length), max(factor) BY host.name | SORT host.name | LIMIT 5"
+                "query": "FROM $ds | STATS max(length), max(factor) BY message | SORT message | LIMIT 5"
             }
             """.replace("$ds", dataStreamName));
         var response = client().performRequest(queryRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
+        logger.info("{}", responseBody);
 
         String column1 = ObjectPath.evaluate(responseBody, "columns.0.name");
-        String column2 = ObjectPath.evaluate(responseBody, "columns.1.name");
-        String column3 = ObjectPath.evaluate(responseBody, "columns.2.name");
         assertThat(column1, equalTo("max(length)"));
+        String column2 = ObjectPath.evaluate(responseBody, "columns.1.name");
         assertThat(column2, equalTo("max(factor)"));
-        assertThat(column3, equalTo("host.name"));
+        String column3 = ObjectPath.evaluate(responseBody, "columns.2.name");
+        assertThat(column3, equalTo("message"));
 
-        String key = ObjectPath.evaluate(responseBody, "values.0.2");
-        assertThat(key, equalTo("host0"));
         Long maxRx = ObjectPath.evaluate(responseBody, "values.0.0");
         assertThat(maxRx, notNullValue());
         Double maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
         assertThat(maxTx, notNullValue());
+        String key = ObjectPath.evaluate(responseBody, "values.0.2");
+        assertThat(key, equalTo(smallestMessage));
     }
 
     protected static void startTrial() throws IOException {

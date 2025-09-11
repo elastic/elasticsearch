@@ -375,9 +375,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionNoFetch
-  issue: https://github.com/elastic/elasticsearch/issues/128720
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
@@ -519,6 +516,15 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionTests
   method: testGetClusterStateWithDefaultProjectOnly
   issue: https://github.com/elastic/elasticsearch/issues/134450
+- class: org.elasticsearch.cluster.ClusterInfoServiceIT
+  method: testMaxQueueLatenciesInClusterInfo
+  issue: https://github.com/elastic/elasticsearch/issues/134500
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
+  method: "testEvaluateBlockWithNulls {TestCase=<date_nanos>, <date_nanos>, <time_duration>, <_source> #11}"
+  issue: https://github.com/elastic/elasticsearch/issues/134509
+- class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
+  method: testAliasFilters
+  issue: https://github.com/elastic/elasticsearch/issues/134512
 
 # Examples:
 #

@@ -762,6 +762,20 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
 
+        public TextFieldType(String name, boolean isSyntheticSource, KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate) {
+            this(
+                name,
+                true,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                isSyntheticSource,
+                syntheticSourceDelegate,
+                Collections.emptyMap(),
+                false,
+                false
+            );
+        }
+
         public boolean fielddata() {
             return fielddata;
         }

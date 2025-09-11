@@ -3,6 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html
 applies_to:
   stack: all
+  serverless: all
 ---
 
 This page provides practical examples of how to configure highlighting in {{es}}.
@@ -205,7 +206,7 @@ GET /_search
 
 ## Combine matches on multiple fields [matched-fields]
 
-::::{warning}
+::::{note}
 Supported by the `unified` and `fvh` highlighters.
 ::::
 

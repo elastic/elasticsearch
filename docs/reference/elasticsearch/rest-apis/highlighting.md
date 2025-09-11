@@ -3,6 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # Highlighting [highlighting]
@@ -55,7 +56,7 @@ By default, [`semantic_text`](/reference/elasticsearch/mapping-reference/semanti
 
 The `plain` highlighter uses the standard Lucene highlighter. It attempts to reflect the query matching logic in terms of understanding word importance and any word positioning criteria in phrase queries.
 
-::::{warning}
+::::{note}
 The `plain` highlighter works best for highlighting simple query matches in a single field. To accurately reflect query logic, it creates a tiny in-memory index and re-runs the original query criteria through Lucene’s query execution planner to get access to low-level match information for the current document. This is repeated for every field and every document that needs to be highlighted. If you want to highlight a lot of fields in a lot of documents with complex queries, we recommend using the `unified` highlighter on `postings` or `term_vector` fields.
 ::::
 
@@ -70,7 +71,7 @@ The `fvh` highlighter uses the Lucene Fast Vector highlighter. This highlighter 
 * Can combine matches from multiple fields into one result. See `matched_fields`
 * Can assign different weights to matches at different positions allowing for things like phrase matches being sorted above term matches when highlighting a Boosting Query that boosts phrase matches over term matches
 
-::::{warning}
+::::{note}
 The `fvh` highlighter does not support span queries. If you need support for span queries, try an alternative highlighter, such as the `unified` highlighter.
 ::::
 
@@ -83,6 +84,6 @@ To create meaningful search snippets from the terms being queried, the highlight
 * Term vectors. If `term_vector` information is provided by setting `term_vector` to `with_positions_offsets` in the mapping, the `unified` highlighter automatically uses the `term_vector` to highlight the field. It’s fast especially for large fields (> `1MB`) and for highlighting multi-term queries like `prefix` or `wildcard` because it can access the dictionary of terms for each document. The `fvh` highlighter always uses term vectors.
 * Plain highlighting. This mode is used by the `unified` when there is no other alternative. It creates a tiny in-memory index and re-runs the original query criteria through Lucene’s query execution planner to get access to low-level match information on the current document. This is repeated for every field and every document that needs highlighting. The `plain` highlighter always uses plain highlighting.
 
-::::{warning}
+::::{note}
 Plain highlighting for large texts may require substantial amount of time and memory. To protect against this, the maximum number of text characters that will be analyzed has been limited to 1000000. This default limit can be changed for a particular index with the index setting [`index.highlight.max_analyzed_offset`](/reference/elasticsearch/index-settings/index-modules.md#index-max-analyzed-offset).
 ::::

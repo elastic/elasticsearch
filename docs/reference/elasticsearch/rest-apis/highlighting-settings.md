@@ -3,6 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # Highlighting settings [highlighting-settings]
@@ -12,13 +13,17 @@ You can set defaults once and override them for specific fields if needed.
 Below, you’ll find descriptions of all available highlighting settings. For examples of how to apply them in practice, refer to [Highlighting examples](highlighting-examples.md).
 
 
+$$$boundary_chars$$$
+
 boundary_chars
 :   A string that contains each boundary character. Defaults to `.,!? \t\n`.
+
+$$$boundary_max_scan$$$
 
 boundary_max_scan
 :   How far to scan for boundary characters. Defaults to `20`.
 
-$$$boundary-scanners$$$
+$$$boundary-scanner$$$
 
 boundary_scanner
 :   Specifies how to break the highlighted fragments: `chars`, `sentence`, or `word`. Only valid for the `unified` and `fvh` highlighters. Defaults to `sentence` for the `unified` highlighter. Defaults to `chars` for the `fvh` highlighter.
@@ -37,6 +42,8 @@ boundary_scanner
     :   Break highlighted fragments at the next word boundary, as determined by Java’s [BreakIterator](https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.md). You can specify the locale to use with `boundary_scanner_locale`.
 
 
+$$$boundary_scanner_locale$$$
+
 boundary_scanner_locale
 :   Controls which locale is used to search for sentence and word boundaries. This parameter takes a form of a language tag, e.g. `"en-US"`,  `"fr-FR"`, `"ja-JP"`. More info can be found in the [Locale Language Tag](https://docs.oracle.com/javase/8/docs/api/java/util/Locale.md#forLanguageTag-java.lang.String-) documentation. The default value is [ Locale.ROOT](https://docs.oracle.com/javase/8/docs/api/java/util/Locale.md#ROOT).
 
@@ -50,6 +57,7 @@ fields
     Only text, match_only_text, and keyword fields are highlighted when you use wildcards. If you use a custom mapper and want to highlight on a field anyway, you must explicitly specify that field name.
     ::::
 
+$$$fragmenter$$$
 
 fragmenter
 :   Specifies how text should be broken up in highlight snippets: `simple` or `span`. Only valid for the `plain` highlighter. Defaults to `span`.
@@ -63,6 +71,8 @@ fragmenter
 
 fragment_offset
 :   Controls the margin from which you want to start highlighting. Only valid when using the `fvh` highlighter.
+
+$$$fragment_size$$$
 
 fragment_size
 :   The size of the highlighted fragment in characters. Defaults to 100.
@@ -93,6 +103,8 @@ For the `fvh` highlighter:
     no_match_size
     :   The amount of text you want to return from the beginning of the field if there are no matching fragments to highlight. Defaults to 0 (nothing is returned).
 
+    $$$number_of_fragments$$$
+
     number_of_fragments
     :   The maximum number of fragments to return. If the number of fragments is set to 0, no fragments are returned. Instead, the entire field contents are highlighted and returned. This can be handy when you need to highlight short texts such as a title or address, but fragmentation is not required. If `number_of_fragments` is 0, `fragment_size` is ignored. Defaults to 5.
 
@@ -102,8 +114,12 @@ For the `fvh` highlighter:
     phrase_limit
     :   Controls the number of matching phrases in a document that are considered. Prevents the `fvh` highlighter from analyzing too many phrases and consuming too much memory. When using `matched_fields`, `phrase_limit` phrases per matched field are considered. Raising the limit increases query time and consumes more memory. Only supported by the `fvh` highlighter. Defaults to 256.
 
+    $$$pre_tags$$$
+
     pre_tags
     :   Use in conjunction with `post_tags` to define the HTML tags to use for the highlighted text. By default, highlighted text is wrapped in `<em>` and `</em>` tags. Specify as an array of strings.
+
+    $$$post_tags$$$
 
     post_tags
     :   Use in conjunction with `pre_tags` to define the HTML tags to use for the highlighted text. By default, highlighted text is wrapped in `<em>` and `</em>` tags. Specify as an array of strings.

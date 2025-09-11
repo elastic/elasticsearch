@@ -3,6 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # How highlighters work internally [how-es-highlighters-work-internally]
@@ -16,7 +17,7 @@ Given a query and a text (the content of a document field), the goal of a highli
 
 ## How to break a text into fragments [_how_to_break_a_text_into_fragments]
 
-Relevant settings: `fragment_size`, `fragmenter`, `type` of highlighter, `boundary_chars`, `boundary_max_scan`, `boundary_scanner`, `boundary_scanner_locale`.
+Relevant settings: [`fragment_size`](highlighting-settings.md#fragment_size), [`fragmenter`](highlighting-settings.md#fragmenter), [`type`](highlighting-settings.md#highlighter-type), [`boundary_chars`](highlighting-settings.md#boundary_chars), [`boundary_max_scan`](highlighting-settings.md#boundary_max_scan), [`boundary_scanner`](highlighting-settings.md#boundary-scanner), [`boundary_scanner_locale`](highlighting-settings.md#boundary_scanner_locale).
 
 Plain highlighter begins with analyzing the text using the given analyzer, and creating a token stream from it. Plain highlighter uses a very simple algorithm to break the token stream into fragments. It loops through terms in the token stream, and every time the current term’s end_offset exceeds `fragment_size` multiplied by the number of created fragments, a new fragment is created. A little more computation is done with using `span` fragmenter to avoid breaking up text between highlighted terms. But overall, since the breaking is done only by `fragment_size`, some fragments can be quite odd, e.g. beginning with a punctuation mark.
 
@@ -25,7 +26,7 @@ Unified or FVH highlighters do a better job of breaking up a text into fragments
 
 ## How to find the best fragments [_how_to_find_the_best_fragments]
 
-Relevant settings: `number_of_fragments`.
+Relevant settings: [`number_of_fragments`](highlighting-settings.md#number_of_fragments).
 
 To find the best, most relevant, fragments, a highlighter needs to score each fragment in respect to the given query. The goal is to score only those terms that participated in generating the *hit* on the document. For some complex queries, this is still work in progress.
 
@@ -38,7 +39,8 @@ Unified highlighter can use pre-indexed term vectors or pre-indexed terms offset
 
 ## How to highlight the query terms in a fragment [_how_to_highlight_the_query_terms_in_a_fragment]
 
-Relevant settings:  `pre-tags`, `post-tags`.
+Relevant settings:  [`pre_tags`](highlighting-settings.md#pre_tags), [`post_tags`](highlighting-settings.md#post_tags).
+
 
 The goal is to highlight only those terms that participated in generating the *hit* on the document. For some complex boolean queries, this is still work in progress, as highlighters don’t reflect the boolean logic of a query and only extract leaf (terms, phrases, prefix etc) queries.
 

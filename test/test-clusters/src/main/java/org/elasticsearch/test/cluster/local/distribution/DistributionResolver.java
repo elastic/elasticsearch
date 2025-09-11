@@ -13,5 +13,5 @@ import org.elasticsearch.test.cluster.util.Version;
 
 public interface DistributionResolver {
 
-    DistributionDescriptor resolve(Version version, DistributionType type);
+    DistributionDescriptor resolve(Version version, boolean detachedVersion, DistributionType type);
 }

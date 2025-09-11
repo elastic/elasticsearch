@@ -74,7 +74,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
     private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(6);
-    private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
+    private static final Map<DistributionKey, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
     private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
@@ -396,8 +396,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private DistributionDescriptor resolveDistribution() {
             return TEST_DISTRIBUTIONS.computeIfAbsent(
-                Pair.of(spec.getVersion(), spec.getDistributionType()),
-                key -> distributionResolver.resolve(key.left, key.right)
+                new DistributionKey(spec.getVersion(), spec.isDetachedVersion(), spec.getDistributionType()),
+                key -> distributionResolver.resolve(key.version, key.detachedVersion, key.distributionType)
             );
         }
 
@@ -985,4 +985,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return "{ cluster: '" + spec.getCluster().getName() + "', node: '" + name + "' }";
         }
     }
+
+    public record DistributionKey(Version version, boolean detachedVersion, DistributionType distributionType) {}
 }

@@ -79,6 +79,10 @@ public final class Version implements Comparable<Version>, Serializable {
         String revision = matcher.group(3);
         String qualifier = matcher.group(4);
 
+        if (major.equals("0") && minor.equals("0") && revision.equals("0")) {
+            throw new IllegalArgumentException("Version 0.0.0 is not allowed");
+        }
+
         return new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier);
     }
 

@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -116,7 +117,7 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                     VectorData.fromFloats(queries[i]),
                     10,
                     10,
-                    10f,
+                    IVF_FORMAT.isEnabled() ? 10f : null,
                     null,
                     null,
                     null,

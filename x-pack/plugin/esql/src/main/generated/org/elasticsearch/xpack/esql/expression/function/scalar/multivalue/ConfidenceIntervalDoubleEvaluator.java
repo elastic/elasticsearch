@@ -20,33 +20,33 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ConfidenceInterval}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ConfidenceIntervalEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConfidenceIntervalEvaluator.class);
+public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConfidenceIntervalDoubleEvaluator.class);
 
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator bestEstimateBlock;
 
-  private final EvalOperator.ExpressionEvaluator estimates;
+  private final EvalOperator.ExpressionEvaluator estimatesBlock;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ConfidenceIntervalEvaluator(Source source,
+  public ConfidenceIntervalDoubleEvaluator(Source source,
       EvalOperator.ExpressionEvaluator bestEstimateBlock,
-      EvalOperator.ExpressionEvaluator estimates, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator estimatesBlock, DriverContext driverContext) {
     this.source = source;
     this.bestEstimateBlock = bestEstimateBlock;
-    this.estimates = estimates;
+    this.estimatesBlock = estimatesBlock;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (DoubleBlock bestEstimateBlockBlock = (DoubleBlock) bestEstimateBlock.eval(page)) {
-      try (DoubleBlock estimatesBlock = (DoubleBlock) estimates.eval(page)) {
-        return eval(page.getPositionCount(), bestEstimateBlockBlock, estimatesBlock);
+      try (DoubleBlock estimatesBlockBlock = (DoubleBlock) estimatesBlock.eval(page)) {
+        return eval(page.getPositionCount(), bestEstimateBlockBlock, estimatesBlockBlock);
       }
     }
   }
@@ -55,26 +55,26 @@ public final class ConfidenceIntervalEvaluator implements EvalOperator.Expressio
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += bestEstimateBlock.baseRamBytesUsed();
-    baseRamBytesUsed += estimates.baseRamBytesUsed();
+    baseRamBytesUsed += estimatesBlock.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock bestEstimateBlockBlock,
-      DoubleBlock estimatesBlock) {
+      DoubleBlock estimatesBlockBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!bestEstimateBlockBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (!estimatesBlock.isNull(p)) {
+        if (!estimatesBlockBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        ConfidenceInterval.process(result, p, bestEstimateBlockBlock, estimatesBlock);
+        ConfidenceInterval.process(result, p, bestEstimateBlockBlock, estimatesBlockBlock);
       }
       return result.build();
     }
@@ -82,12 +82,12 @@ public final class ConfidenceIntervalEvaluator implements EvalOperator.Expressio
 
   @Override
   public String toString() {
-    return "ConfidenceIntervalEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimates=" + estimates + "]";
+    return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(bestEstimateBlock, estimates);
+    Releasables.closeExpectNoException(bestEstimateBlock, estimatesBlock);
   }
 
   private Warnings warnings() {
@@ -107,23 +107,23 @@ public final class ConfidenceIntervalEvaluator implements EvalOperator.Expressio
 
     private final EvalOperator.ExpressionEvaluator.Factory bestEstimateBlock;
 
-    private final EvalOperator.ExpressionEvaluator.Factory estimates;
+    private final EvalOperator.ExpressionEvaluator.Factory estimatesBlock;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory bestEstimateBlock,
-        EvalOperator.ExpressionEvaluator.Factory estimates) {
+        EvalOperator.ExpressionEvaluator.Factory estimatesBlock) {
       this.source = source;
       this.bestEstimateBlock = bestEstimateBlock;
-      this.estimates = estimates;
+      this.estimatesBlock = estimatesBlock;
     }
 
     @Override
-    public ConfidenceIntervalEvaluator get(DriverContext context) {
-      return new ConfidenceIntervalEvaluator(source, bestEstimateBlock.get(context), estimates.get(context), context);
+    public ConfidenceIntervalDoubleEvaluator get(DriverContext context) {
+      return new ConfidenceIntervalDoubleEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ConfidenceIntervalEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimates=" + estimates + "]";
+      return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
     }
   }
 }

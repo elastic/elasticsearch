@@ -111,6 +111,27 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testNoShardsAreReturnedWhenWriteLoadDeciderNotFullyEnabled() {
+        final var iteratorFactory = new DefaultNonPreferredShardIteratorFactory(
+            new WriteLoadConstraintSettings(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder()
+                        .put(
+                            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                            randomFrom(
+                                WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED,
+                                WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+                            )
+                        )
+                        .build()
+                )
+            )
+        );
+        final RoutingAllocation routingAllocation = createRoutingAllocation(randomIntBetween(2, 20));
+        final Iterable<ShardRouting> shards = iteratorFactory.createNonPreferredShardIterator(routingAllocation);
+        assertFalse(shards.iterator().hasNext());
+    }
+
     private RoutingAllocation createRoutingAllocation(int numberOfNodes) {
         int writeThreadPoolSize = randomIntBetween(4, 32);
         final Map<String, NodeUsageStatsForThreadPools> nodeUsageStats = new HashMap<>();

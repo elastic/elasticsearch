@@ -66,8 +66,8 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
-* [`BUCKET`](../../functions-operators/grouping-functions.md#esql-bucket)
-* [`TBUCKET`](../../functions-operators/grouping-functions.md#esql-tbucket)
+* [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket)
+* [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-tbucket)
 
 
 **Examples**

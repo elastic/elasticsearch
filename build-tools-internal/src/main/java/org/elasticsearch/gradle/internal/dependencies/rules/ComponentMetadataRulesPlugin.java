@@ -284,7 +284,9 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.apache.directory.server:apacheds-interceptors-authn", ExcludeAllTransitivesRule.class);
 
         // org.apache.tika:tika-core brings in org.slf4j:slf4j-api:1.17.36. We use 2.0.6
-        components.withModule("org.apache.ftpserver:ftpserver-core", ExcludeAllTransitivesRule.class);
+        components.withModule("org.apache.ftpserver:ftpserver-core", ExcludeByGroup.class, rule ->
+            rule.params(List.of("org.slf4j"))
+        );
 
         // Hadoop dependencies
         components.withModule("org.apache.hadoop:hadoop-client-api", ExcludeAllTransitivesRule.class);

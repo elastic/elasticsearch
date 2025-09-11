@@ -55,7 +55,7 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
-        indexRequest.sourceContext().source(originalBytes, XContentType.JSON);
+        indexRequest.indexSource().source(originalBytes, XContentType.JSON);
         indexRequest.setPipeline(pipelineId);
 
         CountDownLatch blockLatch = new CountDownLatch(1);
@@ -93,12 +93,12 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
-        indexRequest.sourceContext().source(originalBytes.retainedSlice(0, splitPoint), XContentType.JSON);
+        indexRequest.indexSource().source(originalBytes.retainedSlice(0, splitPoint), XContentType.JSON);
         indexRequest.setPipeline(pipelineId);
 
         IndexRequest indexRequestNoIngest = new IndexRequest();
         indexRequestNoIngest.index(index);
-        indexRequestNoIngest.sourceContext()
+        indexRequestNoIngest.indexSource()
             .source(originalBytes.retainedSlice(splitPoint, originalBytes.length() - splitPoint), XContentType.JSON);
 
         originalBytes.decRef();
@@ -145,17 +145,17 @@ public class BulkSourceReleaseIT extends ESIntegTestCase {
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
         IndexRequest indexRequest1 = new IndexRequest();
         indexRequest1.index(index);
-        indexRequest1.sourceContext().source(releasedBytes, XContentType.JSON);
+        indexRequest1.indexSource().source(releasedBytes, XContentType.JSON);
         indexRequest1.setPipeline(pipelineId);
 
         IndexRequest indexRequest2 = new IndexRequest();
         indexRequest2.index(index);
-        indexRequest2.sourceContext().source(retainedBytes.slice(0, splitPoint), XContentType.JSON);
+        indexRequest2.indexSource().source(retainedBytes.slice(0, splitPoint), XContentType.JSON);
         indexRequest2.setPipeline(pipelineId);
 
         IndexRequest indexRequestNoIngest = new IndexRequest();
         indexRequestNoIngest.index(index);
-        indexRequestNoIngest.sourceContext()
+        indexRequestNoIngest.indexSource()
             .source(retainedBytes.retainedSlice(splitPoint, retainedBytes.length() - splitPoint), XContentType.JSON);
 
         assertTrue(retainedBytes.hasReferences());

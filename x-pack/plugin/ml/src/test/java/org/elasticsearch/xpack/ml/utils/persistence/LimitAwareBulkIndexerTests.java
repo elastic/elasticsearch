@@ -80,7 +80,7 @@ public class LimitAwareBulkIndexerTests extends ESTestCase {
     private static IndexRequest mockIndexRequest(long ramBytes) {
         IndexRequest indexRequest = mock(IndexRequest.class);
         when(indexRequest.ramBytesUsed()).thenReturn(ramBytes);
-        when(indexRequest.sourceContext()).thenReturn(new IndexSource());
+        when(indexRequest.indexSource()).thenReturn(new IndexSource());
         return indexRequest;
     }
 }

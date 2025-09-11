@@ -92,7 +92,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
         });
 
-        assertTrue(indexRequest.sourceContext().isClosed());
+        assertTrue(indexRequest.indexSource().isClosed());
     }
 
     public void testBufferedResourcesReleasedOnClose() {
@@ -108,12 +108,12 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         handler.addItems(List.of(indexRequest), () -> {});
 
-        assertFalse(indexRequest.sourceContext().isClosed());
+        assertFalse(indexRequest.indexSource().isClosed());
         assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), greaterThan(0L));
 
         handler.close();
 
-        assertTrue(indexRequest.sourceContext().isClosed());
+        assertTrue(indexRequest.indexSource().isClosed());
         assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
@@ -162,7 +162,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         long lowWaterMarkSplits = indexingPressure.stats().getLowWaterMarkSplits();
         long highWaterMarkSplits = indexingPressure.stats().getHighWaterMarkSplits();
         while (total < 2048) {
-            contextsToClose.add(indexRequest.sourceContext());
+            contextsToClose.add(indexRequest.indexSource());
             handler.addItems(List.of(indexRequest), () -> nextPage.set(true));
             assertTrue(nextPage.get());
             nextPage.set(false);
@@ -301,7 +301,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 IndexRequest indexRequest = indexRequest(index);
                 handler.lastItems(List.of(indexRequest), future);
                 expectThrows(EsRejectedExecutionException.class, future::actionGet);
-                assertTrue(indexRequest.sourceContext().isClosed());
+                assertTrue(indexRequest.indexSource().isClosed());
             }
         }
     }
@@ -617,7 +617,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     private static IndexRequest indexRequest(String index, List<IndexSource> contextsToClose) {
         IndexRequest indexRequest = indexRequest(index);
-        contextsToClose.add(indexRequest.sourceContext());
+        contextsToClose.add(indexRequest.indexSource());
         return indexRequest;
     }
 

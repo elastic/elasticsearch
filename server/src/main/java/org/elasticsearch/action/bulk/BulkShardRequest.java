@@ -90,11 +90,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                totalSizeInBytes += ((IndexRequest) request).sourceContext().byteLength();
+                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().sourceContext().byteLength();
+                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
                 }
             }
         }
@@ -106,14 +106,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).sourceContext().byteLength());
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null) {
-                    maxOperationSizeInBytes = Math.max(
-                        maxOperationSizeInBytes,
-                        ((UpdateRequest) request).doc().sourceContext().byteLength()
-                    );
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
                 }
             }
         }

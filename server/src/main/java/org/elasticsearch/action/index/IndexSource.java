@@ -27,6 +27,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * The {@link IndexSource} is a class which holds the source for an {@link IndexRequest}. This class is designed to encapsulate the source
+ * lifecycle and allow the bytes to be accessed and released when reserialized.
+ */
 public class IndexSource implements Writeable, Releasable {
 
     private XContentType contentType;

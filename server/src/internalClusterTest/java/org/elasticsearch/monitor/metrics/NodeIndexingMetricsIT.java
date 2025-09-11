@@ -710,7 +710,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         IndexRequest indexRequest = indexRequest(index);
         long total = indexRequest.ramBytesUsed();
         while (total < 2048) {
-            contextsToClose.add(indexRequest.sourceContext());
+            contextsToClose.add(indexRequest.indexSource());
             handler.addItems(List.of(indexRequest), () -> nextPage.set(true));
             assertTrue(nextPage.get());
             nextPage.set(false);
@@ -738,7 +738,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         );
 
         indexRequest = indexRequest(index);
-        contextsToClose.add(indexRequest.sourceContext());
+        contextsToClose.add(indexRequest.indexSource());
         handler.addItems(List.of(indexRequest), () -> nextPage.set(true));
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
@@ -763,7 +763,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         IndexRequest lastRequest = indexRequest(index);
-        contextsToClose.add(lastRequest.sourceContext());
+        contextsToClose.add(lastRequest.indexSource());
         handler.lastItems(List.of(lastRequest), future);
 
         BulkResponse bulkResponse = safeGet(future);
@@ -873,7 +873,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         for (IncrementalBulkService.Handler h : handlers) {
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             IndexRequest indexRequest = indexRequest(index);
-            contextsToClose.add(indexRequest.sourceContext());
+            contextsToClose.add(indexRequest.indexSource());
             h.lastItems(List.of(indexRequest), future);
             BulkResponse bulkResponse = safeGet(future);
             assertNoFailures(bulkResponse);
@@ -913,7 +913,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         long total = 0;
         while (total < 512) {
             IndexRequest indexRequest = indexRequest(index);
-            contextsToClose.add(indexRequest.sourceContext());
+            contextsToClose.add(indexRequest.indexSource());
             requests.add(indexRequest);
             total += indexRequest.ramBytesUsed();
         }

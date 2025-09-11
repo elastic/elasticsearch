@@ -533,7 +533,7 @@ public final class BulkRequestParser {
         private void parseAndConsumeDocumentLine(ReleasableBytesReference data, int from, int to) throws IOException {
             assert currentRequest != null && currentRequest instanceof DeleteRequest == false;
             if (currentRequest instanceof IndexRequest indexRequest) {
-                indexRequest.sourceContext().source(sliceTrimmingCarriageReturn(data, from, to, xContentType, true), xContentType);
+                indexRequest.indexSource().source(sliceTrimmingCarriageReturn(data, from, to, xContentType, true), xContentType);
                 indexRequestConsumer.accept(indexRequest, currentType);
             } else if (currentRequest instanceof UpdateRequest updateRequest) {
                 try (

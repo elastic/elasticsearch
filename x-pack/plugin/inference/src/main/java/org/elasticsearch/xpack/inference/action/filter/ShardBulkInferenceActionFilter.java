@@ -389,6 +389,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
+
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
                     try (onFinish) {
@@ -456,6 +457,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     TimeValue.MAX_VALUE,
                     completionListener
                 );
+
         }
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
@@ -631,7 +633,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().sourceContext().bytes().length());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().indexSource().byteLength());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -726,7 +728,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            IndexSource indexSource = indexRequest.sourceContext();
+            IndexSource indexSource = indexRequest.indexSource();
+            int originalSourceSize = indexSource.byteLength();
             try (ReleasableBytesReference originalSource = indexSource.retainedBytes()) {
                 if (useLegacyFormat) {
                     var newDocMap = indexSource.sourceAsMap();
@@ -740,13 +743,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         indexSource.source(builder);
                     }
                 }
-                long modifiedSourceSize = indexSource.bytes().length();
+                long modifiedSourceSize = indexSource.byteLength();
 
                 // Add the indexing pressure from the source modifications.
                 // Don't increment operation count because we count one source update as one operation, and we already accounted for those
                 // in addFieldInferenceRequests.
                 try {
-                    coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
+                    coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
                 } catch (EsRejectedExecutionException e) {
                     indexSource.source(originalSource.retain(), indexSource.contentType());
                     item.abort(

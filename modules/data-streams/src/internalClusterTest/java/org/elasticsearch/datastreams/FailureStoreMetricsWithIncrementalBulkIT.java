@@ -98,7 +98,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
             while (nextRequested.get()) {
                 nextRequested.set(false);
                 IndexRequest indexRequest = indexRequest(DATA_STREAM_NAME);
-                contextsToRelease.add(indexRequest.sourceContext());
+                contextsToRelease.add(indexRequest.indexSource());
                 handler.addItems(List.of(indexRequest), () -> nextRequested.set(true));
                 successfullyStored++;
             }
@@ -120,7 +120,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
                         List<DocWriteRequest<?>> requests = new ArrayList<>();
                         for (int i = 0; i < 20; ++i) {
                             IndexRequest indexRequest = indexRequest(DATA_STREAM_NAME);
-                            contextsToRelease.add(indexRequest.sourceContext());
+                            contextsToRelease.add(indexRequest.indexSource());
                             requests.add(indexRequest);
                         }
                         handler.addItems(requests, () -> nextRequested.set(true));
@@ -132,7 +132,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
             while (nextRequested.get()) {
                 nextRequested.set(false);
                 IndexRequest indexRequest = indexRequest(DATA_STREAM_NAME);
-                contextsToRelease.add(indexRequest.sourceContext());
+                contextsToRelease.add(indexRequest.indexSource());
                 handler.addItems(List.of(indexRequest), () -> nextRequested.set(true));
             }
 
@@ -140,7 +140,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             IndexRequest lastRequest = indexRequest(DATA_STREAM_NAME);
-            contextsToRelease.add(lastRequest.sourceContext());
+            contextsToRelease.add(lastRequest.indexSource());
             handler.lastItems(List.of(lastRequest), future);
 
             BulkResponse bulkResponse = safeGet(future);

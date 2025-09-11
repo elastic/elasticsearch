@@ -353,7 +353,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
     default void close() {
         IndexRequest indexRequest = TransportAbstractBulkAction.getIndexWriteRequest(this);
         if (indexRequest != null) {
-            indexRequest.sourceContext().close();
+            indexRequest.indexSource().close();
         }
     }
 }

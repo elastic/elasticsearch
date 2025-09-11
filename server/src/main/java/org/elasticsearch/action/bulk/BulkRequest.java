@@ -182,7 +182,7 @@ public class BulkRequest extends LegacyActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += request.sourceContext().byteLength() + REQUEST_OVERHEAD;
+        sizeInBytes += request.indexSource().byteLength() + REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
     }
@@ -200,10 +200,10 @@ public class BulkRequest extends LegacyActionRequest
 
         requests.add(request);
         if (request.doc() != null) {
-            sizeInBytes += request.doc().sourceContext().byteLength();
+            sizeInBytes += request.doc().indexSource().byteLength();
         }
         if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().sourceContext().byteLength();
+            sizeInBytes += request.upsertRequest().indexSource().byteLength();
         }
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;

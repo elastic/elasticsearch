@@ -290,7 +290,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             """.strip()
 
         when:
-        def result = runGenerateAndValidateTask("--update").build()
+        def result = runGenerateAndValidateTask("--resolve-conflict").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -328,7 +328,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             """.strip()
 
         when:
-        def result = runGenerateAndValidateTask("--update").build()
+        def result = runGenerateAndValidateTask("--resolve-conflict").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -342,10 +342,10 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "update flag cannot be used with backport branches"() {
         when:
-        def result = runGenerateTask("--update", "--backport-branches=9.1").buildAndFail()
+        def result = runGenerateTask("--resolve-conflict", "--backport-branches=9.1").buildAndFail()
 
         then:
-        assertGenerateFailure(result, "Cannot use --update with --backport-branches")
+        assertGenerateFailure(result, "Cannot use --resolve-conflict with --backport-branches")
     }
 
     def "branches param order does not matter"() {

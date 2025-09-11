@@ -211,7 +211,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
-    private void connectionAttemptCompleted(Exception e) {
+    private void connectionAttemptCompleted(@Nullable Exception e) {
         final boolean isInitialAttempt = initialConnectionAttempted.compareAndSet(false, true);
         final org.apache.logging.log4j.util.Supplier<String> msgSupplier = () -> format(
             "Origin project [%s] %s linked project [%s] alias [%s] on %s attempt",

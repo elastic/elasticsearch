@@ -18,7 +18,7 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.SourceContext;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -704,7 +704,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        ArrayList<IndexSource> contextsToClose = new ArrayList<>();
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         IndexRequest indexRequest = indexRequest(index);
@@ -795,7 +795,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        ArrayList<IndexSource> contextsToClose = new ArrayList<>();
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
@@ -909,7 +909,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         return indexRequest;
     }
 
-    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, ArrayList<SourceContext> contextsToClose, String index) {
+    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, ArrayList<IndexSource> contextsToClose, String index) {
         long total = 0;
         while (total < 512) {
             IndexRequest indexRequest = indexRequest(index);

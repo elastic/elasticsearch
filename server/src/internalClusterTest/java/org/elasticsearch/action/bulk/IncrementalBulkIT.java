@@ -11,7 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.SourceContext;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -127,7 +127,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         try (Releasable r = indexingPressure.markCoordinatingOperationStarted(1, indexingPressure.stats().getMemoryLimit(), true)) {
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
-            ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+            ArrayList<IndexSource> contextsToClose = new ArrayList<>();
 
             if (randomBoolean()) {
                 AtomicBoolean nextPage = new AtomicBoolean(false);
@@ -154,7 +154,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        ArrayList<IndexSource> contextsToClose = new ArrayList<>();
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         IndexRequest indexRequest = indexRequest(index);
@@ -196,7 +196,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         long lowWaterMarkSplits = indexingPressure.stats().getLowWaterMarkSplits();
         long highWaterMarkSplits = indexingPressure.stats().getHighWaterMarkSplits();
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        ArrayList<IndexSource> contextsToClose = new ArrayList<>();
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
@@ -317,7 +317,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
-            ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+            ArrayList<IndexSource> contextsToClose = new ArrayList<>();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
 
             CountDownLatch blockingLatch1 = new CountDownLatch(1);
@@ -370,7 +370,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        ArrayList<IndexSource> contextsToClose = new ArrayList<>();
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
@@ -468,7 +468,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         // a node with the ingest role.
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        ArrayList<SourceContext> contextsToClose = new ArrayList<>();
+        ArrayList<IndexSource> contextsToClose = new ArrayList<>();
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
@@ -572,7 +572,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     }
 
     private BulkResponse executeBulk(long docs, String index, IncrementalBulkService.Handler handler, ExecutorService executorService) {
-        List<SourceContext> contextsToClose = new ArrayList<>();
+        List<IndexSource> contextsToClose = new ArrayList<>();
         ConcurrentLinkedQueue<IndexRequest> queue = new ConcurrentLinkedQueue<>();
         for (int i = 0; i < docs; i++) {
             IndexRequest indexRequest = indexRequest(index, contextsToClose);
@@ -605,7 +605,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         return bulkResponse;
     }
 
-    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, ArrayList<SourceContext> contextsToClose, String index) {
+    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, ArrayList<IndexSource> contextsToClose, String index) {
         long total = 0;
         while (total < 512) {
             IndexRequest indexRequest = indexRequest(index, contextsToClose);
@@ -615,7 +615,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertThat(total, lessThan(1024L));
     }
 
-    private static IndexRequest indexRequest(String index, List<SourceContext> contextsToClose) {
+    private static IndexRequest indexRequest(String index, List<IndexSource> contextsToClose) {
         IndexRequest indexRequest = indexRequest(index);
         contextsToClose.add(indexRequest.sourceContext());
         return indexRequest;

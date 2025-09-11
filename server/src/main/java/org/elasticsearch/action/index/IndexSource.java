@@ -27,20 +27,20 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-public class SourceContext implements Writeable, Releasable {
+public class IndexSource implements Writeable, Releasable {
 
     private XContentType contentType;
     private ReleasableBytesReference source;
     private boolean isClosed = false;
 
-    public SourceContext() {}
+    public IndexSource() {}
 
-    public SourceContext(XContentType contentType, BytesReference source) {
+    public IndexSource(XContentType contentType, BytesReference source) {
         this.contentType = contentType;
         this.source = ReleasableBytesReference.wrap(source);
     }
 
-    public SourceContext(StreamInput in) throws IOException {
+    public IndexSource(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             // faster than StreamInput::readEnum, do not replace we read a lot of these instances at times
             contentType = XContentType.ofOrdinal(in.readByte());

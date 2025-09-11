@@ -95,7 +95,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private final SourceContext sourceContext;
+    private final IndexSource indexSource;
 
     private OpType opType = OpType.INDEX;
 
@@ -162,11 +162,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing = in.readOptionalString();
         boolean beforeSourceContext = in.getTransportVersion().before(TransportVersions.SOURCE_CONTEXT);
         BytesReference source;
-        SourceContext localSourceContext = null;
+        IndexSource localIndexSource = null;
         if (beforeSourceContext) {
             source = in.readBytesReference();
         } else {
-            localSourceContext = new SourceContext(in);
+            localIndexSource = new IndexSource(in);
             source = null;
         }
         opType = OpType.fromId(in.readByte());
@@ -185,9 +185,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             } else {
                 contentType = null;
             }
-            localSourceContext = new SourceContext(contentType, source);
+            localIndexSource = new IndexSource(contentType, source);
         }
-        sourceContext = Objects.requireNonNull(localSourceContext);
+        indexSource = Objects.requireNonNull(localIndexSource);
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
@@ -228,7 +228,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest() {
         super(NO_SHARD_ID);
-        this.sourceContext = new SourceContext();
+        this.indexSource = new IndexSource();
     }
 
     /**
@@ -238,7 +238,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
         this.index = index;
-        this.sourceContext = new SourceContext();
+        this.indexSource = new IndexSource();
     }
 
     private static final StringLiteralDeduplicator pipelineNameDeduplicator = new StringLiteralDeduplicator();
@@ -260,10 +260,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (sourceContext.hasSource() == false) {
+        if (indexSource.hasSource() == false) {
             validationException = addValidationError("source is missing", validationException);
         }
-        if (sourceContext.contentType() == null) {
+        if (indexSource.contentType() == null) {
             validationException = addValidationError("content type is missing", validationException);
         }
         assert opType == OpType.INDEX || opType == OpType.CREATE : "unexpected op-type: " + opType;
@@ -321,7 +321,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * source at index time
      */
     public XContentType getContentType() {
-        return sourceContext.contentType();
+        return indexSource.contentType();
     }
 
     /**
@@ -418,19 +418,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.isPipelineResolved;
     }
 
-    public SourceContext sourceContext() {
-        return sourceContext;
+    public IndexSource sourceContext() {
+        return indexSource;
     }
 
     /**
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        return sourceContext.bytes();
+        return indexSource.bytes();
     }
 
     public Map<String, Object> sourceAsMap() {
-        return sourceContext.sourceAsMap();
+        return indexSource.sourceAsMap();
     }
 
     /**
@@ -439,7 +439,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param source The map to index
      */
     public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
-        sourceContext.source(source);
+        indexSource.source(source);
         return this;
     }
 
@@ -449,13 +449,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param source The map to index
      */
     public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
-        sourceContext.source(source, contentType);
+        indexSource.source(source, contentType);
         return this;
     }
 
     public IndexRequest source(Map<String, ?> source, XContentType contentType, boolean ensureNoSelfReferences)
         throws ElasticsearchGenerationException {
-        sourceContext.source(source, contentType, ensureNoSelfReferences);
+        indexSource.source(source, contentType, ensureNoSelfReferences);
         return this;
     }
 
@@ -466,7 +466,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
-        sourceContext.source(source, xContentType);
+        indexSource.source(source, xContentType);
         return this;
     }
 
@@ -474,7 +474,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the content source to index.
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        sourceContext.source(sourceBuilder);
+        indexSource.source(sourceBuilder);
         return this;
     }
 
@@ -487,7 +487,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(Object... source) {
-        sourceContext.source(source);
+        indexSource.source(source);
         return this;
     }
 
@@ -500,7 +500,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(XContentType xContentType, Object... source) {
-        sourceContext.source(xContentType, source);
+        indexSource.source(xContentType, source);
         return this;
     }
 
@@ -508,7 +508,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        sourceContext.source(Objects.requireNonNull(source), Objects.requireNonNull(xContentType));
+        indexSource.source(Objects.requireNonNull(source), Objects.requireNonNull(xContentType));
         return this;
     }
 
@@ -516,7 +516,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(byte[] source, XContentType xContentType) {
-        sourceContext.source(source, xContentType);
+        indexSource.source(source, xContentType);
         return this;
     }
 
@@ -529,7 +529,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param length The length of the data
      */
     public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        sourceContext.source(source, offset, length, xContentType);
+        indexSource.source(source, offset, length, xContentType);
         return this;
     }
 
@@ -742,9 +742,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SOURCE_CONTEXT)) {
-            sourceContext.writeTo(out);
+            indexSource.writeTo(out);
         } else {
-            out.writeBytesReference(sourceContext.bytes());
+            out.writeBytesReference(indexSource.bytes());
         }
         out.writeByte(opType.getId());
         out.writeLong(version);
@@ -755,7 +755,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeBoolean(isRetry);
         out.writeLong(autoGeneratedTimestamp);
         if (out.getTransportVersion().before(TransportVersions.SOURCE_CONTEXT)) {
-            XContentType contentType = sourceContext.contentType();
+            XContentType contentType = indexSource.contentType();
             if (contentType != null) {
                 out.writeBoolean(true);
                 XContentHelper.writeTo(out, contentType);
@@ -800,13 +800,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public String toString() {
         String sSource = "_na_";
         try {
-            if (sourceContext.byteLength() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+            if (indexSource.byteLength() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
                 sSource = "n/a, actual length: ["
-                    + ByteSizeValue.ofBytes(sourceContext.byteLength()).toString()
+                    + ByteSizeValue.ofBytes(indexSource.byteLength()).toString()
                     + "], max length: "
                     + ByteSizeValue.ofBytes(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
-                sSource = XContentHelper.convertToJson(sourceContext.bytes(), false);
+                sSource = XContentHelper.convertToJson(indexSource.bytes(), false);
             }
         } catch (Exception e) {
             // ignore
@@ -841,7 +841,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + sourceContext.byteLength();
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + indexSource.byteLength();
     }
 
     @Override
@@ -896,7 +896,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, sourceContext.contentType(), sourceContext.bytes());
+        return indexRouting.indexShard(id, routing, indexSource.contentType(), indexSource.bytes());
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

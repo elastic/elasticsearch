@@ -18,7 +18,7 @@ import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.SourceContext;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -89,7 +89,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        final ArrayList<SourceContext> contextsToRelease = new ArrayList<>();
+        final ArrayList<IndexSource> contextsToRelease = new ArrayList<>();
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
         try (IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest()) {
 

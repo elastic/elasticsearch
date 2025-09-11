@@ -68,7 +68,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
@@ -79,7 +79,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 

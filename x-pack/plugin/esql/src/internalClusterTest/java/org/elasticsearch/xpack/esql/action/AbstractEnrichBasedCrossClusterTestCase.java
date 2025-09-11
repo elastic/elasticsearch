@@ -50,6 +50,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMultiClustersTestCase {
 
@@ -286,5 +288,24 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
         protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
             return CrossClusterQueriesWithInvalidLicenseIT.LocalStateEnrich.EnrichTransportXPackInfoAction.class;
         }
+    }
+
+    protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster cluster, int numShards) {
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(cluster.getTotalShards(), equalTo(numShards));
+        assertThat(cluster.getSuccessfulShards(), equalTo(numShards));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(0));
+        assertThat(cluster.getFailures().size(), equalTo(0));
+    }
+
+    protected void assertClusterInfoSkipped(EsqlExecutionInfo.Cluster cluster) {
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(cluster.getTotalShards(), equalTo(0));
+        assertThat(cluster.getSuccessfulShards(), equalTo(0));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(0));
     }
 }

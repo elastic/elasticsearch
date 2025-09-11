@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
+    private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
     public static final DataType[] UNSUPPORTED_TYPES = {
         TEXT,
         VERSION,
@@ -139,7 +140,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     protected LogicalPlan getRightToSerialize(StreamOutput out) {
         LogicalPlan rightToSerialize = right();
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
             // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
             // we do not support a filter on top of the right side of the join
             // As we consider the filters optional, we remove them here

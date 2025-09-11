@@ -253,7 +253,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("trace", trace);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        donWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
+        doWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -272,7 +272,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("message", "this is a message");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        donWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
+        doWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -295,7 +295,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("span.id", "topLevelSpanIdValue");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        donWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
+        doWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
 
         Map<String, Object> result = document.getSource();
         // nested form should take precedence
@@ -690,14 +690,14 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         runProcessorWithAccessPattern(accessPattern, document, processor);
     }
 
-    private void donWithRandomAccessPattern(
+    private void doWithRandomAccessPattern(
         IngestDocument document,
         Consumer<IngestDocument> action
     ) {
-        donWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, action);
+        doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, action);
     }
 
-    private void donWithAccessPattern(
+    private void doWithAccessPattern(
         IngestPipelineFieldAccessPattern accessPattern,
         IngestDocument document,
         Consumer<IngestDocument> action

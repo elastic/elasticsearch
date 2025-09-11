@@ -49,7 +49,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
     /**
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
      */
-    public static final Map<String, String> RENAME_KEYS = Map.ofEntries(
+    static final Map<String, String> RENAME_KEYS = Map.ofEntries(
         entry("span.id", "span_id"),
         entry("message", "body.text"),
         entry("log.level", "severity_text"),
@@ -294,7 +294,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                     String parentName = nonOtelName.substring(0, lastDot);
                     // parent should never be null and must be a map if we are here
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> parent = document.getFieldValue(parentName, Map.class, false);
+                    Map<String, Object> parent = document.getFieldValue(parentName, Map.class);
                     if (parent.isEmpty()) {
                         document.removeField(parentName);
                     } else {

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoJson;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -17,8 +17,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.MapXContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.datageneration.ShapeDataSourceHandler;
 
@@ -77,12 +76,7 @@ public class ShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     @SuppressWarnings("unchecked")
     private Geometry fromGeoJson(Map<?, ?> map) {
         try {
-            var parser = new MapXContentParser(
-                xContentRegistry(),
-                LoggingDeprecationHandler.INSTANCE,
-                (Map<String, Object>) map,
-                XContentType.JSON
-            );
+            var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, (Map<String, ?>) map);
             parser.nextToken();
 
             return GeoJson.fromXContent(StandardValidator.instance(true), false, true, parser);

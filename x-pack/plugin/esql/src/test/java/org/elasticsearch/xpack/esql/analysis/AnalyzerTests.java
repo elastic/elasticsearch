@@ -2375,11 +2375,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingKnnQueryParams() {
-        assumeTrue(
-            "multi values for query params capability must be available",
-            EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled()
-        );
-
         checkDenseVectorCastingKnnQueryParams("float_vector");
         checkDenseVectorCastingKnnQueryParams("byte_vector");
     }

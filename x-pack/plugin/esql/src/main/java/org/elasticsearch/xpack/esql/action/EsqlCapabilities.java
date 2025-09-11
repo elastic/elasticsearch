@@ -1472,8 +1472,7 @@ public class EsqlCapabilities {
         /**
          * Multivalued query parameters
          */
-        QUERY_PARAMS_MULTI_VALUES(Build.current().isSnapshot());
-
+        QUERY_PARAMS_MULTI_VALUES();
 
         private final boolean enabled;
 

@@ -688,8 +688,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testArrayValuesAllowedInValueParams() throws IOException {
-        assumeTrue("multivalues for params", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
-
         Map<String, Object> responseMap = runEsql(
             RequestObjectBuilder.jsonBuilder()
                 .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e")
@@ -710,8 +708,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testArrayValuesNullsNotAllowedInValueParams() throws IOException {
-        assumeTrue("multivalues for params", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
-
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(
@@ -765,8 +761,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testArrayValuesAllowedInUnnamedParams() throws IOException {
-        assumeTrue("multivalues for params", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
-
         Map<String, Object> responseMap = runEsql(
             RequestObjectBuilder.jsonBuilder()
                 .query("row a = ? | eval b = ?, c = ?, d = ?, e = ?")
@@ -794,8 +788,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testErrorMessageForArrayValuesInNonValueParams() throws IOException {
-        assumeTrue("multivalues for params", EsqlCapabilities.Cap.QUERY_PARAMS_MULTI_VALUES.isEnabled());
-
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> runEsql(

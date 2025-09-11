@@ -30,10 +30,6 @@ public class PatternedTextDocValues extends BinaryDocValues {
     static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
         throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
-        if (templateDocValues.getValueCount() == 0) {
-            return null;
-        }
-
         SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
         SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
         return new PatternedTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
@@ -74,23 +70,13 @@ public class PatternedTextDocValues extends BinaryDocValues {
     }
 
     @Override
-    public int nextDoc() throws IOException {
-        int templateNext = templateDocValues.nextDoc();
-        var argsAdvance = argsDocValues.advance(templateNext);
-        var argsInfoAdvance = argsInfoDocValues.advance(templateNext);
-        assert argsAdvance >= templateNext;
-        assert argsInfoAdvance == templateNext;
-        return templateNext;
+    public int nextDoc() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public int advance(int i) throws IOException {
-        int templateAdvance = templateDocValues.advance(i);
-        var argsAdvance = argsDocValues.advance(templateAdvance);
-        var argsInfoAdvance = argsInfoDocValues.advance(templateAdvance);
-        assert argsAdvance >= templateAdvance;
-        assert argsInfoAdvance == templateAdvance;
-        return templateAdvance;
+    public int advance(int i) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

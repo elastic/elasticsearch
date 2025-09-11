@@ -11,17 +11,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
 
-import java.io.IOException;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class PatternedTextValueProcessor {
-    private static final String DELIMITER = "[\\s\\[\\]]";
+    private static final Pattern DELIMITER = Pattern.compile("[\\s\\[\\]]");
+    public static final int MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE = 8 * 1024;
 
-    public record Parts(String template, String templateId, List<String> args, List<Arg.Info> argsInfo) {
+    public record Parts(String template, String templateId, List<String> args, List<Arg.Info> argsInfo, boolean useStoredField) {
         Parts(String template, List<String> args, List<Arg.Info> argsInfo) {
-            this(template, PatternedTextValueProcessor.templateId(template), args, argsInfo);
+            this(template, PatternedTextValueProcessor.templateId(template), args, argsInfo, false);
+        }
+        static Parts lengthExceeded(String template) {
+            return new Parts(template, PatternedTextValueProcessor.templateId(template), null, null, true);
         }
     }
 
@@ -42,11 +47,19 @@ public class PatternedTextValueProcessor {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
     }
 
-    static Parts split(String text) throws IOException {
+    static Parts split(String text) {
+        if (text.length() > MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE) {
+            return splitInternal(CharBuffer.wrap(text).subSequence(0, MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE), true);
+        } else {
+            return splitInternal(text, false);
+        }
+    }
+
+    static Parts splitInternal(CharSequence text, boolean exceedsMaxLength) {
         StringBuilder template = new StringBuilder(text.length());
         List<String> args = new ArrayList<>();
         List<Arg.Info> argsInfo = new ArrayList<>();
-        String[] tokens = text.split(DELIMITER);
+        String[] tokens = DELIMITER.split(text);
         int textIndex = 0;
         for (String token : tokens) {
             if (token.isEmpty()) {
@@ -70,7 +83,8 @@ public class PatternedTextValueProcessor {
         while (textIndex < text.length()) {
             template.append(text.charAt(textIndex++));
         }
-        return new Parts(template.toString(), args, argsInfo);
+
+        return exceedsMaxLength ? Parts.lengthExceeded(text.toString()) : new Parts(template.toString(), args, argsInfo);
     }
 
     // For testing

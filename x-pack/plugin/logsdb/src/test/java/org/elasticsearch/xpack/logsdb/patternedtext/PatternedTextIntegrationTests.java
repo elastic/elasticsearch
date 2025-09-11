@@ -18,17 +18,19 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -47,20 +49,19 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
-public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(PatternedTextVsMatchOnlyTextTests.class);
+public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
+    private static final Logger logger = LogManager.getLogger(PatternedTextIntegrationTests.class);
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+    protected Settings nodeSettings() {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, LogsDBPlugin.class, LocalStateCompositeXPackPlugin.class);
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(MapperExtrasPlugin.class, XPackPlugin.class, LogsDBPlugin.class);
     }
 
     private static final String INDEX = "test_index";
@@ -82,14 +83,49 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final String MAPPING_DOCS_ONLY = MAPPING_TEMPLATE.replace("%", "docs");
     private static final String MAPPING_POSITIONS = MAPPING_TEMPLATE.replace("%", "positions");
 
+    private static final Settings LOGSDB_SETTING = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+
     @Before
     public void setup() {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
     }
 
-    public void testQueries() throws IOException {
+    @After
+    public void cleanup() {
+        assertAcked(admin().indices().prepareDelete(INDEX));
+    }
+
+    public void testValueLargerThan32k() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
-        var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
+        var createRequest = new CreateIndexRequest(INDEX)
+            .settings(LOGSDB_SETTING)
+            .mapping(mapping);
+
+        assertAcked(admin().indices().create(createRequest));
+
+        String message = randomMessage(randomIntBetween(0, 100_000));
+        indexDocs(List.of(message));
+        var request = client().prepareSearch(INDEX).setSize(1).setFetchSource(true);
+
+        assertNoFailuresAndResponse(request, response -> {
+            assertEquals(1, response.getHits().getHits().length);
+            var values = Arrays.stream(response.getHits().getHits())
+                .map(SearchHit::getSourceAsMap)
+                .map(m -> m.get(PATTERNED_TEXT_FIELD))
+                .toList();
+
+            assertEquals(message, values.getFirst());
+        });
+    }
+
+    public void testQueryResultsSameAsMatchOnlyText() throws IOException {
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = new CreateIndexRequest(INDEX)
+            .mapping(mapping);
+
+        if (randomBoolean()) {
+            createRequest.settings(LOGSDB_SETTING);
+        }
 
         assertAcked(admin().indices().create(createRequest));
 
@@ -206,6 +242,14 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         safeGet(indicesAdmin().refresh(new RefreshRequest(INDEX).indicesOptions(IndicesOptions.lenientExpandOpenHidden())));
     }
 
+    public static String randomMessage(int minLength) {
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < minLength) {
+            sb.append(randomMessage());
+        }
+        return sb.toString();
+    }
+
     public static String randomMessage() {
         if (rarely()) {
             return randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 100));
@@ -228,7 +272,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
                     () -> randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 20)),
                     () -> UUID.randomUUID().toString(),
                     () -> randomIp(randomBoolean()),
-                    PatternedTextVsMatchOnlyTextTests::randomTimestamp,
+                    PatternedTextIntegrationTests::randomTimestamp,
                     ESTestCase::randomInt,
                     ESTestCase::randomDouble
                 );

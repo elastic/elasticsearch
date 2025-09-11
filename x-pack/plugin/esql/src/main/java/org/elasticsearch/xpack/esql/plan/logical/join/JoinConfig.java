@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -18,29 +19,16 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Configuration for a {@code JOIN} style operation.
+ * @param type        type of join
+ * @param leftFields  fields from the left child to join on
+ * @param rightFields fields from the right child to join on
+ * @param joinOnConditions join conditions for expression based joins. If null, we assume equi-join on the left/right fields
  */
-public final class JoinConfig implements Writeable {
-    private final JoinType type;
-    private final List<Attribute> leftFields;
-    private final List<Attribute> rightFields;
-    private final Expression joinOnConditions;
-
-    /**
-     * @param type        type of join
-     * @param leftFields  fields from the left child to join on
-     * @param rightFields fields from the right child to join on
-     * @param joinOnConditions join conditions for expression based joins. If null, we assume equi-join on the left/right fields
-     */
-    public JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribute> rightFields, Expression joinOnConditions) {
-        this.type = type;
-        this.leftFields = leftFields;
-        this.rightFields = rightFields;
-        this.joinOnConditions = joinOnConditions;
-    }
+public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribute> rightFields, @Nullable Expression joinOnConditions)
+    implements
+        Writeable {
 
     /**
      * Legacy constructor that included the match fields, which were always the left fields.
@@ -95,38 +83,6 @@ public final class JoinConfig implements Writeable {
             && Resolvables.resolved(leftFields)
             && Resolvables.resolved(rightFields)
             && (joinOnConditions == null || joinOnConditions.resolved());
-    }
-
-    public JoinType type() {
-        return type;
-    }
-
-    public List<Attribute> leftFields() {
-        return leftFields;
-    }
-
-    public List<Attribute> rightFields() {
-        return rightFields;
-    }
-
-    public Expression joinOnConditions() {
-        return joinOnConditions;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (JoinConfig) obj;
-        return Objects.equals(this.type, that.type)
-            && Objects.equals(this.leftFields, that.leftFields)
-            && Objects.equals(this.rightFields, that.rightFields)
-            && Objects.equals(this.joinOnConditions, that.joinOnConditions);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(type, leftFields, rightFields, joinOnConditions);
     }
 
     @Override

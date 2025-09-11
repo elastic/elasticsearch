@@ -196,21 +196,18 @@ public final class JobModelSnapshotUpgrader {
                     );
                 }
             }, e -> {
-               logger.warn(
-                    () -> {
-                        String baseMessage = format(
-                            "[%s] [%s] failed to delete old snapshot [%s] result document",
-                            jobId,
-                            snapshotId,
-                            ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
-                        );
-                        if (e instanceof org.elasticsearch.cluster.block.ClusterBlockException) {
-                            return baseMessage + ", the results index should be writable to detele the model snapshot";
-                        }
-                        return baseMessage;
-                    },
-                    e
-                );
+                logger.warn(() -> {
+                    String baseMessage = format(
+                        "[%s] [%s] failed to delete old snapshot [%s] result document",
+                        jobId,
+                        snapshotId,
+                        ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
+                    );
+                    if (e instanceof org.elasticsearch.cluster.block.ClusterBlockException) {
+                        return baseMessage + ", the results index should be writable to detele the model snapshot";
+                    }
+                    return baseMessage;
+                }, e);
             }), () -> runAfter.accept(null)));
     }
 

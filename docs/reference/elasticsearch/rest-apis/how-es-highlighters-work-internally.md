@@ -14,7 +14,7 @@ Given a query and a text (the content of a document field), the goal of a highli
 * How to highlight the query terms in a fragment?
 
 
-## How to break a text into fragments? [_how_to_break_a_text_into_fragments]
+## How to break a text into fragments [_how_to_break_a_text_into_fragments]
 
 Relevant settings: `fragment_size`, `fragmenter`, `type` of highlighter, `boundary_chars`, `boundary_max_scan`, `boundary_scanner`, `boundary_scanner_locale`.
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.logsdb.DataStreamLicenseChangeTestCase;
 import org.junit.Before;
 
@@ -20,7 +21,8 @@ import static org.hamcrest.Matchers.not;
 public class PatternedTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCase {
     @Before
     public void checkClusterFeature() {
-        assumeTrue("patterned_text must be enabled", clusterHasFeature("mapper.patterned_text"));
+        assumeTrue("[patterned_text] must be available", clusterHasFeature("mapper.patterned_text"));
+        assumeTrue("[patterned_text] is only available in snapshot builds", Build.current().isSnapshot());
     }
 
     private static final String patternedTextMapping = """

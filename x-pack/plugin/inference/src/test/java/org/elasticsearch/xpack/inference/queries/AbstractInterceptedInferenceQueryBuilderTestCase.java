@@ -17,20 +17,30 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends InterceptedInferenceQueryBuilder<?>> extends ESTestCase {
+public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends AbstractQueryBuilder<T>> extends
+    MapperServiceTestCase {
     private TestThreadPool threadPool;
 
     @Before
@@ -55,6 +65,10 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     public void testBwCSerialization() {
         // TODO: Implement
     }
+
+    protected abstract T createQueryBuilder();
+
+    protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
 
     protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,
@@ -116,5 +130,66 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         );
     }
 
-    protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
+    protected QueryRewriteContext createIndexMetadataContext(
+        String indexName,
+        Map<String, String> semanticTextFields,
+        Map<String, String> nonInferenceFields
+    ) throws IOException {
+        Client client = new NoOpClient(threadPool);
+
+        Index index = new Index(indexName, randomAlphaOfLength(10));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+
+        try (XContentBuilder mappings = XContentFactory.jsonBuilder()) {
+            mappings.startObject().startObject("_doc").startObject("properties");
+
+            for (var entry : semanticTextFields.entrySet()) {
+                mappings.startObject(entry.getKey());
+                mappings.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                mappings.field("inference_id", entry.getValue());
+                mappings.endObject();
+            }
+            for (var entry : nonInferenceFields.entrySet()) {
+                mappings.startObject(entry.getKey());
+                mappings.field("type", entry.getValue());
+                mappings.endObject();
+            }
+
+            mappings.endObject().endObject().endObject();
+
+            MapperService mapperService = createMapperService(mappings);
+            MappingLookup mappingLookup = mapperService.mappingLookup();
+            IndexSettings indexSettings = new IndexSettings(indexMetadataBuilder.build(), Settings.EMPTY);
+
+            return new QueryRewriteContext(
+                null,
+                client,
+                null,
+                mapperService,
+                mappingLookup,
+                Map.of(),
+                indexSettings,
+                null,
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                index,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false
+            );
+        }
+    }
 }

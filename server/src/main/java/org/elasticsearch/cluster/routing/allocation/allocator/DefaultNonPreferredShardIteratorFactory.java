@@ -52,7 +52,7 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
                 hotSpottedNodes.add(new NodeShardIterable(allocation, node, writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()));
             }
         }
-        return () -> new LazilyExpandingShardIterator<>(hotSpottedNodes);
+        return () -> new LazilyExpandingIterator<>(hotSpottedNodes);
     }
 
     private static class NodeShardIterable implements Iterable<ShardRouting>, Comparable<NodeShardIterable> {
@@ -96,12 +96,12 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
         }
     }
 
-    static class LazilyExpandingShardIterator<T> implements Iterator<T> {
+    static class LazilyExpandingIterator<T> implements Iterator<T> {
 
         private final Iterator<? extends Iterable<T>> allIterables;
         private Iterator<T> currentIterator;
 
-        LazilyExpandingShardIterator(Iterable<? extends Iterable<T>> allIterables) {
+        LazilyExpandingIterator(Iterable<? extends Iterable<T>> allIterables) {
             this.allIterables = allIterables.iterator();
         }
 

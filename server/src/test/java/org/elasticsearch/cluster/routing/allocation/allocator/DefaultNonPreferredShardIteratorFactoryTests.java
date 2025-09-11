@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
-import org.elasticsearch.cluster.routing.allocation.allocator.DefaultNonPreferredShardIteratorFactory.LazilyExpandingShardIterator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DefaultNonPreferredShardIteratorFactory.LazilyExpandingIterator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,7 +47,7 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
             flatValues.addAll(innerList);
         });
 
-        Iterator<String> iterator = new LazilyExpandingShardIterator<>(allValues);
+        Iterator<String> iterator = new LazilyExpandingIterator<>(allValues);
 
         int nextIndex = 0;
         while (true) {

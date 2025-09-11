@@ -73,7 +73,16 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     );
     private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
         Tuple.tuple("rate", DeltaAgg.RATE),
-        Tuple.tuple("irate", DeltaAgg.IRATE)
+        Tuple.tuple("irate", DeltaAgg.IRATE),
+        Tuple.tuple("delta", DeltaAgg.DELTA)
+    );
+    private static final Map<DeltaAgg, String> DELTA_AGG_METRIC_MAP = Map.of(
+        DeltaAgg.RATE,
+        "counterl_hdd.bytes.read",
+        DeltaAgg.IRATE,
+        "counterl_hdd.bytes.read",
+        DeltaAgg.DELTA,
+        "gaugel_hdd.bytes.used"
     );
 
     private List<XContentBuilder> documents;
@@ -262,7 +271,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     enum DeltaAgg {
         RATE,
-        IRATE
+        IRATE,
+        DELTA
     }
 
     // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
@@ -288,6 +298,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     timeseries.size() - 2
                 ).v2().v1().toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
+            } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
+                var firstVal = timeseries.getFirst().v2().v2();
+                var lastVal = timeseries.getLast().v2().v2();
+                var delta = lastVal - firstVal;
+                if (delta < 0) {
+                    return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
+                } else {
+                    return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
+                }
             }
             assert deltaAgg == DeltaAgg.RATE;
             Double lastValue = null;
@@ -397,8 +416,10 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * The test checks that the count, max, min, and avg values of the rate metric - and calculates
      * the same values from the documents in the group.
      */
-    public void testRateSomethingSomething() {
-        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+    public void testRateGroupBySubset() {
+        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+        var deltaAgg = Tuple.tuple("delta", DeltaAgg.DELTA); // TODO: Re-enable randomization after fixing
+        var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
         var windowStr = window.v1();

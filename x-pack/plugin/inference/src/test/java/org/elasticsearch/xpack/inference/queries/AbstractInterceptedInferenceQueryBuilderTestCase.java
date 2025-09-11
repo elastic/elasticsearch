@@ -12,9 +12,12 @@ import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -22,35 +25,86 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
-public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends AbstractQueryBuilder<T>> extends
-    MapperServiceTestCase {
-    private TestThreadPool threadPool;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
-    @Before
-    public void setUp() {
-        threadPool = createThreadPool();
+public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends AbstractQueryBuilder<T>> extends MapperServiceTestCase {
+    private static TestThreadPool threadPool;
+    private static ModelRegistry modelRegistry;
+
+    protected static final String SPARSE_INFERENCE_ID = "sparse-inference-id";
+    protected static final MinimalServiceSettings SPARSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+        null,
+        TaskType.SPARSE_EMBEDDING,
+        null,
+        null,
+        null
+    );
+
+    protected static final String DENSE_INFERENCE_ID = "dense-inference-id";
+    protected static final MinimalServiceSettings DENSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+        null,
+        TaskType.TEXT_EMBEDDING,
+        256,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT
+    );
+
+    private static class InferencePluginWithModelRegistry extends InferencePlugin {
+        InferencePluginWithModelRegistry(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected Supplier<ModelRegistry> getModelRegistry() {
+            return () -> modelRegistry;
+        }
     }
 
-    @After
     @Override
-    public void tearDown() {
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new InferencePluginWithModelRegistry(Settings.EMPTY));
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+        threadPool = new TestThreadPool(AbstractInterceptedInferenceQueryBuilderTestCase.class.getName());
+        modelRegistry = createModelRegistry(threadPool);
+    }
+
+    @AfterClass
+    public static void afterClass() {
         threadPool.close();
     }
 
@@ -73,7 +127,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,
         Map<String, String> remoteIndexNames,
-        Map<String, MinimalServiceSettings> inferenceEndpoints,
         TransportVersion minTransportVersion
     ) {
         Map<Index, IndexMetadata> indexMetadata = new HashMap<>();
@@ -113,6 +166,13 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             remoteIndices,
             new OriginalIndices(localIndexInferenceFields.keySet().toArray(new String[0]), IndicesOptions.DEFAULT),
             indexMetadata
+        );
+
+        Map<String, MinimalServiceSettings> inferenceEndpoints = Map.of(
+            SPARSE_INFERENCE_ID,
+            SPARSE_INFERENCE_ID_SETTINGS,
+            DENSE_INFERENCE_ID,
+            DENSE_INFERENCE_ID_SETTINGS
         );
 
         Client client = new MockInferenceClient(threadPool, inferenceEndpoints);
@@ -191,5 +251,27 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 false
             );
         }
+    }
+
+    protected static QueryBuilder rewrite(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
+        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(queryBuilder, queryRewriteContext, future);
+        return future.actionGet();
+    }
+
+    private static ModelRegistry createModelRegistry(ThreadPool threadPool) {
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool)));
+        modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
+            @Override
+            public boolean localNodeMaster() {
+                return false;
+            }
+        });
+
+        doAnswer(i -> SPARSE_INFERENCE_ID_SETTINGS).when(modelRegistry).getMinimalServiceSettings(eq(SPARSE_INFERENCE_ID));
+        doAnswer(i -> DENSE_INFERENCE_ID_SETTINGS).when(modelRegistry).getMinimalServiceSettings(eq(DENSE_INFERENCE_ID));
+
+        return modelRegistry;
     }
 }

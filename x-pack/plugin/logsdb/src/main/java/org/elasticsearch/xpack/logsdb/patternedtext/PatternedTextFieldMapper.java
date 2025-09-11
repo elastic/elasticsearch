@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -43,6 +44,7 @@ import java.util.function.Supplier;
 public class PatternedTextFieldMapper extends FieldMapper {
 
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
+    private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE_DOCS;
@@ -74,8 +76,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final TextParams.Analyzers analyzers;
         private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
+        private final Parameter<NamedAnalyzer> analyzer;
 
         public Builder(String name, MappingParserContext context) {
             this(name, context.indexVersionCreated(), context.getIndexSettings());
@@ -85,28 +87,21 @@ public class PatternedTextFieldMapper extends FieldMapper {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
-            this.analyzers = new TextParams.Analyzers(
-                (type, name1) -> new NamedAnalyzer("logs", AnalyzerScope.GLOBAL, LogAnalyzer.INSTANCE),
-                m -> ((PatternedTextFieldMapper) m).indexAnalyzer,
-                m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
-                indexCreatedVersion
-            );
+            this.analyzer = analyzerParam(name, m -> ((PatternedTextFieldMapper) m).analyzer);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, indexOptions };
+            return new Parameter<?>[] { meta, indexOptions, analyzer };
         }
 
         private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
-            NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
-            NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
-            NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
-            TextSearchInfo tsi = new TextSearchInfo(fieldType, null, searchAnalyzer, searchQuoteAnalyzer);
+            NamedAnalyzer analyzer = this.analyzer.get();
+            TextSearchInfo tsi = new TextSearchInfo(fieldType, null, analyzer, analyzer);
             return new PatternedTextFieldType(
                 context.buildFullName(leafName()),
                 tsi,
-                indexAnalyzer,
+                analyzer,
                 context.isSourceSynthetic(),
                 meta.getValue()
             );
@@ -131,6 +126,22 @@ public class PatternedTextFieldMapper extends FieldMapper {
             });
         }
 
+        private static Parameter<NamedAnalyzer> analyzerParam(String name, Function<FieldMapper, NamedAnalyzer> initializer) {
+            return new Parameter<>("analyzer", false, () -> LogAnalyzer.INSTANCE, (n, c, o) -> {
+                String analyzerName = o.toString();
+                switch (analyzerName) {
+                    case "standard":
+                        return STANDARD_ANALYZER;
+                    case "log":
+                        return LogAnalyzer.INSTANCE;
+                    default:
+                        throw new IllegalArgumentException(
+                            "unsupported analyzer [" + analyzerName + "] for field [" + name + "], supported analyzers are [standard, log]"
+                        );
+                }
+            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+        }
+
         @Override
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = buildLuceneFieldType(indexOptions);
@@ -149,10 +160,9 @@ public class PatternedTextFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
     private final IndexVersion indexCreatedVersion;
-    private final NamedAnalyzer indexAnalyzer;
+    private final NamedAnalyzer analyzer;
     private final IndexSettings indexSettings;
     private final String indexOptions;
-    private final int positionIncrementGap;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
@@ -169,16 +179,15 @@ public class PatternedTextFieldMapper extends FieldMapper {
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
+        this.analyzer = builder.analyzer.get();
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
     }
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), indexAnalyzer);
+        return Map.of(mappedFieldType.name(), analyzer);
     }
 
     @Override

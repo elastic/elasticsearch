@@ -73,7 +73,8 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
                 "field_match_only_text": { "type": "match_only_text" },
                 "field_patterned_text": {
                     "type": "patterned_text",
-                    "index_options": "%"
+                    "index_options": "%",
+                    "analyzer": "standard"
                 }
               }
             }
@@ -87,7 +88,6 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
     }
 
-    @AwaitsFix(bugUrl = "test differently")
     public void testQueries() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);

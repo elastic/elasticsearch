@@ -13,12 +13,14 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.regex.Pattern;
 
 public final class LogAnalyzer extends Analyzer {
 
-    public static final LogAnalyzer INSTANCE = new LogAnalyzer();
+    static final NamedAnalyzer INSTANCE = new NamedAnalyzer("log", AnalyzerScope.GLOBAL, new LogAnalyzer());
 
     private final Pattern pattern;
 
@@ -28,7 +30,6 @@ public final class LogAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String s) {
-        // TODO: split tokens on =,?:, that are not dates or urls
         final Tokenizer tokenizer = new PatternTokenizer(pattern, -1);
         TokenStream stream = new LowerCaseFilter(tokenizer);
         return new TokenStreamComponents(tokenizer, stream);

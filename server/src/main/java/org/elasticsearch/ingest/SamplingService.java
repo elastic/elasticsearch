@@ -45,6 +45,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -162,6 +163,13 @@ public class SamplingService implements ClusterStateListener {
     }
 
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) throws IOException {
+        Map<String, Object> sourceAsMap;
+        try {
+            sourceAsMap = indexRequest.sourceAsMap(XContentParserDecorator.NOOP);
+        } catch (XContentParseException e) {
+            sourceAsMap = Map.of();
+            logger.trace("Invalid index request source, attempting to sample anyway");
+        }
         maybeSample(
             projectMetadata,
             indexRequest,
@@ -171,7 +179,7 @@ public class SamplingService implements ClusterStateListener {
                 indexRequest.version(),
                 indexRequest.routing(),
                 indexRequest.versionType(),
-                indexRequest.sourceAsMap(XContentParserDecorator.NOOP)
+                sourceAsMap
             )
         );
     }

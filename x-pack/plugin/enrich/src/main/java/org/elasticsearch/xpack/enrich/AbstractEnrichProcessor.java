@@ -14,13 +14,12 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
@@ -32,7 +31,6 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     private final boolean overrideEnabled;
     protected final String matchField;
     protected final int maxMatches;
-    private final String indexAlias;
 
     protected AbstractEnrichProcessor(
         String tag,
@@ -55,8 +53,6 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         this.overrideEnabled = overrideEnabled;
         this.matchField = matchField;
         this.maxMatches = maxMatches;
-        // note: since the policyName determines the indexAlias, we can calculate this once
-        this.indexAlias = EnrichPolicy.getBaseName(policyName);
     }
 
     public abstract QueryBuilder getQueryBuilder(Object fieldValue);
@@ -72,7 +68,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 return;
             }
 
-            Supplier<SearchRequest> searchRequestSupplier = () -> {
+            final Function<String, SearchRequest> searchRequestBuilder = (concreteEnrichIndex) -> {
                 QueryBuilder queryBuilder = getQueryBuilder(value);
                 ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
                 SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
@@ -82,13 +78,13 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 searchBuilder.fetchSource(true);
                 searchBuilder.query(constantScore);
                 SearchRequest req = new SearchRequest();
-                req.indices(indexAlias);
+                req.indices(concreteEnrichIndex);
                 req.preference(Preference.LOCAL.type());
                 req.source(searchBuilder);
                 return req;
             };
 
-            searchRunner.accept(value, maxMatches, searchRequestSupplier, (searchHits, e) -> {
+            searchRunner.accept(value, maxMatches, searchRequestBuilder, (searchHits, e) -> {
                 if (e != null) {
                     handler.accept(null, e);
                     return;

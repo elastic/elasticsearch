@@ -183,7 +183,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<TransportVersion> ignore = Set.of(TransportVersions.ZERO, TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
+        Set<TransportVersion> ignore = Set.of(TransportVersion.zero(), TransportVersion.current(), TransportVersion.minimumCompatible());
         assertThat(TransportVersion.current(), sameInstance(TransportVersion.fromId(TransportVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -398,5 +398,42 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3004000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
+    }
+
+    public void testComment() {
+        byte[] data1 = ("#comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
+        TransportVersion test1 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test1), is(true));
+
+        byte[] data2 = (" # comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
+        TransportVersion test2 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test2), is(true));
+
+        byte[] data3 = ("#comment" + System.lineSeparator() + "# comment3" + System.lineSeparator() + "1000000").getBytes(
+            StandardCharsets.UTF_8
+        );
+        TransportVersion test3 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
     }
 }

@@ -259,7 +259,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     public static class RoundingInfo implements Writeable {

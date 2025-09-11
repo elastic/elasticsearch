@@ -9,7 +9,11 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -26,8 +30,11 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
         var resourceRoot = getResourceRoot(project);
+
+        String taskGroup = "Transport Versions";
 
         project.getGradle()
             .getSharedServices()
@@ -51,21 +58,35 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionResources", ValidateTransportVersionResourcesTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("Validates that all transport version resources are internally consistent with each other");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getShouldValidateDensity().convention(true);
+                t.getShouldValidatePrimaryIdNotPatch().convention(true);
             });
-        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
+        project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
-                t.setGroup("Transport Versions");
+                t.setGroup(taskGroup);
                 t.setDescription("Generate a manifest resource for all transport version definitions");
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
             t.into("transport/definitions", c -> c.from(generateManifestTask));
         });
+
+        var generateDefinitionsTask = project.getTasks()
+            .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
+                t.setGroup(taskGroup);
+                t.setDescription("(Re)generates a transport version definition file");
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
+                t.getIncrement().convention(1000);
+                Version esVersion = VersionProperties.getElasticsearchVersion();
+                t.getCurrentUpperBoundName().convention(esVersion.getMajor() + "." + esVersion.getMinor());
+            });
+
+        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
     }
 
     private static String getResourceRoot(Project project) {

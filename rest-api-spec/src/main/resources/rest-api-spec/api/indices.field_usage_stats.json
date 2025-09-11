@@ -28,9 +28,9 @@
       ]
     },
     "params": {
-      "fields":{
-        "type":"list",
-        "description":"A comma-separated list of fields to include in the stats if only a subset of fields should be returned (supports wildcards)"
+      "fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields to include in the stats if only a subset of fields should be returned (supports wildcards)"
       },
       "ignore_unavailable": {
         "type": "boolean",

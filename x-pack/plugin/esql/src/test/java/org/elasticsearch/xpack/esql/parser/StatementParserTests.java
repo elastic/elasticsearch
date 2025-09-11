@@ -3627,6 +3627,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
+
+        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+            expectError(
+                "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
+            );
+        }
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -3963,7 +3971,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -3983,6 +3991,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
 
         assertThat(fuse.child(), instanceOf(Fork.class));
+    }
+
+    public void testInvalidFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+
+        expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
+
+        expectError(queryPrefix + " | FUSE WITH 1", "line 1:85: mismatched input '1' expecting '{'");
     }
 
     public void testDoubleParamsForIdentifier() {

@@ -15,6 +15,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -40,6 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -147,7 +150,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
             );
         }
-        // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
+        // Unmapped fields require a correct capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse(
@@ -248,10 +251,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     return bulkClient.performRequest(request);
                 } else {
                     Request[] clones = cloneRequests(request, 2);
-                    Response resp1 = remoteClient.performRequest(clones[0]);
-                    Response resp2 = localClient.performRequest(clones[1]);
-                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
-                    return resp2;
+                    return runInParallel(localClient, remoteClient, clones);
                 }
         });
         doAnswer(invocation -> {
@@ -284,6 +284,44 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             }
         }
         return clones;
+    }
+
+    /**
+     * Run {@link #cloneRequests cloned} requests in parallel.
+     */
+    static Response runInParallel(RestClient localClient, RestClient remoteClient, Request[] clones) throws Throwable {
+        CompletableFuture<Response> remoteResponse = new CompletableFuture<>();
+        CompletableFuture<Response> localResponse = new CompletableFuture<>();
+        remoteClient.performRequestAsync(clones[0], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                remoteResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                remoteResponse.completeExceptionally(exception);
+            }
+        });
+        localClient.performRequestAsync(clones[1], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                localResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                localResponse.completeExceptionally(exception);
+            }
+        });
+        try {
+            Response remote = remoteResponse.get();
+            Response local = localResponse.get();
+            assertEquals(remote.getStatusLine().getStatusCode(), local.getStatusLine().getStatusCode());
+            return local;
+        } catch (ExecutionException e) {
+            throw e.getCause();
+        }
     }
 
     /**

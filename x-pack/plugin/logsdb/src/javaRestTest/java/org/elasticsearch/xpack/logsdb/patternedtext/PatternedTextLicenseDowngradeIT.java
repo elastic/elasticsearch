@@ -48,34 +48,34 @@ public class PatternedTextLicenseDowngradeIT extends DataStreamLicenseChangeTest
 
         String backingIndex0 = getDataStreamBackingIndex(client(), dataStreamName, 0);
         {
-            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.patterned_text_disable_enterprise"));
+            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.patterned_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "patterned_field"
             );
-            assertThat(patternedFieldMapping, not(hasKey("disable_enterprise_features")));
+            assertThat(patternedFieldMapping, not(hasKey("disable_templating")));
         }
 
         startBasic();
         rolloverDataStream(client(), dataStreamName);
 
         {
-            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.patterned_text_disable_enterprise"));
+            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.patterned_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "patterned_field"
             );
-            assertThat(patternedFieldMapping, not(hasKey("disable_enterprise_features")));
+            assertThat(patternedFieldMapping, not(hasKey("disable_templating")));
         }
 
         String backingIndex1 = getDataStreamBackingIndex(client(), dataStreamName, 1);
         {
-            assertEquals("true", getSetting(client(), backingIndex1, "index.mapping.patterned_text_disable_enterprise"));
+            assertEquals("true", getSetting(client(), backingIndex1, "index.mapping.patterned_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
             Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "patterned_field"
             );
-            assertThat(patternedFieldMapping, hasEntry("disable_enterprise_features", true));
+            assertThat(patternedFieldMapping, hasEntry("disable_templating", true));
         }
 
     }

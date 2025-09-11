@@ -96,7 +96,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>(List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE));
         if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()) {
-            settings.add(PatternedTextFieldMapper.PATTERNED_TEXT_BASIC_SETTING);
+            settings.add(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING);
         }
         return Collections.unmodifiableList(settings);
     }

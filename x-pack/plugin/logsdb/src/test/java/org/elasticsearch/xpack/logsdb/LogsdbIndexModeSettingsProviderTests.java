@@ -962,7 +962,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testPatternedTextNotAllowedByLicense() throws Exception {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_FEATURE))).thenReturn(false);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_TEMPLATING_FEATURE))).thenReturn(false);
         logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         logsdbLicenseService.setLicenseState(licenseState);
 
@@ -971,7 +971,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
             .build();
         Settings result = generateLogsdbSettings(settings);
-        assertTrue(PatternedTextFieldMapper.PATTERNED_TEXT_BASIC_SETTING.get(result));
+        assertTrue(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(result));
     }
 
     public void testSortAndHostNamePropagateValue() throws Exception {

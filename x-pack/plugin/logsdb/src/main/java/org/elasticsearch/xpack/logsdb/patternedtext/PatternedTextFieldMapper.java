@@ -46,11 +46,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
 
     /**
-     * A setting that indicates that patterned text fields should disable enterprise-level storage savings, usually because there is
+     * A setting that indicates that patterned text fields should disable templating, usually because there is
      * no valid enterprise license.
      */
-    public static final Setting<Boolean> PATTERNED_TEXT_BASIC_SETTING = Setting.boolSetting(
-        "index.mapping.patterned_text_disable_enterprise",
+    public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(
+        "index.mapping.patterned_text.disable_templating",
         false,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex
@@ -88,7 +88,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
         private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
-        private final Parameter<Boolean> disableEnterpriseFeatures;
+        private final Parameter<Boolean> disableTemplating;
 
         public Builder(String name, MappingParserContext context) {
             this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
@@ -105,12 +105,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
 
-            this.disableEnterpriseFeatures = disableEnterpriseFeaturesParameter(indexSettings);
+            this.disableTemplating = disableTemplatingParameter(indexSettings);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, indexOptions, disableEnterpriseFeatures };
+            return new Parameter<?>[] { meta, indexOptions, disableTemplating };
         }
 
         private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
@@ -147,28 +147,25 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         /**
-         * A parameter that indicates the patterned_text mapper should disable enterprise-level storage savings, usually
-         * because there is no valid license.
+         * A parameter that indicates the patterned_text mapper should disable tempating, usually
+         * because there is no valid enterprise license.
          * <p>
          * The parameter should only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
          * associated index setting, which is set from the current license status.
          */
-        private static Parameter<Boolean> disableEnterpriseFeaturesParameter(IndexSettings indexSettings) {
-            boolean forceDisable = indexSettings.getValue(PATTERNED_TEXT_BASIC_SETTING);
-            return Parameter.boolParam(
-                "disable_enterprise_features",
-                false,
-                m -> ((PatternedTextFieldMapper) m).disableEnterpriseFeatures(),
-                forceDisable
-            ).addValidator(value -> {
-                if (value == false && forceDisable) {
-                    throw new MapperParsingException(
-                        "value [false] for mapping parameter [disable_enterprise_features] contradicts value [true] for index setting ["
-                            + PATTERNED_TEXT_BASIC_SETTING.getKey()
-                            + "]"
-                    );
-                }
-            }).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
+        private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
+            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            return Parameter.boolParam("disable_templating", false, m -> ((PatternedTextFieldMapper) m).disableTemplating(), forceDisable)
+                .addValidator(value -> {
+                    if (value == false && forceDisable) {
+                        throw new MapperParsingException(
+                            "value [false] for mapping parameter [disable_templating] contradicts value [true] for index setting ["
+                                + DISABLE_TEMPLATING_SETTING.getKey()
+                                + "]"
+                        );
+                    }
+                })
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
         }
 
         @Override
@@ -197,7 +194,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
-    private final boolean disableEnterpriseFeatures;
+    private final boolean disableTemplating;
 
     private PatternedTextFieldMapper(
         String simpleName,
@@ -218,11 +215,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
-        this.disableEnterpriseFeatures = builder.disableEnterpriseFeatures.getValue();
+        this.disableTemplating = builder.disableTemplating.getValue();
     }
 
-    public boolean disableEnterpriseFeatures() {
-        return this.disableEnterpriseFeatures;
+    public boolean disableTemplating() {
+        return this.disableTemplating;
     }
 
     @Override

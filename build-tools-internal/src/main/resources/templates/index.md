@@ -34,7 +34,7 @@ for(bundle in changelogBundles) {
 
 if (coming) {
     print "```{applies_to}\n"
-    print "stack: coming ${version}\n"
+    print "stack: ga ${version}\n"
     print "```"
     print "\n"
 }
@@ -59,18 +59,24 @@ for (changeType in ['features-enhancements', 'fixes', 'regression']) {
     }
 %>
 ### ${ TYPE_LABELS.getOrDefault(changeType, 'No mapping for TYPE_LABELS[' + changeType + ']') } [elasticsearch-${versionForIds}-${changeType}]
+
 <% for (team in changelogsByTypeByArea[changeType].keySet()) {
-    print "\n${team}:\n";
+    print "${team}:\n";
 
     for (change in changelogsByTypeByArea[changeType][team]) {
-        print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
-        if (change.issues != null && change.issues.empty == false) {
-            print change.issues.size() == 1 ? " (issue: " : " (issues: "
-            print change.issues.collect { "[#${it}](https://github.com/elastic/elasticsearch/issues/${it})" }.join(", ")
-            print ")"
+        if (!change.entryOverride) {
+            print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
+            if (change.issues != null && change.issues.empty == false) {
+                print change.issues.size() == 1 ? " (issue: " : " (issues: "
+                print change.issues.collect { "[#${it}](https://github.com/elastic/elasticsearch/issues/${it})" }.join(", ")
+                print ")"
+            }
+        } else {
+            print change.entryOverride.trim();
         }
         print "\n"
     }
+    print "\n"
 }
 }
 print "\n"

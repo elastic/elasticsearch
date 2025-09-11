@@ -19,6 +19,12 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  */
 public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#statements}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStatements(EsqlBaseParser.StatementsContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#singleStatement}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -178,11 +184,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFieldName(EsqlBaseParser.FieldNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePattern}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldNamePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFieldNamePattern(EsqlBaseParser.FieldNamePatternContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
@@ -436,6 +454,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSetCommand(EsqlBaseParser.SetCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#setField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

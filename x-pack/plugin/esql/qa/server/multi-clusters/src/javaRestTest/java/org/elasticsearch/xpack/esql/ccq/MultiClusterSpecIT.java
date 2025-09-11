@@ -15,6 +15,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -40,6 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -48,10 +51,11 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V10;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V11;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
@@ -116,7 +120,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "LookupJoinOnTwoFieldsAfterTop",
         "LookupJoinOnTwoFieldsMultipleTimes",
         // Lookup join after LIMIT is not supported in CCS yet
-        "LookupJoinAfterLimitAndRemoteEnrich"
+        "LookupJoinAfterLimitAndRemoteEnrich",
+        // Lookup join after FORK is not support in CCS yet
+        "ForkBeforeLookupJoin"
     );
 
     @Override
@@ -137,16 +143,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V10.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName()));
         if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
             );
         }
-        // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
+        // Unmapped fields require a correct capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
-        assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse(
             "This syntax is not supported with remote LOOKUP JOIN",
@@ -155,6 +160,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Tests that do SORT before LOOKUP JOIN - not supported in CCS
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
 
+        if (testCase.requiredCapabilities.contains(FORK_V9.capabilityName())) {
+            assumeTrue(
+                "FORK not yet supported with CCS",
+                hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES.capabilityName()))
+            );
+        }
     }
 
     @Override
@@ -240,10 +251,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     return bulkClient.performRequest(request);
                 } else {
                     Request[] clones = cloneRequests(request, 2);
-                    Response resp1 = remoteClient.performRequest(clones[0]);
-                    Response resp2 = localClient.performRequest(clones[1]);
-                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
-                    return resp2;
+                    return runInParallel(localClient, remoteClient, clones);
                 }
         });
         doAnswer(invocation -> {
@@ -276,6 +284,44 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             }
         }
         return clones;
+    }
+
+    /**
+     * Run {@link #cloneRequests cloned} requests in parallel.
+     */
+    static Response runInParallel(RestClient localClient, RestClient remoteClient, Request[] clones) throws Throwable {
+        CompletableFuture<Response> remoteResponse = new CompletableFuture<>();
+        CompletableFuture<Response> localResponse = new CompletableFuture<>();
+        remoteClient.performRequestAsync(clones[0], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                remoteResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                remoteResponse.completeExceptionally(exception);
+            }
+        });
+        localClient.performRequestAsync(clones[1], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                localResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                localResponse.completeExceptionally(exception);
+            }
+        });
+        try {
+            Response remote = remoteResponse.get();
+            Response local = localResponse.get();
+            assertEquals(remote.getStatusLine().getStatusCode(), local.getStatusLine().getStatusCode());
+            return local;
+        } catch (ExecutionException e) {
+            throw e.getCause();
+        }
     }
 
     /**

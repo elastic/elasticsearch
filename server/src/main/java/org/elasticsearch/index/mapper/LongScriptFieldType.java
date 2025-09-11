@@ -30,6 +30,7 @@ import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -83,7 +84,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -108,7 +110,35 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        var indexSettings = blContext.indexSettings();
+        if (isParsedFromSource && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC
+        // A runtime and normal field can share the same name.
+        // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
+        // We could optimize this, but at this stage feels like a rare scenario.
+            && blContext.lookup().onlyMappedAsRuntimeField(name())) {
+            var reader = new NumberType.NumberFallbackSyntheticSourceReader(NumberType.LONG, null, true) {
+                @Override
+                public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
+                    var builder = (BlockLoader.LongBuilder) blockBuilder;
+                    for (var value : values) {
+                        builder.appendLong(value.longValue());
+                    }
+                }
+            };
+
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.longs(expectedCount);
+                }
+            };
+        } else {
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
     }
 
     @Override

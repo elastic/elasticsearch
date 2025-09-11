@@ -699,7 +699,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // local only search works with any license state
         {
-            var localOnly = List.of(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
+            var localOnly = new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"));
 
             assertLicenseCheckPasses(indicesGrouper, null, localOnly, "");
             for (var mode : License.OperationMode.values()) {
@@ -710,7 +710,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
         {
-            var remote = List.of(new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs")));
+            var remote = new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs"));
 
             var supportedLicenses = EnumSet.of(License.OperationMode.TRIAL, License.OperationMode.ENTERPRISE);
             var unsupportedLicenses = EnumSet.complementOf(supportedLicenses);
@@ -738,18 +738,18 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private void assertLicenseCheckPasses(
         TestIndicesExpressionGrouper indicesGrouper,
         XPackLicenseStatus status,
-        List<IndexPattern> patterns,
+        IndexPattern pattern,
         String... expectedRemotes
     ) {
         var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(indicesGrouper, createLicenseState(status), patterns, executionInfo);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), pattern, executionInfo);
         assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
     }
 
     private void assertLicenseCheckFails(
         TestIndicesExpressionGrouper indicesGrouper,
         XPackLicenseStatus licenseStatus,
-        List<IndexPattern> patterns,
+        IndexPattern pattern,
         String expectedErrorMessageSuffix
     ) {
         ElasticsearchStatusException e = expectThrows(
@@ -757,7 +757,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), patterns, new EsqlExecutionInfo(true))
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), pattern, new EsqlExecutionInfo(true))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }

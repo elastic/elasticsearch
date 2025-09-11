@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.INLINESTATS_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -427,5 +428,24 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             err,
             containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@3:3")
         );
+    }
+
+    public void testDanglingOrderByInInlineStats() {
+        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test"));
+
+        var err = error("""
+            FROM test
+            | SORT languages
+            | INLINESTATS count(*) BY languages
+            | INLINESTATS s = sum(salary) BY first_name
+            """, analyzer);
+
+        assertThat(err, is("""
+            2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
+            line 3:3: INLINESTATS [INLINESTATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before\
+             it : either move the SORT after it, or add a LIMIT before the SORT
+            line 4:3: INLINESTATS [INLINESTATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
+             before it : either move the SORT after it, or add a LIMIT before the SORT"""));
     }
 }

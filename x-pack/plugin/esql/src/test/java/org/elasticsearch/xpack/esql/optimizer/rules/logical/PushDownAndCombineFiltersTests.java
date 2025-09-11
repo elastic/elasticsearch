@@ -587,7 +587,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         FieldAttribute g = getFieldAttribute("g");
         EsRelation left = relation(List.of(a, getFieldAttribute("b")));
         EsRelation right = relation(List.of(c, d, e, f, g));
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(a), List.of(c), null);
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a), List.of(c), null);
         Join join = new Join(EMPTY, left, right, joinConfig);
 
         // Predicates
@@ -838,7 +838,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, b));
         EsRelation right = relation(List.of(c, b));
 
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b), List.of(a, b), List.of(b, c), null);
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b), List.of(b, c), null);
         return new Join(EMPTY, left, right, joinConfig);
     }
 
@@ -850,7 +850,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, b1));
         EsRelation right = relation(List.of(c, b2));
         Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(a, b1, b2), List.of(b2, c), joinOnCondition);
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b1, b2), List.of(b2, c), joinOnCondition);
         return new Join(EMPTY, left, right, joinConfig);
     }
 

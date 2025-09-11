@@ -515,7 +515,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 JoinTypes.LEFT,
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
-                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 randomJoinOnExpression()
             );
         }

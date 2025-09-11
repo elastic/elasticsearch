@@ -1032,7 +1032,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), EmptyLocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
 
-        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of(), null);
+        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
             case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
             case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
@@ -5819,7 +5819,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var ref = as(order.child(), FieldAttribute.class);
         assertThat(ref.name(), is("emp_no"));
         var inlineJoin = as(topN.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("salaryK")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("salaryK")));
         // Left
         var eval = as(inlineJoin.left(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("salaryK")));
@@ -5885,7 +5885,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
         var upperLimit = asLimit(project.child(), 1, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
@@ -5914,7 +5914,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
         var upperLimit = asLimit(project.child(), 1, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
@@ -6214,7 +6214,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
         assertThat(Expressions.name(order.child()), equalTo("abbrev"));
         var join = as(topN.child(), Join.class);
-        assertThat(Expressions.names(join.config().matchFields()), is(List.of("scalerank")));
+        assertThat(Expressions.names(join.config().leftFields()), is(List.of("scalerank")));
         var left = as(join.left(), EsRelation.class);
         assertThat(left.concreteIndices(), is(Set.of("airports")));
         var right = as(join.right(), EsRelation.class);
@@ -6249,7 +6249,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(esqlProject.projections()), is(List.of("avg", "emp_no", "first_name")));
         var upperLimit = asLimit(esqlProject.child(), 10, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
@@ -6840,7 +6840,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
         Attribute lhs = join.config().leftFields().get(0);
@@ -6929,7 +6929,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(left.child(), EsRelation.class);
 
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
         Attribute lhs = join.config().leftFields().get(0);

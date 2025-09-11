@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +33,7 @@ public class DeleteQueryRuleAction {
 
     private DeleteQueryRuleAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
         private final String rulesetId;
         private final String ruleId;
 
@@ -108,6 +108,7 @@ public class DeleteQueryRuleAction {
             false,
             (p) -> new Request((String) p[0], (String) p[1])
         );
+
         static {
             PARSER.declareString(constructorArg(), RULESET_ID_FIELD);
             PARSER.declareString(constructorArg(), RULE_ID_FIELD);

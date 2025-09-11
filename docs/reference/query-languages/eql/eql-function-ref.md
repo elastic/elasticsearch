@@ -219,7 +219,7 @@ Returns the quotient of a provided dividend and divisor.
 
 If both the dividend and divisor are integers, the `divide` function *rounds down* any returned floating point numbers to the nearest integer. To avoid rounding, convert either the dividend or divisor to a float.
 
-::::{dropdown} **Example**
+::::{dropdown} Example
 The `process.args_count` field is a [`long`](/reference/elasticsearch/mapping-reference/number.md) integer field containing a count of process arguments.
 
 A user might expect the following EQL query to only match events with a `process.args_count` value of `4`.

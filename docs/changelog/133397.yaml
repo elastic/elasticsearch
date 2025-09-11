@@ -1,0 +1,5 @@
+pr: 133397
+summary: Push down loading of singleton dense double based field types to the …
+area: "Codec"
+type: enhancement
+issues: []

@@ -223,12 +223,12 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             }
 
             if (updatedMetadata.isEmpty() == false || updatedDataStreams.isEmpty() == false) {
-                Metadata.Builder builder = Metadata.builder(initialState.metadata());
+                ProjectMetadata.Builder builder = ProjectMetadata.builder(initialState.metadata().getProject());
                 updatedMetadata.forEach(idxMeta -> builder.put(idxMeta, true));
                 updatedDataStreams.forEach(builder::put);
                 updatedBackingIndices.forEach(idxMeta -> builder.put(idxMeta, true));
 
-                return ClusterState.builder(initialState).metadata(builder).build();
+                return ClusterState.builder(initialState).putProjectMetadata(builder).build();
             }
             return initialState;
         }

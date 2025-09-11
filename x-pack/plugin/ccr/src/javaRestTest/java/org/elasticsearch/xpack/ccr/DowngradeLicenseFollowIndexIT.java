@@ -127,7 +127,7 @@ public class DowngradeLicenseFollowIndexIT extends AbstractCCRRestTestCase {
 
             // Index2 was created in leader cluster after the downgrade and therefor the auto follow coordinator in
             // follow cluster should not pick that index up:
-            assertThat(indexExists(index2), is(false));
+            assertThat(indexExists(adminClient(), index2), is(false));
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster
             assertBusy(() -> {

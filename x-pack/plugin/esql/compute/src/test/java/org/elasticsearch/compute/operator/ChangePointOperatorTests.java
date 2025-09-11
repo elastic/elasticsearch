@@ -19,9 +19,11 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ChangePointOperatorTests extends OperatorTestCase {
 
@@ -70,7 +72,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new ChangePointOperator.Factory(0, null, 0, 0);
     }
 
@@ -82,5 +84,10 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo("ChangePointOperator[channel=0]");
+    }
+
+    @Override
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertThat(map, nullValue());
     }
 }

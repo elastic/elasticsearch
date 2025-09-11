@@ -21,12 +21,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -68,6 +70,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -212,7 +215,7 @@ final class DefaultSearchContext extends SearchContext {
                     minimumDocsPerSlice
                 );
             }
-            releasables.addAll(List.of(engineSearcher, searcher));
+            closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;
             searchExecutionContext = indexService.newSearchExecutionContext(
@@ -861,8 +864,8 @@ final class DefaultSearchContext extends SearchContext {
         return queryResult;
     }
 
-    public void addQuerySearchResultReleasable(Releasable releasable) {
-        queryResult.addReleasable(releasable);
+    public void addAggregationContext(AggregationContext aggregationContext) {
+        queryResult.addAggregationContext(aggregationContext);
     }
 
     @Override
@@ -941,8 +944,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader() {
-        return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
+        return searchExecutionContext.newSourceLoader(filter, request.isForceSyntheticSource());
     }
 
     @Override

@@ -1,0 +1,129 @@
+ # Tests for cosine similarity function
+ 
+ similarityWithVectorField
+ required_capability: cosine_vector_similarity_function
+ 
+// tag::vector-cosine-similarity[]
+ from colors
+ | where color != "black" 
+ | eval similarity = v_cosine(rgb_vector, [0, 255, 255]) 
+ | sort similarity desc, color asc 
+// end::vector-cosine-similarity[]
+ | limit 10
+ | keep color, similarity
+ ;
+ 
+// tag::vector-cosine-similarity-result[]
+color:text     | similarity:double
+cyan           | 1.0
+teal           | 1.0
+turquoise      | 0.9890533685684204
+aqua marine    | 0.964962363243103
+azure          | 0.916246771812439
+lavender       | 0.9136701822280884
+mint cream     | 0.9122757911682129
+honeydew       | 0.9122424125671387
+gainsboro      | 0.9082483053207397
+gray           | 0.9082483053207397  
+// end::vector-cosine-similarity-result[] 
+;
+
+ similarityAsPartOfExpression
+ required_capability: cosine_vector_similarity_function
+ 
+ from colors
+ | where color != "black" 
+ | eval score = round((1 + v_cosine(rgb_vector, [0, 255, 255]) / 2), 3) 
+ | sort score desc, color asc 
+ | limit 10
+ | keep color, score
+ ;
+
+color:text   | score:double
+cyan         | 1.5
+teal         | 1.5
+turquoise    | 1.495
+aqua marine  | 1.482
+azure        | 1.458
+lavender     | 1.457
+honeydew     | 1.456
+mint cream   | 1.456
+gainsboro    | 1.454
+gray         | 1.454  
+;
+
+similarityWithLiteralVectors
+required_capability: cosine_vector_similarity_function
+ 
+row a = 1
+| eval similarity = round(v_cosine([1, 2, 3], [0, 1, 2]), 3) 
+| keep similarity
+;
+
+similarity:double
+0.978  
+;
+
+ similarityWithStats
+ required_capability: cosine_vector_similarity_function
+ 
+ from colors
+ | where color != "black" 
+ | eval similarity = round(v_cosine(rgb_vector, [0, 255, 255]), 3) 
+ | stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
+ ;
+
+avg:double | min:double | max:double
+0.832      | 0.5        | 1.0
+; 
+
+similarityWithNull
+required_capability: cosine_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
+
+from colors
+| eval similarity = v_cosine(rgb_vector, null) 
+| stats total_null = count(*) where similarity is null
+;
+
+total_null:long
+59
+;
+
+similarityWithRow
+required_capability: cosine_vector_similarity_function
+required_capability: to_dense_vector_function
+ 
+row vector = to_dense_vector([1, 2, 3]) 
+| eval similarity = round(v_cosine(vector, [0, 1, 2]), 3) 
+;
+
+vector: dense_vector | similarity:double
+[1.0, 2.0, 3.0]      | 0.978  
+;
+
+similarityWithVectorField
+required_capability: cosine_vector_similarity_function
+required_capability: to_dense_vector_function
+
+from colors
+| where color != "black" 
+| eval query = to_dense_vector([0, 255, 255])
+| eval similarity = v_cosine(rgb_vector, query) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text     | similarity:double
+cyan           | 1.0
+teal           | 1.0
+turquoise      | 0.9890533685684204
+aqua marine    | 0.964962363243103
+azure          | 0.916246771812439
+lavender       | 0.9136701822280884
+mint cream     | 0.9122757911682129
+honeydew       | 0.9122424125671387
+gainsboro      | 0.9082483053207397
+gray           | 0.9082483053207397  
+;

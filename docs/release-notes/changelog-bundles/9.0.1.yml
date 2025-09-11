@@ -1,0 +1,148 @@
+version: 9.0.1
+released: true
+generated: 2025-05-06T19:39:27.474912Z
+changelogs:
+  - pr: 125694
+    summary: LTR score bounding
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 125922
+    summary: Fix text structure NPE when fields in list have null value
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 126273
+    summary: Fix LTR rescorer with model alias
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 126310
+    summary: Add Issuer to failed SAML Signature validation logs when available
+    area: Security
+    type: enhancement
+    issues:
+      - 111022
+  - pr: 126342
+    summary: Enable sort optimization on float and `half_float`
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 126583
+    summary: Cancel expired async search task when a remote returns its results
+    area: CCS
+    type: bug
+    issues: []
+  - pr: 126605
+    summary: Fix equality bug in `WaitForIndexColorStep`
+    area: ILM+SLM
+    type: bug
+    issues: []
+  - pr: 126614
+    summary: Fix join masking eval
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 126637
+    summary: Improve resiliency of `UpdateTimeSeriesRangeService`
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 126686
+    summary: Fix race condition in `RestCancellableNodeClient`
+    area: Task Management
+    type: bug
+    issues:
+      - 88201
+  - pr: 126729
+    summary: Use terminal reader in keystore add command
+    area: Infra/CLI
+    type: bug
+    issues:
+      - 98115
+  - pr: 126778
+    summary: Fix bbq quantization algorithm but for differently distributed components
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 126783
+    summary: Fix shard size of initializing restored shard
+    area: Allocation
+    type: bug
+    issues:
+      - 105331
+  - pr: 126806
+    summary: Workaround max name limit imposed by Jackson 2.17
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 126850
+    summary: "[otel-data] Bump plugin version to release _metric_names_hash changes"
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 126852
+    summary: "Validation checks on paths allowed for 'files' entitlements. Restrict the paths we allow access to, forbidding plugins to specify/request entitlements for reading or writing to specific protected directories."
+    area: Infra/Core
+    type: enhancement
+    issues: []
+  - pr: 126858
+    summary: Leverage threadpool schedule for inference api to avoid long running thread
+    area: Machine Learning
+    type: bug
+    issues:
+      - 126853
+  - pr: 126884
+    summary: Rare terms aggregation false **positive** fix
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 126889
+    summary: Rework uniquify to not use iterators
+    area: Infra/Core
+    type: bug
+    issues:
+      - 126883
+  - pr: 126911
+    summary: Fix `vec_caps` to test for OS support too (on x64)
+    area: Vector Search
+    type: bug
+    issues:
+      - 126809
+  - pr: 126930
+    summary: Adding missing `onFailure` call for Inference API start model request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 126990
+    summary: "Fix: consider case sensitiveness differences in Windows/Unix-like filesystems for files entitlements"
+    area: Infra/Core
+    type: bug
+    issues:
+      - 127047
+  - pr: 127146
+    summary: Fix sneaky bug in single value query
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 127225
+    summary: Fix count optimization with pushable union types
+    area: ES|QL
+    type: bug
+    issues:
+      - 127200
+  - pr: 127353
+    summary: Updating tika to 2.9.3
+    area: Ingest Node
+    type: upgrade
+    issues: []
+  - pr: 127414
+    summary: Fix npe when using source confirmed text query against missing field
+    area: Search
+    type: bug
+    issues: []
+  - pr: 127527
+    summary: "No, line noise isn't a valid ip"
+    area: ES|QL
+    type: bug
+    issues: []

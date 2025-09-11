@@ -32,9 +32,12 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,7 +53,6 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.mockito.Mockito;
@@ -65,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -97,7 +100,15 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(fieldType.getEmbeddingsField().fullPath(), vector, 10, 10, null, null);
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            fieldType.getEmbeddingsField().fullPath(),
+            vector,
+            10,
+            10,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
         var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
@@ -138,7 +149,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             tokens,
             null,
             null,
-            null,
+            false,
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), sparseQuery, ScoreMode.Max);
@@ -167,6 +178,34 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             expectedOffsetPassages.length,
             HighlightBuilder.Order.NONE,
             expectedOffsetPassages
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNoSemanticField() throws Exception {
+        var mapperService = createDefaultMapperService(useLegacyFormat);
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("sparse_vector_1");
+        List<WeightedToken> tokens = readSparseVector(queryMap.get("embeddings"));
+        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_ELSER);
+        SparseVectorQueryBuilder sparseQuery = new SparseVectorQueryBuilder(
+            fieldType.getEmbeddingsField().fullPath(),
+            tokens,
+            null,
+            null,
+            false,
+            null
+        );
+        var query = new BoolQueryBuilder().should(sparseQuery).should(new MatchAllQueryBuilder());
+        var shardRequest = createShardSearchRequest(query);
+        var sourceToParse = new SourceToParse("0", new BytesArray("{}"), XContentType.JSON);
+        assertHighlightOneDoc(
+            mapperService,
+            shardRequest,
+            sourceToParse,
+            SEMANTIC_FIELD_ELSER,
+            10,
+            HighlightBuilder.Order.SCORE,
+            new String[0]
         );
     }
 
@@ -264,9 +303,13 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                             new HashMap<>()
                         );
                         var result = highlighter.highlight(context);
-                        assertThat(result.fragments().length, equalTo(expectedPassages.length));
-                        for (int i = 0; i < result.fragments().length; i++) {
-                            assertThat(result.fragments()[i].string(), equalTo(expectedPassages[i]));
+                        if (result == null) {
+                            assertThat(expectedPassages.length, equalTo(0));
+                        } else {
+                            assertThat(result.fragments().length, equalTo(expectedPassages.length));
+                            for (int i = 0; i < result.fragments().length; i++) {
+                                assertThat(result.fragments()[i].string(), equalTo(expectedPassages[i]));
+                            }
                         }
                     }
                 } finally {

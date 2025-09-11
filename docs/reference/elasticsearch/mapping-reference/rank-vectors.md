@@ -90,9 +90,9 @@ The `rank_vectors` field type supports the following parameters:
 $$$rank-vectors-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
+:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
 
-::::{dropdown} Valid values for `element_type`
+::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
 
@@ -108,16 +108,81 @@ $$$rank-vectors-element-type$$$
 `dims`
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
+## Accessing `dense_vector` fields in search responses
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
-## Synthetic `_source` [rank-vectors-synthetic-source]
+By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
+This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
+To retrieve vector values explicitly, you can use:
 
+* The `fields` option to request specific vector fields directly:
 
-`rank_vectors` fields support [synthetic `_source`](mapping-source-field.md#synthetic-source) .
+```console
+POST my-index-2/_search
+{
+  "fields": ["my_vector"]
+}
+```
 
+- The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
+
+```console
+POST my-index-2/_search
+{
+  "_source": {
+    "exclude_vectors": false
+  }
+}
+```
+
+### Storage behavior and `_source`
+
+By default, `rank_vectors` fields are not stored in `_source` on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
+This setting is enabled by default for newly created indices and can only be set at index creation time.
+
+When enabled:
+
+* `rank_vectors` fields are removed from `_source` and the rest of the `_source` is stored as usual.
+* If a request includes `_source` and vector values are needed (e.g., during recovery or reindex), the vectors are rehydrated from their internal format.
+
+This setting is compatible with synthetic `_source`, where the entire `_source` document is reconstructed from columnar storage. In full synthetic mode, no `_source` is stored on disk, and all fields — including vectors — are rebuilt when needed.
+
+### Rehydration and precision
+
+When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality.
+
+### Storing original vectors in `_source`
+
+If you want to preserve the original vector values exactly as they were provided, you can re-enable vector storage in `_source`:
+
+```console
+PUT my-index-include-vectors
+{
+  "settings": {
+    "index.mapping.exclude_source_vectors": false
+  },
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "rank_vectors",
+        "dims": 128
+      }
+    }
+  }
+}
+```
+
+When this setting is disabled:
+
+* `rank_vectors` fields are stored as part of the `_source`, exactly as indexed.
+* The index will store both the original `_source` value and the internal representation used for vector search, resulting in increased storage usage.
+* Vectors are once again returned in `_source` by default in all relevant APIs, with no need to use `exclude_vectors` or `fields`.
+
+This configuration is appropriate when full source fidelity is required, such as for auditing or round-tripping exact input values.
 
 ## Scoring with rank vectors [rank-vectors-scoring]
 

@@ -10,8 +10,10 @@
 package org.elasticsearch.entitlement.bridge;
 
 import java.util.Optional;
+import java.util.Set;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
+import static java.lang.StackWalker.Option.SHOW_HIDDEN_FRAMES;
 
 public class Util {
     /**
@@ -23,6 +25,8 @@ public class Util {
     public static final Class<?> NO_CLASS = new Object() {
     }.getClass();
 
+    private static final Set<String> skipInternalPackages = Set.of("java.lang.invoke", "java.lang.reflect", "jdk.internal.reflect");
+
     /**
      * Why would we write this instead of using {@link StackWalker#getCallerClass()}?
      * Because that method throws {@link IllegalCallerException} if called from the "outermost frame",
@@ -32,9 +36,10 @@ public class Util {
      */
     @SuppressWarnings("unused") // Called reflectively from InstrumenterImpl
     public static Class<?> getCallerClass() {
-        Optional<Class<?>> callerClassIfAny = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+        Optional<Class<?>> callerClassIfAny = StackWalker.getInstance(Set.of(RETAIN_CLASS_REFERENCE, SHOW_HIDDEN_FRAMES))
             .walk(
                 frames -> frames.skip(2) // Skip this method and its caller
+                    .filter(frame -> skipInternalPackages.contains(frame.getDeclaringClass().getPackageName()) == false)
                     .findFirst()
                     .map(StackWalker.StackFrame::getDeclaringClass)
             );

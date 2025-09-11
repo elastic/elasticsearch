@@ -7,7 +7,7 @@ mapped_pages:
 # Rare terms aggregation [search-aggregations-bucket-rare-terms-aggregation]
 
 
-A multi-bucket value source based aggregation which finds "rare" terms — terms that are at the long-tail of the distribution and are not frequent. Conceptually, this is like a `terms` aggregation that is sorted by `_count` ascending. As noted in the [terms aggregation docs](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order), actually ordering a `terms` agg by count ascending has unbounded error. Instead, you should use the `rare_terms` aggregation
+A multi-bucket value source based aggregation which finds "rare" terms — terms that are at the long-tail of the distribution and are not frequent. Conceptually, this is like a `terms` aggregation that is sorted by `_count` ascending. As noted in the [terms aggregation docs](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order), actually ordering a `terms` agg by count ascending has unbounded error. Instead, you should use the `rare_terms` aggregation
 
 ## Syntax [_syntax_3]
 
@@ -117,7 +117,7 @@ This does, however, mean that a large number of results can be returned if chose
 
 ## Max Bucket Limit [search-aggregations-bucket-rare-terms-aggregation-max-buckets]
 
-The Rare Terms aggregation is more liable to trip the `search.max_buckets` soft limit than other aggregations due to how it works. The `max_bucket` soft-limit is evaluated on a per-shard basis while the aggregation is collecting results. It is possible for a term to be "rare" on a shard but become "not rare" once all the shard results are merged together. This means that individual shards tend to collect more buckets than are truly rare, because they only have their own local view. This list is ultimately pruned to the correct, smaller list of rare terms on the coordinating node…​ but a shard may have already tripped the `max_buckets` soft limit and aborted the request.
+The Rare Terms aggregation is more liable to trip the `search.max_buckets` soft limit than other aggregations due to how it works. The `max_bucket` soft-limit is evaluated on a per-shard basis while the aggregation is collecting results. It is possible for a term to be "rare" on a shard but become "not rare" once all the shard results are merged together. This means that individual shards tend to collect more buckets than are truly rare, because they only have their own local view. This list is ultimately pruned to the correct, smaller list of rare terms on the coordinating node…  but a shard may have already tripped the `max_buckets` soft limit and aborted the request.
 
 When aggregating on fields that have potentially many "rare" terms, you may need to increase the `max_buckets` soft limit. Alternatively, you might need to find a way to filter the results to return fewer rare values (smaller time span, filter by category, etc), or re-evaluate your definition of "rare" (e.g. if something appears 100,000 times, is it truly "rare"?)
 

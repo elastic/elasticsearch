@@ -55,8 +55,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
@@ -77,7 +77,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     private TestThreadPool threadPool;
     private Executor executor = null;
-    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
     private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
@@ -95,9 +94,16 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                numThreads,
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
         );
-        executor = threadPool.executor(ESQL_TEST_EXECUTOR);
+        executor = threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
     }
 
     @After
@@ -300,13 +306,16 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     public void testLimitConcurrentNodes() {
-        var targetShards = List.of(
-            targetShard(shard1, node1),
-            targetShard(shard2, node2),
-            targetShard(shard3, node3),
-            targetShard(shard4, node4),
-            targetShard(shard5, node5)
-        );
+        final int shards = 10;
+        var targetShards = new ArrayList<DataNodeRequestSender.TargetShard>(shards);
+        for (int i = 0; i < shards; i++) {
+            targetShards.add(
+                targetShard(
+                    new ShardId("index", "n/a", i),
+                    DiscoveryNodeUtils.builder("node-" + i).roles(Set.of(DATA_HOT_NODE_ROLE)).build()
+                )
+            );
+        }
 
         var concurrency = randomIntBetween(1, 2);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
@@ -329,10 +338,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
             });
         }));
-        assertThat(sent.size(), equalTo(5));
+        assertThat(sent.size(), equalTo(shards));
         assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
-        assertThat(response.totalShards, equalTo(5));
-        assertThat(response.successfulShards, equalTo(5));
+        assertThat(response.totalShards, equalTo(shards));
+        assertThat(response.successfulShards, equalTo(shards));
         assertThat(response.failedShards, equalTo(0));
     }
 
@@ -450,6 +459,32 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(attempt.get(), equalTo(3));
     }
 
+    public void testRetryMultipleMovedShards() {
+        var attempt = new AtomicInteger(0);
+        var response = safeGet(
+            sendRequests(
+                randomBoolean(),
+                -1,
+                List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node3)),
+                shardIds -> shardIds.stream().collect(toMap(Function.identity(), shardId -> List.of(randomFrom(node1, node2, node3)))),
+                (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                    () -> listener.onResponse(
+                        attempt.incrementAndGet() <= 6
+                            ? new DataNodeComputeResponse(
+                                DriverCompletionInfo.EMPTY,
+                                shardIds.stream().collect(toMap(Function.identity(), ShardNotFoundException::new))
+                            )
+                            : new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
+                    )
+                )
+            )
+        );
+        assertThat(response.totalShards, equalTo(3));
+        assertThat(response.successfulShards, equalTo(3));
+        assertThat(response.skippedShards, equalTo(0));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
     public void testDoesNotRetryMovedShardIndefinitely() {
         var attempt = new AtomicInteger(0);
         var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), shardIds -> {
@@ -499,6 +534,46 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.failedShards, equalTo(0));
         assertThat(attempt.get(), equalTo(1));
         assertThat("Must retry only affected shards", resolvedShards, contains(shard2));
+    }
+
+    public void testRetryUnassignedShardWithoutPartialResults() {
+        var attempt = new AtomicInteger(0);
+        var future = sendRequests(false, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
+            attempt.incrementAndGet();
+            return Map.of(shard1, List.of());
+        },
+            (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                () -> listener.onResponse(
+                    Objects.equals(shardIds, List.of(shard2))
+                        ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
+                        : new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
+                )
+            )
+
+        );
+        expectThrows(NoShardAvailableActionException.class, containsString("no such shard"), future::actionGet);
+        assertThat(attempt.get(), equalTo(1));
+    }
+
+    public void testRetryUnassignedShardWithPartialResults() {
+        var attempt = new AtomicInteger(0);
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
+            attempt.incrementAndGet();
+            return Map.of(shard1, List.of());
+        },
+            (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                () -> listener.onResponse(
+                    Objects.equals(shardIds, List.of(shard2))
+                        ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
+                        : new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
+                )
+            )
+        ));
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.skippedShards, equalTo(0));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(attempt.get(), equalTo(1));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {
@@ -581,11 +656,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
                 runWithDelay(
                     () -> listener.onResponse(
-                        new TargetShards(
-                            shards.stream().collect(Collectors.toMap(TargetShard::shardId, Function.identity())),
-                            shards.size(),
-                            0
-                        )
+                        new TargetShards(shards.stream().collect(toMap(TargetShard::shardId, Function.identity())), shards.size(), 0)
                     )
                 );
             }

@@ -14,7 +14,8 @@ ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
 
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
-ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
+// explicit popMode of RP to allow ENRICH in FORK branches
+ENRICH_RP : RP -> type(RP), popMode, popMode;
 
 ENRICH_ON : ON -> type(ON), pushMode(ENRICH_FIELD_MODE);
 ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
@@ -22,7 +23,7 @@ ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
 fragment ENRICH_POLICY_NAME_BODY
-    : ~[\\/?"<>| ,#\t\r\n:]
+    : ~[\\/?"<>| ,#\t\r\n:()]
     ;
 
 ENRICH_POLICY_NAME
@@ -33,6 +34,8 @@ ENRICH_POLICY_NAME
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
+
+ENRICH_QUOTED_POLICY_NAME : QUOTED_STRING -> type(QUOTED_STRING);
 
 ENRICH_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -49,6 +52,9 @@ ENRICH_WS
 // submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+ENRICH_FIELD_RP : RP -> type(RP), popMode, popMode, popMode;
+ENRICH_FIELD_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
+ENRICH_FIELD_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
 ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
 ENRICH_FIELD_DOT: DOT -> type(DOT);
@@ -77,26 +83,5 @@ ENRICH_FIELD_MULTILINE_COMMENT
     ;
 
 ENRICH_FIELD_WS
-    : WS -> channel(HIDDEN)
-    ;
-
-mode SETTING_MODE;
-SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
-
-SETTING_COLON : COLON -> type(COLON);
-
-SETTING
-    : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+
-    ;
-
-SETTING_LINE_COMMENT
-    : LINE_COMMENT -> channel(HIDDEN)
-    ;
-
-SETTTING_MULTILINE_COMMENT
-    : MULTILINE_COMMENT -> channel(HIDDEN)
-    ;
-
-SETTING_WS
     : WS -> channel(HIDDEN)
     ;

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
@@ -21,6 +23,8 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public final class TestUtils {
     private TestUtils() {}
@@ -38,6 +42,10 @@ public final class TestUtils {
         if (value instanceof Literal) {
             return (Literal) value;
         }
+        DataType type = DataType.fromJava(value);
+        if ((type == TEXT || type == KEYWORD) && value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
+        }
         return new Literal(source, value, DataType.fromJava(value));
     }
 
@@ -46,7 +54,7 @@ public final class TestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean(), EsField.TimeSeriesFieldType.NONE));
     }
 
     public static FieldAttribute getFieldAttribute(String name) {
@@ -54,11 +62,26 @@ public final class TestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
-    /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */
+    /**
+     * Similar to {@link String#strip()}, but removes the WS throughout the entire string.
+     */
     public static String stripThrough(String input) {
         return WS_PATTERN.matcher(input).replaceAll(StringUtils.EMPTY);
+    }
+
+    /**
+     * Returns the input string, but with parts of it having the letter casing changed.
+     */
+    public static String randomCasing(String input) {
+        StringBuilder sb = new StringBuilder(input.length());
+        for (int i = 0, inputLen = input.length(), step = (int) Math.sqrt(inputLen); i < inputLen; i += step) {
+            var chunkEnd = Math.min(i + step, inputLen);
+            var chunk = input.substring(i, chunkEnd);
+            sb.append(randomBoolean() ? chunk.toLowerCase(Locale.ROOT) : chunk.toUpperCase(Locale.ROOT));
+        }
+        return sb.toString();
     }
 }

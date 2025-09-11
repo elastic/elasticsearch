@@ -207,18 +207,10 @@ def lon      = doc['location'].lon;
 
 ## Synthetic source [geo-point-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices
-(indices that have `index.mode` set to `time_series`). For other indices
-synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will work to fix
-any issues, but features in technical preview are not subject to the support SLA
-of official GA features.
-::::
-
-
 Synthetic source may sort `geo_point` fields (first by latitude and then
-longitude) and reduces them to their stored precision. For example:
+longitude) and reduces them to their stored precision. Additionally, unlike most
+types, arrays of `geo_point` fields will not preserve order if
+`synthetic_source_keep` is set to `arrays`. For example:
 
 $$$synthetic-source-geo-point-example$$$
 
@@ -236,15 +228,18 @@ PUT idx
   },
   "mappings": {
     "properties": {
-      "point": { "type": "geo_point" }
+      "point": {
+        "type": "geo_point",
+        "synthetic_source_keep": "arrays"
+      }
     }
   }
 }
 PUT idx/_doc/1
 {
   "point": [
-    {"lat":-90, "lon":-80},
-    {"lat":10, "lon":30}
+    {"lat":10, "lon":30},
+    {"lat":-90, "lon":-80}
   ]
 }
 ```

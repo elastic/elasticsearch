@@ -13,9 +13,8 @@ The following table lists all of the keywords that are reserved in Elasticsearch
 SELECT "AS" FROM index
 ```
 
-|     |     |     |
-| --- | --- | --- |
 | **Keyword** | **SQL:2016** | **SQL-92** |
+| --- | --- | --- |
 | `ALL` | reserved | reserved |
 | `AND` | reserved | reserved |
 | `ANY` | reserved | reserved |

@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
@@ -66,6 +67,78 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
         modelRegistry = getInstanceFromNode(ModelRegistry.class);
     }
 
+    public void testSecondAuthResultRevokesAuthorization() throws Exception {
+        var callbackCount = new AtomicInteger(0);
+        // we're only interested in two authorization calls which is why I'm using a value of 2 here
+        var latch = new CountDownLatch(2);
+        final AtomicReference<ElasticInferenceServiceAuthorizationHandler> handlerRef = new AtomicReference<>();
+
+        Runnable callback = () -> {
+            // the first authorization response contains a streaming task so we're expecting to support streaming here
+            if (callbackCount.incrementAndGet() == 1) {
+                assertThat(handlerRef.get().supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+            }
+            latch.countDown();
+
+            // we only want to run the tasks twice, so advance the time on the queue
+            // which flags the scheduled authorization request to be ready to run
+            if (callbackCount.get() == 1) {
+                taskQueue.advanceTime();
+            } else {
+                try {
+                    handlerRef.get().close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+        };
+
+        var requestHandler = mockAuthorizationRequestHandler(
+            ElasticInferenceServiceAuthorizationModel.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity(
+                    List.of(
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                            "rainbow-sprinkles",
+                            EnumSet.of(TaskType.CHAT_COMPLETION)
+                        )
+                    )
+                )
+            ),
+            ElasticInferenceServiceAuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntity(List.of()))
+        );
+
+        handlerRef.set(
+            new ElasticInferenceServiceAuthorizationHandler(
+                createWithEmptySettings(taskQueue.getThreadPool()),
+                modelRegistry,
+                requestHandler,
+                initDefaultEndpoints(),
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION),
+                null,
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                callback
+            )
+        );
+
+        var handler = handlerRef.get();
+        handler.init();
+        taskQueue.runAllRunnableTasks();
+        latch.await(Utils.TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
+        // this should be after we've received both authorization responses, the second response will revoke authorization
+
+        assertThat(handler.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+        assertThat(handler.defaultConfigIds(), is(List.of()));
+        assertThat(handler.supportedTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
+
+        PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+        handler.defaultConfigs(listener);
+
+        var configs = listener.actionGet();
+        assertThat(configs.size(), is(0));
+    }
+
     public void testSendsAnAuthorizationRequestTwice() throws Exception {
         var callbackCount = new AtomicInteger(0);
         // we're only interested in two authorization calls which is why I'm using a value of 2 here
@@ -103,6 +176,10 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
             ElasticInferenceServiceAuthorizationModel.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity(
                     List.of(
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                            "abc",
+                            EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                        ),
                         new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
                             "rainbow-sprinkles",
                             EnumSet.of(TaskType.CHAT_COMPLETION)
@@ -180,23 +257,24 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                     defaultEndpointId("rainbow-sprinkles"),
                     TaskType.CHAT_COMPLETION,
                     "test",
-                    new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles", null),
+                    new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles"),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE
                 ),
                 MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME)
             ),
-            "elser-v2",
+            "elser-2",
             new DefaultModelConfig(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
-                    defaultEndpointId("elser-v2"),
+                    defaultEndpointId("elser-2"),
                     TaskType.SPARSE_EMBEDDING,
                     "test",
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-2", null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
-                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
+                    ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
                 MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME)
             )

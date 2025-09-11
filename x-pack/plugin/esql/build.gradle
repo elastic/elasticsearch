@@ -35,11 +35,15 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  compileOnly project(path: xpackModule('downsample'))
   implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:h3")
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -53,6 +57,7 @@ dependencies {
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('kql'))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -66,6 +71,10 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
 def generatedPath = "src/main/generated"
@@ -87,37 +96,57 @@ interface Injected {
 }
 
 tasks.named("test").configure {
-  if (buildParams.ci == false) {
-    systemProperty 'generateDocs', true
-    def injected = project.objects.newInstance(Injected)
-    // Define the folder to delete and recreate
-    def tempDir = file("build/testrun/test/temp/esql")
-    def commandsExamplesFile = new File(tempDir, "commands.examples")
-    // Find all matching .md files for commands examples
-    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/esql/_snippets/commands/examples/") {
-      include("**/*.csv-spec/*.md")
-    }
-    doFirst {
-      injected.fs.delete {
-        it.delete(tempDir)
-      }
-      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
-      tempDir.mkdirs() // Recreate the folder
+  def injected = project.objects.newInstance(Injected)
+  // Define the folder to delete and recreate
+  def tempDir = file("build/testrun/test/temp/esql")
+  def commandsExamplesFile = new File(tempDir, "commands.examples")
+  // Find all matching .md files for commands examples
+  def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/esql/_snippets/commands/examples/") {
+    include("**/*.csv-spec/*.md")
+  }
+  def esqlDocFolder = file("${rootDir}/docs/reference/query-languages/esql").toPath()
+  def imagesDocFolder = file("${esqlDocFolder}/images")
+  def snippetsDocFolder = file("${esqlDocFolder}/_snippets")
+  def kibanaDocFolder = file("${esqlDocFolder}/kibana")
+  File imagesFolder = file("build/testrun/test/temp/esql/images")
+  File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
+  File kibanaFolder = file("build/testrun/test/temp/esql/kibana")
 
-      // Write directory name and filename of each .md file to the output file
-      commandsExamplesFile.withWriter { writer ->
-        mdFiles.each { file ->
-          writer.writeLine("${file.parentFile.name}/${file.name}")
-        }
-      }
-      println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
+  // BuildParams isn't available inside doFirst with --configuration-cache
+  def buildParams = buildParams
+  doFirst {
+    injected.fs.delete {
+      it.delete(tempDir)
     }
-    File imagesFolder = file("build/testrun/test/temp/esql/images")
-    File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
-    File kibanaFolder = file("build/testrun/test/temp/esql/kibana")
-    def imagesDocFolder = file("${rootDir}/docs/reference/query-languages/esql/images")
-    def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
-    def kibanaDocFolder = file("${rootDir}/docs/reference/query-languages/esql/kibana")
+    // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
+    tempDir.mkdirs() // Recreate the folder
+
+    // Write directory name and filename of each .md file to the output file
+    commandsExamplesFile.withWriter { writer ->
+      mdFiles.each { file ->
+        writer.writeLine("${file.parentFile.name}/${file.name}")
+      }
+    }
+    println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
+    if (buildParams.ci) {
+      injected.fs.sync {
+        from snippetsDocFolder
+        into snippetsFolder
+      }
+      injected.fs.sync {
+        from imagesDocFolder
+        into imagesFolder
+      }
+      injected.fs.sync {
+        from kibanaDocFolder
+        into kibanaFolder
+      }
+    }
+  }
+  if (buildParams.ci) {
+    systemProperty 'generateDocs', 'assert'
+  } else {
+    systemProperty 'generateDocs', 'write'
     def snippetsTree = fileTree(snippetsFolder).matching {
       include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
     }
@@ -219,6 +248,55 @@ tasks.named("test").configure {
   }
 }
 
+// This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
+// and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
+tasks.named("internalClusterTest").configure {
+  def injected = project.objects.newInstance(Injected)
+  File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
+  def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
+  if (buildParams.ci) {
+    systemProperty 'generateDocs', 'assert'
+    doFirst {
+      injected.fs.sync {
+        from snippetsDocFolder
+        into snippetsFolder
+      }
+    }
+  } else {
+    systemProperty 'generateDocs', 'write'
+    // Define the folder to delete and recreate
+    def tempDir = file("build/testrun/internalClusterTest/temp/esql")
+    doFirst {
+      injected.fs.delete {
+        it.delete(tempDir)
+      }
+      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
+      tempDir.mkdirs() // Recreate the folder
+    }
+    def snippetsTree = fileTree(snippetsFolder).matching {
+      include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
+
+    doLast {
+      def snippets = snippetsTree.files.collect { it.name }
+      int countSnippets = snippets.size()
+      if (countSnippets == 0) {
+        logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
+      } else {
+        logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets to patch into docs")
+        injected.fs.sync {
+          from snippetsFolder
+          into snippetsDocFolder
+          include '**/*.md'
+          preserve {
+            include '**/*.md'
+          }
+        }
+      }
+    }
+  }
+}
+
 /****************************************************************
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
@@ -250,6 +328,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
+      toggleOffOn('begin generated imports', 'end generated imports')
     }
   }
 }
@@ -446,5 +525,22 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+
+  File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }

@@ -84,6 +84,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`network_direction` processor](/reference/enrich-processor/network-direction-processor.md)
 :   Calculates the network direction given a source IP address, destination IP address, and a list of internal networks.
 
+[`normalize_for_stream` processor](/reference/enrich-processor/normalize-for-stream.md) {applies_to}`stack: preview 9.1`
+:   Normalizes non-OpenTelemetry documents to be OpenTelemetry-compliant.
+
 [`registered_domain` processor](/reference/enrich-processor/registered-domain-processor.md)
 :   Extracts the registered domain (also known as the effective top-level domain or eTLD), sub-domain, and top-level domain from a fully qualified domain name (FQDN).
 
@@ -152,6 +155,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 
 [`lowercase` processor](/reference/enrich-processor/lowercase-processor.md) and [`uppercase` processor](/reference/enrich-processor/uppercase-processor.md)
 :   Converts a string field to lowercase or uppercase.
+
+[`recover_failure_document` processor](/reference/enrich-processor/recover-failure-document-processor.md)
+:   Converts a failure-store document to its original format.
 
 [`split` processor](/reference/enrich-processor/split-processor.md)
 :   Splits a field into an array of values.

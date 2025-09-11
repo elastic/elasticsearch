@@ -28,6 +28,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -117,7 +118,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     private static final String SUM_AGG_NAME = "sumAgg";
     private static final String INVERSE_SCRIPT = "inverse";
 
-    private static final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private static final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+        SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+    );
 
     /**
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
@@ -134,7 +137,13 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testNoDocs() throws IOException {
@@ -308,7 +317,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     public void testResetRootDocId() throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig(null).setMergePolicy(new LogDocMergePolicy());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+            randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values())
+        );
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, iwc)) {
                 List<Iterable<IndexableField>> documents = new ArrayList<>();

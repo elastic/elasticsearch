@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.planner.premapper;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+
+import java.util.concurrent.Executor;
 
 /**
  * The class is responsible for invoking any premapping steps that need to be applied to the logical plan,
@@ -19,9 +23,11 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 public class PreMapper {
 
     private final TransportActionServices services;
+    private final Executor searchExecutor;
 
     public PreMapper(TransportActionServices services) {
         this.services = services;
+        this.searchExecutor = services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH);
     }
 
     /**
@@ -35,6 +41,9 @@ public class PreMapper {
     }
 
     private void queryRewrite(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        QueryBuilderResolver.resolveQueryBuilders(plan, services, listener);
+        // see https://github.com/elastic/elasticsearch/issues/133312
+        // ThreadedActionListener might be removed if above issue is resolved
+        SubscribableListener.<LogicalPlan>newForked(l -> QueryBuilderResolver.resolveQueryBuilders(plan, services, l))
+            .addListener(listener, searchExecutor, null);
     }
 }

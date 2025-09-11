@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +29,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -74,6 +79,11 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         plugins.add(FailingFieldPlugin.class);
         plugins.add(CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false).build();
     }
 
     public static class InternalExchangePlugin extends Plugin {
@@ -129,6 +139,15 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         assertThat(cluster.getSkippedShards(), equalTo(0));
         assertThat(cluster.getFailedShards(), equalTo(0));
         assertThat(cluster.getFailures().size(), equalTo(0));
+    }
+
+    protected void assertClusterInfoSkipped(EsqlExecutionInfo.Cluster cluster) {
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(cluster.getTotalShards(), equalTo(0));
+        assertThat(cluster.getSuccessfulShards(), equalTo(0));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(0));
     }
 
     protected static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta, int numClusters) {
@@ -249,7 +268,7 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         bulk.get();
     }
 
-    protected void populateRemoteIndices(String clusterAlias, String indexName, int numShards) throws IOException {
+    protected void populateRemoteIndices(String clusterAlias, String indexName, int numShards) {
         Client remoteClient = client(clusterAlias);
         assertAcked(
             remoteClient.admin()
@@ -262,6 +281,36 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
             remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
         }
         remoteClient.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs, String keyType) {
+        Client client = client(clusterAlias);
+        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        String field_tag = Strings.isEmpty(clusterAlias) ? "local_tag" : "remote_tag";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.mode", "lookup"))
+                .setMapping(
+                    "lookup_key",
+                    "type=" + keyType,
+                    "lookup_name",
+                    "type=keyword",
+                    "lookup_tag",
+                    "type=keyword",
+                    field_tag,
+                    "type=keyword"
+                )
+        );
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs) {
+        populateLookupIndex(clusterAlias, indexName, numDocs, "long");
     }
 
     protected void setSkipUnavailable(String clusterAlias, boolean skip) {
@@ -307,5 +356,15 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
 
     static List<TaskInfo> getDriverTasks(Client client) {
         return client.admin().cluster().prepareListTasks().setActions(DriverTaskRunner.ACTION_NAME).setDetailed(true).get().getTasks();
+    }
+
+    protected static Exception randomFailure() {
+        return randomFrom(
+            new IllegalStateException("driver was closed already"),
+            new CircuitBreakingException("low memory", CircuitBreaker.Durability.PERMANENT),
+            new IOException("broken disk"),
+            new ResourceNotFoundException("exchange sink was not found"),
+            new EsRejectedExecutionException("node is shutting down")
+        );
     }
 }

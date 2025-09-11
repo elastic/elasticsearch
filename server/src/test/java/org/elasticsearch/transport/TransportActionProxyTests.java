@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -58,7 +57,7 @@ public class TransportActionProxyTests extends ESTestCase {
         IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
-    protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
+    protected static final TransportVersion transportVersion0 = TransportVersion.minimumCompatible();
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
@@ -257,7 +256,7 @@ public class TransportActionProxyTests extends ESTestCase {
             );
             latch.await();
             assertThat(responses, hasSize(1));
-            assertThat(responses.get(0), instanceOf(TransportActionProxy.BytesTransportResponse.class));
+            assertThat(responses.get(0), instanceOf(BytesTransportResponse.class));
             serviceB.clearAllRules();
         }
     }

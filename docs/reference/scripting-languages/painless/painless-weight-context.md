@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-weight-context.html
+products:
+  - id: painless
 ---
 
 # Weight context [painless-weight-context]

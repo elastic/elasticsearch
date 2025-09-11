@@ -22,17 +22,23 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,6 +91,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
@@ -161,6 +168,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -170,6 +178,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -722,8 +731,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testShouldForkRoleBuilding() {
+        final ClusterService clusterService = mock(ClusterService.class);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            clusterService,
             mock(RoleProviders.class),
             mock(NativePrivilegeStore.class),
             new ThreadContext(SECURITY_ENABLED_SETTINGS),
@@ -799,6 +810,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            mock(ClusterService.class),
             roleProviders,
             mock(NativePrivilegeStore.class),
             new ThreadContext(SECURITY_ENABLED_SETTINGS),
@@ -908,6 +920,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -2088,6 +2101,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             : Map.of("custom", List.of(inMemoryProvider1), "failing", List.of(failingProvider));
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -2155,6 +2169,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             Settings.EMPTY,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -2231,6 +2246,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             Settings.EMPTY,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -2280,6 +2296,90 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
 
+    public void testCacheCleanupOnProjectDeletion() throws Exception {
+        final ClusterService clusterService = mock(ClusterService.class);
+
+        final AtomicReference<ClusterStateListener> listener = new AtomicReference<>();
+        doAnswer(inv -> {
+            assertThat(inv.getArguments(), Matchers.arrayWithSize(1));
+            assertThat(listener.get(), nullValue());
+            listener.set(inv.getArgument(0));
+            return null;
+        }).when(clusterService).addListener(any(ClusterStateListener.class));
+
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(randomAlphaOfLengthBetween(4, 12), new String[] { "all" }, null, null);
+
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Set.of(roleDescriptor));
+
+        final AtomicReference<ProjectId> projectId = new AtomicReference<>(ProjectId.DEFAULT);
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId::get);
+
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            clusterService,
+            fileRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            projectResolver
+        );
+
+        assertThat(listener.get(), notNullValue());
+
+        final ProjectId project1 = randomUniqueProjectId();
+        projectId.set(project1);
+
+        final var user = new User(randomIdentifier(), roleDescriptor.getName());
+        final var subject = new Subject(user, new RealmRef("name", "type", "node"));
+        final var future = new PlainActionFuture<Role>();
+        compositeRolesStore.getRole(subject, future);
+
+        final Role role = future.get();
+        assertThat(role, instanceOf(SimpleRole.class));
+        assertThat(role.names(), arrayContaining(roleDescriptor.getName()));
+
+        var cached1 = Iterators.toList(compositeRolesStore.cachedRoles().iterator());
+        assertThat(cached1, hasSize(1));
+        assertThat(cached1.getFirst().projectId(), equalTo(project1));
+        assertThat(cached1.getFirst().value().getNames(), contains(roleDescriptor.getName()));
+
+        final ProjectId project2 = randomUniqueProjectId();
+        projectId.set(project2);
+        compositeRolesStore.getRole(subject, future);
+
+        var cached2 = new ArrayList<>(Iterators.toList(compositeRolesStore.cachedRoles().iterator()));
+        assertThat(cached2, hasSize(2));
+        assertThat(cached2.removeAll(cached1), is(true));
+        assertThat(cached2, hasSize(1));
+        assertThat(cached2.getFirst().projectId(), equalTo(project2));
+        assertThat(cached2.getFirst().value().getNames(), contains(roleDescriptor.getName()));
+
+        final ClusterState csBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(project1).build())
+            .putProjectMetadata(ProjectMetadata.builder(project2).build())
+            .build();
+
+        final ClusterState csAfter = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(project2).build())
+            .build();
+
+        listener.get().clusterChanged(new ClusterChangedEvent(getTestName(), csAfter, csBefore));
+
+        var cached3 = Iterators.toList(compositeRolesStore.cachedRoles().iterator());
+        assertThat(cached3, hasSize(1));
+        assertThat(cached3.getFirst(), is(cached2.getFirst()));
+    }
+
     public void testCacheClearOnIndexOutOfDateChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
@@ -2291,6 +2391,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -2909,6 +3010,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             settings,
+            mock(ClusterService.class),
             buildRolesProvider(null, null, null, null, licenseState),
             privilegeStore,
             threadContext,
@@ -3024,6 +3126,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             settings,
+            mock(ClusterService.class),
             buildRolesProvider(null, null, null, null, licenseState),
             privilegeStore,
             threadContext,
@@ -3261,6 +3364,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             Settings.EMPTY,
+            null,
             null,
             nativeRolesStore,
             null,
@@ -3718,6 +3822,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     ) {
         return buildCompositeRolesStore(
             settings,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -3736,6 +3841,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private CompositeRolesStore buildCompositeRolesStore(
         Settings settings,
+        @Nullable ClusterService clusterService,
         @Nullable FileRolesStore fileRolesStore,
         @Nullable NativeRolesStore nativeRolesStore,
         @Nullable ReservedRolesStore reservedRolesStore,
@@ -3750,6 +3856,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Nullable WorkflowService workflowService,
         @Nullable ProjectResolver projectResolver
     ) {
+        if (clusterService == null) {
+            clusterService = mock(ClusterService.class);
+        }
+
         if (licenseState == null) {
             licenseState = new XPackLicenseState(() -> 0);
         }
@@ -3793,6 +3903,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         return new CompositeRolesStore(
             settings,
+            clusterService,
             roleProviders,
             privilegeStore,
             new ThreadContext(settings),
@@ -3861,7 +3972,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private DocumentSubsetBitsetCache buildBitsetCache() {
-        return new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class));
+        return new DocumentSubsetBitsetCache(Settings.EMPTY);
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {

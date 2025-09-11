@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -45,8 +46,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
@@ -158,9 +157,9 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     // CopyPart is UploadPart with an x-amz-copy-source header
-                    final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
-                    if (sourceBlobName != null) {
-                        var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                    final var copySource = copySourceName(exchange);
+                    if (copySource != null) {
+                        var sourceBlob = blobs.get(copySource);
                         if (sourceBlob == null) {
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         } else {
@@ -230,10 +229,10 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isPutObjectRequest()) {
-                // a copy request is a put request with a copy source header
-                final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
-                if (sourceBlobName != null) {
-                    var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                // a copy request is a put request with an X-amz-copy-source header
+                final var copySource = copySourceName(exchange);
+                if (copySource != null) {
+                    var sourceBlob = blobs.get(copySource);
                     if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
@@ -471,7 +470,7 @@ public class S3HttpHandler implements HttpHandler {
 
     static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {
         try {
-            final var document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
+            final var document = XmlUtils.getHardenedBuilderFactory().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
             final var parts = document.getElementsByTagName("Part");
             final var result = new ArrayList<String>(parts.getLength());
             for (int partIndex = 0; partIndex < parts.getLength(); partIndex++) {
@@ -511,6 +510,21 @@ public class S3HttpHandler implements HttpHandler {
             return result;
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
+        }
+    }
+
+    @Nullable // if no X-amz-copy-source header present
+    private static String copySourceName(final HttpExchange exchange) {
+        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        if (copySources != null) {
+            if (copySources.size() != 1) {
+                throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
+            }
+            final var copySource = copySources.get(0);
+            // SDKv1 uses format /bucket/path/blob whereas SDKv2 omits the leading / so we must add it back in
+            return copySource.length() > 0 && copySource.charAt(0) == '/' ? copySource : ("/" + copySource);
+        } else {
+            return null;
         }
     }
 

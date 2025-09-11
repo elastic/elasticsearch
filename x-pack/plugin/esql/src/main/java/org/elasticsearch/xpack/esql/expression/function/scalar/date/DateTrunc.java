@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 
 public class DateTrunc extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -59,7 +59,6 @@ public class DateTrunc extends EsqlScalarFunction {
     );
     private final Expression interval;
     private final Expression timestampField;
-    protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
@@ -67,8 +66,9 @@ public class DateTrunc extends EsqlScalarFunction {
         examples = {
             @Example(file = "date", tag = "docsDateTrunc"),
             @Example(
-                description = "Combine `DATE_TRUNC` with <<esql-stats-by>> to create date histograms. For\n"
-                    + "example, the number of hires per year:",
+                description = "Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/commands/stats-by.md) "
+                    + "to create date histograms. "
+                    + "For example, the number of hires per year:",
                 file = "date",
                 tag = "docsDateTruncHistogram"
             ),
@@ -106,11 +106,11 @@ public class DateTrunc extends EsqlScalarFunction {
         return ENTRY.name;
     }
 
-    Expression interval() {
+    public Expression interval() {
         return interval;
     }
 
-    Expression field() {
+    public Expression field() {
         return timestampField;
     }
 
@@ -163,14 +163,23 @@ public class DateTrunc extends EsqlScalarFunction {
 
     public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone) {
         if (interval instanceof Period period) {
-            return createRounding(period, timeZone);
+            return createRounding(period, timeZone, null, null);
         } else if (interval instanceof Duration duration) {
-            return createRounding(duration, timeZone);
+            return createRounding(duration, timeZone, null, null);
         }
         throw new IllegalArgumentException("Time interval is not supported");
     }
 
-    private static Rounding.Prepared createRounding(final Period period, final ZoneId timeZone) {
+    public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max) {
+        if (interval instanceof Period period) {
+            return createRounding(period, timeZone, min, max);
+        } else if (interval instanceof Duration duration) {
+            return createRounding(duration, timeZone, min, max);
+        }
+        throw new IllegalArgumentException("Time interval is not supported");
+    }
+
+    private static Rounding.Prepared createRounding(final Period period, final ZoneId timeZone, Long min, Long max) {
         // Zero or negative intervals are not supported
         if (period == null || period.isNegative() || period.isZero()) {
             throw new IllegalArgumentException("Zero or negative time interval is not supported");
@@ -182,6 +191,7 @@ public class DateTrunc extends EsqlScalarFunction {
         }
 
         final Rounding.Builder rounding;
+        boolean tryPrepareWithMinMax = true;
         if (period.getDays() == 1) {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.DAY_OF_MONTH);
         } else if (period.getDays() == 7) {
@@ -190,23 +200,35 @@ public class DateTrunc extends EsqlScalarFunction {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
         } else if (period.getDays() > 1) {
             rounding = new Rounding.Builder(new TimeValue(period.getDays(), TimeUnit.DAYS));
+            tryPrepareWithMinMax = false;
         } else if (period.getMonths() == 3) {
             // java.time.Period does not have a QUARTERLY period, so a period of 3 months
             // returns a quarterly rounding
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR);
+        } else if (period.getMonths() == 1) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR);
         } else if (period.getMonths() > 0) {
-            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR, period.getMonths());
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR, period.getMonths());
+            tryPrepareWithMinMax = false;
+        } else if (period.getYears() == 1) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
         } else if (period.getYears() > 0) {
-            rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY, period.getYears());
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY, period.getYears());
+            tryPrepareWithMinMax = false;
         } else {
             throw new IllegalArgumentException("Time interval is not supported");
         }
 
         rounding.timeZone(timeZone);
+        if (min != null && max != null && tryPrepareWithMinMax) {
+            // Multiple quantities calendar interval - day/week/month/quarter/year is not supported by PreparedRounding.maybeUseArray,
+            // which is called by prepare(min, max), as it may hit an assert. Call prepare(min, max) only for single calendar interval.
+            return rounding.build().prepare(min, max);
+        }
         return rounding.build().prepareForUnknown();
     }
 
-    private static Rounding.Prepared createRounding(final Duration duration, final ZoneId timeZone) {
+    private static Rounding.Prepared createRounding(final Duration duration, final ZoneId timeZone, Long min, Long max) {
         // Zero or negative intervals are not supported
         if (duration == null || duration.isNegative() || duration.isZero()) {
             throw new IllegalArgumentException("Zero or negative time interval is not supported");
@@ -214,6 +236,9 @@ public class DateTrunc extends EsqlScalarFunction {
 
         final Rounding.Builder rounding = new Rounding.Builder(TimeValue.timeValueMillis(duration.toMillis()));
         rounding.timeZone(timeZone);
+        if (min != null && max != null) {
+            return rounding.build().prepare(min, max);
+        }
         return rounding.build().prepareForUnknown();
     }
 

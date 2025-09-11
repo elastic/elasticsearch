@@ -97,114 +97,53 @@ public class FiltersIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    // This test replicates a strange filter query & filters aggregation behavior
-    // we apparently utilize competitive iterators strangely.
-    // See: https://github.com/elastic/elasticsearch/issues/126955
     public void testSimpleWithFilterQuery() throws Exception {
         createIndex("filters_idx");
-        String groupFieldName = "group";
-        String subGroupFieldName = "subGroup";
+        String fieldAName = "fieldA";
+        String fieldBName = "fieldB";
 
-        int numTotalGroup0 = 500;
-        String group0Name = "group0";
+        int totalItems = 1024;
 
-        int numTotalGroup1 = 1000;
-        String group1Name = "group1";
-
-        int subGroup0 = 100;
-        String subGroup0Name = "subGroup0";
-
-        int subGroup1 = 50;
-        String subGroup1Name = "subGroup1";
-
-        int subGroup2 = 25;
-        String subGroup2Name = "subGroup2";
-        int others = 10;
-        String otherName = "others";
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < numTotalGroup0; i++) {
-            for (int j = 0; j < subGroup0; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group0Name)
-                    .field(subGroupFieldName, subGroup0Name)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-            for (int j = 0; j < subGroup1; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group0Name)
-                    .field(subGroupFieldName, subGroup1Name)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-            for (int j = 0; j < subGroup2; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group0Name)
-                    .field(subGroupFieldName, subGroup2Name)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-            for (int j = 0; j < others; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group0Name)
-                    .field(subGroupFieldName, otherName)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
+        for (int i = 0; i < totalItems; i++) {
+            XContentBuilder source = jsonBuilder().startObject().field(fieldAName, "0").field(fieldBName, "" + i % 2).endObject();
+            builders.add(prepareIndex("filters_idx").setId("" + i).setSource(source));
         }
-        for (int i = 0; i < numTotalGroup1; i++) {
-            for (int j = 0; j < subGroup0; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group1Name)
-                    .field(subGroupFieldName, subGroup0Name)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-            for (int j = 0; j < subGroup1; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group1Name)
-                    .field(subGroupFieldName, subGroup1Name)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-            for (int j = 0; j < subGroup2; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group1Name)
-                    .field(subGroupFieldName, subGroup2Name)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-            for (int j = 0; j < others; j++) {
-                XContentBuilder source = jsonBuilder().startObject()
-                    .field(groupFieldName, group1Name)
-                    .field(subGroupFieldName, otherName)
-                    .endObject();
-                builders.add(prepareIndex("filters_idx").setSource(source));
-            }
-        }
-        indexRandom(true, false, true, builders);
+        indexRandom(true, builders);
         ensureSearchable();
         assertNoFailuresAndResponse(
             prepareSearch("filters_idx").setSize(0)
                 .setRequestCache(false)
                 .setTrackTotalHits(true)
-                .setQuery(boolQuery().filter(termQuery(groupFieldName + ".keyword", group0Name)))
+                .setQuery(boolQuery().filter(termsQuery(fieldAName + ".keyword", "0")))
                 .addAggregation(
                     filters(
                         "results",
-                        new KeyedFilter(subGroup0Name, termsQuery(subGroupFieldName + ".keyword", subGroup0Name)),
-                        new KeyedFilter(subGroup1Name, termsQuery(subGroupFieldName + ".keyword", subGroup1Name)),
-                        new KeyedFilter(subGroup2Name, termsQuery(subGroupFieldName + ".keyword", subGroup2Name))
-                        // This is key
+                        new KeyedFilter("zero", termQuery(fieldBName + ".keyword", "0")),
+                        new KeyedFilter("one", termQuery(fieldBName + ".keyword", "1"))
                     ).otherBucket(false)
                 ),
             searchResponse -> {
                 Filters filters = searchResponse.getAggregations().get("results");
                 assertThat(filters, notNullValue());
                 assertThat(filters.getName(), equalTo("results"));
-                Filters.Bucket bucket = filters.getBucketByKey(subGroup0Name);
-                assertThat(bucket, Matchers.notNullValue());
-                assertThat(bucket.getDocCount(), equalTo((long) subGroup0 * numTotalGroup0));
+                assertThat(filters.getBuckets().size(), equalTo(2));
+                assertThat(filters.getBucketByKey("zero").getDocCount(), equalTo(512L));
+                assertThat(filters.getBucketByKey("one").getDocCount(), equalTo(512L));
+            }
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("filters_idx").setSize(0)
+                .setRequestCache(false)
+                .setTrackTotalHits(true)
+                .setQuery(boolQuery().filter(termsQuery(fieldAName + ".keyword", "0")))
+                .addAggregation(filters("results", new KeyedFilter("one", termQuery(fieldBName + ".keyword", "1"))).otherBucket(false)),
+            searchResponse -> {
+                Filters filters = searchResponse.getAggregations().get("results");
+                assertThat(filters, notNullValue());
+                assertThat(filters.getName(), equalTo("results"));
+                assertThat(filters.getBuckets().size(), equalTo(1));
+                assertThat(filters.getBucketByKey("one").getDocCount(), equalTo(512L));
             }
         );
     }

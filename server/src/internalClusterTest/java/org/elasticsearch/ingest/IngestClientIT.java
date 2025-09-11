@@ -322,8 +322,8 @@ public class IngestClientIT extends ESIntegTestCase {
             client().index(indexRequest).get();
         });
         IngestProcessorException ingestException = (IngestProcessorException) e.getCause();
-        assertThat(ingestException.getHeader("processor_type"), equalTo(List.of("fail")));
-        assertThat(ingestException.getHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
+        assertThat(ingestException.getBodyHeader("processor_type"), equalTo(List.of("fail")));
+        assertThat(ingestException.getBodyHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
     }
 
     public void testPipelineProcessorOnFailure() throws Exception {

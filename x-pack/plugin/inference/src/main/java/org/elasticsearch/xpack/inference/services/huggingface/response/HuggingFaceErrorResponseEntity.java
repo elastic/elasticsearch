@@ -21,6 +21,9 @@ public class HuggingFaceErrorResponseEntity extends ErrorResponse {
     }
 
     /**
+     * Represents a structured error response specifically for non-streaming operations
+     * using HuggingFace APIs. This is separate from streaming error responses,
+     * which are handled by private nested HuggingFaceChatCompletionResponseHandler.StreamingHuggingFaceErrorResponseEntity.
      * An example error response for invalid auth would look like
      * <code>
      *     {

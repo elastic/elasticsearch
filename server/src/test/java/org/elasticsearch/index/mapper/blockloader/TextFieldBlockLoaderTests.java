@@ -25,16 +25,23 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
         super(FieldType.TEXT.toString(), params);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        logger.info("field mapping={}", fieldMapping);
+        logger.info("value={}", value);
+        logger.info("params={}", params.toString());
+        return expectedValue(fieldMapping, value, params, testContext);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         if (fieldMapping.getOrDefault("store", false).equals(true)) {
             return valuesInSourceOrder(value);
         }
 
         var fields = (Map<String, Object>) fieldMapping.get("fields");
         if (fields != null) {
-            var keywordMultiFieldMapping = (Map<String, Object>) fields.get("kwd");
+            var keywordMultiFieldMapping = (Map<String, Object>) fields.get("subfield_keyword");
             Object normalizer = fields.get("normalizer");
             boolean docValues = hasDocValues(keywordMultiFieldMapping, true);
             boolean store = keywordMultiFieldMapping.getOrDefault("store", false).equals(true);
@@ -58,15 +65,8 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             if (params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false && usingSyntheticSourceDelegate) {
                 var nullValue = (String) keywordMultiFieldMapping.get("null_value");
 
-                // Due to how TextFieldMapper#blockReaderDisiLookup works this is complicated.
-                // If we are using lookupMatchingAll() then we'll see all docs, generate synthetic source using syntheticSourceDelegate,
-                // parse it and see null_value inside.
-                // But if we are using lookupFromNorms() we will skip the document (since the text field itself does not exist).
-                // Same goes for lookupFromFieldNames().
-                boolean textFieldIndexed = (boolean) fieldMapping.getOrDefault("index", true);
-
                 if (value == null) {
-                    if (textFieldIndexed == false && nullValue != null && nullValue.length() <= (int) ignoreAbove) {
+                    if (nullValue != null && nullValue.length() <= (int) ignoreAbove) {
                         return new BytesRef(nullValue);
                     }
 
@@ -78,12 +78,6 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                 }
 
                 var values = (List<String>) value;
-
-                // See note above about TextFieldMapper#blockReaderDisiLookup.
-                if (textFieldIndexed && values.stream().allMatch(Objects::isNull)) {
-                    return null;
-                }
-
                 var indexed = values.stream()
                     .map(s -> s == null ? nullValue : s)
                     .filter(Objects::nonNull)
@@ -91,7 +85,8 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     .map(BytesRef::new)
                     .collect(Collectors.toList());
 
-                if (store == false) {
+                String ssk = (String) keywordMultiFieldMapping.get("synthetic_source_keep");
+                if (store == false && "arrays".equals(ssk) == false) {
                     // using doc_values for synthetic source
                     indexed = new ArrayList<>(new HashSet<>(indexed));
                     indexed.sort(BytesRef::compareTo);
@@ -116,7 +111,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Object valuesInSourceOrder(Object value) {
+    private static Object valuesInSourceOrder(Object value) {
         if (value == null) {
             return null;
         }

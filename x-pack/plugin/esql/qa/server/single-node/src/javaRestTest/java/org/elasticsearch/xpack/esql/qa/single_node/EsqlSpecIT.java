@@ -9,32 +9,35 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.Before;
 import org.junit.ClassRule;
+
+import java.io.IOException;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        spec -> spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG") // So we log a profile
+    );
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    public EsqlSpecIT(
-        String fileName,
-        String groupName,
-        String testName,
-        Integer lineNumber,
-        CsvTestCase testCase,
-        String instructions,
-        Mode mode
-    ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override
@@ -46,5 +49,15 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return cluster.getNumNodes() == 1;
+    }
+
+    @Before
+    public void configureChunks() throws IOException {
+        boolean smallChunks = randomBoolean();
+        Request request = new Request("PUT", "/_cluster/settings");
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject().startObject("persistent");
+        builder.field(PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getKey(), smallChunks ? "1kb" : null);
+        request.setJsonEntity(Strings.toString(builder.endObject().endObject()));
+        assertOK(client().performRequest(request));
     }
 }

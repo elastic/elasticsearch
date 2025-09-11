@@ -286,14 +286,13 @@ median_duration:double | bucket:date
 
 bucketByTimeDuration#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
 | SORT min
 ;
 
-          min:date      |          max:date      |         bucket:date
-2023-10-23T12:27:28.948Z|2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
-2023-10-23T13:55:01.543Z|2023-10-23T13:55:01.543Z|2023-10-23T13:30:00.000Z
-
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:30:00.000Z
 ;
 
 aggByTimeDuratinBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]
@@ -849,4 +848,143 @@ c:long | b:date
 15     | 1987-09-01T00:00:00.000Z
 11     | 1984-05-01T00:00:00.000Z
 11     | 1991-01-01T00:00:00.000Z
+;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| STATS c = count(emp_no), b = BUCKET(hire_date, "1 year") + 1 year BY yr = BUCKET(hire_date, "1 year")
+| SORT yr
+| LIMIT 5
+;
+
+c:long | b:datetime               | yr:datetime
+11     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+11     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+15     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+9      | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+13     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| STATS c = count(emp_no), b = yr + 1 year BY yr = BUCKET(hire_date, "1 year")
+| SORT yr
+| LIMIT 5
+;
+
+c:long | b:datetime               | yr:datetime
+11     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+11     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+15     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+9      | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+13     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;
+
+bucketYearInAggWithGTOutOfRange#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "2000-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(hire_date, 1 month)
+| SORT bucket;
+
+COUNT(*):long            | bucket:date
+;
+
+bucketYearInAggWithLTOutOfRange#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date <= "1980-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(hire_date, 1 year)
+| SORT bucket;
+
+COUNT(*):long            | bucket:date
+;
+
+bucketYearInAggWithGTLTOutOfRange#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date <= "1980-01-01T00:00:00Z" and hire_date >= "1970-01-01"
+| STATS COUNT(*) by bucket = BUCKET(hire_date, 1 week)
+| SORT bucket;
+
+COUNT(*):long            | bucket:date
+;
+
+bucketYearInAggWithEQOutOfRange#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date == "1980-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(hire_date, 1 hour)
+| SORT bucket;
+
+COUNT(*):long            | bucket:date
+;
+
+bucketWithRename#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| RENAME hire_date as x, x as y
+| WHERE y >= "1980-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(y, 1 hour)
+| SORT bucket
+| LIMIT 5
+;
+
+COUNT(*):long | bucket:datetime
+1             | 1985-02-18T00:00:00.000Z
+1             | 1985-02-24T00:00:00.000Z
+1             | 1985-05-13T00:00:00.000Z
+1             | 1985-07-09T00:00:00.000Z
+1             | 1985-09-17T00:00:00.000Z
+;
+
+bucketWithEval#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| EVAL x = hire_date
+| WHERE x >= "1980-01-01T00:00:00Z" and hire_date <= "1990-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(x, 1 hour)
+| SORT bucket
+| LIMIT 5
+;
+
+COUNT(*):long | bucket:datetime
+1             | 1985-02-18T00:00:00.000Z
+1             | 1985-02-24T00:00:00.000Z
+1             | 1985-05-13T00:00:00.000Z
+1             | 1985-07-09T00:00:00.000Z
+1             | 1985-09-17T00:00:00.000Z
+;
+
+bucketWithEvalExpression#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| EVAL x = hire_date + 1 year
+| WHERE x >= "1980-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(x, 1 hour)
+| SORT bucket
+| LIMIT 5
+;
+
+COUNT(*):long | bucket:datetime
+1             | 1986-02-18T00:00:00.000Z
+1             | 1986-02-24T00:00:00.000Z
+1             | 1986-05-13T00:00:00.000Z
+1             | 1986-07-09T00:00:00.000Z
+1             | 1986-09-17T00:00:00.000Z
+;
+
+bucketWithRenameEvalExpression#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| EVAL x = hire_date + 1 year
+| RENAME x as y
+| WHERE y >= "1980-01-01T00:00:00Z"
+| STATS COUNT(*) by bucket = BUCKET(y, 1 hour)
+| SORT bucket
+| LIMIT 5
+;
+
+COUNT(*):long | bucket:datetime
+1             | 1986-02-18T00:00:00.000Z
+1             | 1986-02-24T00:00:00.000Z
+1             | 1986-05-13T00:00:00.000Z
+1             | 1986-07-09T00:00:00.000Z
+1             | 1986-09-17T00:00:00.000Z
 ;

@@ -615,7 +615,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return a data stream if the write request points to a data stream, or {@code null} if it does not
      */
     private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, ProjectMetadata project) {
-        // PRTODO: We could check for cluster feature here instead
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = project.getIndicesLookup().get(docWriteRequest.index());
         return DataStream.resolveDataStream(ia, project);
@@ -687,7 +686,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return {@code true} if the cluster is currently blocked at all, {@code false} if the cluster has no blocks.
      */
     private boolean handleBlockExceptions(ClusterState state, Runnable retryOperation, Consumer<Exception> onClusterBlocked) {
-        ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        ClusterBlockException blockException = state.blocks()
+            .globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.WRITE);
         if (blockException != null) {
             if (blockException.retryable()) {
                 logger.trace("cluster is blocked, scheduling a retry", blockException);

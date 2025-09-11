@@ -85,9 +85,8 @@ Notice how now `emp%` does not match any tables because `%`, which means match z
 
 In a nutshell, the differences between the two type of patterns are:
 
-|     |     |     |
-| --- | --- | --- |
 | **Feature** | **Multi index** | **SQL `LIKE`** |
+| --- | --- | --- |
 | Type of quoting | `"` | `'` |
 | Inclusion | Yes | Yes |
 | Exclusion | Yes | No |

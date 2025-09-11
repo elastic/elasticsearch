@@ -578,7 +578,7 @@ public class RoleDescriptorTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
-        final Cache.CacheStats beforeStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats beforeStats = fieldPermissionsCache.getCacheStats();
 
         final String json = """
             {
@@ -604,7 +604,7 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
 
         final int numberOfFieldSecurityBlocks = 2;
-        final Cache.CacheStats betweenStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats betweenStats = fieldPermissionsCache.getCacheStats();
         assertThat(betweenStats.getMisses(), equalTo(beforeStats.getMisses() + numberOfFieldSecurityBlocks));
         assertThat(betweenStats.getHits(), equalTo(beforeStats.getHits()));
 
@@ -613,7 +613,7 @@ public class RoleDescriptorTests extends ESTestCase {
             RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
         }
 
-        final Cache.CacheStats afterStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats afterStats = fieldPermissionsCache.getCacheStats();
         assertThat(afterStats.getMisses(), equalTo(betweenStats.getMisses()));
         assertThat(afterStats.getHits(), equalTo(beforeStats.getHits() + numberOfFieldSecurityBlocks * iterations));
     }

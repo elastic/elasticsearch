@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -23,6 +26,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -39,6 +43,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -524,6 +529,8 @@ public class DesiredBalanceReconciler {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            final ObjectLongMap<ShardRouting.Role> totalAllocationsByRole = new ObjectLongHashMap<>();
+            final ObjectLongMap<ShardRouting.Role> undesiredAllocationsExcludingShuttingDownNodesByRole = new ObjectLongHashMap<>();
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -532,6 +539,7 @@ public class DesiredBalanceReconciler {
                 final var shardRouting = iterator.next();
 
                 totalAllocations++;
+                totalAllocationsByRole.addTo(shardRouting.role(), 1);
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -552,6 +560,7 @@ public class DesiredBalanceReconciler {
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
                     // shard is not on a shutting down node, nor is it on a desired node per the previous check.
                     undesiredAllocationsExcludingShuttingDownNodes++;
+                    undesiredAllocationsExcludingShuttingDownNodesByRole.addTo(shardRouting.role(), 1);
                 }
 
                 if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
@@ -593,8 +602,16 @@ public class DesiredBalanceReconciler {
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,
-                totalAllocations,
-                undesiredAllocationsExcludingShuttingDownNodes
+                StreamSupport.stream(totalAllocationsByRole.spliterator(), false)
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            lc -> lc.key,
+                            lc -> new DesiredBalanceMetrics.RoleAllocationStats(
+                                totalAllocationsByRole.get(lc.key),
+                                undesiredAllocationsExcludingShuttingDownNodesByRole.get(lc.key)
+                            )
+                        )
+                    )
             );
         }
 

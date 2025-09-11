@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -35,6 +36,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.TransportVersions.ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
@@ -56,12 +59,28 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     public static final ParseField TOTAL_SHARDS_PER_NODE = new ParseField("total_shards_per_node");
     public static final ParseField REPLICATE_FOR = new ParseField("replicate_for");
-    public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
+    public static final String CONDITIONAL_SKIP_CLONE_STEP = BranchingStep.NAME + "-skip-clone-check";
+    public static final String WAIT_FOR_CLONED_INDEX_GREEN = WaitForIndexColorStep.NAME + "-cloned-index";
+    public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
+    public static final String CONDITIONAL_DELETE_FORCE_MERGED_INDEX_KEY = BranchingStep.NAME + "-delete-force-merged-index";
+    public static final String DELETE_FORCE_MERGED_INDEX_KEY = DeleteStep.NAME + "-force-merged-index";
 
     public static final String FULL_RESTORED_INDEX_PREFIX = "restored-";
     public static final String PARTIAL_RESTORED_INDEX_PREFIX = "partial-";
+    public static final String FORCE_MERGE_CLONE_INDEX_PREFIX = "fm-clone-";
+    /** An index name supplier that always returns the force merge index name (possibly null). */
+    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER = (
+        indexName,
+        state) -> state.forceMergeCloneIndexName();
+    /** An index name supplier that returns the force merge index name if it exists, or the original index name if not. */
+    public static final BiFunction<String, LifecycleExecutionState, String> FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER = (
+        indexName,
+        state) -> state.forceMergeCloneIndexName() != null ? state.forceMergeCloneIndexName() : indexName;
+
+    private static final Settings CLONE_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+    private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> CLONE_SETTINGS;
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -163,9 +182,17 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+        StepKey skipGeneratingSnapshotKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_GENERATE_AND_CLEAN);
+
+        StepKey conditionalSkipCloneKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_CLONE_STEP);
+        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
+        StepKey cleanupClonedIndexKey = new StepKey(phase, NAME, CleanupGeneratedIndexStep.NAME);
+        StepKey generateCloneIndexNameKey = new StepKey(phase, NAME, GenerateUniqueIndexNameStep.NAME);
+        StepKey cloneIndexKey = new StepKey(phase, NAME, ResizeIndexStep.CLONE);
+        StepKey waitForClonedIndexGreenKey = new StepKey(phase, NAME, WAIT_FOR_CLONED_INDEX_GREEN);
         StepKey forceMergeStepKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey waitForSegmentCountKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
-        StepKey skipGeneratingSnapshotKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_GENERATE_AND_CLEAN);
+
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
@@ -177,7 +204,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
-        StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey deleteSourceIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey conditionalDeleteForceMergedIndexKey = new StepKey(phase, NAME, CONDITIONAL_DELETE_FORCE_MERGED_INDEX_KEY);
+        StepKey deleteForceMergedIndexKey = new StepKey(phase, NAME, DELETE_FORCE_MERGED_INDEX_KEY);
         StepKey replicateForKey = new StepKey(phase, NAME, WaitUntilReplicateForTimePassesStep.NAME);
         StepKey dropReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
 
@@ -189,13 +218,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
             preActionBranchingKey,
             checkNoWriteIndex,
             nextStepKey,
-            (index, clusterState) -> {
+            (index, project) -> {
                 if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
                     logger.error("[{}] action is not available in the current license", SearchableSnapshotAction.NAME);
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
                 }
 
-                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
+                IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -269,17 +298,17 @@ public class SearchableSnapshotAction implements LifecycleAction {
             Instant::now
         );
 
-        // When generating a snapshot, we either jump to the force merge step, or we skip the
+        // When generating a snapshot, we either jump to the force merge section, or we skip the
         // forcemerge and go straight to steps for creating the snapshot
-        StepKey keyForSnapshotGeneration = forceMergeIndex ? forceMergeStepKey : generateSnapshotNameKey;
+        StepKey keyForSnapshotGeneration = forceMergeIndex ? conditionalSkipCloneKey : generateSnapshotNameKey;
         // Branch, deciding whether there is an existing searchable snapshot that can be used for mounting the index
         // (in which case, skip generating a new name and the snapshot cleanup), or if we need to generate a new snapshot
         BranchingStep skipGeneratingSnapshotStep = new BranchingStep(
             skipGeneratingSnapshotKey,
             keyForSnapshotGeneration,
             waitForDataTierKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
                 SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
@@ -328,12 +357,74 @@ public class SearchableSnapshotAction implements LifecycleAction {
         );
 
         // If a new snapshot is needed, these steps are executed
-        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeStepKey, waitForSegmentCountKey, client, 1);
-        SegmentCountStep segmentCountStep = new SegmentCountStep(waitForSegmentCountKey, generateSnapshotNameKey, client, 1);
+        // If the index has replicas, we need to clone the index first with 0 replicas and perform the force-merge on that index.
+        // That avoids us having to force-merge the replica shards too, which is a waste, as the snapshot will only be taken from the
+        // primary shards. If the index already has 0 replicas, we can skip the clone steps.
+        BranchingStep conditionalSkipCloneStep = new BranchingStep(
+            conditionalSkipCloneKey,
+            readOnlyKey,
+            forceMergeStepKey,
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                return indexMetadata.getNumberOfReplicas() == 0;
+            }
+        );
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupClonedIndexKey, client, false);
+        // If a previous step created a clone index but the action did not complete, we need to clean up the old clone index.
+        CleanupGeneratedIndexStep cleanupClonedIndexStep = new CleanupGeneratedIndexStep(
+            cleanupClonedIndexKey,
+            generateCloneIndexNameKey,
+            client,
+            FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER
+        );
+        GenerateUniqueIndexNameStep generateCloneIndexNameStep = new GenerateUniqueIndexNameStep(
+            generateCloneIndexNameKey,
+            cloneIndexKey,
+            FORCE_MERGE_CLONE_INDEX_PREFIX,
+            (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setForceMergeCloneIndexName(generatedIndexName)
+        );
+        // Clone the index with 0 replicas.
+        ResizeIndexStep cloneIndexStep = new ResizeIndexStep(
+            cloneIndexKey,
+            waitForClonedIndexGreenKey,
+            client,
+            ResizeType.CLONE,
+            FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER,
+            CLONE_SETTINGS_SUPPLIER,
+            null
+        );
+        // Wait for the cloned index to be green before proceeding with the force-merge. We wrap this with a
+        // ClusterStateWaitUntilThresholdStep to avoid waiting forever if the index cannot be started for some reason.
+        // On timeout, ILM will move back to the cleanup step, remove the cloned index, and retry the clone.
+        ClusterStateWaitUntilThresholdStep waitForClonedIndexGreenStep = new ClusterStateWaitUntilThresholdStep(
+            new WaitForIndexColorStep(
+                waitForClonedIndexGreenKey,
+                forceMergeStepKey,
+                ClusterHealthStatus.GREEN,
+                FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER
+            ),
+            cleanupClonedIndexKey
+        );
+        ForceMergeStep forceMergeStep = new ForceMergeStep(
+            forceMergeStepKey,
+            waitForSegmentCountKey,
+            client,
+            1,
+            FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER
+        );
+        SegmentCountStep segmentCountStep = new SegmentCountStep(
+            waitForSegmentCountKey,
+            generateSnapshotNameKey,
+            client,
+            1,
+            FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER
+        );
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(
             generateSnapshotNameKey,
             cleanSnapshotKey,
-            snapshotRepository
+            snapshotRepository,
+            FORCE_MERGE_CLONE_INDEX_NAME_FALLBACK_SUPPLIER
         );
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
         CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, cleanSnapshotKey, client);
@@ -371,26 +462,46 @@ public class SearchableSnapshotAction implements LifecycleAction {
         );
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
-            dataStreamCheckBranchingKey,
+            forceMergeIndex ? conditionalDeleteForceMergedIndexKey : dataStreamCheckBranchingKey,
             (index, lifecycleState) -> getRestoredIndexPrefix(copyLifecyclePolicySettingKey) + index,
             LifecycleSettings.LIFECYCLE_NAME
+        );
+        // If we cloned the index, we need to delete it before we swap the mounted snapshot in place of the original index.
+        // If we did not clone the index, there's nothing else for us to do.
+        BranchingStep conditionalDeleteForceMergedIndexStep = new BranchingStep(
+            conditionalDeleteForceMergedIndexKey,
+            dataStreamCheckBranchingKey,
+            deleteForceMergedIndexKey,
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                String cloneIndexName = indexMetadata.getLifecycleExecutionState().forceMergeCloneIndexName();
+                return cloneIndexName != null && project.index(cloneIndexName) != null;
+            }
+        );
+        DeleteStep deleteForceMergedIndexStep = new DeleteStep(
+            deleteForceMergedIndexKey,
+            dataStreamCheckBranchingKey,
+            client,
+            FORCE_MERGE_CLONE_INDEX_NAME_SUPPLIER,
+            true
         );
         BranchingStep isDataStreamBranchingStep = new BranchingStep(
             dataStreamCheckBranchingKey,
             swapAliasesKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }
         );
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
             replaceDataStreamIndexKey,
-            deleteIndexKey,
+            deleteSourceIndexKey,
             (index, executionState) -> getRestoredIndexPrefix(replaceDataStreamIndexKey) + index
         );
-        DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, null, client);
+        DeleteStep deleteSourceIndexStep = new DeleteStep(deleteSourceIndexKey, null, client);
         // sending this step to null as the restored index (which will after this step essentially be the source index) was sent to the next
         // key after we restored the lifecycle execution state
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(
@@ -417,6 +528,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(waitUntilTimeSeriesEndTimeStep);
         steps.add(skipGeneratingSnapshotStep);
         if (forceMergeIndex) {
+            steps.add(conditionalSkipCloneStep);
+            steps.add(readOnlyStep);
+            steps.add(cleanupClonedIndexStep);
+            steps.add(generateCloneIndexNameStep);
+            steps.add(cloneIndexStep);
+            steps.add(waitForClonedIndexGreenStep);
             steps.add(forceMergeStep);
             steps.add(segmentCountStep);
         }
@@ -431,6 +548,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (replicateFor != null) {
             steps.add(replicateForStep);
             steps.add(dropReplicasStep);
+        }
+        if (forceMergeIndex) {
+            steps.add(conditionalDeleteForceMergedIndexStep);
+            steps.add(deleteForceMergedIndexStep);
         }
         steps.add(isDataStreamBranchingStep);
         steps.add(replaceDataStreamBackingIndex);

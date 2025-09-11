@@ -11,8 +11,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
@@ -374,7 +374,7 @@ public class PrimaryReplicaSyncer {
         }
     }
 
-    public static class ResyncRequest extends ActionRequest {
+    public static class ResyncRequest extends LegacyActionRequest {
 
         private final ShardId shardId;
         private final String allocationId;
@@ -463,8 +463,8 @@ public class PrimaryReplicaSyncer {
         }
 
         @Override
-        public ResyncTask.Status getStatus() {
-            return new ResyncTask.Status(phase, totalOperations, resyncedOperations, skippedOperations);
+        public Status getStatus() {
+            return new Status(phase, totalOperations, resyncedOperations, skippedOperations);
         }
 
         public static class Status implements Task.Status {

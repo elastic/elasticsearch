@@ -49,6 +49,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,7 +86,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     public void setup() throws IOException {
         String type = randomFrom(
             Arrays.stream(VectorIndexType.values())
-                .filter(VectorIndexType::isQuantized)
+                .filter(t -> t.isQuantized() && t.isEnabled())
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toCollection(ArrayList::new))
         );
@@ -116,6 +117,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         float[] queryVector,
         int k,
         int numCands,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder
     ) {
         public static TestParams generate() {
@@ -128,6 +130,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 randomVector(numDims),
                 k,
                 (int) (k * randomFloatBetween(1.0f, 10.0f, true)),
+                IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
                 new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true))
             );
         }
@@ -140,6 +143,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.queryVector,
                 testParams.k,
                 testParams.numCands,
+                testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
                 null
             );
@@ -155,6 +159,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.queryVector,
                 testParams.k,
                 testParams.numCands,
+                testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
                 null
             );
@@ -171,6 +176,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 null,
                 testParams.k,
                 testParams.numCands,
+                testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
                 null
             );

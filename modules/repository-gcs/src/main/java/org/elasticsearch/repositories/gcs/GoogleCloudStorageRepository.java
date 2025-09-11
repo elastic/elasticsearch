@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
@@ -20,9 +21,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -88,22 +91,26 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final GcsRepositoryStatsCollector statsCollector
+        final GcsRepositoryStatsCollector statsCollector,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.storageService = storageService;
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
@@ -136,6 +143,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
         return new GoogleCloudStorageBlobStore(
+            getProjectId(),
             bucket,
             clientName,
             metadata.name(),

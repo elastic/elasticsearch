@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -987,20 +988,23 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_1",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(10, 1, 1000, 100)
-                                        ),
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(20, 2, 2000, 200)
-                                        ),
-                                        // Adding a non inference processor that should be ignored
-                                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_1",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(10, 1, 1000, 100)
+                                            ),
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(20, 2, 2000, 200)
+                                            ),
+                                            // Adding a non inference processor that should be ignored
+                                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                        )
                                     )
                                 )
                             ),
@@ -1015,12 +1019,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_1",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(30, 3, 3000, 300)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_1",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(30, 3, 3000, 300)
+                                            )
                                         )
                                     )
                                 )
@@ -1036,12 +1043,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_2",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(40, 4, 4000, 400)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_2",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(40, 4, 4000, 400)
+                                            )
                                         )
                                     )
                                 )
@@ -1088,12 +1098,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_3",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(50, 5, 5000, 500)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_3",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(50, 5, 5000, 500)
+                                            )
                                         )
                                     )
                                 )

@@ -1,0 +1,162 @@
+version: 9.0.3
+released: true
+generated: 2025-06-24T15:19:29.859630035Z
+changelogs:
+  - pr: 120869
+    summary: Threadpool merge scheduler
+    area: Engine
+    type: feature
+    issues: []
+  - pr: 125408
+    summary: Prevent ML data retention logic from failing when deleting documents in read-only indices
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 127532
+    summary: Fix case insensitive comparisons to ""
+    area: ES|QL
+    type: bug
+    issues:
+      - 127431
+  - pr: 127613
+    summary: Threadpool merge executor is aware of available disk space
+    area: Engine
+    type: feature
+    issues: []
+  - pr: 127621
+    summary: Fix error message when changing the password for a user in the file realm
+    area: Security
+    type: bug
+    issues: []
+  - pr: 127651
+    summary: Add complete attribute to .fleet-agents docs
+    area: Infra/Plugins
+    type: bug
+    issues: []
+  - pr: 127962
+    summary: Support DATE_NANOS in LOOKUP JOIN
+    area: ES|QL
+    type: bug
+    issues:
+      - 127249
+  - pr: 128036
+    summary: Fix inner hits + aggregations concurrency bug
+    area: Search
+    type: bug
+    issues:
+      - 122419
+  - pr: 128362
+    summary: Avoid unnecessary determinization in index pattern conflict checks
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 128472
+    summary: "Aggs: Fix significant terms not finding background docuemnts for nested fields"
+    area: Aggregations
+    type: bug
+    issues:
+      - 101163
+  - pr: 128532
+    summary: Prevent invalid privileges in manage roles privilege
+    area: Authorization
+    type: bug
+    issues:
+      - 127496
+  - pr: 128610
+    summary: "Handle the indices pattern `[\"*\", \"-*\"]` when grouping indices by cluster name"
+    area: CCS
+    type: bug
+    issues: []
+  - pr: 128650
+    summary: Update shardGenerations for all indices on snapshot finalization
+    area: Snapshot/Restore
+    type: enhancement
+    issues:
+      - 108907
+  - pr: 128689
+    summary: Fix minmax normalizer handling of single-doc result sets
+    area: Search
+    type: bug
+    issues: []
+  - pr: 128702
+    summary: Fix missing highlighting in `match_all` queries for `semantic_text` fields
+    area: Search
+    type: bug
+    issues: []
+  - pr: 128740
+    summary: Optimize sparse vector stats collection
+    area: Stats
+    type: enhancement
+    issues: []
+  - pr: 128742
+    summary: Account for Java direct memory on machine learning nodes to prevent out-of-memory crashes.
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 128890
+    summary: Improve cache invalidation in IdP SP cache
+    area: IdentityProvider
+    type: bug
+    issues: []
+  - pr: 128910
+    summary: Fix `FieldAttribute` name usage in `InferNonNullAggConstraint`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 128960
+    summary: Throw ISE instead of IAE for illegal block in page
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 128989
+    summary: Fix NPE in semantic highlighter
+    area: Search
+    type: bug
+    issues:
+      - 128975
+  - pr: 129005
+    summary: Update AbstractXContentParser to support parsers that don't provide text characters
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 129158
+    summary: Fix unsupported privileges error message during role and API key creation
+    area: Authorization
+    type: enhancement
+    issues:
+      - 128132
+  - pr: 129176
+    summary: Adjust unpromotable shard refresh request validation to allow `RefreshResult.NO_REFRESH`
+    area: Searchable Snapshots
+    type: bug
+    issues:
+      - 129036
+  - pr: 129391
+    summary: Ensure that anomaly detection job state update retries if master node is temoporarily unavailable
+    area: Machine Learning
+    type: bug
+    issues:
+      - 126148
+  - pr: 129418
+    summary: Update traces duration mappings with appropriate unit type
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 129464
+    summary: Deprecate `indices.merge.scheduler.use_thread_pool` setting
+    area: Engine
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Ingest
+      title: Deprecate `indices.merge.scheduler.use_thread_pool` setting
+      details: This deprecates the `indices.merge.scheduler.use_thread_pool` node setting that was introduced in
+      impact: There should be no impact to users since the setting was not released before its deprecation here (and is not documented).
+      notable: false
+      essSettingChange: false
+  - pr: 129580
+    summary: Check prefixes when constructing synthetic source for flattened fields
+    area: Mapping
+    type: bug
+    issues:
+      - 129508

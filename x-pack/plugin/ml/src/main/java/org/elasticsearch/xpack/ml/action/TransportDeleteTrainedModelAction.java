@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -68,6 +68,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     private final TrainedModelProvider trainedModelProvider;
     private final InferenceAuditor auditor;
     private final IngestService ingestService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteTrainedModelAction(
@@ -78,7 +79,8 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         ActionFilters actionFilters,
         TrainedModelProvider configProvider,
         InferenceAuditor auditor,
-        IngestService ingestService
+        IngestService ingestService,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteTrainedModelAction.NAME,
@@ -93,6 +95,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         this.trainedModelProvider = configProvider;
         this.ingestService = ingestService;
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -228,7 +231,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         submitUnbatchedTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                final ClusterState.Builder builder = ClusterState.builder(currentState);
                 final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
                 if (currentMetadata.modelAliases().isEmpty()) {
                     return currentState;
@@ -237,10 +239,8 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                 logger.info("[{}] delete model model_aliases {}", request.getId(), modelAliases);
                 modelAliases.forEach(newMetadata::remove);
                 final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-                builder.metadata(
-                    Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build()
-                );
-                return builder.build();
+                final var project = currentState.metadata().getProject();
+                return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(ModelAliasMetadata.NAME, modelAliasMetadata));
             }
         });
     }
@@ -293,6 +293,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
 
     @Override
     protected ClusterBlockException checkBlock(DeleteTrainedModelAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

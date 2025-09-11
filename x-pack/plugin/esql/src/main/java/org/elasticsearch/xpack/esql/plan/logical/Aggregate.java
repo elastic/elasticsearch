@@ -22,13 +22,16 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -42,7 +45,13 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
-public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
+public class Aggregate extends UnaryPlan
+    implements
+        PostAnalysisVerificationAware,
+        TelemetryAware,
+        SortAgnostic,
+        PipelineBreaker,
+        ExecutesOn.Coordinator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -105,10 +114,26 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         return new Aggregate(source(), child, newGroupings, newAggregates);
     }
 
+    /**
+     * What this aggregation is grouped by. Generally, this corresponds to the {@code BY} clause, even though this command will not output
+     * those values unless they are also part of the {@link Aggregate#aggregates()}. This enables grouping without outputting the grouping
+     * keys, and makes it so that an {@link Aggregate}s also acts as a projection.
+     * <p>
+     * The actual grouping keys will be extracted from multivalues, so that if the grouping is on {@code mv_field}, and the document has
+     * {@code mv_field: [1, 2, 2]}, then the document will be part of the groups for both {@code mv_field=1} and {@code mv_field=2} (and
+     * counted only once in each group).
+     */
     public List<Expression> groupings() {
         return groupings;
     }
 
+    /**
+     * The actual aggregates to compute. This includes the grouping keys if they are to be output.
+     * <p>
+     * Multivalued grouping keys will be extracted into single values, so that if the grouping is on {@code mv_field}, and the document has
+     * {@code mv_field: [1, 2, 2]}, then the output will have two corresponding rows, one with {@code mv_field=1} and one with
+     * {@code mv_field=2}.
+     */
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
     }
@@ -229,7 +254,22 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             );
         }
         checkCategorizeGrouping(failures);
+        checkMultipleScoreAggregations(failures);
+    }
 
+    private void checkMultipleScoreAggregations(Failures failures) {
+        Holder<Boolean> hasScoringAggs = new Holder<>();
+        forEachExpression(FilteredExpression.class, fe -> {
+            if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
+                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
+                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                        if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
+                            failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /**

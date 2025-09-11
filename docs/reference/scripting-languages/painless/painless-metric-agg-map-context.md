@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-metric-agg-map-context.html
+products:
+  - id: painless
 ---
 
 # Metric aggregation map context [painless-metric-agg-map-context]

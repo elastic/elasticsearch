@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -46,6 +47,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private final ClusterService clusterService;
     private final Client client;
     private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
     private static final Set<String> INDEX_BLOCK_SETTINGS = Set.of(
         IndexMetadata.SETTING_READ_ONLY,
         IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE,
@@ -60,7 +62,8 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         ClusterService clusterService,
         ActionFilters actionFilters,
         Client client,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             CreateIndexFromSourceAction.NAME,
@@ -73,12 +76,13 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         this.clusterService = clusterService;
         this.client = client;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, CreateIndexFromSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().getProject().index(request.sourceIndex());
+        IndexMetadata sourceIndex = projectResolver.getProjectMetadata(clusterService.state()).index(request.sourceIndex());
 
         if (sourceIndex == null) {
             listener.onFailure(new IndexNotFoundException(request.sourceIndex()));

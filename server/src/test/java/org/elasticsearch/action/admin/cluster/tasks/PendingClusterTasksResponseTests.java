@@ -11,9 +11,9 @@ package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 

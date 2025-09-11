@@ -93,7 +93,8 @@ public final class Alias extends NamedExpression {
     }
 
     public Alias replaceChild(Expression child) {
-        return new Alias(source(), name(), child, id(), synthetic());
+        // these "nop" replacements can occur on attribute map resolutions having the default return same as the lookup key
+        return child == this.child ? this : new Alias(source(), name(), child, id(), synthetic());
     }
 
     @Override
@@ -124,7 +125,7 @@ public final class Alias extends NamedExpression {
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
-                ? new ReferenceAttribute(source(), name(), dataType(), nullable(), id(), synthetic())
+                ? new ReferenceAttribute(source(), null, name(), dataType(), nullable(), id(), synthetic())
                 : new UnresolvedAttribute(source(), name());
         }
         return lazyAttribute;
@@ -137,7 +138,7 @@ public final class Alias extends NamedExpression {
 
     @Override
     public String nodeString() {
-        return child.nodeString() + " AS " + name();
+        return child.nodeString() + " AS " + name() + "#" + id();
     }
 
     /**

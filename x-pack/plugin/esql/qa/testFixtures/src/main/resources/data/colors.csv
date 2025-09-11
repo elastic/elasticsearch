@@ -1,0 +1,60 @@
+color:text,hex_code:keyword,rgb_vector:dense_vector,primary:boolean
+maroon, #800000, [128,0,0], false
+brown, #A52A2A, [165,42,42], false
+firebrick, #B22222, [178,34,34], false
+crimson, #DC143C, [220,20,60], false
+red, #FF0000, [255,0,0], true
+tomato, #FF6347, [255,99,71], false
+coral, #FF7F50, [255,127,80], false
+salmon, #FA8072, [250,128,114], false
+orange, #FFA500, [255,165,0], false
+gold, #FFD700, [255,215,0], false
+golden rod, #DAA520, [218,165,32], false
+khaki, #F0E68C, [240,230,140], false
+olive, #808000, [128,128,0], false
+yellow, #FFFF00, [255,255,0], true
+chartreuse, #7FFF00, [127,255,0], false
+green, #008000, [0,128,0], true
+lime, #00FF00, [0,255,0], false
+teal, #008080, [0,128,128], false
+cyan, #00FFFF, [0,255,255], true
+turquoise, #40E0D0, [64,224,208], false
+aqua marine, #7FFFD4, [127,255,212], false
+navy, #000080, [0,0,128], false
+blue, #0000FF, [0,0,255], true
+indigo, #4B0082, [75,0,130], false
+purple, #800080, [128,0,128], false
+thistle, #D8BFD8, [216,191,216], false
+plum, #DDA0DD, [221,160,221], false
+violet, #EE82EE, [238,130,238], false
+magenta, #FF00FF, [255,0,255], true
+orchid, #DA70D6, [218,112,214], false
+pink, #FFC0CB, [255,192,203], false
+beige, #F5F5DC, [245,245,220], false
+bisque, #FFE4C4, [255,228,196], false
+wheat, #F5DEB3, [245,222,179], false
+corn silk, #FFF8DC, [255,248,220], false
+lemon chiffon, #FFFACD, [255,250,205], false
+sienna, #A0522D, [160,82,45], false
+chocolate, #D2691E, [210,105,30], false
+peru, #CD853F, [205,133,63], false
+burly wood, #DEB887, [222,184,135], false
+tan, #D2B48C, [210,180,140], false
+moccasin, #FFE4B5, [255,228,181], false
+peach puff, #FFDAB9, [255,218,185], false
+misty rose, #FFE4E1, [255,228,225], false
+linen, #FAF0E6, [250,240,230], false
+old lace, #FDF5E6, [253,245,230], false
+papaya whip, #FFEFD5, [255,239,213], false
+sea shell, #FFF5EE, [255,245,238], false
+mint cream, #F5FFFA, [245,255,250], false
+lavender, #E6E6FA, [230,230,250], false
+honeydew, #F0FFF0, [240,255,240], false
+ivory, #FFFFF0, [255,255,240], false
+azure, #F0FFFF, [240,255,255], false
+snow, #FFFAFA, [255,250,250], false
+black, #000000, [0,0,0], true
+gray, #808080, [128,128,128], true
+silver, #C0C0C0, [192,192,192], false
+gainsboro, #DCDCDC, [220,220,220], false
+white, #FFFFFF, [255,255,255], true

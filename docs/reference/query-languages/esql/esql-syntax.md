@@ -1,14 +1,12 @@
 ---
-navigation_title: "Syntax reference"
+navigation_title: "Basic syntax"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-syntax.html
 ---
 
-# {{esql}} syntax reference [esql-syntax]
+# Basic {{esql}} syntax [esql-syntax]
 
-
-
-## Basic syntax [esql-basic-syntax]
+## Query structure [esql-basic-syntax]
 
 An {{esql}} query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
 
@@ -161,7 +159,7 @@ FROM library
 }
 ```
 
-You can also use [query parameters](docs-content://explore-analyze/query-filter/languages/esql-rest.md#esql-rest-params) in function named parameters:
+You can also use [query parameters](/reference/query-languages/esql/esql-rest.md#esql-rest-params) in function named parameters:
 
 ```console
 POST /_query

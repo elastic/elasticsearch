@@ -230,7 +230,7 @@ An alternate syntax is supported to cope with aggregations or metrics which have
 
 ## Dealing with gaps in the data [gap-policy]
 
-Data in the real world is often noisy and sometimes contains **gaps** — places where data simply doesn’t exist. This can occur for a variety of reasons, the most common being:
+Data in the real world is often noisy and sometimes contains **gaps** — places where data simply doesn’t exist. This can occur for a variety of reasons, the most common being:
 
 * Documents falling into a bucket do not contain a required field
 * There are no documents matching the query for one or more buckets

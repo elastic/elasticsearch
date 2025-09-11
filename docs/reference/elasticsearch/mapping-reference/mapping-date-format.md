@@ -23,7 +23,7 @@ PUT my-index-000001
 }
 ```
 
-Many APIs which support date values also support [date math](/reference/elasticsearch/rest-apis/common-options.md#date-math) expressions, such as `now-1m/d` — the current time, minus one month, rounded down to the nearest day.
+Many APIs which support date values also support [date math](/reference/elasticsearch/rest-apis/common-options.md#date-math) expressions, such as `now-1m/d` — the current time, minus one month, rounded down to the nearest day.
 
 ## Custom date formats [custom-date-formats]
 

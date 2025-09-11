@@ -67,7 +67,6 @@ public class MappingGenerator {
         if (specification.fullyDynamicMapping()) {
             // Has to be "true" for fully dynamic mapping
             topLevelMappingParameters.remove("dynamic");
-
             return new Mapping(rawMapping, lookup);
         }
 
@@ -104,6 +103,7 @@ public class MappingGenerator {
                 var mappingParametersGenerator = specification.dataSource()
                     .get(
                         new DataSourceRequest.LeafMappingParametersGenerator(
+                            specification.dataSource(),
                             fieldName,
                             leaf.type(),
                             context.eligibleCopyToDestinations(),

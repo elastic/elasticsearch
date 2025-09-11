@@ -11,9 +11,9 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -106,7 +106,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         });
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final MultiGetShardRequest multiGetShardRequest;
         private final ShardId shardId;

@@ -2,7 +2,8 @@
 asm = "9.7.1"
 jackson = "2.15.0"
 junit5 = "5.12.1"
-spock = "2.1-groovy-3.0"
+spock = "2.3-groovy-4.0"
+nmcp = "0.1.5"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"
@@ -16,12 +17,12 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commmons-io = "commons-io:commons-io:2.2"
 docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.17.5"
 forbiddenApis = "de.thetaphi:forbiddenapis:3.8"
-gradle-enterprise = "com.gradle:develocity-gradle-plugin:3.19.2"
+gradle-enterprise = "com.gradle:develocity-gradle-plugin:4.1.1"
 hamcrest = "org.hamcrest:hamcrest:3.0"
 httpcore5 = "org.apache.httpcomponents.core5:httpcore5:5.3.3"
 httpclient5 = "org.apache.httpcomponents.client5:httpclient5:5.4.2"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
-javaparser = "com.github.javaparser:javaparser-core:3.18.0"
+javaparser = "com.github.javaparser:javaparser-core:3.27.0"
 json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
 jackson-core = { group = "com.fasterxml.jackson.core", name="jackson-core", version.ref="jackson" }
@@ -36,9 +37,10 @@ junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.1"
 junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", version.ref="junit5" }
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
+nmcp = { group = "com.gradleup.nmcp", name = "nmcp", version.ref="nmcp" }
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
 reflections = "org.reflections:reflections:0.9.12"
-shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:8.3.5"
+shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:9.0.1"
 snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.0" } }
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
@@ -48,4 +50,5 @@ wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
-ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.1" }
+ospackage = { id = "com.netflix.nebula.ospackage-base", version = "12.1.0" }
+nmcp-aggregation = { id = "com.gradleup.nmcp.aggregation", version.ref="nmcp" }

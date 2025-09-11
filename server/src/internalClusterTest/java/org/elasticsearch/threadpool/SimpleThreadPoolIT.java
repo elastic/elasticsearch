@@ -234,19 +234,29 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
-    public void testWriteThreadpoolEwmaAlphaSetting() {
+    public void testWriteThreadpoolsEwmaAlphaSetting() {
         Settings settings = Settings.EMPTY;
-        var ewmaAlpha = DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
+        var executionEwmaAlpha = DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
         if (randomBoolean()) {
-            ewmaAlpha = randomDoubleBetween(0.0, 1.0, true);
-            settings = Settings.builder().put(WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), ewmaAlpha).build();
+            executionEwmaAlpha = randomDoubleBetween(0.0, 1.0, true);
+            settings = Settings.builder().put(WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), executionEwmaAlpha).build();
         }
         var nodeName = internalCluster().startNode(settings);
         var threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+
+        // Verify that the write thread pools all use the tracking executor.
         for (var name : List.of(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE, ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
             assertThat(threadPool.executor(name), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
             final var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
-            assertThat(Double.compare(executor.getEwmaAlpha(), ewmaAlpha), CoreMatchers.equalTo(0));
+            assertThat(Double.compare(executor.getExecutionEwmaAlpha(), executionEwmaAlpha), CoreMatchers.equalTo(0));
+
+            // Only the WRITE thread pool should enable further tracking.
+            if (name.equals(ThreadPool.Names.WRITE) == false) {
+                assertFalse(executor.trackingMaxQueueLatency());
+            } else {
+                // Verify that the WRITE thread pool has extra tracking enabled.
+                assertTrue(executor.trackingMaxQueueLatency());
+            }
         }
     }
 }

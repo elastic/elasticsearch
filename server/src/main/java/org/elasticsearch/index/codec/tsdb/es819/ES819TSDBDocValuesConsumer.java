@@ -62,11 +62,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final int maxDoc;
     private byte[] termsDictBuffer;
     private final int skipIndexIntervalSize;
+    private final int minDocsPerOrdinalForOrdinalRangeEncoding;
     final boolean enableOptimizedMerge;
+    private final int primarySortFieldNumber;
 
     ES819TSDBDocValuesConsumer(
         SegmentWriteState state,
         int skipIndexIntervalSize,
+        int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
         String dataCodec,
         String dataExtension,
@@ -75,6 +78,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     ) throws IOException {
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
+        this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
+        this.primarySortFieldNumber = ES819TSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.context = state.context;
         boolean success = false;
         try {
@@ -124,6 +129,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeField(field, producer, -1, null);
     }
 
+    private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue) {
+        return maxDoc > 1
+            && field.number == primarySortFieldNumber
+            && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
+    }
+
     private long[] writeField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd, OffsetsAccumulator offsetsAccumulator)
         throws IOException {
         int numDocsWithValue = 0;
@@ -149,19 +160,53 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         try {
             if (numValues > 0) {
                 assert numDocsWithValue > 0;
-                // Special case for maxOrd of 1, signal -1 that no blocks will be written
-                meta.writeInt(maxOrd != 1 ? ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
                 final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
-                final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
-                    meta,
-                    new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                    1L + ((numValues - 1) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
-                    ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-                );
+                DirectMonotonicWriter indexWriter = null;
 
                 final long valuesDataOffset = data.getFilePointer();
-                // Special case for maxOrd of 1, skip writing the blocks
-                if (maxOrd != 1) {
+                if (maxOrd == 1) {
+                    // Special case for maxOrd of 1, signal -1 that no blocks will be written
+                    meta.writeInt(-1);
+                } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue)) {
+                    // When a field is sorted, use ordinal range encode for long runs of the same ordinal.
+                    meta.writeInt(-2);
+                    meta.writeVInt(Math.toIntExact(maxOrd));
+                    meta.writeByte((byte) ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_BLOCK_SHIFT);
+                    values = valuesProducer.getSortedNumeric(field);
+                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
+                        disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                    }
+                    DirectMonotonicWriter startDocs = DirectMonotonicWriter.getInstance(
+                        meta,
+                        data,
+                        maxOrd + 1,
+                        ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_BLOCK_SHIFT
+                    );
+                    long lastOrd = 0;
+                    startDocs.add(0);
+                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        if (disiAccumulator != null) {
+                            disiAccumulator.addDocId(doc);
+                        }
+                        if (offsetsAccumulator != null) {
+                            offsetsAccumulator.addDoc(1);
+                        }
+                        final long nextOrd = values.nextValue();
+                        if (nextOrd != lastOrd) {
+                            lastOrd = nextOrd;
+                            startDocs.add(doc);
+                        }
+                    }
+                    startDocs.add(maxDoc);
+                    startDocs.finish();
+                } else {
+                    indexWriter = DirectMonotonicWriter.getInstance(
+                        meta,
+                        new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
+                        1L + ((numValues - 1) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                        ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                    );
+                    meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
                     final long[] buffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
                     int bufferSize = 0;
                     final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
@@ -204,8 +249,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 }
 
                 final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
-                if (maxOrd != 1) {
-                    // Special case for maxOrd of 1, indexWriter isn't really used, so no need to invoke finish() method.
+                if (indexWriter != null) {
                     indexWriter.finish();
                 }
                 final long indexDataOffset = data.getFilePointer();
@@ -259,70 +303,145 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     @Override
+    public void mergeBinaryField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
+        if (result.supported()) {
+            mergeBinaryField(result, mergeFieldInfo, mergeState);
+        } else {
+            super.mergeBinaryField(mergeFieldInfo, mergeState);
+        }
+    }
+
+    @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES819TSDBDocValuesFormat.BINARY);
 
-        BinaryDocValues values = valuesProducer.getBinary(field);
-        long start = data.getFilePointer();
-        meta.writeLong(start); // dataOffset
-        int numDocsWithField = 0;
-        int minLength = Integer.MAX_VALUE;
-        int maxLength = 0;
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            numDocsWithField++;
-            BytesRef v = values.binaryValue();
-            int length = v.length;
-            data.writeBytes(v.bytes, v.offset, v.length);
-            minLength = Math.min(length, minLength);
-            maxLength = Math.max(length, maxLength);
-        }
-        assert numDocsWithField <= maxDoc;
-        meta.writeLong(data.getFilePointer() - start); // dataLength
+        if (valuesProducer instanceof TsdbDocValuesProducer tsdbValuesProducer && tsdbValuesProducer.mergeStats.supported()) {
+            final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
+            final int minLength = tsdbValuesProducer.mergeStats.minLength();
+            final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
 
-        if (numDocsWithField == 0) {
-            meta.writeLong(-2); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else if (numDocsWithField == maxDoc) {
-            meta.writeLong(-1); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else {
-            long offset = data.getFilePointer();
-            meta.writeLong(offset); // docsWithFieldOffset
-            values = valuesProducer.getBinary(field);
-            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-            meta.writeShort(jumpTableEntryCount);
-            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-        }
+            assert numDocsWithField <= maxDoc;
 
-        meta.writeInt(numDocsWithField);
-        meta.writeInt(minLength);
-        meta.writeInt(maxLength);
-        if (maxLength > minLength) {
-            start = data.getFilePointer();
-            meta.writeLong(start);
-            meta.writeVInt(ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+            BinaryDocValues values = valuesProducer.getBinary(field);
+            long start = data.getFilePointer();
+            meta.writeLong(start); // dataOffset
 
-            final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
-                meta,
-                data,
-                numDocsWithField + 1,
-                ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-            );
-            long addr = 0;
-            writer.add(addr);
-            values = valuesProducer.getBinary(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                addr += values.binaryValue().length;
-                writer.add(addr);
+            OffsetsAccumulator offsetsAccumulator = null;
+            DISIAccumulator disiAccumulator = null;
+            try {
+                if (numDocsWithField > 0 && numDocsWithField < maxDoc) {
+                    disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
+
+                assert maxLength >= minLength;
+                if (maxLength > minLength) {
+                    offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
+                }
+
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    BytesRef v = values.binaryValue();
+                    data.writeBytes(v.bytes, v.offset, v.length);
+                    if (disiAccumulator != null) {
+                        disiAccumulator.addDocId(doc);
+                    }
+                    if (offsetsAccumulator != null) {
+                        offsetsAccumulator.addDoc(v.length);
+                    }
+                }
+                meta.writeLong(data.getFilePointer() - start); // dataLength
+
+                if (numDocsWithField == 0) {
+                    meta.writeLong(-2); // docsWithFieldOffset
+                    meta.writeLong(0L); // docsWithFieldLength
+                    meta.writeShort((short) -1); // jumpTableEntryCount
+                    meta.writeByte((byte) -1); // denseRankPower
+                } else if (numDocsWithField == maxDoc) {
+                    meta.writeLong(-1); // docsWithFieldOffset
+                    meta.writeLong(0L); // docsWithFieldLength
+                    meta.writeShort((short) -1); // jumpTableEntryCount
+                    meta.writeByte((byte) -1); // denseRankPower
+                } else {
+                    long offset = data.getFilePointer();
+                    meta.writeLong(offset); // docsWithFieldOffset
+                    final short jumpTableEntryCount = disiAccumulator.build(data);
+                    meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+                    meta.writeShort(jumpTableEntryCount);
+                    meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                }
+
+                meta.writeInt(numDocsWithField);
+                meta.writeInt(minLength);
+                meta.writeInt(maxLength);
+                if (offsetsAccumulator != null) {
+                    offsetsAccumulator.build(meta, data);
+                }
+            } finally {
+                IOUtils.close(disiAccumulator, offsetsAccumulator);
             }
-            writer.finish();
-            meta.writeLong(data.getFilePointer() - start);
+        } else {
+            BinaryDocValues values = valuesProducer.getBinary(field);
+            long start = data.getFilePointer();
+            meta.writeLong(start); // dataOffset
+            int numDocsWithField = 0;
+            int minLength = Integer.MAX_VALUE;
+            int maxLength = 0;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                numDocsWithField++;
+                BytesRef v = values.binaryValue();
+                int length = v.length;
+                data.writeBytes(v.bytes, v.offset, v.length);
+                minLength = Math.min(length, minLength);
+                maxLength = Math.max(length, maxLength);
+            }
+            assert numDocsWithField <= maxDoc;
+            meta.writeLong(data.getFilePointer() - start); // dataLength
+
+            if (numDocsWithField == 0) {
+                meta.writeLong(-2); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else if (numDocsWithField == maxDoc) {
+                meta.writeLong(-1); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else {
+                long offset = data.getFilePointer();
+                meta.writeLong(offset); // docsWithFieldOffset
+                values = valuesProducer.getBinary(field);
+                final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+                meta.writeShort(jumpTableEntryCount);
+                meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+            }
+
+            meta.writeInt(numDocsWithField);
+            meta.writeInt(minLength);
+            meta.writeInt(maxLength);
+            if (maxLength > minLength) {
+                start = data.getFilePointer();
+                meta.writeLong(start);
+                meta.writeVInt(ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+
+                final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
+                    meta,
+                    data,
+                    numDocsWithField + 1,
+                    ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                );
+                long addr = 0;
+                writer.add(addr);
+                values = valuesProducer.getBinary(field);
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    addr += values.binaryValue().length;
+                    writer.add(addr);
+                }
+                writer.finish();
+                meta.writeLong(data.getFilePointer() - start);
+            }
         }
     }
 

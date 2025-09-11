@@ -56,10 +56,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEO_POINT,
             DataType.CARTESIAN_SHAPE,
             DataType.GEO_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.addAll(DataType.UNDER_CONSTRUCTION.keySet().stream().filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE).toList());
+            t.addAll(
+                DataType.UNDER_CONSTRUCTION.keySet()
+                    .stream()
+                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .toList()
+            );
         }
         TYPES = unmodifiableList(t);
     }

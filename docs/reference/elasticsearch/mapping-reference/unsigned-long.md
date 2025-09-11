@@ -7,7 +7,7 @@ mapped_pages:
 # Unsigned long field type [unsigned-long]
 
 
-Unsigned long is a numeric field type that represents an unsigned 64-bit integer with a minimum value of 0 and a maximum value of `2`^`64`^`-1` (from 0 to 18446744073709551615 inclusive).
+Unsigned long is a numeric field type that represents an unsigned 64-bit integer with a minimum value of 0 and a maximum value of `2^64 - 1` (from 0 to 18446744073709551615 inclusive).
 
 ```console
 PUT my_index

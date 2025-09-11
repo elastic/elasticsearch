@@ -2,12 +2,14 @@
   "esql.get_query": {
     "documentation": {
       "url": null,
-      "description": "Executes a get ESQL query request"
+      "description": "Get a specific running ES|QL query information"
     },
     "stability": "experimental",
     "visibility": "public",
     "headers": {
-      "accept": [],
+      "accept": [
+        "application/json"
+      ],
       "content_type": [
         "application/json"
       ]

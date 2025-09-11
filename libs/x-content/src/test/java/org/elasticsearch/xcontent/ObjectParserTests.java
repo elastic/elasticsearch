@@ -1004,7 +1004,7 @@ public class ObjectParserTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
         assertThat(
             e.getMessage(),
-            equalTo("Required one of fields [a, b], but none were specified. " + "Required one of fields [c, d], but none were specified. ")
+            equalTo("Required one of fields [a, b], but none were specified. " + "Required one of fields [c, d], but none were specified.")
         );
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -58,11 +60,11 @@ final class ComputeResponse extends TransportResponse {
     }
 
     ComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
-            completionInfo = new DriverCompletionInfo(in);
+        if (supportsCompletionInfo(in.getTransportVersion())) {
+            completionInfo = DriverCompletionInfo.readFrom(in);
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom));
+                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
             } else {
                 completionInfo = DriverCompletionInfo.EMPTY;
             }
@@ -92,11 +94,11 @@ final class ComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+        if (supportsCompletionInfo(out.getTransportVersion())) {
             completionInfo.writeTo(out);
         } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(true);
-            out.writeCollection(completionInfo.collectedProfiles());
+            out.writeCollection(completionInfo.driverProfiles());
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalTimeValue(took);
@@ -109,6 +111,11 @@ final class ComputeResponse extends TransportResponse {
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
+    }
+
+    private static boolean supportsCompletionInfo(TransportVersion version) {
+        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
+            || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
     }
 
     public DriverCompletionInfo getCompletionInfo() {

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 
 import java.util.List;
 import java.util.Objects;
@@ -21,12 +21,16 @@ public class PluggableAuthenticatorChain implements Authenticator {
     private final List<CustomAuthenticator> customAuthenticators;
 
     public PluggableAuthenticatorChain(List<CustomAuthenticator> customAuthenticators) {
-        this.customAuthenticators = Objects.requireNonNull(customAuthenticators);
+        this.customAuthenticators = List.copyOf(Objects.requireNonNull(customAuthenticators));
     }
 
     @Override
     public String name() {
         return "pluggable custom authenticator chain";
+    }
+
+    public List<CustomAuthenticator> getCustomAuthenticators() {
+        return customAuthenticators;
     }
 
     public boolean hasCustomAuthenticators() {

@@ -1211,7 +1211,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(extractedMap, is(Map.of("key", "value")));
     }
 
-    public void testExtractOptionalMapRemoveNulls_HandlesNullMap() {
+    public void testExtractOptionalMapRemoveNulls_HandlesNullMap_FromUnknownSetting() {
         var validation = new ValidationException();
 
         var extractedMap = extractOptionalMapRemoveNulls(

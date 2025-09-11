@@ -145,7 +145,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         Arrays.fill(queryVector, 0);
         EsqlQueryRequest queryRequest = new EsqlQueryRequest();
         QueryParams queryParams = new QueryParams(
-            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.PATTERN))
+            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.VALUE))
         );
 
         queryRequest.params(queryParams);

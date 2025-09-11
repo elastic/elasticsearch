@@ -54,7 +54,7 @@ public class PolicyManager {
      */
     static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    public static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop", "java.xml");
+    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop", "java.xml");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
@@ -94,7 +94,7 @@ public class PolicyManager {
          * If this kind corresponds to a single component, this is that component's name;
          * otherwise null.
          */
-        public final String componentName;
+        final String componentName;
 
         ComponentKind(String componentName) {
             this.componentName = componentName;

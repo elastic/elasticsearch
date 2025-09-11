@@ -440,12 +440,12 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
-- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
-  method: testParseAndQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133871
-- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
-  method: testParseOrQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133863
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/134407
 
 # Examples:
 #

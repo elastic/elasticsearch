@@ -440,12 +440,12 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testMoreLikeThis() {
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("to_child_lock_join_query"));
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("esql_ixed_index_like"));
         assertThat(
             ise.getMessage(),
             is(
-                "Unknown transport version [to_child_lock_join_query]. "
-                    + "Did you mean [to_child_block_join_query]? "
+                "Unknown transport version [esql_ixed_index_like]. "
+                    + "Did you mean [esql_fixed_index_like]? "
                     + "If this is a new transport version, run './gradle generateTransportVersion'."
             )
         );

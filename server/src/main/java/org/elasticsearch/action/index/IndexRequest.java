@@ -418,7 +418,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.isPipelineResolved;
     }
 
-    public IndexSource sourceContext() {
+    public IndexSource indexSource() {
         return indexSource;
     }
 

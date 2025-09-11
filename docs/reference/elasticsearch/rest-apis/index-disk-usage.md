@@ -2,13 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/indices-disk-usage.html
 applies_to:
+  serverless: unavailable
   stack: all
-navigation_title: Analyze the index disk usage
+navigation_title: Analyze index disk usage
 ---
 
 # Analyze index disk usage API example
 
-The `_disk_usage` API analyzes how much disk space each field in an index or data stream consumes. It helps you understand storage distribution and identify fields that use the most space. This page shows an example request and response for the [Analyze index disk usage API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-disk-usage).
+The `_disk_usage` API analyzes how much disk space each field in an index or data stream consumes. It helps you understand storage distribution and identify fields that use the most space. This page shows an example request and response for the [Analyze index disk usage API]({{es-apis}}operation/operation-indices-disk-usage).
 
 ## Example request
 
@@ -128,9 +129,9 @@ The API returns:
 
 1. The total disk space used by the shards analyzed by the API. By default, only primary shards are analyzed.
 
-The total disk space used by all fields in the analyzed shards. This total is usually smaller than the `store_size` annotated in <1>, because the API ignores some metadata files.
+2. The total disk space used by all fields in the analyzed shards. This total is usually smaller than the `store_size` annotated in <1>, because the API ignores some metadata files.
 
-3. The disk space used by `_id` field values for direct document retrieval. This storage enables [getting a document by its ID](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), without needing to search the inverted index.
+3. The disk space used by `_id` field values for direct document retrieval. This storage enables [getting a document by its ID]({{es-apis}}operation/operation-get), without needing to search the inverted index.
 
 4. The disk space used by the `_source` field. As stored fields are stored
 together in a compressed format, the sizes of stored fields are

@@ -11,8 +11,8 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
-import org.elasticsearch.common.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -95,11 +95,13 @@ public class CrossClusterApiKeySignerSettings {
         );
     }
 
-    public static List<Setting.AffixSetting<?>> getSecureSettings() {
+    public static List<Setting<?>> getSecureSettings() {
         return List.of(SIGNING_KEYSTORE_SECURE_PASSWORD, SIGNING_KEYSTORE_SECURE_KEY_PASSWORD, SIGNING_KEY_SECURE_PASSPHRASE);
     }
 
-    public static List<Setting.AffixSetting<?>> getSettings() {
-        return CollectionUtils.concatLists(getDynamicSettings(), getSecureSettings());
+    public static List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<>(getSecureSettings());
+        settings.addAll(getDynamicSettings());
+        return settings;
     }
 }

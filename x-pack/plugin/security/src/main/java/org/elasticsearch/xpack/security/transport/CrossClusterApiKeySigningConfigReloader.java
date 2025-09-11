@@ -10,11 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.InMemoryClonedSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.util.set.Sets;
@@ -29,12 +27,10 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -220,7 +216,9 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
             // The secure settings provided to reload are only available in the scope of this method call since after that the keystore is
             // closed. Since the secure settings will potentially be used later when the signing config is used to sign headers, the
             // settings need to be retrieved from the keystore and cached
-            Settings cachedSettings = Settings.builder().setSecureSettings(extractSecureSettings(settings, getSecureSettings())).build();
+            Settings cachedSettings = Settings.builder()
+                .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(settings, getSecureSettings()))
+                .build();
             cachedSettings.getGroups("cluster.remote.", true).forEach((clusterAlias, settingsForCluster) -> {
                 // Only update signing config if settings were found, since empty config means config deletion
                 if (settingsForCluster.isEmpty() == false) {
@@ -232,73 +230,4 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
             logger.error("Keystore exception while reloading signing configuration after reload of secure settings", e);
         }
     }
-
-    /**
-     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The {@code Setting} argument has to have the
-     * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
-     * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
-     * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
-     *
-     * @param source               A {@code Settings} object with its {@code SecureSettings} open/available.
-     * @param settingsToCopy The list of settings to copy.
-     * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
-     */
-    private static SecureSettings extractSecureSettings(Settings source, List<Setting.AffixSetting<?>> settingsToCopy)
-        throws GeneralSecurityException {
-        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
-        final Map<String, SecureSettingValue> copiedSettings = new HashMap<>();
-
-        if (sourceSecureSettings != null && settingsToCopy != null) {
-            for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-                for (final Setting<?> secureSetting : settingsToCopy) {
-                    if (secureSetting.match(settingKey)) {
-                        copiedSettings.put(
-                            settingKey,
-                            new SecureSettingValue(
-                                sourceSecureSettings.getString(settingKey),
-                                sourceSecureSettings.getSHA256Digest(settingKey)
-                            )
-                        );
-                    }
-                }
-            }
-        }
-        return new SecureSettings() {
-            @Override
-            public boolean isLoaded() {
-                return true;
-            }
-
-            @Override
-            public SecureString getString(String setting) {
-                return copiedSettings.get(setting).value();
-            }
-
-            @Override
-            public Set<String> getSettingNames() {
-                return copiedSettings.keySet();
-            }
-
-            @Override
-            public InputStream getFile(String setting) {
-                throw new UnsupportedOperationException("A cached SecureSetting cannot be a file");
-            }
-
-            @Override
-            public byte[] getSHA256Digest(String setting) {
-                return copiedSettings.get(setting).sha256Digest();
-            }
-
-            @Override
-            public void close() throws IOException {}
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                throw new UnsupportedOperationException("A cached SecureSetting cannot be serialized");
-            }
-        };
-    }
-
-    private record SecureSettingValue(SecureString value, byte[] sha256Digest) {}
-
 }

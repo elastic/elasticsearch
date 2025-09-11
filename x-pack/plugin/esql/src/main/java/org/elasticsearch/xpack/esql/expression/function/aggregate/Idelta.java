@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -55,11 +54,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
-    public Idelta(
-        Source source,
-        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
-        Expression timestamp
-    ) {
+    public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
 

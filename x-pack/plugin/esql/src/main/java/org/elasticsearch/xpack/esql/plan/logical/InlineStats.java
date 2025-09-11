@@ -118,7 +118,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields, null);
+        return new JoinConfig(JoinTypes.LEFT, leftFields, rightFields, null);
     }
 
     @Override

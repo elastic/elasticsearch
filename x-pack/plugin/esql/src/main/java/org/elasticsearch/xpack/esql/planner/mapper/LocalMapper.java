@@ -108,7 +108,6 @@ public class LocalMapper {
                         join.source(),
                         left,
                         localData,
-                        config.matchFields(),
                         config.leftFields(),
                         config.rightFields(),
                         join.rightOutputFields()

@@ -116,13 +116,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         LogicalPlan left,
         LogicalPlan right,
         JoinType type,
-        List<Attribute> matchFields,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         Expression joinOnConditions
     ) {
         super(source, left, right);
-        this.config = new JoinConfig(type, matchFields, leftFields, rightFields, joinOnConditions);
+        this.config = new JoinConfig(type, leftFields, rightFields, joinOnConditions);
     }
 
     public Join(StreamInput in) throws IOException {
@@ -170,7 +169,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             left(),
             right(),
             config.type(),
-            config.matchFields(),
             config.leftFields(),
             config.rightFields(),
             config.joinOnConditions()

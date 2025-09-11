@@ -23,41 +23,45 @@ import java.util.Objects;
 /**
  * Configuration for a {@code JOIN} style operation.
  */
-// TODO: this class needs refactoring into a more general form (expressions) since it's currently contains
-// both the condition (equi-join) between the left and right field as well as the output of the join keys
-// which makes sense only for USING clause - which is better resolved in the analyzer (based on the names)
-// hence why for now the attributes are set inside the analyzer
 public final class JoinConfig implements Writeable {
     private final JoinType type;
-    private final List<Attribute> matchFields;
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final Expression joinOnConditions;
 
     /**
      * @param type        type of join
-     * @param matchFields fields either from the left or right fields which decide which side is kept
-     * @param leftFields  matched with the right fields
-     * @param rightFields matched with the left fields
-     * @param joinOnConditions join conditions for expression based join. If null, we assume equi-join on the left/right fields
+     * @param leftFields  fields from the left child to join on
+     * @param rightFields fields from the right child to join on
+     * @param joinOnConditions join conditions for expression based joins. If null, we assume equi-join on the left/right fields
      */
-    public JoinConfig(
+    public JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribute> rightFields, Expression joinOnConditions) {
+        this.type = type;
+        this.leftFields = leftFields;
+        this.rightFields = rightFields;
+        this.joinOnConditions = joinOnConditions;
+    }
+
+    /**
+     * Legacy constructor that included the match fields, which were always the left fields.
+     * They are kept here for serialization compatibility, but are not used anymore.
+     */
+    // TODO: Remove
+    @Deprecated(forRemoval = true)
+    private JoinConfig(
         JoinType type,
         List<Attribute> matchFields,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         Expression joinOnConditions
     ) {
-        this.type = type;
-        this.matchFields = matchFields;
-        this.leftFields = leftFields;
-        this.rightFields = rightFields;
-        this.joinOnConditions = joinOnConditions;
+        this(type, leftFields, rightFields, joinOnConditions);
     }
 
     public JoinConfig(StreamInput in) throws IOException {
         this(
             JoinTypes.readFrom(in),
+            // TODO we read the match fields for legacy reasons, they are not used anymore.
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
@@ -75,7 +79,8 @@ public final class JoinConfig implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
-        out.writeNamedWriteableCollection(matchFields);
+        // TODO we write the match fields for legacy reasons, they used to always be the left fields.
+        out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
@@ -87,7 +92,6 @@ public final class JoinConfig implements Writeable {
 
     public boolean expressionsResolved() {
         return type.resolved()
-            && Resolvables.resolved(matchFields)
             && Resolvables.resolved(leftFields)
             && Resolvables.resolved(rightFields)
             && (joinOnConditions == null || joinOnConditions.resolved());
@@ -95,10 +99,6 @@ public final class JoinConfig implements Writeable {
 
     public JoinType type() {
         return type;
-    }
-
-    public List<Attribute> matchFields() {
-        return matchFields;
     }
 
     public List<Attribute> leftFields() {
@@ -119,7 +119,6 @@ public final class JoinConfig implements Writeable {
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (JoinConfig) obj;
         return Objects.equals(this.type, that.type)
-            && Objects.equals(this.matchFields, that.matchFields)
             && Objects.equals(this.leftFields, that.leftFields)
             && Objects.equals(this.rightFields, that.rightFields)
             && Objects.equals(this.joinOnConditions, that.joinOnConditions);
@@ -127,7 +126,7 @@ public final class JoinConfig implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, matchFields, leftFields, rightFields, joinOnConditions);
+        return Objects.hash(type, leftFields, rightFields, joinOnConditions);
     }
 
     @Override
@@ -135,9 +134,6 @@ public final class JoinConfig implements Writeable {
         return "JoinConfig["
             + "type="
             + type
-            + ", "
-            + "matchFields="
-            + matchFields
             + ", "
             + "leftFields="
             + leftFields

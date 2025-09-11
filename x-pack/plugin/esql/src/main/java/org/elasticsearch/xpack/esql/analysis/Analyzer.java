@@ -782,7 +782,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         name,
                         "Only LEFT join is supported with USING"
                     );
-                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList(), null));
+                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
                 }
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
@@ -806,17 +806,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             throw new EsqlIllegalArgumentException("Unsupported join filter expression: " + expression);
                         }
                     }
-                    Set<Attribute> matchKeysSet = new HashSet<>(leftKeys);
-                    matchKeysSet.addAll(rightKeys);
-                    matchKeys = new ArrayList<>(matchKeysSet);
                 } else {
                     // resolve the using columns against the left and the right side then assemble the new join config
                     leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
                     rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
-                    matchKeys = leftKeys;
                 }
 
-                config = new JoinConfig(coreJoin, matchKeys, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
+                config = new JoinConfig(coreJoin, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
                 return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
             } else if (type != JoinTypes.LEFT) {
                 // everything else is unsupported for now
@@ -824,7 +820,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
-                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList(), null));
+                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
 
             return join;

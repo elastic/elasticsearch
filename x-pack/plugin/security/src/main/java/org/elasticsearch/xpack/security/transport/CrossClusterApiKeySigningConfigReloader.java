@@ -87,12 +87,12 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
                 var effectiveSettings = buildEffectiveSettings(val, settings, updateSecureSettings);
                 try {
                     var signingConfig = apiKeySigner.loadSigningConfig(clusterAlias, effectiveSettings);
-                    if (signingConfig != null) {
-                        watchDependentFilesForClusterAliases(
+                    signingConfig.ifPresent(
+                        config -> watchDependentFilesForClusterAliases(
                             resourceWatcherService,
-                            signingConfig.dependentFiles().stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
-                        );
-                    }
+                            config.dependentFiles().stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
+                        )
+                    );
                 } catch (IllegalStateException e) {
                     logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
                 }

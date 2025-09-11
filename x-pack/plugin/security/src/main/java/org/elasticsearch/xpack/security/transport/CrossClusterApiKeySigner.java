@@ -51,20 +51,26 @@ public class CrossClusterApiKeySigner {
         loadSigningConfigs();
     }
 
-    SigningConfig loadSigningConfig(String clusterAlias, Settings settings) {
+    Optional<SigningConfig> loadSigningConfig(String clusterAlias, Settings settings) {
         logger.trace("Loading signing config for [{}] with settings [{}]", clusterAlias, settings);
         if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
             try {
                 SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settings, SETTINGS_PART_SIGNING + ".", environment, false);
                 if (keyConfig.hasKeyMaterial()) {
                     String alias = settings.get(SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX);
-                    var keyPair = Strings.isNullOrEmpty(alias) ? buildKeyPair(keyConfig) : buildKeyPair(keyConfig, alias);
-                    if (keyPair != null) {
-                        logger.trace("Key pair [{}] found for [{}]", keyPair, clusterAlias);
-                        var signingConfig = new SigningConfig(keyPair, keyConfig.getDependentFiles());
-                        signingConfigByClusterAlias.put(clusterAlias, signingConfig);
-                        return signingConfig;
+                    X509KeyManager keyManager = keyConfig.createKeyManager();
+                    if (keyManager == null) {
+                        throw new IllegalStateException("Cannot create key manager for key config [" + keyConfig + "]");
                     }
+
+                    var keyPair = Strings.isNullOrEmpty(alias)
+                        ? buildKeyPair(keyManager, keyConfig)
+                        : buildKeyPair(keyManager, keyConfig, alias);
+
+                    logger.trace("Key pair [{}] found for [{}]", keyPair, clusterAlias);
+                    var signingConfig = new SigningConfig(keyPair, keyConfig.getDependentFiles());
+                    signingConfigByClusterAlias.put(clusterAlias, signingConfig);
+                    return Optional.of(signingConfig);
                 } else {
                     logger.error(Strings.format("No signing credentials found in signing config for cluster [%s]", clusterAlias));
                 }
@@ -74,12 +80,12 @@ public class CrossClusterApiKeySigner {
         }
         logger.trace("No valid signing config settings found for [{}] with settings [{}]", clusterAlias, settings);
         signingConfigByClusterAlias.remove(clusterAlias);
-        return null;
+        return Optional.empty();
     }
 
     public X509CertificateSignature sign(String clusterAlias, String... headers) {
         SigningConfig signingConfig = signingConfigByClusterAlias.get(clusterAlias);
-        if (signingConfig == null || signingConfig.keyPair() == null) {
+        if (signingConfig == null) {
             logger.trace("No signing config found for [{}] returning empty signature", clusterAlias);
             return null;
         }
@@ -103,12 +109,7 @@ public class CrossClusterApiKeySigner {
         this.environment.settings().getGroups("cluster.remote.", true).forEach(this::loadSigningConfig);
     }
 
-    private X509KeyPair buildKeyPair(SslKeyConfig keyConfig) {
-        final X509KeyManager keyManager = keyConfig.createKeyManager();
-        if (keyManager == null) {
-            return null;
-        }
-
+    private X509KeyPair buildKeyPair(X509KeyManager keyManager, SslKeyConfig keyConfig) {
         final Set<String> aliases = SIGNATURE_ALGORITHM_BY_TYPE.keySet()
             .stream()
             .map(keyType -> keyManager.getServerAliases(keyType, null))
@@ -133,13 +134,8 @@ public class CrossClusterApiKeySigner {
         };
     }
 
-    private X509KeyPair buildKeyPair(SslKeyConfig keyConfig, String alias) {
+    private X509KeyPair buildKeyPair(X509KeyManager keyManager, SslKeyConfig keyConfig, String alias) {
         assert alias != null;
-
-        final X509KeyManager keyManager = keyConfig.createKeyManager();
-        if (keyManager == null) {
-            return null;
-        }
 
         final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
         if (SIGNATURE_ALGORITHM_BY_TYPE.containsKey(keyType) == false) {

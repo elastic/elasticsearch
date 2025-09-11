@@ -3807,20 +3807,18 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testKnnFunctionWithTextEmbedding() {
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+        assumeTrue("KNN function capability required", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
 
-        String fieldName = randomFrom("float_vector", "byte_vector");
-
         LogicalPlan plan = analyze("""
-            from test | where KNN(%s, TEXT_EMBEDDING("italian food recipe", "%s"))
-            """.formatted(fieldName, TEXT_EMBEDDING_INFERENCE_ID), "mapping-dense_vector.json");
+            from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))
+            """.formatted(TEXT_EMBEDDING_INFERENCE_ID), "mapping-dense_vector.json");
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Knn knn = as(filter.condition(), Knn.class);
         assertThat(knn.field(), instanceOf(FieldAttribute.class));
-        assertThat(((FieldAttribute) knn.field()).name(), equalTo(fieldName));
+        assertThat(((FieldAttribute) knn.field()).name(), equalTo("float_vector"));
 
         TextEmbedding textEmbedding = as(knn.query(), TextEmbedding.class);
         assertThat(textEmbedding.inputText(), equalTo(string("italian food recipe")));

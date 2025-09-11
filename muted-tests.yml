@@ -375,9 +375,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionNoFetch
-  issue: https://github.com/elastic/elasticsearch/issues/128720
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
@@ -528,6 +525,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/134512
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.FiveFork}
+  issue: https://github.com/elastic/elasticsearch/issues/134560
 
 # Examples:
 #

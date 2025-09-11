@@ -196,7 +196,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
         if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()
             && licenseService.allowPatternedText(isTemplateValidation) == false) {
-            additionalSettings.put(PatternedTextFieldMapper.PATTERNED_TEXT_FALLBACK_SETTING.getKey(), true);
+            additionalSettings.put(PatternedTextFieldMapper.PATTERNED_TEXT_BASIC_SETTING.getKey(), true);
         }
     }
 

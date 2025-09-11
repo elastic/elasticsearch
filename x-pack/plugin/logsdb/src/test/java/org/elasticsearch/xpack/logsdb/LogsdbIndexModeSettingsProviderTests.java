@@ -971,7 +971,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
             .build();
         Settings result = generateLogsdbSettings(settings);
-        assertTrue(PatternedTextFieldMapper.PATTERNED_TEXT_FALLBACK_SETTING.get(result));
+        assertTrue(PatternedTextFieldMapper.PATTERNED_TEXT_BASIC_SETTING.get(result));
     }
 
     public void testSortAndHostNamePropagateValue() throws Exception {

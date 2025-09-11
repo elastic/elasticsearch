@@ -46,11 +46,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
 
     /**
-     * A setting that indicates that patterned text fields should behave as match_only_text fields, usually because there is
-     * no valid license.
+     * A setting that indicates that patterned text fields should disable enterprise-level storage savings, usually because there is
+     * no valid enterprise license.
      */
-    public static final Setting<Boolean> PATTERNED_TEXT_FALLBACK_SETTING = Setting.boolSetting(
-        "index.mapping.patterned_text_fallback_to_match_only_text",
+    public static final Setting<Boolean> PATTERNED_TEXT_BASIC_SETTING = Setting.boolSetting(
+        "index.mapping.patterned_text_disable_enterprise",
         false,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex
@@ -88,7 +88,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
         private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
-        private final Parameter<Boolean> fallbackToMatchOnlyText;
+        private final Parameter<Boolean> disableEnterpriseFeatures;
 
         public Builder(String name, MappingParserContext context) {
             this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
@@ -105,12 +105,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
 
-            this.fallbackToMatchOnlyText = fallbackToMatchOnlyTextParameter(indexSettings);
+            this.disableEnterpriseFeatures = disableEnterpriseFeaturesParameter(indexSettings);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, indexOptions, fallbackToMatchOnlyText };
+            return new Parameter<?>[] { meta, indexOptions, disableEnterpriseFeatures };
         }
 
         private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
@@ -153,18 +153,18 @@ public class PatternedTextFieldMapper extends FieldMapper {
          * The parameter can only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
          * associated index setting, which is set from the current license status.
          */
-        private static Parameter<Boolean> fallbackToMatchOnlyTextParameter(IndexSettings indexSettings) {
-            boolean forceFallback = indexSettings.getValue(PATTERNED_TEXT_FALLBACK_SETTING);
+        private static Parameter<Boolean> disableEnterpriseFeaturesParameter(IndexSettings indexSettings) {
+            boolean forceDisable = indexSettings.getValue(PATTERNED_TEXT_BASIC_SETTING);
             return Parameter.boolParam(
-                "fallback_to_match_only_text",
+                "disable_enterprise_features",
                 false,
-                m -> ((PatternedTextFieldMapper) m).fallbackToMatchOnlyText(),
-                forceFallback
+                m -> ((PatternedTextFieldMapper) m).disableEnterpriseFeatures(),
+                forceDisable
             ).addValidator(value -> {
-                if (value == false && forceFallback) {
+                if (value == false && forceDisable) {
                     throw new MapperParsingException(
-                        "value [false] for mapping parameter [fallback_to_match_only_text] contradicts value [true] for index setting ["
-                            + PATTERNED_TEXT_FALLBACK_SETTING.getKey()
+                        "value [false] for mapping parameter [disable_enterprise_features] contradicts value [true] for index setting ["
+                            + PATTERNED_TEXT_BASIC_SETTING.getKey()
                             + "]"
                     );
                 }
@@ -218,10 +218,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
-        this.fallbackToMatchOnlyText = builder.fallbackToMatchOnlyText.getValue();
+        this.fallbackToMatchOnlyText = builder.disableEnterpriseFeatures.getValue();
     }
 
-    public boolean fallbackToMatchOnlyText() {
+    public boolean disableEnterpriseFeatures() {
         return this.fallbackToMatchOnlyText;
     }
 

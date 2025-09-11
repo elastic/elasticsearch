@@ -45,34 +45,34 @@ public class PatternedTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCa
 
         String backingIndex0 = getDataStreamBackingIndex(client(), dataStreamName, 0);
         {
-            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text_fallback_to_match_only_text"));
+            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text_disable_enterprise"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "patterned_field"
             );
-            assertThat(patternedFieldMapping, hasEntry("fallback_to_match_only_text", true));
+            assertThat(patternedFieldMapping, hasEntry("disable_enterprise_features", true));
         }
 
         startTrial();
         rolloverDataStream(client(), dataStreamName);
 
         {
-            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text_fallback_to_match_only_text"));
+            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text_disable_enterprise"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "patterned_field"
             );
-            assertThat(patternedFieldMapping, hasEntry("fallback_to_match_only_text", true));
+            assertThat(patternedFieldMapping, hasEntry("disable_enterprise_features", true));
         }
 
         String backingIndex1 = getDataStreamBackingIndex(client(), dataStreamName, 1);
         {
-            assertEquals("false", getSetting(client(), backingIndex1, "index.mapping.patterned_text_fallback_to_match_only_text"));
+            assertEquals("false", getSetting(client(), backingIndex1, "index.mapping.patterned_text_disable_enterprise"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
             Map<String, Object> patternedFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "patterned_field"
             );
-            assertThat(patternedFieldMapping, not(hasKey("fallback_to_match_only_text")));
+            assertThat(patternedFieldMapping, not(hasKey("disable_enterprise_features")));
         }
 
     }

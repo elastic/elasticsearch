@@ -51,7 +51,7 @@ A highlighter uses `pre-tags`, `post-tags` to encode highlighted terms.
 
 ## How the unified highlighter works [_an_example_of_the_work_of_the_unified_highlighter]
 
-Let’s look in more details how unified highlighter works.
+In this section, we'll explore how the unified highlighter works in more detail with an example.
 
 First, we create a index with a text field `content`, that will be indexed using `english` analyzer, and will be indexed without offsets or term vectors.
 

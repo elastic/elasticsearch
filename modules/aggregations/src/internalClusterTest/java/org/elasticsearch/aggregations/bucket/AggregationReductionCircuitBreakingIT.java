@@ -9,8 +9,6 @@
 
 package org.elasticsearch.aggregations.bucket;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -19,8 +17,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,22 +41,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-// Repeating to ensure everything was properly closed in the cluster.
-// Failing to close objects on CB exception led to errors only visible with @Repeat.
-@SuppressForbidden(
-    reason = "Repeating to ensure everything was properly closed in the cluster. "
-        + "Failing to close objects on CB exception led to errors only visible with @Repeat."
-)
-@Repeat(iterations = 3)
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 1, maxNumDataNodes = 2, numClientNodes = 1)
-public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
+public class AggregationReductionCircuitBreakingIT extends AggregationIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Most of the settings here exist to make the search as stable and deterministic as possible
         var settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
-            .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "100MB")
+            // More threads may lead to more consumption and the test failing in the datanodes
             .put("thread_pool.search.size", 1);
         if (NODE_ROLES_SETTING.get(otherSettings).isEmpty()) {
             // Coordinator
@@ -84,28 +73,32 @@ public class AggregationsCircuitBreakingIT extends AggregationIntegTestCase {
         createIndex();
         addDocs(100, 100, 100);
 
-        assertCBTrip(
-            () -> internalCluster().coordOnlyNodeClient()
-                .prepareSearch("index")
-                .setSize(0)
-                .addAggregation(
-                    composite(
-                        "composite",
-                        List.of(
-                            new TermsValuesSourceBuilder("integer").field("integer"),
-                            new TermsValuesSourceBuilder("long").field("long")
-                        )
-                    ).size(5000).subAggregation(topHits("top_hits").size(10))
-                )
-                .setBatchedReduceSize(2),
-            e -> {
-                var completeException = ExceptionsHelper.stackTrace(e);
-                // If a shard fails, we can't check reduction
-                assumeTrue(completeException, e.shardFailures().length == 0);
-                assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
-                assertThat(completeException, containsString("QueryPhaseResultConsumer.reduce"));
-            }
-        );
+        // Some leaks (Check ESTestCase#loggedLeaks) aren't logged unless we run the test twice.
+        // So we run it multiple times to ensure everything gets collected before the final test checks.
+        for (int i = 0; i < 10; i++) {
+            assertCBTrip(
+                () -> internalCluster().coordOnlyNodeClient()
+                    .prepareSearch("index")
+                    .setSize(0)
+                    .addAggregation(
+                        composite(
+                            "composite",
+                            List.of(
+                                new TermsValuesSourceBuilder("integer").field("integer"),
+                                new TermsValuesSourceBuilder("long").field("long")
+                            )
+                        ).size(5000).subAggregation(topHits("top_hits").size(10))
+                    )
+                    .setBatchedReduceSize(randomIntBetween(2, 5)),
+                e -> {
+                    var completeException = ExceptionsHelper.stackTrace(e);
+                    // If a shard fails, we can't check reduction
+                    assumeTrue(completeException, e.shardFailures().length == 0);
+                    assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+                    assertThat(completeException, containsString("QueryPhaseResultConsumer.reduce"));
+                }
+            );
+        }
     }
 
     public void assertCBTrip(Supplier<SearchRequestBuilder> requestSupplier, Consumer<SearchPhaseExecutionException> exceptionCallback) {

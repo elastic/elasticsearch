@@ -157,7 +157,7 @@ public class RestIndexAction extends BaseRestHandler {
                 indexRequest,
                 ActionListener.releaseAfter(
                     new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
-                    indexRequest.indexSource()
+                    indexRequest
                 )
             );
         };

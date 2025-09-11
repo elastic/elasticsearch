@@ -132,7 +132,7 @@ public class RestBulkAction extends BaseRestHandler {
             }
 
             // The actual bulk request items are mutable during the bulk process so we must create a copy
-            List<DocWriteRequest<?>> toClose = bulkRequest.requests();
+            List<DocWriteRequest<?>> toClose = new ArrayList<>(bulkRequest.requests());
             return channel -> client.bulk(
                 bulkRequest,
                 ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> Releasables.close(toClose))

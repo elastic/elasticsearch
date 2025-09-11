@@ -212,7 +212,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                     strategy.setShouldConnectFail(shouldConnectFail);
                     final var expectedLogLevel = shouldConnectFail ? Level.WARN : Level.INFO;
                     final var expectedLogMessage = Strings.format(
-                        "Origin project [%s] %s to linked project [%s] alias [%s] on %s attempt",
+                        "Origin project [%s] %s to linked project [%s] with alias [%s] on %s attempt",
                         originProjectId,
                         shouldConnectFail ? "failed to connect" : "successfully connected",
                         linkedProjectId,

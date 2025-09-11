@@ -35,10 +35,6 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-
-        // TODO Remove when feature flag is removed
-        assumeFalse("Rerank chunks behind feature flag", clusterHasFeature("text_similarity_reranker_rescore_chunks"));
-
         // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
         // builder uses to lookup a particular distribution
         var cluster = ElasticsearchCluster.local()

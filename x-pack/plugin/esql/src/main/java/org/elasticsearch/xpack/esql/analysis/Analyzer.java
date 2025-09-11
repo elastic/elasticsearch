@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -1371,20 +1372,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We find all indices that are used in the query, and check their indexmode.
-            boolean isTimeseriesIndexModeOnly = logicalPlan.collectFirstChildren(EsRelation.class::isInstance)
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate)
                 .stream()
-                .map(child -> (EsRelation) child)
-                .map(EsRelation::indexMode)
-                .allMatch(mode -> mode == IndexMode.TIME_SERIES);
+                .toList()
+                .isEmpty() == false;
             int limit;
             if (limits.isEmpty()) {
                 // Find out the indexmode or whether there is a "TS" source
-                limit = context.configuration().resultTruncationDefaultSize(isTimeseriesIndexModeOnly); // user provided no limit: cap to a
-                                                                                                        // default
-                HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
+                limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
+                // default
+                if (isTsAggregate == false) {
+                    HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
+                }
             } else {
-                limit = context.configuration().resultTruncationMaxSize(isTimeseriesIndexModeOnly); // user provided a limit: cap result
-                                                                                                    // entries to the max
+                limit = context.configuration().resultTruncationMaxSize(isTsAggregate); // user provided a limit: cap result
+                                                                                        // entries to the max
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);

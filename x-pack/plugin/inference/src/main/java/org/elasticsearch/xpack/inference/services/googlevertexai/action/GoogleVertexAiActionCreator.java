@@ -94,7 +94,7 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
                     ChatCompletionInput.class
                 );
                 break;
-            default:
+            case null, default:
                 manager = new GenericRequestManager<>(
                     serviceComponents.threadPool(),
                     model,

@@ -210,7 +210,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                                     .mappings(mappings)
                                     .lifecycle(
                                         DataStreamLifecycle.dataLifecycleBuilder()
-                                            .dataRetention(randomTimeValueOfAtLeast(TimeValue.timeValueSeconds(10)))
+                                            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
                                     )
                             )
                             .dataStreamTemplate(new DataStreamTemplate())

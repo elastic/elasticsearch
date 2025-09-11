@@ -1424,15 +1424,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Generate a random TimeValue that is at least the provided timeValue.
-     * Chooses a random TimeUnit, adds between 0 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
+     * Chooses a random TimeUnit, adds between 1 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
      */
-    public static TimeValue randomTimeValueOfAtLeast(TimeValue timeValue) {
-        final var randomUnit = randomFrom(TimeUnit.values());
-        long lowerBound = timeValue.getMillis();
-        // This could result in an overflow, but since this is only a test utility method, we're ok with that.
-        long upperBound = lowerBound + randomUnit.toMillis(1000);
-        final var durationMillis = randomLongBetween(lowerBound, upperBound);
-        final var duration = randomUnit.convert(durationMillis, TimeUnit.MILLISECONDS);
+    public static TimeValue randomTimeValueGreaterThan(TimeValue lowerBound) {
+        final TimeUnit randomUnit = randomFrom(TimeUnit.values());
+        // This conversion might round down, but that's fine since we add at least 1 below, ensuring we still satisfy the "greater than".
+        final long lowerBoundDuration = randomUnit.convert(lowerBound.duration(), lowerBound.timeUnit());
+        final long duration = lowerBoundDuration + randomLongBetween(1, 1000);
         return new TimeValue(duration, randomUnit);
     }
 

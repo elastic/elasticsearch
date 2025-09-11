@@ -154,7 +154,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // note that this index template change will NOT configure a data stream lifecycle on the data stream, only for **new** data streams
         // All existing data streams will fallback to their default data stream lifecycle
         DataStreamLifecycle.Template customLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .dataRetention(randomTimeValueOfAtLeast(TimeValue.timeValueSeconds(10)))
+            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
             .buildTemplate();
         putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.EMPTY, null, customLifecycle);
 
@@ -480,7 +480,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // let's update the index template to configure the management preference to be data stream lifecycle using the prefer_ilm setting
         // note that this index template change will NOT affect existing indices but only the new ones after a rollover.
         DataStreamLifecycle.Template customLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .dataRetention(randomTimeValueOfAtLeast(TimeValue.timeValueSeconds(10)))
+            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
             .buildTemplate();
         putComposableIndexTemplate(
             indexTemplateName,

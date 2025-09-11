@@ -32,7 +32,7 @@ public class ClonedSecureSettings {
      *
      * @param source          the {@link Settings} object with open/available {@link SecureSettings}
      * @param settingsToClone the list of secure settings definitions to copy if present
-     * @return a cloned {@link SecureSettings} containing only the selected settings
+     * @return a cloned {@link SecureSettings} containing only the selected settings if present
      * @throws GeneralSecurityException if any secure setting cannot be accessed
      */
 

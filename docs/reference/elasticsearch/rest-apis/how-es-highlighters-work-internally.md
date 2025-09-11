@@ -49,7 +49,7 @@ FVH and unified highlighter use intermediate data structures to represent fragme
 A highlighter uses `pre-tags`, `post-tags` to encode highlighted terms.
 
 
-## An example of the work of the unified highlighter [_an_example_of_the_work_of_the_unified_highlighter]
+## How the unified highlighter works [_an_example_of_the_work_of_the_unified_highlighter]
 
 Let’s look in more details how unified highlighter works.
 

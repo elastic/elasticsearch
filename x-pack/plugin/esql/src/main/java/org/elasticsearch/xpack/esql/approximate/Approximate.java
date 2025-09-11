@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -25,8 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
@@ -347,34 +344,26 @@ public class Approximate {
                         NamedExpression aggr = aggregate.aggregates().get(i);
                         NamedExpression sampledAggr = aggregateWithSampledId.aggregates().get(i);
                         if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
+                            // TODO: include 0s / nulls depending on agg
                             aggregates.add(
                                 alias.replaceChild(
-                                    new ToLong( // TODO: cast to original type
+                                    new ConfidenceInterval( // TODO: move confidence level to the end
                                         Source.EMPTY,
-                                        new ConfidenceInterval( // TODO: move confidence level to the end
+                                        new Min(
                                             Source.EMPTY,
-                                            new ToDouble(
+                                            sampledAggr.toAttribute(),
+                                            new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1))
+                                        ),
+                                        new Top(
+                                            Source.EMPTY,
+                                            new Mul( // TODO: make this mul a sample correction 1/buckets
                                                 Source.EMPTY,
-                                                new Min(
-                                                    Source.EMPTY,
-                                                    sampledAggr.toAttribute(),
-                                                    new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1))
-                                                )
+                                                Literal.integer(Source.EMPTY, 25),
+                                                sampledAggr.toAttribute()
                                             ),
-                                            new ToDouble(
-                                                Source.EMPTY,
-                                                new Top(
-                                                    Source.EMPTY,
-                                                    new Mul(
-                                                        Source.EMPTY,
-                                                        Literal.integer(Source.EMPTY, 25),
-                                                        sampledAggr.toAttribute()
-                                                    ),
-                                                    new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                                                    Literal.integer(Source.EMPTY, 25),
-                                                    Literal.keyword(Source.EMPTY, "ASC")
-                                                )
-                                            )
+                                            new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                            Literal.integer(Source.EMPTY, 25),
+                                            Literal.keyword(Source.EMPTY, "ASC")
                                         )
                                     )
                                 )

@@ -45,6 +45,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
+            null,
             null
         );
         var request = new UnifiedCompletionRequest(
@@ -78,6 +79,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
+            null,
             null
         );
         var request = new UnifiedCompletionRequest(
@@ -124,6 +126,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
             new ThinkingConfig(123),
+            null,
             null
         );
         int newThinkingBudget = 456;
@@ -150,6 +153,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_API_KEY,
             DEFAULT_RATE_LIMIT,
             originalThinkingConfig,
+            null,
             null
         );
         Map<String, Object> taskSettings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>()));
@@ -164,6 +168,43 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(originalThinkingConfig));
     }
 
+    public void testModelCreationForAnthropic() throws URISyntaxException {
+        URI uri = new URI("http://example.com");
+        var model = createCompletionModel(
+            null,
+            null,
+            null,
+            DEFAULT_API_KEY,
+            DEFAULT_RATE_LIMIT,
+            EMPTY_THINKING_CONFIG,
+            GoogleModelGardenProvider.ANTHROPIC,
+            uri
+        );
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, request);
+
+        assertNull(overriddenModel.getServiceSettings().modelId());
+        assertThat(overriddenModel, not(sameInstance(model)));
+        assertNull(overriddenModel.getServiceSettings().projectId());
+        assertNull(overriddenModel.getServiceSettings().location());
+        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
+        assertThat(overriddenModel.getServiceSettings().uri(), is(uri));
+        assertThat(overriddenModel.getServiceSettings().streamingUri(), is(uri));
+        assertThat(overriddenModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
+        assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
+    }
+
     public static GoogleVertexAiChatCompletionModel createCompletionModel(
         String projectId,
         String location,
@@ -171,13 +212,31 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         String apiKey,
         RateLimitSettings rateLimitSettings,
         ThinkingConfig thinkingConfig,
-        GoogleModelGardenProvider provider
+        GoogleModelGardenProvider provider,
+        URI uri
     ) {
         return new GoogleVertexAiChatCompletionModel(
             "google-vertex-ai-chat-test-id",
             TaskType.CHAT_COMPLETION,
             "google_vertex_ai",
-            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, null, null, provider, rateLimitSettings),
+            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
+            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig),
+            new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static GoogleVertexAiChatCompletionModel createAnthropicChatCompletionModel(
+        String apiKey,
+        RateLimitSettings rateLimitSettings,
+        ThinkingConfig thinkingConfig,
+        GoogleModelGardenProvider provider,
+        URI uri
+    ) {
+        return new GoogleVertexAiChatCompletionModel(
+            "google-vertex-ai-chat-test-id",
+            TaskType.CHAT_COMPLETION,
+            "google_vertex_ai",
+            new GoogleVertexAiChatCompletionServiceSettings(null, null, null, uri, uri, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
         );

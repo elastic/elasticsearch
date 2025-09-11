@@ -112,7 +112,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
             Objects.requireNonNullElse(apiKey, "default-api-key"),
             Objects.requireNonNullElse(rateLimitSettings, new RateLimitSettings(100)),
             thinkingConfig,
-            provider
+            provider,
+            null
         );
         var unifiedChatInput = new UnifiedChatInput(messages, "user", true);
 

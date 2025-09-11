@@ -79,9 +79,12 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
-            if (inferenceFieldMetadata == null && originalQuery.queryVector() == null && getQueryVectorBuilderModelId() == null) {
-                // We are querying a non-inference field and neither a query vector nor query vector builder model ID has been provided
-                throw new IllegalArgumentException("Either query vector or query vector builder model ID must be specified");
+            if (inferenceFieldMetadata == null) {
+                QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+                if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
+                    && textEmbeddingQueryVectorBuilder.getModelId() == null) {
+                    throw new IllegalArgumentException("[model_id] must not be null.");
+                }
             }
         }
     }

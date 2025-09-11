@@ -31,7 +31,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -65,8 +65,9 @@ import java.util.Set;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,7 +107,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
-        if (indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION) || indexed) {
+        if (indexVersion.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION) || indexed) {
             // Serialize if it's new index version, or it was not the default for previous indices
             b.field("index", indexed);
         }
@@ -1513,8 +1514,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .fieldType()
                 .getIndexOptions();
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
-            assertEquals(IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
-            assertEquals(DYNAMIC_NPROBE, indexOptions.defaultNProbe);
+            assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
+            assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
             DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
@@ -1525,7 +1526,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
                 b.field("cluster_size", 1000);
-                b.field("default_n_probe", 10);
+                b.field("default_visit_percentage", 5.0);
                 b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
                 b.endObject();
             }));
@@ -1536,7 +1537,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .getIndexOptions();
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
-            assertEquals(10, indexOptions.defaultNProbe);
+            assertEquals(5.0, indexOptions.defaultVisitPercentage, 0.0);
         }
     }
 
@@ -2479,22 +2480,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-            case FLOAT -> {
-                float[] floats = new float[vectorFieldType.getVectorDimensions()];
-                float magnitude = 0;
-                for (int i = 0; i < floats.length; i++) {
-                    float f = randomFloat();
-                    floats[i] = f;
-                    magnitude += f * f;
-                }
-                magnitude = (float) Math.sqrt(magnitude);
-                if (VectorSimilarity.DOT_PRODUCT.equals(vectorFieldType.getSimilarity())) {
-                    for (int i = 0; i < floats.length; i++) {
-                        floats[i] /= magnitude;
-                    }
-                }
-                yield floats;
-            }
+            case FLOAT -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
             case BIT -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
         };
     }
@@ -2569,6 +2555,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { 128, 0, 0 }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2588,6 +2575,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { 0.0f, 0f, -129.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2607,6 +2595,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2626,6 +2615,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2645,6 +2635,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2661,6 +2652,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2680,6 +2672,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2716,6 +2709,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2732,6 +2726,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2751,6 +2746,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 VectorData.fromFloats(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }),
                 3,
                 3,
+                IVF_FORMAT.isEnabled() ? 10f : null,
                 null,
                 null,
                 null,
@@ -2968,7 +2964,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "IVFVectorsFormat(vectorPerCluster=384)";
+        String expectedString = "ES920DiskBBQVectorsFormat(vectorPerCluster=384)";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 

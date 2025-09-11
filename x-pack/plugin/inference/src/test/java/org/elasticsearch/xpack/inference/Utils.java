@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.hamcrest.Matchers;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPONSE_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -70,34 +72,52 @@ public final class Utils {
         return clusterService;
     }
 
-    public static ScalingExecutorBuilder inferenceUtilityPool() {
-        return new ScalingExecutorBuilder(
-            UTILITY_THREAD_POOL_NAME,
-            1,
-            4,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.utility_thread_pool"
-        );
+    public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
+        return new ScalingExecutorBuilder[] {
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            ),
+            new ScalingExecutorBuilder(
+                INFERENCE_RESPONSE_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
+            ) };
     }
 
-    public static void storeSparseModel(ModelRegistry modelRegistry) throws Exception {
+    public static void storeSparseModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
-            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
         storeModel(modelRegistry, model);
     }
 
     public static void storeDenseModel(
+        String inferenceId,
         ModelRegistry modelRegistry,
         int dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
-            TestDenseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
+        );
+        storeModel(modelRegistry, model);
+    }
+
+    public static void storeRerankModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {
+        Model model = new TestRerankingServiceExtension.TestRerankingModel(
+            inferenceId,
+            new TestRerankingServiceExtension.TestServiceSettings("rerank-model")
         );
         storeModel(modelRegistry, model);
     }

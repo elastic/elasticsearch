@@ -138,6 +138,7 @@ public class EsRelation extends LeafPlan {
                 FieldAttribute f = new FieldAttribute(
                     source,
                     parent != null ? parent.name() : null,
+                    null,
                     parent != null ? parent.name() + "." + name : name,
                     t
                 );

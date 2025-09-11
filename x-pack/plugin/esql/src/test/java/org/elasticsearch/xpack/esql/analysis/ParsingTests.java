@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -23,6 +25,9 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -41,6 +46,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class ParsingTests extends ESTestCase {
     private static final String INDEX_NAME = "test";
@@ -93,6 +100,10 @@ public class ParsingTests extends ESTestCase {
             report.humanReadable(true).prettyPrint();
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                // Some types do not have a converter function if the capability is disabled
+                namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
+            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
@@ -104,7 +115,7 @@ public class ParsingTests extends ESTestCase {
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, registry.functionName(functionCall.getClass()));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
             }
             report.endObject();
         }
@@ -135,18 +146,10 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    public void testJoinOnMultipleFields() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
-            error("row languages = 1, gender = \"f\" | lookup join test on gender, languages")
-        );
-    }
-
     public void testJoinTwiceOnTheSameField() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:66: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [languages]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
         );
     }
@@ -154,7 +157,7 @@ public class ParsingTests extends ESTestCase {
     public void testJoinTwiceOnTheSameField_TwoLookups() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
-            "1:80: JOIN ON clause only supports one field at the moment, found [2]",
+            "1:108: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [gender]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")
         );
     }
@@ -209,14 +212,154 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    private String error(String query, QueryParams params) {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> defaultAnalyzer.analyze(parser.createStatement(query, params, TEST_CFG))
+    public void testSet() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = parse("SET foo = \"bar\"; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"));
+
+        query = parse("SET bar = 2; row a = 1 | eval x = 12", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Eval.class)));
+        assertThat(query.settings().size(), is(1));
+        checkSetting(query, 0, "bar", 2);
+
+        query = parse("SET bar = true; row a = 1 | eval x = 12", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Eval.class)));
+        assertThat(query.settings().size(), is(1));
+        checkSetting(query, 0, "bar", true);
+
+        expectThrows(ParsingException.class, () -> parse("SET foo = 1, bar = 2; row a = 1", new QueryParams()));
+    }
+
+    public void testSetWithTripleQuotes() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = parse("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\"baz"));
+
+        query = parse("SET foo = \"\"\"bar\"\"\"\"; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\""));
+
+        query = parse("SET foo = \"\"\"\"bar\"\"\"; row a = 1 | LIMIT 3", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Limit.class)));
+        assertThat(query.settings().size(), is(1));
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("\"bar"));
+    }
+
+    public void testMultipleSet() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = parse(
+            "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
+            new QueryParams()
         );
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(6));
+
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz"));
+        checkSetting(query, 1, "bar", 2);
+        checkSetting(query, 2, "foo", BytesRefs.toBytesRef("baz"));
+        checkSetting(query, 3, "x", 3.5);
+        checkSetting(query, 4, "y", false);
+        checkSetting(query, 5, "z", null);
+    }
+
+    public void testSetArrays() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = parse("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(2));
+
+        checkSetting(query, 0, "foo", List.of(BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz")));
+        checkSetting(query, 1, "bar", List.of(1, 2, 3));
+    }
+
+    public void testSetWithNamedParams() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = parse(
+            "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
+            new QueryParams(
+                List.of(
+                    new QueryParam("a", 2, DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("x", 3.5, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE)
+                )
+            )
+        );
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(4));
+
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz"));
+        checkSetting(query, 1, "bar", 2);
+        checkSetting(query, 2, "foo", BytesRefs.toBytesRef("baz"));
+        checkSetting(query, 3, "x", 3.5);
+    }
+
+    public void testSetWithPositionalParams() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = parse(
+            "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
+            new QueryParams(
+                List.of(
+                    new QueryParam("a", 2, DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("x", 3.5, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("y", 8, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE)
+                )
+            )
+        );
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(((Row) query.plan()).fields().get(0).child().fold(FoldContext.small()), is(8));
+        assertThat(query.settings().size(), is(4));
+
+        checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz"));
+        checkSetting(query, 1, "bar", 2);
+        checkSetting(query, 2, "foo", BytesRefs.toBytesRef("baz"));
+        checkSetting(query, 3, "x", 3.5);
+    }
+
+    /**
+     * @param query    the query
+     * @param position the order of the corresponding SET statement
+     * @param name     the setting name
+     * @param value    the setting value as it appears in the query at that position
+     */
+    private void checkSetting(EsqlStatement query, int position, String name, Object value) {
+        checkSetting(query, position, name, value, value);
+    }
+
+    /**
+     * @param query        the query
+     * @param position     the order of the corresponding SET statement
+     * @param name         the setting name
+     * @param value        the setting value as it appears in the query at that position
+     * @param maskingValue the final value you'll obtain if you use query.setting(name).
+     *                     It could be different from value in case of name collisions in the query
+     */
+    private void checkSetting(EsqlStatement query, int position, String name, Object value, Object maskingValue) {
+        assertThat(settingName(query, position), is(name));
+        assertThat(settingValue(query, position), is(value));
+        assertThat(query.setting(name).fold(FoldContext.small()), is(maskingValue));
+    }
+
+    private String settingName(EsqlStatement query, int position) {
+        return query.settings().get(position).name();
+    }
+
+    private Object settingValue(EsqlStatement query, int position) {
+        return query.settings().get(position).value().fold(FoldContext.small());
+    }
+
+    private String error(String query, QueryParams params) {
+        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parse(query, params).plan()));
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());
+    }
+
+    private EsqlStatement parse(String query, QueryParams params) {
+        return parser.createQuery(query, params, TEST_CFG);
     }
 
     private String error(String query) {
@@ -226,4 +369,5 @@ public class ParsingTests extends ESTestCase {
     private static IndexResolution loadIndexResolution(String name) {
         return IndexResolution.valid(new EsIndex(INDEX_NAME, LoadMapping.loadMapping(name)));
     }
+
 }

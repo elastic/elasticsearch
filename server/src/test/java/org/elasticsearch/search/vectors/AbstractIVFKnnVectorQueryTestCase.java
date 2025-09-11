@@ -71,7 +71,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -98,13 +98,13 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        format = new IVFVectorsFormat(128, 4);
+        format = new ES920DiskBBQVectorsFormat(128, 4);
     }
 
-    abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, int nProbe);
+    abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter) {
-        return getKnnVectorQuery(field, query, k, queryFilter, 10);
+        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f);
     }
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k) {
@@ -275,7 +275,8 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     /** Test bad parameters */
     public void testIllegalArguments() throws IOException {
         expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 0));
-        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, 0));
+        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, -1));
+        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, 2));
     }
 
     public void testDifferentReader() throws IOException {

@@ -148,6 +148,7 @@ tasks.named("shadowJar").configure {
   relocate("org.apache.hadoop", "fixture.hdfs3.org.apache.hadoop") {
     exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
     exclude "org.apache.hadoop.ipc.StandbyException"
+    exclude "org.apache.hadoop.application-classloader.properties"
   }
   configurations.add(project.configurations.hdfs3)
 }
@@ -156,6 +157,7 @@ def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
   relocate("org.apache.hadoop", "fixture.hdfs2.org.apache.hadoop") {
     exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
     exclude "org.apache.hadoop.ipc.StandbyException"
+    exclude "org.apache.hadoop.application-classloader.properties"
   }
   archiveClassifier.set("hdfs2")
   from sourceSets.main.output
@@ -171,6 +173,10 @@ tasks.withType(ShadowJar).configureEach {
     exclude(dependency("net.java.dev.jna:jna:.*"))
     exclude(dependency("org.objenesis:objenesis:.*"))
     exclude(dependency('com.fasterxml.jackson.core:.*:.*'))
+  }
+
+  filesMatching("META-INF/services/**") {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE // Or something else.
   }
 
   transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {

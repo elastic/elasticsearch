@@ -20,7 +20,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'streams', "bulk", "index", "ingest", "indices", "delete_by_query", "search"
+    include '_common', 'streams', 'bulk', 'index', 'ingest', 'indices', 'delete_by_query', 'search'
   }
 }
 

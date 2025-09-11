@@ -42,7 +42,7 @@ public class Grok extends RegexExtract implements TelemetryAware {
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric()))
+                .map(x -> new ReferenceAttribute(Source.EMPTY, null, x.name(), toDataType(x.type()).widenSmallNumeric()))
                 .collect(Collectors.toList());
         }
 

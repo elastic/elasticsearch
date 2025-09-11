@@ -1,4 +1,3 @@
-## `RERANK` [esql-rerank]
 
 ```yaml {applies_to}
 serverless: preview

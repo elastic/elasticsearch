@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver
 
 pluginManagement {
   repositories {
@@ -14,7 +15,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "4.0.1"
+  id "com.gradle.develocity" version "4.1.1"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -76,15 +77,14 @@ List projects = [
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:bwc:bugfix',
-  'distribution:bwc:bugfix2',
-  'distribution:bwc:bugfix3',
-  'distribution:bwc:bugfix4',
-  'distribution:bwc:bugfix5',
-  'distribution:bwc:maintenance',
-  'distribution:bwc:minor',
-  'distribution:bwc:staged',
-  'distribution:bwc:staged2',
+  'distribution:bwc:major1',
+  'distribution:bwc:major2',
+  'distribution:bwc:major3',
+  'distribution:bwc:major4',
+  'distribution:bwc:minor1',
+  'distribution:bwc:minor2',
+  'distribution:bwc:minor3',
+  'distribution:bwc:minor4',
   'distribution:bwc:main',
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',

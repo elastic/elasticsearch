@@ -1,10 +1,10 @@
 {
   "connector.update_pipeline": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-pipeline-api.html",
-      "description": "Updates the pipeline field in the connector document."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-pipeline",
+      "description": "Update the connector pipeline"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

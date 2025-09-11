@@ -219,7 +219,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled == WriteLoadDeciderStatus.ENABLED);
+                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled);
@@ -262,7 +262,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void maybeFetchNodesUsageStatsForThreadPools(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
-            if (writeLoadConstraintEnabled != WriteLoadDeciderStatus.DISABLED) {
+            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchNodesUsageStatsForThreadPools();
                 }
@@ -313,7 +313,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }
-            if (writeLoadConstraintEnabled == WriteLoadDeciderStatus.ENABLED) {
+            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
                 // This returns the shard write-loads
                 indicesStatsRequest.indexing(true);
             }

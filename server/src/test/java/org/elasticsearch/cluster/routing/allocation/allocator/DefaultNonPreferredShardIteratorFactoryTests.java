@@ -90,6 +90,7 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
             NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = routingAllocation.clusterInfo()
                 .getNodeUsageStatsForThreadPools()
                 .get(nodeId);
+            // Should not receive shards from nodes with no usage stats
             assertNotNull(nodeUsageStatsForThreadPools);
             long thisNodeQueueLatency = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE)

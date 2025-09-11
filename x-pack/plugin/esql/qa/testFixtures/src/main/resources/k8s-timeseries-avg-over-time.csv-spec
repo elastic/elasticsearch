@@ -100,6 +100,22 @@ tx:double          | cluster:keyword | time_bucket:datetime
 493.5              | staging         | 2024-05-10T00:20:00.000Z
 ;
 
+avg_over_time_with_inline_filtering
+required_capability: metrics_command
+TS k8s | STATS tx = sum(avg_over_time(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+tx:double          | cluster:keyword | time_bucket:datetime
+293.0              | prod            | 2024-05-10T00:00:00.000Z
+482.6666666666667  | qa              | 2024-05-10T00:00:00.000Z
+494.1666666666667  | staging         | 2024-05-10T00:00:00.000Z
+601.5454545454545  | prod            | 2024-05-10T00:10:00.000Z
+496.14285714285717 | qa              | 2024-05-10T00:10:00.000Z
+441.6              | staging         | 2024-05-10T00:10:00.000Z
+633.3333333333334  | prod            | 2024-05-10T00:20:00.000Z
+440.0              | qa              | 2024-05-10T00:20:00.000Z
+493.5              | staging         | 2024-05-10T00:20:00.000Z
+;
+
 avg_over_time_older_than_10d
 required_capability: metrics_command
 required_capability: avg_over_time

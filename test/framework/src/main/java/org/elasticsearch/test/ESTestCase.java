@@ -1423,7 +1423,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Generate a random TimeValue that is at least the provided timeValue.
+     * Generate a random TimeValue that is greater than the provided timeValue.
      * Chooses a random TimeUnit, adds between 1 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
      */
     public static TimeValue randomTimeValueGreaterThan(TimeValue lowerBound) {

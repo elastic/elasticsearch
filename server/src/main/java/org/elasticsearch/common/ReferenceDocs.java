@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates links to pages in the reference docs, so that for example we can include URLs in logs and API outputs. Each instance's
  * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
- * {@code reference-docs-links.txt} which must include definitions for exactly the set of values of this enum.
+ * {@codeorg.elasticsearch.common.ReferenceDocs} which must include definitions for exactly the set of values of this enum.
  */
 public enum ReferenceDocs {
     /*
@@ -85,6 +85,7 @@ public enum ReferenceDocs {
     SECURE_SETTINGS,
     CLUSTER_SHARD_LIMIT,
     DEPLOY_CLOUD_DIFF_FROM_STATEFUL,
+    DELETE_INDEX_BLOCK
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

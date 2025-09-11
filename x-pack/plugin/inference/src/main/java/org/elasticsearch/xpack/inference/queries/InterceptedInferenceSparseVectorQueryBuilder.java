@@ -76,7 +76,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
                 // We are querying a non-inference field and need to generate inference results for a query string, but the inference ID
                 // was not specified
                 throw new IllegalArgumentException(
-                    SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName() + "required to perform vector search on query string"
+                    SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName() + " required to perform vector search on query string"
                 );
             }
         }

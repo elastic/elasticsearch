@@ -23,6 +23,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.ByteArrayInputStream;
+import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import javax.xml.namespace.NamespaceContext;
@@ -88,7 +90,10 @@ public final class XmlProcessor extends AbstractProcessor {
     private final boolean forceArray;
     private final Map<String, String> xpathExpressions;
     private final Map<String, String> namespaces;
+
     private final Map<String, XPathExpression> compiledXPathExpressions;
+    private final boolean needsDom;
+    private final SAXParserFactory factory;
 
     XmlProcessor(
         String tag,
@@ -115,9 +120,13 @@ public final class XmlProcessor extends AbstractProcessor {
         this.removeNamespaces = removeNamespaces;
         this.forceContent = forceContent;
         this.forceArray = forceArray;
+
         this.xpathExpressions = xpathExpressions != null ? Map.copyOf(xpathExpressions) : Map.of();
         this.namespaces = namespaces != null ? Map.copyOf(namespaces) : Map.of();
+
         this.compiledXPathExpressions = compileXPathExpressions(this.xpathExpressions, this.namespaces);
+        this.needsDom = this.xpathExpressions.isEmpty() == false;
+        this.factory = selectSaxParserFactory(this.namespaces.isEmpty() == false || removeNamespaces);
     }
 
     public String getField() {
@@ -150,10 +159,6 @@ public final class XmlProcessor extends AbstractProcessor {
 
     public boolean isForceArray() {
         return forceArray;
-    }
-
-    public boolean hasNamespaces() {
-        return namespaces.isEmpty() == false;
     }
 
     public Map<String, String> getNamespaces() {
@@ -469,6 +474,12 @@ public final class XmlProcessor extends AbstractProcessor {
         }
     }
 
+    private static final Map<SAXParserFactory, ThreadLocal<SoftReference<SAXParser>>> PARSERS = new ConcurrentHashMap<>();
+    static {
+        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY, new ThreadLocal<>());
+        PARSERS.put(XmlFactories.SAX_PARSER_FACTORY_NS, new ThreadLocal<>());
+    }
+
     /**
      * Main XML parsing method that converts XML to JSON and optionally extracts XPath values.
      * Uses streaming SAX parser with optional DOM building for XPath processing.
@@ -482,18 +493,28 @@ public final class XmlProcessor extends AbstractProcessor {
             return;
         }
 
-        // Determine if we need DOM for XPath processing
-        boolean needsDom = xpathExpressions.isEmpty() == false;
+        final SAXParser parser;
+        {
+            SAXParser innerParser;
+            final ThreadLocal<SoftReference<SAXParser>> threadLocal = PARSERS.get(factory);
+            final SoftReference<SAXParser> parserReference = threadLocal.get();
+            innerParser = parserReference != null ? parserReference.get() : null;
+            if (innerParser == null) {
+                innerParser = factory.newSAXParser();
+                threadLocal.set(new SoftReference<>(innerParser));
+            }
+            parser = innerParser;
+        }
 
-        // Use the appropriate pre-configured SAX parser factory
-        SAXParserFactory factory = selectSaxParserFactory();
+        final XmlStreamingWithDomHandler handler;
+        try {
+            // Use enhanced handler that can build DOM during streaming when needed
+            handler = new XmlStreamingWithDomHandler(needsDom);
 
-        SAXParser parser = factory.newSAXParser();
-
-        // Use enhanced handler that can build DOM during streaming when needed
-        XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);
-
-        parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
+            parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
+        } finally {
+            parser.reset();
+        }
 
         // Store structured result if needed
         if (storeXml) {
@@ -833,10 +854,8 @@ public final class XmlProcessor extends AbstractProcessor {
      * @return the appropriate SAX parser factory for the current configuration
      * @throws UnsupportedOperationException if the required XML factory is not available
      */
-    private SAXParserFactory selectSaxParserFactory() {
-        boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
+    private static SAXParserFactory selectSaxParserFactory(final boolean needsNamespaceAware) {
         SAXParserFactory factory = needsNamespaceAware ? XmlFactories.SAX_PARSER_FACTORY_NS : XmlFactories.SAX_PARSER_FACTORY;
-
         if (factory == null) {
             throw new UnsupportedOperationException(
                 "XML parsing"
@@ -845,7 +864,6 @@ public final class XmlProcessor extends AbstractProcessor {
                     + "supports these XML features."
             );
         }
-
         return factory;
     }
 }

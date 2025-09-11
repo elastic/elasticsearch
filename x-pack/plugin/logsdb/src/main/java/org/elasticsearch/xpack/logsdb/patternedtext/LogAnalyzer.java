@@ -18,6 +18,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.regex.Pattern;
 
+/**
+ * An analyzer that tokenizes text by a pre-defined list of delimiters that work well for log messages.
+ * The pre-defined list of delimiters is: whitespace characters, =, ?, :, [, ], {, }, ", \, '
+ */
 public final class LogAnalyzer extends Analyzer {
 
     static final NamedAnalyzer INSTANCE = new NamedAnalyzer("log", AnalyzerScope.GLOBAL, new LogAnalyzer());

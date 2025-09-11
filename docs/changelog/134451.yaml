@@ -1,0 +1,6 @@
+pr: 134451
+summary: Use inner query for equals/hashCode() in `SourceConfirmedTextQuery`
+area: "Search"
+type: bug
+issues:
+ - 134432

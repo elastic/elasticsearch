@@ -2,11 +2,9 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/commands.html
 applies_to:
+  stack: ga
   deployment:
-    eck: ga
     self: ga
-    ess: unavailable
-    ece: unavailable
 products:
   - id: elasticsearch 
 ---
@@ -14,9 +12,7 @@ products:
 # Command-line tools [commands]
 
 :::{tip}
-When running {{es}} in a self-managed environment, you can interact with or manage the cluster using command-line tools. These tools assume you have access to {{es}} nodes.
-
-In {{serverless-full}}, Elastic manages the underlying infrastructure for you to help maintain cluster stability, availability, and data integrity. To ensure reliable operation of {{serverless-short}} projects, command-line tools are not available in {{serverless-full}}.
+When running {{es}} in a self-managed environment, you can interact with or manage the cluster using command-line tools. These tools assume you have access to {{es}} nodes and therefore are not available in {{ece}}, {{ech}}, and {{eck}} deployments. The command-line tools are also not available in {{serverless-full}}.
 :::
 
 {{es}} provides the following tools for configuring security and performing other tasks from the command line:

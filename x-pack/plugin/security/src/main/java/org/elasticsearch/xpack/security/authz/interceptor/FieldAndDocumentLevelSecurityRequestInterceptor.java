@@ -17,7 +17,6 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.HashMap;
@@ -25,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -54,7 +54,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && supports(indicesRequest)
             && (isDlsLicensed || isFlsLicensed)) {
-            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
             final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
             for (String index : requestIndices(indicesRequest)) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);

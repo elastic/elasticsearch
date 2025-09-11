@@ -56,6 +56,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     public static final String NAME = "semantic";
 
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");
+    public static final NodeFeature SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX = new NodeFeature("semantic_query.filter_field_caps_fix");
 
     private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV = TransportVersion.fromName(
         "semantic_query_multiple_inference_ids"

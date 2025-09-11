@@ -28,6 +28,18 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.IntFunction;
 
+/**
+ * A {@link QueryList} that generates a query for a binary comparison.
+ * This class is used in the context of an expression based lookup join,
+ * where we need to generate a query for each row of the left dataset.
+ * The query is then used to fetch the matching rows from the right dataset.
+ * The query is a binary comparison between a field from the right dataset and a value from the left dataset.
+ * The field is on the left side of the comparison and the value is on the right side.
+ * The value is extracted from a block at a given position.
+ * The comparison is then translated to a Lucene query.
+ * If the comparison cannot be translated, an exception is thrown.
+ * This class is used in conjunction with {@link ExpressionQueryList} to generate the final query for the lookup join.
+ */
 public class BinaryComparisonQueryList extends QueryList {
     private final EsqlBinaryComparison binaryComparison;
     private final IntFunction<Object> blockValueReader;

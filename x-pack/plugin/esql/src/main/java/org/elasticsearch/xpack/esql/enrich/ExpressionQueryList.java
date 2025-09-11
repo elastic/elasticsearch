@@ -44,6 +44,11 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * Each query in the resulting query will be a conjunction of all queries from the input lists at the same position.
  * In addition, we support an optional pre-join filter that will be applied to all queries if it is pushable.
  * If the pre-join filter cannot be pushed down to Lucene, it will be ignored.
+ * This class is used in the context of a lookup join, where we need to generate a query for each row of the left dataset.
+ * The query is then used to fetch the matching rows from the right dataset.
+ * The class supports two types of joins:
+ * 1. Field-based join: The join conditions are based on the equality of fields from the left and right datasets.
+ * 2. Expression-based join: The join conditions are based on a complex expression that can involve multiple fields and operators.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final List<QueryList> queryLists;
@@ -64,6 +69,20 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
+    /**
+     * Creates a new {@link ExpressionQueryList} for a field-based join.
+     * A field-based join is a join where the join conditions are based on the equality of fields from the left and right datasets.
+     * For example | LOOKUP JOIN on field1, field2, field3
+     * The query lists are generated from the join conditions.
+     * The pre-join filter is an optional filter that is applied to the right dataset before the join.
+     * @param queryLists The list of query lists that will be combined.
+     * @param context The search execution context.
+     * @param rightPreJoinPlan The physical plan for the right side of the join.
+     * @param clusterService The cluster service.
+     * @param aliasFilter The alias filter.
+     * @return A new {@link ExpressionQueryList} for a field-based join.
+     * @throws IllegalArgumentException if the number of query lists is less than 2 and there is no pre-join filter.
+     */
     public static ExpressionQueryList fieldBasedJoin(
         List<QueryList> queryLists,
         SearchExecutionContext context,
@@ -77,6 +96,22 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         return new ExpressionQueryList(queryLists, context, rightPreJoinPlan, clusterService, aliasFilter);
     }
 
+    /**
+     * Creates a new {@link ExpressionQueryList} for an expression-based join.
+     * An expression-based join is a join where the join conditions are based on a complex expression
+     * that can involve multiple fields and operators.
+     * Example | LOOKUP JOIN on left_field > right_field AND left_field2 == right_field2
+     * The query lists are generated from the join conditions.
+     * The pre-join filter is an optional filter that is applied to the right dataset before the join.
+     * @param context The search execution context.
+     * @param rightPreJoinPlan The physical plan for the right side of the join.
+     * @param clusterService The cluster service.
+     * @param request The transport request.
+     * @param aliasFilter The alias filter.
+     * @param warnings The warnings.
+     * @return A new {@link ExpressionQueryList} for an expression-based join.
+     * @throws IllegalStateException if the join conditions are null.
+     */
     public static ExpressionQueryList expressionBasedJoin(
         SearchExecutionContext context,
         PhysicalPlan rightPreJoinPlan,
@@ -207,6 +242,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
     }
 
+    /**
+     * Returns the query at the given position.
+     * The query is a conjunction of all queries from the input lists at the same position.
+     * If a pre-join filter exists, it is also added to the query.
+     * @param position The position of the query to return.
+     * @return The query at the given position, or null if any of the match fields are null.
+     */
     @Override
     public Query getQuery(int position) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -226,6 +268,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         return builder.build();
     }
 
+    /**
+     * Returns the number of positions in the query list.
+     * The number of positions is the same for all query lists.
+     * @return The number of positions in the query list.
+     * @throws IllegalArgumentException if the query lists have different position counts.
+     */
     @Override
     public int getPositionCount() {
         int positionCount = queryLists.get(0).getPositionCount();

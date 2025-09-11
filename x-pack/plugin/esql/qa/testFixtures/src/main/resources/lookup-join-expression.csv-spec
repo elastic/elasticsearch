@@ -710,7 +710,7 @@ emp_no:integer | language_code_left:integer | language_name:keyword
 
 lookupJoinExpressionWithPushableFilterOnRight
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_multiple_fields
+required_capability: lookup_join_on_boolean_expression
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, is_active_bool AS is_active_left

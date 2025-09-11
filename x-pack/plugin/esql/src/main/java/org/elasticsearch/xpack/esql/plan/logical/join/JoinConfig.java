@@ -30,31 +30,17 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
     implements
         Writeable {
 
-    /**
-     * Legacy constructor that included the match fields, which were always the left fields.
-     * They are kept here for serialization compatibility, but are not used anymore.
-     */
-    // TODO: Remove
-    @Deprecated(forRemoval = true)
-    private JoinConfig(
-        JoinType type,
-        List<Attribute> matchFields,
-        List<Attribute> leftFields,
-        List<Attribute> rightFields,
-        Expression joinOnConditions
-    ) {
-        this(type, leftFields, rightFields, joinOnConditions);
+    public JoinConfig(StreamInput in) throws IOException {
+        this(JoinTypes.readFrom(in), readLeftFields(in), in.readNamedWriteableCollectionAsList(Attribute.class), readJoinConditions(in));
     }
 
-    public JoinConfig(StreamInput in) throws IOException {
-        this(
-            JoinTypes.readFrom(in),
-            // TODO we read the match fields for legacy reasons, they are not used anymore.
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            readJoinConditions(in)
-        );
+    private static List<Attribute> readLeftFields(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+            // For BWC, the left fields were written twice (once as match fields)
+            // We read the first set and ignore them.
+            in.readNamedWriteableCollectionAsList(Attribute.class);
+        }
+        return in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
     private static Expression readJoinConditions(StreamInput in) throws IOException {
@@ -67,8 +53,9 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
-        // TODO we write the match fields for legacy reasons, they used to always be the left fields.
-        out.writeNamedWriteableCollection(leftFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+            out.writeNamedWriteableCollection(leftFields);
+        }
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {

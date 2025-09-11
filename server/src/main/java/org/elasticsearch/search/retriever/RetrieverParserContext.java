@@ -12,7 +12,6 @@ package org.elasticsearch.search.retriever;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.usage.SearchUsage;
 
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;

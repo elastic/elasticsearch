@@ -134,7 +134,7 @@ public class PolicyManager {
 
     static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
 
-    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+    public static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
@@ -174,7 +174,7 @@ public class PolicyManager {
          * If this kind corresponds to a single component, this is that component's name;
          * otherwise null.
          */
-        final String componentName;
+        public final String componentName;
 
         ComponentKind(String componentName) {
             this.componentName = componentName;

@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -183,6 +184,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.transport.RemoteConnectionStrategyTests.FakeConnectionStrategy:DEBUG",
+        reason = "logging verification"
+    )
     public void testConnectionAttemptLogging() {
         final var originProjectId = randomUniqueProjectId();
         final var linkedProjectId = randomUniqueProjectId();
@@ -210,7 +215,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         waitForConnect(strategy);
                     }
                     strategy.setShouldConnectFail(shouldConnectFail);
-                    final var expectedLogLevel = shouldConnectFail ? Level.WARN : Level.INFO;
+                    final var expectedLogLevel = shouldConnectFail ? Level.WARN : Level.DEBUG;
                     final var expectedLogMessage = Strings.format(
                         "Origin project [%s] %s to linked project [%s] with alias [%s] on %s attempt",
                         originProjectId,

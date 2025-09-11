@@ -222,7 +222,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             isInitialAttempt ? "the initial connection" : "a reconnection"
         );
         if (e == null) {
-            logger.info(msgSupplier);
+            logger.debug(msgSupplier);
         } else {
             logger.warn(msgSupplier, e);
             // TODO: ES-12695: Increment either the initial or retry connection failure metric.

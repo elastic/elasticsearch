@@ -141,6 +141,15 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         assertThat(cluster.getFailures().size(), equalTo(0));
     }
 
+    protected void assertClusterInfoSkipped(EsqlExecutionInfo.Cluster cluster) {
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(cluster.getTotalShards(), equalTo(0));
+        assertThat(cluster.getSuccessfulShards(), equalTo(0));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(0));
+    }
+
     protected static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta, int numClusters) {
         try {
             final Map<String, Object> esqlResponseAsMap = XContentTestUtils.convertToMap(resp);

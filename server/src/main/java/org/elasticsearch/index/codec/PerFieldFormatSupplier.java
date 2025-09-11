@@ -63,7 +63,7 @@ public class PerFieldFormatSupplier {
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
-    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
+    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;

@@ -102,7 +102,7 @@ name is equal to the expression.
 
 **Limitations**
 
-- [`CATEGORIZE`](/reference/query-languages/esql/_snippets/functions/layout/categorize.md) grouping function is not
+- [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not
 currently supported.
-- `INLINE STATS` cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/_snippets/commands/layout/sort.md) before it.
-You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/_snippets/commands/layout/limit.md) before the [`SORT`](/reference/query-languages/esql/_snippets/commands/layout/sort.md).
+- `INLINE STATS` cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it.
+You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).

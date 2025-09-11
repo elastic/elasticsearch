@@ -244,8 +244,9 @@ Work around this limitation by converting the field to single value with one of 
 
 ## INLINE STATS limitations [esql-limitations-inlinestats]
 
-[`CATEGORIZE`](/reference/query-languages/esql/_snippets/functions/layout/categorize.md) grouping function is not currently supported.
-Also, `INLINE STATS` cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/_snippets/commands/layout/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/_snippets/commands/layout/limit.md) before the [`SORT`](/reference/query-languages/esql/_snippets/commands/layout/sort.md).
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+
+Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
 
 
 ## Kibana limitations [esql-limitations-kibana]

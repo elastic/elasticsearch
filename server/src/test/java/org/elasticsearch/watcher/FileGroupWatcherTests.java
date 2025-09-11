@@ -124,9 +124,7 @@ public class FileGroupWatcherTests extends ESTestCase {
 
         fileGroupWatcher.checkAndNotify();
         assertThat(listener.notifications(), hasSize(1));
-        assertThat(listener.notifications(), containsInAnyOrder(
-            "onFileChanged: 3 files"
-        ));
+        assertThat(listener.notifications(), containsInAnyOrder("onFileChanged: 3 files"));
     }
 
     public void testEmptyFileGroup() throws IOException {

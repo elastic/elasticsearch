@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,6 +42,8 @@ public record DriverCompletionInfo(
      * responses from very old nodes.
      */
     public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, List.of(), List.of());
+
+    private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers including their profile output.
@@ -94,10 +96,9 @@ public record DriverCompletionInfo(
             in.readVLong(),
             in.readVLong(),
             in.readCollectionAsImmutableList(DriverProfile::readFrom),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
-                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                    : List.of()
+            in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
+                ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                : List.of()
         );
     }
 
@@ -106,8 +107,7 @@ public record DriverCompletionInfo(
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
         out.writeCollection(driverProfiles);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
             out.writeCollection(planProfiles);
         }
     }

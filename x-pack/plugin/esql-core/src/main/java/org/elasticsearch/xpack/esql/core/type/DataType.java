@@ -310,9 +310,11 @@ public enum DataType {
     /**
      * NOCOMMIT.
      */
-    COLUMNS(builder().esType("columns")
-        // NOCOMMIT on estimate
-        .estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+    COLUMNS(
+        builder().esType("columns")
+            // NOCOMMIT on estimate
+            .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of double values.

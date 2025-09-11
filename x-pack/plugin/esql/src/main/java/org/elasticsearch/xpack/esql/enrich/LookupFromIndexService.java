@@ -111,7 +111,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Block inputBlock,
         Warnings warnings
     ) {
-        PhysicalPlan physicalPlan = localLookupNodePlanning(request.rightPreJoinPlan);
+        PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
         if (request.joinOnConditions == null) {
             // this is a field based join
             List<QueryList> queryLists = new ArrayList<>();
@@ -126,13 +126,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
                 queryLists.add(q);
             }
-            if (queryLists.size() == 1 && physicalPlan instanceof FilterExec == false) {
+            if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {
                 return queryLists.getFirst();
             }
-            return ExpressionQueryList.fieldBasedJoin(queryLists, context, physicalPlan, clusterService, aliasFilter);
+            return ExpressionQueryList.fieldBasedJoin(queryLists, context, lookupNodePlan, clusterService, aliasFilter);
         } else {
             // this is an expression based join
-            return ExpressionQueryList.expressionBasedJoin(context, physicalPlan, clusterService, request, aliasFilter, warnings);
+            return ExpressionQueryList.expressionBasedJoin(context, lookupNodePlan, clusterService, request, aliasFilter, warnings);
         }
 
     }

@@ -74,17 +74,10 @@ public class LookupJoinExecSerializationTests extends AbstractPhysicalPlanSerial
             case 2 -> leftFields = randomValueOtherThan(leftFields, LookupJoinExecSerializationTests::randomFields);
             case 3 -> rightFields = randomValueOtherThan(rightFields, LookupJoinExecSerializationTests::randomFields);
             case 4 -> addedFields = randomValueOtherThan(addedFields, LookupJoinExecSerializationTests::randomFields);
-            case 5 -> joinOnConditions = mutateJoinOnCondition(joinOnConditions);
+            case 5 -> joinOnConditions = randomValueOtherThan(joinOnConditions, LookupJoinExecSerializationTests::randomJoinOnExpression);
             default -> throw new UnsupportedOperationException();
         }
         return new LookupJoinExec(instance.source(), child, lookup, leftFields, rightFields, addedFields, joinOnConditions);
-    }
-
-    private Expression mutateJoinOnCondition(Expression joinOnConditions) {
-        if (joinOnConditions != null) {
-            return null;
-        }
-        return randomJoinOnExpression();
     }
 
     @Override

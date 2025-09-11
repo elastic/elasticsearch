@@ -2511,6 +2511,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
+     * Project[[emp_no{f}#10, first_name{f}#11, languages{f}#13, language_code_left{r}#3, language_code{r}#21, language_name{
+     * r}#22]]
+     * \_Eval[[null[INTEGER] AS language_code_left#3, null[INTEGER] AS language_code#21, null[KEYWORD] AS language_name#22]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
+     */
+    public void testPruneJoinOnNullMatchingFieldExpressionJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | eval language_code_left = null::integer
+            | keep emp_no, first_name, languages, language_code_left
+            | lookup join languages_lookup on language_code_left == language_code
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(
+            Expressions.names(project.output()),
+            contains("emp_no", "first_name", "languages", "language_code_left", "language_code", "language_name")
+        );
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
      * Project[[emp_no{f}#15, first_name{f}#16, my_null{r}#3 AS language_code#9, language_name{r}#27]]
      * \_Eval[[null[INTEGER] AS my_null#3, null[KEYWORD] AS language_name#27]]
      *   \_Limit[1000[INTEGER],false]
@@ -2524,6 +2551,31 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | rename languages as language_code
             | eval language_code = my_null
             | lookup join languages_lookup on language_code
+            | keep emp_no, first_name, language_code, language_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "language_code", "language_name"));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[emp_no{f}#16, first_name{f}#17, language_code{r}#27, language_name{r}#28]]
+     * \_Eval[[null[INTEGER] AS language_code#27, null[KEYWORD] AS language_name#28]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
+     */
+    public void testPruneJoinOnNullAssignedMatchingFieldExpr() {
+        var plan = optimizedPlan("""
+            from test
+            | eval my_null = null::integer
+            | rename languages as language_code_right
+            | eval language_code_right = my_null
+            | lookup join languages_lookup on language_code_right > language_code
             | keep emp_no, first_name, language_code, language_name
             """);
 

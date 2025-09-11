@@ -34,7 +34,7 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
         // TODO Remove when feature flag is removed
-        assumeFalse("Rerank chunks behind feature flag", clusterHasFeature("text_similarity_reranker_rescore_chunks"));
+        assumeFalse("Rerank chunks behind feature flag", clusterHasFeature("text_similarity_reranker_snippets"));
     }
 
     // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster

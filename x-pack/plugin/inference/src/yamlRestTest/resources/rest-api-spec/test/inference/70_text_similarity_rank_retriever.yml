@@ -518,7 +518,7 @@ setup:
 "Text similarity reranker specifying number of rescore_chunks must be > 0":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -548,7 +548,7 @@ setup:
 "Reranking based on rescore_chunks":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -583,7 +583,7 @@ setup:
 "Reranking based on rescore_chunks using defaults":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -616,7 +616,7 @@ setup:
 "Reranking based on rescore_chunks on a semantic_text field":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -651,7 +651,7 @@ setup:
 "Reranking based on rescore_chunks on a semantic_text field using defaults":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -685,7 +685,7 @@ setup:
 "Reranking based on rescore_chunks on a semantic_text field specifying chunking settings":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -723,7 +723,7 @@ setup:
 "Reranking based on rescore_chunks on a semantic_text field specifying chunking settings requires valid chunking settings":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -757,7 +757,7 @@ setup:
 "Reranking based on rescore_chunks on a semantic_text field specifying chunk size":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -792,7 +792,7 @@ setup:
 "Reranking based on chunk_rescorer specifying only max chunk size will default remaining chunking settings":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:
@@ -830,7 +830,7 @@ setup:
 "Reranking based on chunk_rescorer will send in first chunk if no text matches found":
 
   - requires:
-      cluster_features: "text_similarity_reranker_rescore_chunks"
+      cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
 
   - do:

@@ -34,7 +34,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.RERANK_RESCORE_CHUNKS)
+        .feature(FeatureFlag.RERANK_SNIPPETS)
         .plugin("inference-service-test")
         .distribution(DistributionType.DEFAULT)
         .build();

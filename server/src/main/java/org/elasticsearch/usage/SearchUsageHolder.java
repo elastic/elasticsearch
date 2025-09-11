@@ -66,7 +66,7 @@ public final class SearchUsageHolder {
         sectionsUsage.forEach((query, adder) -> sectionsUsageMap.put(query, adder.longValue()));
         Map<String, Long> rescorersUsageMap = Maps.newMapWithExpectedSize(rescorersUsage.size());
         rescorersUsage.forEach((query, adder) -> rescorersUsageMap.put(query, adder.longValue()));
-        Map<String, Map<String,Long>> retrieversUsageMap = Maps.newMapWithExpectedSize(retrieversUsage.size());
+        Map<String, Map<String, Long>> retrieversUsageMap = Maps.newMapWithExpectedSize(retrieversUsage.size());
         retrieversUsage.forEach((retriever, metadataMap) -> {
             Map<String, Long> convertedMetadata = Maps.newMapWithExpectedSize(metadataMap.size());
             metadataMap.forEach((key, adder) -> convertedMetadata.put(key, adder.longValue()));

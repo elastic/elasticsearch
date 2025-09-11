@@ -36,7 +36,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
     private final Map<String, Long> queries;
     private final Map<String, Long> rescorers;
     private final Map<String, Long> sections;
-    private final Map<String, Map<String,Long>> retrievers;
+    private final Map<String, Map<String, Long>> retrievers;
 
     /**
      * Creates a new empty stats instance, that will get additional stats added through {@link #add(SearchUsageStats)}
@@ -57,7 +57,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         Map<String, Long> queries,
         Map<String, Long> rescorers,
         Map<String, Long> sections,
-        Map<String, Map<String,Long>> retrievers,
+        Map<String, Map<String, Long>> retrievers,
         long totalSearchCount
     ) {
         this.totalSearchCount = totalSearchCount;
@@ -81,9 +81,9 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
                     throw new RuntimeException(e);
                 }
             });
-        } else if (in.getTransportVersion().onOrAfter(V_8_16_0) ) {
-            Map<String,Long> retrieverMap = in.readMap(StreamInput::readLong);
-            Map<String, Map<String,Long>> retrieversWithMetadata = new HashMap<>();
+        } else if (in.getTransportVersion().onOrAfter(V_8_16_0)) {
+            Map<String, Long> retrieverMap = in.readMap(StreamInput::readLong);
+            Map<String, Map<String, Long>> retrieversWithMetadata = new HashMap<>();
             for (Map.Entry<String, Long> entry : retrieverMap.entrySet()) {
                 retrieversWithMetadata.put(entry.getKey(), Map.of("count", entry.getValue()));
             }
@@ -103,7 +103,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
             out.writeMap(rescorers, StreamOutput::writeLong);
         }
         if (out.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_EXTENDED)) {
-            out.writeMap(retrievers, (StreamOutput s, Map<String,Long> m) -> {
+            out.writeMap(retrievers, (StreamOutput s, Map<String, Long> m) -> {
                 try {
                     s.writeMap(m, StreamOutput::writeLong);
                 } catch (IOException e) {
@@ -166,7 +166,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(sections);
     }
 
-    public Map<String, Map<String,Long>> getRetrieversUsage() {
+    public Map<String, Map<String, Long>> getRetrieversUsage() {
         return Collections.unmodifiableMap(retrievers);
     }
 

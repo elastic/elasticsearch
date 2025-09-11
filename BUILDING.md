@@ -118,6 +118,8 @@ We use two main types of component metadata rules at this point to manage transi
 - **`ExcludeAllTransitivesRule`** - Excludes all transitive dependencies for libraries where we want complete control over dependencies or the transitive dependencies are unused.
 
 - **`ExcludeOtherGroupsTransitiveRule`** - Excludes transitive dependencies that don't belong to the same group as the direct dependency, while keeping same-group dependencies.
+-
+- **`ExcludeByGroup`** - Excludes transitive dependencies that match a specific groupId while keeping all other transitive dependencies with different groupIds.
 
 Examples from the `ComponentMetadataRulesPlugin`:
 
@@ -127,6 +129,11 @@ components.withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor"
 
 // Exclude other groups - used when we want same-group deps but not external ones
 components.withModule("com.azure:azure-core", ExcludeOtherGroupsTransitiveRule.class);
+
+// Exclude only specific groups - used when we want exclude specific group of transitive deps.
+components.withModule("org.apache.logging.log4j:log4j-api", ExcludeByGroup.class, rule -> {
+    rule.params(List.of("biz.aQute.bnd", "org.osgi"));
+});
 ```
 
 ###### Common Scenarios
@@ -143,7 +150,7 @@ components.withModule("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor"
 components.withModule("com.azure:azure-core-http-netty", ExcludeAllTransitivesRule.class);
 ```
 
-**Security Dependencies**: When newer versions are required for security reasons:
+**Mismatching Version Dependencies**: When other versions are required:
 ```gradle
 // brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
 components.withModule("org.apache.directory.api:api-asn1-ber", ExcludeOtherGroupsTransitiveRule.class);

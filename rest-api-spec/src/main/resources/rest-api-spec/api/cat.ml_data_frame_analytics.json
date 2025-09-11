@@ -59,6 +59,7 @@
       },
       "format": {
         "type": "string",
+        "default": "text",
         "description": "a short version of the Accept header, e.g. json, yaml"
       },
       "h": {

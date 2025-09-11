@@ -15,6 +15,11 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
@@ -29,14 +34,16 @@ import java.util.function.Consumer;
 public class InferenceResolver {
 
     private final Client client;
+    private final EsqlFunctionRegistry functionRegistry;
 
     /**
      * Constructs a new {@code InferenceResolver}.
      *
      * @param client The Elasticsearch client for executing inference deployment lookups
      */
-    public InferenceResolver(Client client) {
+    public InferenceResolver(Client client, EsqlFunctionRegistry functionRegistry) {
         this.client = client;
+        this.functionRegistry = functionRegistry;
     }
 
     /**
@@ -71,6 +78,7 @@ public class InferenceResolver {
      */
     void collectInferenceIds(LogicalPlan plan, Consumer<String> c) {
         collectInferenceIdsFromInferencePlans(plan, c);
+        collectInferenceIdsFromInferenceFunctions(plan, c);
     }
 
     /**
@@ -131,6 +139,28 @@ public class InferenceResolver {
     }
 
     /**
+     * Collects inference IDs from function expressions within the logical plan.
+     *
+     * @param plan The logical plan to scan for function expressions
+     * @param c    Consumer function to receive each discovered inference ID
+     */
+    private void collectInferenceIdsFromInferenceFunctions(LogicalPlan plan, Consumer<String> c) {
+        EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
+        plan.forEachExpressionUp(UnresolvedFunction.class, f -> {
+            String functionName = snapshotRegistry.resolveAlias(f.name());
+            if (snapshotRegistry.functionExists(functionName)) {
+                FunctionDefinition def = snapshotRegistry.resolveFunction(functionName);
+                if (InferenceFunction.class.isAssignableFrom(def.clazz())) {
+                    String inferenceId = inferenceId(f, def);
+                    if (inferenceId != null) {
+                        c.accept(inferenceId);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
      * Extracts the inference ID from an InferencePlan object.
      *
      * @param plan The InferencePlan object to extract the ID from
@@ -144,6 +174,23 @@ public class InferenceResolver {
         return BytesRefs.toString(e.fold(FoldContext.small()));
     }
 
+    public String inferenceId(UnresolvedFunction f, FunctionDefinition def) {
+        EsqlFunctionRegistry.FunctionDescription functionDescription = EsqlFunctionRegistry.description(def);
+
+        for (int i = 0; i < functionDescription.args().size(); i++) {
+            EsqlFunctionRegistry.ArgSignature arg = functionDescription.args().get(i);
+
+            if (arg.name().equals(InferenceFunction.INFERENCE_ID_PARAMETER_NAME)) {
+                Expression argValue = f.arguments().get(i);
+                if (argValue != null && argValue.foldable() && DataType.isString(argValue.dataType())) {
+                    return inferenceId(argValue);
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static Factory factory(Client client) {
         return new Factory(client);
     }
@@ -155,8 +202,8 @@ public class InferenceResolver {
             this.client = client;
         }
 
-        public InferenceResolver create() {
-            return new InferenceResolver(client);
+        public InferenceResolver create(EsqlFunctionRegistry functionRegistry) {
+            return new InferenceResolver(client, functionRegistry);
         }
     }
 }

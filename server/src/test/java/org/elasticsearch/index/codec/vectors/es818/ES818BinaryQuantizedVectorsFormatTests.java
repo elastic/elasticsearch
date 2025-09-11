@@ -19,6 +19,8 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -61,7 +63,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -103,6 +104,18 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected VectorSimilarityFunction randomSimilarity() {
+        return RandomPicks.randomFrom(
+            random(),
+            List.of(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                VectorSimilarityFunction.EUCLIDEAN,
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+            )
+        );
     }
 
     static String encodeInts(int[] i) {
@@ -179,9 +192,6 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     IndexSearcher searcher = new IndexSearcher(reader);
                     final int k = random().nextInt(5, 50);
                     float[] queryVector = randomVector(dims);
-                    if (similarityFunction == VectorSimilarityFunction.COSINE) {
-                        VectorUtil.l2normalize(queryVector);
-                    }
                     Query q = new KnnFloatVectorQuery(fieldName, queryVector, k);
                     TopDocs collectedDocs = searcher.search(q, k);
                     assertEquals(k, collectedDocs.totalHits.value());

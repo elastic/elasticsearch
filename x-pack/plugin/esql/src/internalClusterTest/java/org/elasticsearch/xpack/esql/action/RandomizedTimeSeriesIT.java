@@ -75,7 +75,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         Tuple.tuple("rate", DeltaAgg.RATE),
         Tuple.tuple("irate", DeltaAgg.IRATE),
         Tuple.tuple("increase", DeltaAgg.INCREASE),
-        Tuple.tuple("idelta", DeltaAgg.IDELTA)
+        Tuple.tuple("idelta", DeltaAgg.IDELTA),
+        Tuple.tuple("delta", DeltaAgg.DELTA)
     );
     private static final Map<DeltaAgg, String> DELTA_AGG_METRIC_MAP = Map.of(
         DeltaAgg.RATE,
@@ -85,7 +86,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         DeltaAgg.IDELTA,
         "gaugel_hdd.bytes.used",
         DeltaAgg.INCREASE,
-        "counterl_hdd.bytes.read"
+        "counterl_hdd.bytes.read",
+        DeltaAgg.DELTA,
+        "gaugel_hdd.bytes.used"
     );
 
     private List<XContentBuilder> documents;
@@ -276,7 +279,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         RATE,
         IRATE,
         IDELTA,
-        INCREASE
+        INCREASE,
+        DELTA
     }
 
     // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
@@ -310,6 +314,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(idelta * 1.001, idelta * 0.999); // Add 0.1% tolerance
                 } else {
                     return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
+                }
+            } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
+                var firstVal = timeseries.getFirst().v2().v2();
+                var lastVal = timeseries.getLast().v2().v2();
+                var delta = lastVal - firstVal;
+                if (delta < 0) {
+                    return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
+                } else {
+                    return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
                 }
             }
             assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;

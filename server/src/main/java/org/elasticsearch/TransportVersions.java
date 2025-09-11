@@ -186,8 +186,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED_8_19 = def(8_841_0_47);
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19 = def(8_841_0_48);
     public static final TransportVersion NONE_CHUNKING_STRATEGY_8_19 = def(8_841_0_49);
-    public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19 = def(8_841_0_50);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
@@ -260,7 +258,6 @@ public class TransportVersions {
     public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
     public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
     public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
     public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
     public static final TransportVersion AGGREGATE_METRIC_DOUBLE_BLOCK = def(9_067_0_00);
@@ -287,7 +284,6 @@ public class TransportVersions {
     public static final TransportVersion JOIN_ON_ALIASES = def(9_088_0_00);
     public static final TransportVersion ILM_ADD_SKIP_SETTING = def(9_089_0_00);
     public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED = def(9_090_0_00);
-    public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = def(9_091_0_00);
     public static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM = def(9_092_0_00);
     public static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = def(9_093_0_00);
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = def(9_094_0_00);

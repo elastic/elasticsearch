@@ -42,6 +42,8 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
     public static final String NAME = "indices:admin/data_stream/settings/update";
     public static final UpdateDataStreamSettingsAction INSTANCE = new UpdateDataStreamSettingsAction();
 
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = TransportVersion.fromName("settings_in_data_streams")
+        .nextPatchVersion();
     private static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = TransportVersion.fromName(
         "data_stream_write_index_only_settings"
     );
@@ -89,7 +91,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             this.dataStreamNames = in.readStringArray();
             this.settings = Settings.readSettingsFromStream(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+                || in.getTransportVersion().isPatchFrom(SETTINGS_IN_DATA_STREAMS_8_19)) {
                 this.dryRun = in.readBoolean();
             } else {
                 this.dryRun = false;
@@ -102,7 +104,7 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             out.writeStringArray(dataStreamNames);
             settings.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+                || out.getTransportVersion().isPatchFrom(SETTINGS_IN_DATA_STREAMS_8_19)) {
                 out.writeBoolean(dryRun);
             }
         }

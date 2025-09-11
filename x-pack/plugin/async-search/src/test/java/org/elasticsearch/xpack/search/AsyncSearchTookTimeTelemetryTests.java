@@ -18,8 +18,11 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.After;
@@ -125,9 +128,13 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             asyncSearchResponse.decRef();
         }
 
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
-        assertBusy(() -> assertEquals(1, measurements.size()));
+        assertBusy(() -> {
+            AsyncStatusResponse asyncStatusResponse = client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id))
+                .actionGet();
+            assertFalse(asyncStatusResponse.isRunning());
+        });
 
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
         for (int i = 0; i < randomIntBetween(3, 10); i++) {
             AsyncSearchResponse asyncSearchResponse2 = client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id))
                 .actionGet();

@@ -25,7 +25,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -91,9 +93,14 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             searchRequest.source(new SearchSourceBuilder().query(simpleQueryStringQuery("foo")));
             multiSearchRequestBuilder.add(searchRequest);
         }
+        List<Long> tookTimes;
         MultiSearchResponse multiSearchResponse = null;
         try {
             multiSearchResponse = multiSearchRequestBuilder.get();
+            tookTimes = Arrays.stream(multiSearchResponse.getResponses())
+                .map(item -> item.getResponse().getTook().millis())
+                .sorted()
+                .toList();
         } finally {
             if (multiSearchResponse != null) {
                 multiSearchResponse.decRef();
@@ -101,6 +108,12 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         }
         List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
         assertEquals(numSearchRequests, measurements.size());
+        measurements.sort(Comparator.comparing(Measurement::getLong));
+
+        int i = 0;
+        for (Measurement measurement : measurements) {
+            assertEquals(tookTimes.get(i++).longValue(), measurement.getLong());
+        }
     }
 
     public void testScroll() {

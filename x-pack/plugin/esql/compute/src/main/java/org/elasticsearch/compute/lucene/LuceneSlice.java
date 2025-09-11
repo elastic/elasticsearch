@@ -7,12 +7,8 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 
 /**
@@ -23,32 +19,14 @@ public record LuceneSlice(
     boolean queryHead,
     ShardContext shardContext,
     List<PartialLeafReaderContext> leaves,
-    ScoreMode scoreMode,
-    LuceneSliceQueue.QueryAndTags queryAndTags
+    Weight weight,
+    List<Object> tags
 ) {
-
     int numLeaves() {
         return leaves.size();
     }
 
     PartialLeafReaderContext getLeaf(int index) {
         return leaves.get(index);
-    }
-
-    Query query() {
-        return queryAndTags.query();
-    }
-
-    List<Object> tags() {
-        return queryAndTags.tags();
-    }
-
-    Weight createWeight() {
-        var searcher = shardContext.searcher();
-        try {
-            return searcher.createWeight(queryAndTags.query(), scoreMode, 1);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

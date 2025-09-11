@@ -10,6 +10,8 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -23,6 +25,7 @@ public class TransportVersionReferencesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
 
         project.getPlugins()
             .apply(ProjectSubscribeServicePlugin.class)
@@ -50,6 +53,6 @@ public class TransportVersionReferencesPlugin implements Plugin<Project> {
                 t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
                 t.getReferencesFile().set(collectTask.get().getOutputFile());
             });
-        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
+        project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
     }
 }

@@ -38,9 +38,9 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
     }
 
     @Override
-    public Iterator<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation) {
+    public Iterable<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
-            return Collections.emptyIterator();
+            return Collections.emptyList();
         }
         final Set<NodeShardIterable> hotSpottedNodes = new TreeSet<>(Comparator.reverseOrder());
         final var nodeUsageStatsForThreadPools = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
@@ -52,7 +52,7 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
                 hotSpottedNodes.add(new NodeShardIterable(allocation, node, writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()));
             }
         }
-        return new LazilyExpandingShardIterator<>(hotSpottedNodes);
+        return () -> new LazilyExpandingShardIterator<>(hotSpottedNodes);
     }
 
     private static class NodeShardIterable implements Iterable<ShardRouting>, Comparable<NodeShardIterable> {

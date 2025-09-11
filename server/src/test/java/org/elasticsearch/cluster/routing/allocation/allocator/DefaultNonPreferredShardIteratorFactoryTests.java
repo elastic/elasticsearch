@@ -80,13 +80,12 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
             )
         );
         final RoutingAllocation routingAllocation = createRoutingAllocation(randomIntBetween(2, 20));
-        final Iterator<ShardRouting> shards = iteratorFactory.createNonPreferredShardIterator(routingAllocation);
+        final Iterable<ShardRouting> shards = iteratorFactory.createNonPreferredShardIterator(routingAllocation);
 
         long lastNodeQueueLatency = -1;
         int totalCount = 0;
-        while (shards.hasNext()) {
+        for (ShardRouting shardRouting : shards) {
             totalCount++;
-            final ShardRouting shardRouting = shards.next();
             final String nodeId = shardRouting.currentNodeId();
             NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = routingAllocation.clusterInfo()
                 .getNodeUsageStatsForThreadPools()

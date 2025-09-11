@@ -13,11 +13,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.Collections;
-import java.util.Iterator;
 
 public interface NonPreferredShardIteratorFactory {
 
-    NonPreferredShardIteratorFactory NOOP = ignored -> Collections.emptyIterator();
+    NonPreferredShardIteratorFactory NOOP = ignored -> Collections.emptyList();
 
     /**
      * Create an iterator returning all shards to be checked for non-preferred allocation, ordered in
@@ -26,5 +25,5 @@ public interface NonPreferredShardIteratorFactory {
      * @param allocation the current routing allocation
      * @return An iterator containing shards we'd like to move to a preferred allocation
      */
-    Iterator<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation);
+    Iterable<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation);
 }

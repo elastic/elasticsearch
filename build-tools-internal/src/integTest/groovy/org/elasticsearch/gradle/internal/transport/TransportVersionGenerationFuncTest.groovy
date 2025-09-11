@@ -514,4 +514,46 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
         assertReferableDefinition("new_tv", "8124000")
     }
+
+    def "alternate upper bound larger"() {
+        given:
+        referencedTransportVersion("new_tv")
+        file("myserver/alt_upper_bound.csv").text = "some_tv,8126000"
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersionDefinition') {
+                alternateUpperBoundFile = project.file("alt_upper_bound.csv")
+            }
+            tasks.named('validateTransportVersionResources') {
+                shouldValidateDensity = false
+            }
+        """
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "new_tv,8127000")
+        assertReferableDefinition("new_tv", "8127000")
+    }
+
+    def "alternate upper bound less"() {
+        given:
+        referencedTransportVersion("new_tv")
+        file("myserver/alt_upper_bound.csv").text = "some_tv,8122100"
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersionDefinition') {
+                alternateUpperBoundFile = project.file("alt_upper_bound.csv")
+            }
+            tasks.named('validateTransportVersionResources') {
+                shouldValidateDensity = false
+            }
+        """
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "new_tv,8124000")
+        assertReferableDefinition("new_tv", "8124000")
+    }
 }

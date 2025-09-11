@@ -21,6 +21,17 @@
         "m": 16,
         "ef_construction": 100
       }
+    },
+    "bit_vector": {
+      "type": "dense_vector",
+      "dims": 16,
+      "similarity": "l2_norm",
+      "element_type": "bit",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
     }
   }
 }

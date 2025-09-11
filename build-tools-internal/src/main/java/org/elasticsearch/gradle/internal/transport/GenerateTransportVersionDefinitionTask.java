@@ -11,9 +11,11 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
@@ -22,6 +24,9 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -82,6 +87,14 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Input
     public abstract Property<String> getCurrentUpperBoundName();
 
+    /**
+     * An additional upper bound file that will be consulted when generating a transport version.
+     * The larger of this and the current upper bound will be used to create the new primary id.
+     */
+    @InputFile
+    @Optional
+    public abstract RegularFileProperty getAlternateUpperBoundFile();
+
     @TaskAction
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResourceService().get();
@@ -128,7 +141,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 if (targetId == null) {
                     // Case: an id doesn't yet exist for this upper bound, so create one
                     int targetIncrement = upperBoundName.equals(currentUpperBoundName) ? increment : 1;
-                    targetId = TransportVersionId.fromInt(existingUpperBound.definitionId().complete() + targetIncrement);
+                    targetId = createTargetId(existingUpperBound, targetIncrement);
                     var newUpperBound = new TransportVersionUpperBound(upperBoundName, definitionName, targetId);
                     resources.writeUpperBound(newUpperBound, stageInGit);
                 }
@@ -279,6 +292,23 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             }
         }
         return null; // no existing id for this upper bound
+    }
+
+    private TransportVersionId createTargetId(TransportVersionUpperBound existingUpperBound, int increment) throws IOException {
+        int currentId = existingUpperBound.definitionId().complete();
+
+        // allow for an alternate upper bound file to be consulted. This supports Serverless basing its
+        // own transport version ids on the greater of server or serverless
+        if (getAlternateUpperBoundFile().isPresent()) {
+            Path altUpperBoundPath = getAlternateUpperBoundFile().get().getAsFile().toPath();
+            String contents = Files.readString(altUpperBoundPath, StandardCharsets.UTF_8);
+            var altUpperBound = TransportVersionUpperBound.fromString(altUpperBoundPath, contents);
+            if (altUpperBound.definitionId().complete() > currentId) {
+                currentId = altUpperBound.definitionId().complete();
+            }
+        }
+
+        return TransportVersionId.fromInt(currentId + increment);
     }
 
 }

@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.application;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
@@ -36,7 +34,7 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
         // TODO Remove when feature flag is removed
-        assumeFalse("Rerank chunks behind feature flag", clusterHasFeature("text_similarity_reranker_rescore_chunks") );
+        assumeFalse("Rerank chunks behind feature flag", clusterHasFeature("text_similarity_reranker_rescore_chunks"));
     }
 
     // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster

@@ -72,9 +72,12 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
-            if (inferenceFieldMetadata == null && originalQuery.getQueryVectors() == null && originalQuery.getInferenceId() == null) {
-                // We are querying a non-inference field and neither a query vector nor inference ID has been provided
-                throw new IllegalArgumentException("Either query vector or inference ID must be specified");
+            if (inferenceFieldMetadata == null && originalQuery.getQuery() != null && originalQuery.getInferenceId() == null) {
+                // We are querying a non-inference field and need to generate inference results for a query string, but the inference ID
+                // was not specified
+                throw new IllegalArgumentException(
+                    SparseVectorQueryBuilder.INFERENCE_ID_FIELD.getPreferredName() + "required to perform vector search on query string"
+                );
             }
         }
     }

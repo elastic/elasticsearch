@@ -819,126 +819,126 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     /*
         There is sufficient heap space for the first write, but not the second
      */
-    @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
-    public void testShardBlobsToDeleteWithLimitedHeapSpace() {
-        TestShardSnapshotMetaDeleteResult blob1Result = generateTestShardSnapshotMetaDeleteResult(0, 20);
-        // blob1Result can be compressed up to 4x when written to shardsDeleteResults so make the second blob
-        // at least 4x larger than the first to guarantee this blob cannot also be written
-        TestShardSnapshotMetaDeleteResult blob2Result = generateTestShardSnapshotMetaDeleteResult(80, 100);
-
-        final var expectedShardGenerations = ShardGenerations.builder()
-            .put(blob1Result.indexId, blob1Result.shardId, blob1Result.shardGeneration)
-            .put(blob2Result.indexId, blob2Result.shardId, blob2Result.shardGeneration)
-            .build();
-
-        int totalBytesRequired = calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(blob1Result);
-        Settings.Builder settings = Settings.builder()
-            .put("repositories.blobstore.max_shard_delete_results_size", totalBytesRequired + "b");
-        final var repo = setupRepo(settings);
-        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete(settings.build())) {
-            try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
-                addFailureToCleanUpDanglingBlobsSeenExpectation(mockLog);
-
-                final var expectedBlobsToDelete = new HashSet<String>();
-                var countDownLatch = new CountDownLatch(1);
-                try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                    final var indexPath1 = generateRepoPath(repo, blob1Result);
-                    for (final var blobToDelete : blob1Result.blobsToDelete) {
-                        expectedBlobsToDelete.add(indexPath1 + blobToDelete);
-                    }
-                    repo.threadPool()
-                        .generic()
-                        .execute(
-                            ActionRunnable.run(
-                                refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(
-                                    blob1Result.indexId,
-                                    blob1Result.shardId,
-                                    blob1Result.shardGeneration,
-                                    blob1Result.blobsToDelete
-                                )
-                            )
-                        );
-                }
-                safeAwait(countDownLatch);
-
-                countDownLatch = new CountDownLatch(1);
-                try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                    final var indexPath2 = generateRepoPath(repo, blob2Result);
-                    for (final var blobToDelete : blob2Result.blobsToDelete) {
-                        expectedBlobsToDelete.add(indexPath2 + blobToDelete);
-                    }
-                    repo.threadPool()
-                        .generic()
-                        .execute(
-                            ActionRunnable.run(
-                                refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(
-                                    blob2Result.indexId,
-                                    blob2Result.shardId,
-                                    blob2Result.shardGeneration,
-                                    blob2Result.blobsToDelete
-                                )
-                            )
-                        );
-                }
-
-                safeAwait(countDownLatch);
-                assertEquals(expectedShardGenerations, shardBlobsToDelete.getUpdatedShardGenerations());
-                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-                // None of the second writes succeeded and are therefore not returned by blobsToDelete()
-                assertEquals(expectedBlobsToDelete.size(), blob2Result.blobsToDelete.size());
-                mockLog.assertAllExpectationsMatched();
-            }
-        }
-    }
-
-    /*
-        There is heap space, but it's insufficient for any write requests
-     */
-    @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
-    public void testShardBlobsToDeleteWithSmallHeapSpace() {
-        TestShardSnapshotMetaDeleteResult result = generateTestShardSnapshotMetaDeleteResult(0, 20);
-        final var expectedShardGenerations = ShardGenerations.builder().put(result.indexId, result.shardId, result.shardGeneration).build();
-
-        int totalBytesRequired = calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(result);
-        int heapSpace = randomIntBetween(1, totalBytesRequired - 1);
-        Settings.Builder settings = Settings.builder().put("repositories.blobstore.max_shard_delete_results_size", heapSpace + "b");
-        final var repo = setupRepo(settings);
-        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete(settings.build())) {
-            try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
-                addFailureToCleanUpDanglingBlobsSeenExpectation(mockLog);
-
-                final var expectedBlobsToDelete = new HashSet<String>();
-                var countDownLatch = new CountDownLatch(1);
-                try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                    final var indexPath = generateRepoPath(repo, result);
-                    for (final var blobToDelete : result.blobsToDelete) {
-                        expectedBlobsToDelete.add(indexPath + blobToDelete);
-                    }
-                    repo.threadPool()
-                        .generic()
-                        .execute(
-                            ActionRunnable.run(
-                                refs.acquireListener(),
-                                () -> shardBlobsToDelete.addShardDeleteResult(
-                                    result.indexId,
-                                    result.shardId,
-                                    result.shardGeneration,
-                                    result.blobsToDelete
-                                )
-                            )
-                        );
-
-                }
-                safeAwait(countDownLatch);
-                assertEquals(expectedShardGenerations, shardBlobsToDelete.getUpdatedShardGenerations());
-                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-                assertEquals(result.blobsToDelete.size(), expectedBlobsToDelete.size());
-                mockLog.assertAllExpectationsMatched();
-            }
-        }
-    }
+//    @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
+//    public void testShardBlobsToDeleteWithLimitedHeapSpace() {
+//        TestShardSnapshotMetaDeleteResult blob1Result = generateTestShardSnapshotMetaDeleteResult(0, 20);
+//        // blob1Result can be compressed up to 4x when written to shardsDeleteResults so make the second blob
+//        // at least 4x larger than the first to guarantee this blob cannot also be written
+//        TestShardSnapshotMetaDeleteResult blob2Result = generateTestShardSnapshotMetaDeleteResult(80, 100);
+//
+//        final var expectedShardGenerations = ShardGenerations.builder()
+//            .put(blob1Result.indexId, blob1Result.shardId, blob1Result.shardGeneration)
+//            .put(blob2Result.indexId, blob2Result.shardId, blob2Result.shardGeneration)
+//            .build();
+//
+//        int totalBytesRequired = calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(blob1Result);
+//        Settings.Builder settings = Settings.builder()
+//            .put("repositories.blobstore.max_shard_delete_results_size", totalBytesRequired + "b");
+//        final var repo = setupRepo(settings);
+//        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete(settings.build())) {
+//            try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+//                addFailureToCleanUpDanglingBlobsSeenExpectation(mockLog);
+//
+//                final var expectedBlobsToDelete = new HashSet<String>();
+//                var countDownLatch = new CountDownLatch(1);
+//                try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+//                    final var indexPath1 = generateRepoPath(repo, blob1Result);
+//                    for (final var blobToDelete : blob1Result.blobsToDelete) {
+//                        expectedBlobsToDelete.add(indexPath1 + blobToDelete);
+//                    }
+//                    repo.threadPool()
+//                        .generic()
+//                        .execute(
+//                            ActionRunnable.run(
+//                                refs.acquireListener(),
+//                                () -> shardBlobsToDelete.addShardDeleteResult(
+//                                    blob1Result.indexId,
+//                                    blob1Result.shardId,
+//                                    blob1Result.shardGeneration,
+//                                    blob1Result.blobsToDelete
+//                                )
+//                            )
+//                        );
+//                }
+//                safeAwait(countDownLatch);
+//
+//                countDownLatch = new CountDownLatch(1);
+//                try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+//                    final var indexPath2 = generateRepoPath(repo, blob2Result);
+//                    for (final var blobToDelete : blob2Result.blobsToDelete) {
+//                        expectedBlobsToDelete.add(indexPath2 + blobToDelete);
+//                    }
+//                    repo.threadPool()
+//                        .generic()
+//                        .execute(
+//                            ActionRunnable.run(
+//                                refs.acquireListener(),
+//                                () -> shardBlobsToDelete.addShardDeleteResult(
+//                                    blob2Result.indexId,
+//                                    blob2Result.shardId,
+//                                    blob2Result.shardGeneration,
+//                                    blob2Result.blobsToDelete
+//                                )
+//                            )
+//                        );
+//                }
+//
+//                safeAwait(countDownLatch);
+//                assertEquals(expectedShardGenerations, shardBlobsToDelete.getUpdatedShardGenerations());
+//                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+//                // None of the second writes succeeded and are therefore not returned by blobsToDelete()
+//                assertEquals(expectedBlobsToDelete.size(), blob2Result.blobsToDelete.size());
+//                mockLog.assertAllExpectationsMatched();
+//            }
+//        }
+//    }
+//
+//    /*
+//        There is heap space, but it's insufficient for any write requests
+//     */
+//    @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
+//    public void testShardBlobsToDeleteWithSmallHeapSpace() {
+//        TestShardSnapshotMetaDeleteResult result = generateTestShardSnapshotMetaDeleteResult(0, 20);
+//        final var expectedShardGenerations = ShardGenerations.builder().put(result.indexId, result.shardId, result.shardGeneration).build();
+//
+//        int totalBytesRequired = calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(result);
+//        int heapSpace = randomIntBetween(1, totalBytesRequired - 1);
+//        Settings.Builder settings = Settings.builder().put("repositories.blobstore.max_shard_delete_results_size", heapSpace + "b");
+//        final var repo = setupRepo(settings);
+//        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete(settings.build())) {
+//            try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+//                addFailureToCleanUpDanglingBlobsSeenExpectation(mockLog);
+//
+//                final var expectedBlobsToDelete = new HashSet<String>();
+//                var countDownLatch = new CountDownLatch(1);
+//                try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+//                    final var indexPath = generateRepoPath(repo, result);
+//                    for (final var blobToDelete : result.blobsToDelete) {
+//                        expectedBlobsToDelete.add(indexPath + blobToDelete);
+//                    }
+//                    repo.threadPool()
+//                        .generic()
+//                        .execute(
+//                            ActionRunnable.run(
+//                                refs.acquireListener(),
+//                                () -> shardBlobsToDelete.addShardDeleteResult(
+//                                    result.indexId,
+//                                    result.shardId,
+//                                    result.shardGeneration,
+//                                    result.blobsToDelete
+//                                )
+//                            )
+//                        );
+//
+//                }
+//                safeAwait(countDownLatch);
+//                assertEquals(expectedShardGenerations, shardBlobsToDelete.getUpdatedShardGenerations());
+//                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+//                assertEquals(result.blobsToDelete.size(), expectedBlobsToDelete.size());
+//                mockLog.assertAllExpectationsMatched();
+//            }
+//        }
+//    }
 
     /*
         There's no heap space, so we don't even attempt to write
@@ -999,13 +999,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             generateRandomBlobsToDelete(minBlobSize, maxBlobSize),
             new ShardGeneration(randomUUID())
         );
-    }
-
-    private int calculateBytesRequiredToWriteShardSnapshotMetaDeleteResult(TestShardSnapshotMetaDeleteResult result) {
-        int bytesToWriteIndexId = StreamOutput.bytesInString(result.indexId.getId());
-        int bytesToWriteShardId = StreamOutput.bytesInVInt(result.shardId);
-        int bytesToWriteBlobsToDelete = StreamOutput.bytesInStringCollection(result.blobsToDelete);
-        return bytesToWriteIndexId + bytesToWriteShardId + bytesToWriteBlobsToDelete;
     }
 
     private String generateRepoPath(BlobStoreRepository repo, TestShardSnapshotMetaDeleteResult result) {

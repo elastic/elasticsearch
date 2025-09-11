@@ -31,7 +31,7 @@ public class ClonedSecureSettings {
      * {@link SecureSettings}. Great care must be taken when using this method to avoid unintentionally retaining sensitive data in memory.
      *
      * @param source          the {@link Settings} object with open/available {@link SecureSettings}
-     * @param settingsToClone the list of secure settings definitions to copy
+     * @param settingsToClone the list of secure settings definitions to copy if present
      * @return a cloned {@link SecureSettings} containing only the selected settings
      * @throws GeneralSecurityException if any secure setting cannot be accessed
      */

@@ -36,8 +36,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
     private final Map<String, Long> queries;
     private final Map<String, Long> rescorers;
     private final Map<String, Long> sections;
-    private final Map<String, Long> retrievers;
-    private final Map<String, Long> metadata;
+    private final Map<String, Map<String,Long>> retrievers;
 
     /**
      * Creates a new empty stats instance, that will get additional stats added through {@link #add(SearchUsageStats)}
@@ -48,7 +47,6 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = new HashMap<>();
         this.rescorers = new HashMap<>();
         this.retrievers = new HashMap<>();
-        this.metadata = new HashMap<>();
     }
 
     /**
@@ -59,8 +57,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         Map<String, Long> queries,
         Map<String, Long> rescorers,
         Map<String, Long> sections,
-        Map<String, Long> retrievers,
-        Map<String, Long> metadata,
+        Map<String, Map<String,Long>> retrievers,
         long totalSearchCount
     ) {
         this.totalSearchCount = totalSearchCount;
@@ -68,7 +65,6 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = sections;
         this.rescorers = rescorers;
         this.retrievers = retrievers;
-        this.metadata = metadata;
     }
 
     public SearchUsageStats(StreamInput in) throws IOException {
@@ -76,8 +72,25 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
         this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
-        this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
-        this.metadata = in.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_EXTENDED) ? in.readMap(StreamInput::readLong) : Map.of();
+
+        if (in.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_EXTENDED)) {
+            this.retrievers = in.readMap(s -> {
+                try {
+                    return s.readMap(StreamInput::readLong);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } else if (in.getTransportVersion().onOrAfter(V_8_16_0) ) {
+            Map<String,Long> retrieverMap = in.readMap(StreamInput::readLong);
+            Map<String, Map<String,Long>> retrieversWithMetadata = new HashMap<>();
+            for (Map.Entry<String, Long> entry : retrieverMap.entrySet()) {
+                retrieversWithMetadata.put(entry.getKey(), Map.of("count", entry.getValue()));
+            }
+            this.retrievers = retrieversWithMetadata;
+        } else {
+            this.retrievers = Map.of();
+        }
     }
 
     @Override
@@ -89,11 +102,20 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeMap(rescorers, StreamOutput::writeLong);
         }
-        if (out.getTransportVersion().onOrAfter(V_8_16_0)) {
-            out.writeMap(retrievers, StreamOutput::writeLong);
-        }
         if (out.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_EXTENDED)) {
-            out.writeMap(metadata, StreamOutput::writeLong);
+            out.writeMap(retrievers, (StreamOutput s, Map<String,Long> m) -> {
+                try {
+                    s.writeMap(m, StreamOutput::writeLong);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } else if (out.getTransportVersion().onOrAfter(V_8_16_0)) {
+            Map<String, Long> legacyRetrievers = new HashMap<>();
+            for (Map.Entry<String, Map<String, Long>> entry : retrievers.entrySet()) {
+                legacyRetrievers.put(entry.getKey(), entry.getValue().getOrDefault("count", 0L));
+            }
+            out.writeMap(legacyRetrievers, StreamOutput::writeLong);
         }
     }
 
@@ -104,8 +126,13 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         stats.queries.forEach((query, count) -> queries.merge(query, count, Long::sum));
         stats.rescorers.forEach((rescorer, count) -> rescorers.merge(rescorer, count, Long::sum));
         stats.sections.forEach((query, count) -> sections.merge(query, count, Long::sum));
-        stats.retrievers.forEach((query, count) -> retrievers.merge(query, count, Long::sum));
-        stats.metadata.forEach((meta, count) -> metadata.merge(meta, count, Long::sum));
+        stats.retrievers.forEach((retrieverName, retrieverMetadata) -> {
+            retrievers.merge(retrieverName, retrieverMetadata, (existingMetadata, newMetadata) -> {
+                Map<String, Long> mergedMetadata = new HashMap<>(existingMetadata);
+                newMetadata.forEach((key, value) -> mergedMetadata.merge(key, value, Long::sum));
+                return mergedMetadata;
+            });
+        });
         this.totalSearchCount += stats.totalSearchCount;
     }
 
@@ -122,8 +149,6 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
             builder.map(sections);
             builder.field("retrievers");
             builder.map(retrievers);
-            builder.field("metadata");
-            builder.map(metadata);
         }
         builder.endObject();
         return builder;
@@ -141,12 +166,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(sections);
     }
 
-    public Map<String, Long> getRetrieversUsage() {
+    public Map<String, Map<String,Long>> getRetrieversUsage() {
         return Collections.unmodifiableMap(retrievers);
-    }
-
-    public Map<String, Long> getMetadataUsage() {
-        return Collections.unmodifiableMap(metadata);
     }
 
     public long getTotalSearchCount() {
@@ -166,13 +187,12 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
             && queries.equals(that.queries)
             && rescorers.equals(that.rescorers)
             && sections.equals(that.sections)
-            && retrievers.equals(that.retrievers)
-            && metadata.equals(that.metadata);
+            && retrievers.equals(that.retrievers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalSearchCount, queries, rescorers, sections, retrievers, metadata);
+        return Objects.hash(totalSearchCount, queries, rescorers, sections, retrievers);
     }
 
     @Override

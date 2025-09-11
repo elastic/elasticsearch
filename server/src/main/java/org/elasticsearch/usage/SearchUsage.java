@@ -10,7 +10,9 @@
 package org.elasticsearch.usage;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -20,7 +22,7 @@ public final class SearchUsage {
     private final Set<String> queries = new HashSet<>();
     private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
-    private final Set<String> retrievers = new HashSet<>();
+    private final Map<String, Set<String>> retrievers = new HashMap<>();
     private final Set<String> metadata = new HashSet<>();
 
     /**
@@ -48,12 +50,13 @@ public final class SearchUsage {
      * Track retriever usage
      */
     public void trackRetrieverUsage(String retriever, Set<String> metadata) {
-        trackRetrieverUsage(retriever);
+        retrievers.computeIfAbsent(retriever, k -> new HashSet<>()).addAll(metadata);
+        retrievers.get(retriever).add("count");
         metadata(metadata);
     }
 
     private void trackRetrieverUsage(String retriever) {
-        retrievers.add(retriever);
+        retrievers.computeIfAbsent(retriever, k -> new HashSet<>()).add("count");
     }
 
     private void metadata(Set<String> metadata) {
@@ -82,10 +85,10 @@ public final class SearchUsage {
     }
 
     /**
-     * Returns the retriever names that have been used at least once in the tracked search request
+     * Returns the retriever metadata map
      */
-    public Set<String> getRetrieverUsage() {
-        return Collections.unmodifiableSet(retrievers);
+    public Map<String, Set<String>> getRetrieverUsage() {
+        return Collections.unmodifiableMap(retrievers);
     }
 
     /**

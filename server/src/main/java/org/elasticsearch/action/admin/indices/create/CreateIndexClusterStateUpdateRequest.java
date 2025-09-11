@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -227,7 +228,8 @@ public class CreateIndexClusterStateUpdateRequest {
 
     /**
      * Indicates whether the {@link #settings} of this request are system provided.
-     * If this is true, private settings will be allowed to be set in the request.
+     * System-provided settings are allowed to configure {@linkplain Setting.Property#PrivateIndex private} settings.
+     * These are typically coming from an {@link org.elasticsearch.index.IndexSettingProvider}.
      */
     public CreateIndexClusterStateUpdateRequest settingsSystemProvided(boolean settingsSystemProvided) {
         this.settingsSystemProvided = settingsSystemProvided;

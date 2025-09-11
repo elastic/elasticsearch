@@ -11,16 +11,16 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 
@@ -31,8 +31,6 @@ import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_AP
 import static org.mockito.Mockito.mock;
 
 public class ClusterApplierServiceWatchdogTests extends ESTestCase {
-
-    private static final Logger logger = LogManager.getLogger(ClusterApplierServiceWatchdogTests.class);
 
     public void testThreadWatchdogLogging() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
@@ -77,8 +75,7 @@ public class ClusterApplierServiceWatchdogTests extends ESTestCase {
 
             final AtomicBoolean completedTask = new AtomicBoolean();
 
-            clusterApplierService.runOnApplierThread("blocking task", randomFrom(Priority.values()), ignored -> {
-
+            final Runnable hotThreadsDumpsAsserter = () -> {
                 final var startMillis = deterministicTaskQueue.getCurrentTimeMillis();
 
                 for (int i = 0; i < 3; i++) {
@@ -98,12 +95,49 @@ public class ClusterApplierServiceWatchdogTests extends ESTestCase {
 
                     mockLog.assertAllExpectationsMatched();
                 }
-            }, ActionListener.running(() -> completedTask.set(true)));
+            };
+
+            if (randomBoolean()) {
+                clusterApplierService.runOnApplierThread(
+                    "slow task",
+                    randomFrom(Priority.values()),
+                    ignored -> hotThreadsDumpsAsserter.run(),
+                    ActionListener.running(() -> assertTrue(completedTask.compareAndSet(false, true)))
+                );
+            } else {
+                class TestListener implements TimeoutClusterStateListener {
+                    @Override
+                    public void postAdded() {
+                        hotThreadsDumpsAsserter.run();
+                    }
+
+                    @Override
+                    public void onClose() {
+                        fail("should time out before closing");
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        assertTrue(completedTask.compareAndSet(false, true));
+                        clusterApplierService.removeTimeoutListener(TestListener.this);
+                    }
+
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent event) {
+                        fail("no cluster state updates expected");
+                    }
+                }
+
+                clusterApplierService.addTimeoutListener(
+                    // timeout sufficiently short that it elapses while postAdded() is still running
+                    TimeValue.timeValueMillis(randomLongBetween(0, 2 * intervalMillis + 2 * quietTimeMillis)),
+                    new TestListener()
+                );
+            }
 
             deterministicTaskQueue.runAllRunnableTasks();
 
             assertTrue(completedTask.get());
         }
     }
-
 }

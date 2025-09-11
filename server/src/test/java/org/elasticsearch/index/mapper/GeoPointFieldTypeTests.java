@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SimpleFeatureFactory;
+import org.elasticsearch.geo.GeometryFieldTypeTestCase;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
@@ -25,7 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoPointFieldTypeTests extends FieldTypeTestCase {
+public class GeoPointFieldTypeTests extends GeometryFieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         boolean ignoreMalformed = randomBoolean();
@@ -38,7 +39,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
+        Map<String, Object> mapPoint = Map.of("type", "Point", "coordinates", new double[] { 42.0, 27.1 });
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
+        Map<String, Object> otherMapPoint = Map.of("type", "Point", "coordinates", new double[] { 30.0, 50.0 });
         String wktPoint = "POINT (42.0 27.1)";
         String otherWktPoint = "POINT (30.0 50.0)";
         byte[] wkbPoint = WellKnownBinary.toWKB(new Point(42.0, 27.1), ByteOrder.LITTLE_ENDIAN);
@@ -46,7 +49,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // Test a single point in [lon, lat] array format.
         Object sourceValue = List.of(42.0, 27.1);
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         List<?> wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(1));
@@ -54,7 +57,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // Test a single point in "lat, lon" string format.
         sourceValue = "27.1,42.0";
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(1));
@@ -62,7 +65,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // Test a list of points in [lon, lat] array format.
         sourceValue = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint, otherMapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(2));
@@ -71,7 +74,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // Test a list of points in [lat,lon] array format with one malformed
         sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint, otherMapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(2));
@@ -80,7 +83,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // Test a single point in well-known text format.
         sourceValue = "POINT (42.0 27.1)";
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(1));
@@ -93,7 +96,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         // test normalize
         sourceValue = "27.1,402.0";
         if (ignoreMalformed) {
-            assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+            assertGeoJsonFetch(List.of(mapPoint), fetchSourceValue(mapper, sourceValue, null));
             assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
             wkb = fetchSourceValue(mapper, sourceValue, "wkb");
             assertThat(wkb.size(), equalTo(1));
@@ -106,12 +109,12 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // test single point in GeoJSON format
         sourceValue = jsonPoint;
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of points in GeoJSON format
         sourceValue = List.of(jsonPoint, otherJsonPoint);
-        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapPoint, otherMapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 

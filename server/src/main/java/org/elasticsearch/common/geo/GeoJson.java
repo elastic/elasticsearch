@@ -213,9 +213,17 @@ public final class GeoJson {
     }
 
     /**
-     * Produces that same GeoJSON as toXContent only in parsed map form
+     * Produces that same GeoJSON as toXContent only in parsed map form. Coordinates are created as List of Double Objects.
      */
     public static Map<String, Object> toMap(Geometry geometry) {
+        return toMap(geometry, false);
+    }
+
+    /**
+     * Produces that same GeoJSON as toXContent only in parsed map form. If useArrays is true, coordinates are created
+     * as arrays of double primitives, otherwise as List of Double Objects.
+     */
+    public static Map<String, Object> toMap(Geometry geometry, boolean useArrays) {
         Map<String, Object> root = new HashMap<>();
         root.put(FIELD_TYPE.getPreferredName(), getGeoJsonName(geometry));
 
@@ -223,16 +231,19 @@ public final class GeoJson {
             @Override
             public Void visit(Circle circle) {
                 root.put(FIELD_RADIUS.getPreferredName(), DistanceUnit.METERS.toString(circle.getRadiusMeters()));
-                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(circle.getY(), circle.getX(), circle.getZ()));
+                if (useArrays) {
+                    root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToArray(circle.getX(), circle.getY(), circle.getZ()));
+                } else {
+                    root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(circle.getX(), circle.getY(), circle.getZ()));
+                }
                 return null;
             }
 
             @Override
             public Void visit(GeometryCollection<?> collection) {
                 List<Object> geometries = new ArrayList<>(collection.size());
-
                 for (Geometry g : collection) {
-                    geometries.add(toMap(g));
+                    geometries.add(toMap(g, useArrays));
                 }
                 root.put(FIELD_GEOMETRIES.getPreferredName(), geometries);
                 return null;
@@ -240,7 +251,7 @@ public final class GeoJson {
 
             @Override
             public Void visit(Line line) {
-                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(line));
+                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(line, useArrays));
                 return null;
             }
 
@@ -253,7 +264,7 @@ public final class GeoJson {
             public Void visit(MultiLine multiLine) {
                 List<Object> lines = new ArrayList<>(multiLine.size());
                 for (int i = 0; i < multiLine.size(); i++) {
-                    lines.add(coordinatesToList(multiLine.get(i)));
+                    lines.add(coordinatesToList(multiLine.get(i), useArrays));
                 }
                 root.put(FIELD_COORDINATES.getPreferredName(), lines);
                 return null;
@@ -264,13 +275,11 @@ public final class GeoJson {
                 List<Object> points = new ArrayList<>(multiPoint.size());
                 for (int i = 0; i < multiPoint.size(); i++) {
                     Point p = multiPoint.get(i);
-                    List<Object> point = new ArrayList<>();
-                    point.add(p.getX());
-                    point.add(p.getY());
-                    if (p.hasZ()) {
-                        point.add(p.getZ());
+                    if (useArrays) {
+                        points.add(coordinatesToArray(p.getX(), p.getY(), p.getZ()));
+                    } else {
+                        points.add(coordinatesToList(p.getX(), p.getY(), p.getZ()));
                     }
-                    points.add(point);
                 }
                 root.put(FIELD_COORDINATES.getPreferredName(), points);
                 return null;
@@ -280,7 +289,7 @@ public final class GeoJson {
             public Void visit(MultiPolygon multiPolygon) {
                 List<Object> polygons = new ArrayList<>();
                 for (int i = 0; i < multiPolygon.size(); i++) {
-                    polygons.add(coordinatesToList(multiPolygon.get(i)));
+                    polygons.add(coordinatesToList(multiPolygon.get(i), useArrays));
                 }
                 root.put(FIELD_COORDINATES.getPreferredName(), polygons);
                 return null;
@@ -288,16 +297,20 @@ public final class GeoJson {
 
             @Override
             public Void visit(Point point) {
-                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(point.getY(), point.getX(), point.getZ()));
+                if (useArrays) {
+                    root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToArray(point.getX(), point.getY(), point.getZ()));
+                } else {
+                    root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(point.getX(), point.getY(), point.getZ()));
+                }
                 return null;
             }
 
             @Override
             public Void visit(Polygon polygon) {
                 List<Object> coords = new ArrayList<>(polygon.getNumberOfHoles() + 1);
-                coords.add(coordinatesToList(polygon.getPolygon()));
+                coords.add(coordinatesToList(polygon.getPolygon(), useArrays));
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                    coords.add(coordinatesToList(polygon.getHole(i)));
+                    coords.add(coordinatesToList(polygon.getHole(i), useArrays));
                 }
                 root.put(FIELD_COORDINATES.getPreferredName(), coords);
                 return null;
@@ -306,13 +319,18 @@ public final class GeoJson {
             @Override
             public Void visit(Rectangle rectangle) {
                 List<Object> coords = new ArrayList<>(2);
-                coords.add(coordinatesToList(rectangle.getMaxY(), rectangle.getMinX(), rectangle.getMinZ())); // top left
-                coords.add(coordinatesToList(rectangle.getMinY(), rectangle.getMaxX(), rectangle.getMaxZ())); // bottom right
+                if (useArrays) {
+                    coords.add(coordinatesToArray(rectangle.getMinX(), rectangle.getMaxY(), rectangle.getMinZ())); // top left
+                    coords.add(coordinatesToArray(rectangle.getMaxX(), rectangle.getMinY(), rectangle.getMaxZ())); // bottom right
+                } else {
+                    coords.add(coordinatesToList(rectangle.getMinX(), rectangle.getMaxY(), rectangle.getMinZ())); // top left
+                    coords.add(coordinatesToList(rectangle.getMaxX(), rectangle.getMinY(), rectangle.getMaxZ())); // bottom right
+                }
                 root.put(FIELD_COORDINATES.getPreferredName(), coords);
                 return null;
             }
 
-            private static List<Object> coordinatesToList(double lat, double lon, double alt) {
+            private static List<Object> coordinatesToList(double lon, double lat, double alt) {
                 List<Object> coords = new ArrayList<>(3);
                 coords.add(lon);
                 coords.add(lat);
@@ -322,25 +340,31 @@ public final class GeoJson {
                 return coords;
             }
 
-            private static List<Object> coordinatesToList(Line line) {
+            private static double[] coordinatesToArray(double lon, double lat, double alt) {
+                if (Double.isNaN(alt)) {
+                    return new double[] { lon, lat };
+                } else {
+                    return new double[] { lon, lat, alt };
+                }
+            }
+
+            private static List<Object> coordinatesToList(Line line, boolean useArrays) {
                 List<Object> lines = new ArrayList<>(line.length());
                 for (int i = 0; i < line.length(); i++) {
-                    List<Object> coords = new ArrayList<>(3);
-                    coords.add(line.getX(i));
-                    coords.add(line.getY(i));
-                    if (line.hasZ()) {
-                        coords.add(line.getZ(i));
+                    if (useArrays) {
+                        lines.add(coordinatesToArray(line.getX(i), line.getY(i), line.getZ(i)));
+                    } else {
+                        lines.add(coordinatesToList(line.getX(i), line.getY(i), line.getZ(i)));
                     }
-                    lines.add(coords);
                 }
                 return lines;
             }
 
-            private static List<Object> coordinatesToList(Polygon polygon) {
+            private static List<Object> coordinatesToList(Polygon polygon, boolean useArrays) {
                 List<Object> coords = new ArrayList<>(polygon.getNumberOfHoles() + 1);
-                coords.add(coordinatesToList(polygon.getPolygon()));
+                coords.add(coordinatesToList(polygon.getPolygon(), useArrays));
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                    coords.add(coordinatesToList(polygon.getHole(i)));
+                    coords.add(coordinatesToList(polygon.getHole(i), useArrays));
                 }
                 return coords;
             }

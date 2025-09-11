@@ -140,6 +140,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         assertThat(e.getMessage(), equalTo("can't sort on geo_shape field"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testFetch() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("""
@@ -149,10 +150,14 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 Source source = searchContext.lookup().getSource(reader.leaves().get(0), 0);
                 ValueFetcher fetcher = simpleMappedFieldType().valueFetcher(searchContext, randomBoolean() ? null : "geojson");
                 fetcher.setNextReader(reader.leaves().get(0));
-                assertThat(
-                    fetcher.fetchValues(source, 0, null),
-                    equalTo(List.of(Map.of("type", "LineString", "coordinates", List.of(List.of(45.0, 45.0), List.of(0.0, 0.0)))))
-                );
+                // we need to check manually the map as the assertion methods do not like arrays inside the map
+                Map<String, Object> fetchValue = (Map<String, Object>) fetcher.fetchValues(source, 0, null).get(0);
+                assertThat(fetchValue.size(), equalTo(2));
+                assertThat(fetchValue.get("type"), equalTo("LineString"));
+                List<double[]> coordinates = (List<double[]>) fetchValue.get("coordinates");
+                assertThat(coordinates.size(), equalTo(2));
+                assertThat(coordinates.get(0), equalTo(new double[] { 45.0, 45.0 }));
+                assertThat(coordinates.get(1), equalTo(new double[] { 0.0, 0.0 }));
                 fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
                 fetcher.setNextReader(reader.leaves().get(0));
                 assertThat(fetcher.fetchValues(source, 0, null), equalTo(List.of("LINESTRING (45.0 45.0, 0.0 0.0)")));

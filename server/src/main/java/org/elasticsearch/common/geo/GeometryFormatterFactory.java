@@ -34,7 +34,8 @@ public class GeometryFormatterFactory {
         return switch (name) {
             case GEOJSON -> geometries -> {
                 final List<Object> objects = new ArrayList<>(geometries.size());
-                geometries.forEach((shape) -> objects.add(GeoJson.toMap(toGeometry.apply(shape))));
+                // we use arrays here so the footprint of the resulting GeoJson is smaller
+                geometries.forEach((shape) -> objects.add(GeoJson.toMap(toGeometry.apply(shape), true)));
                 return objects;
             };
             case WKT -> geometries -> {

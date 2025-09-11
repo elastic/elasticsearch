@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.RrfConfig;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -350,7 +351,12 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("can'find discriminator attribute position");
         }
 
-        return source.with(new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition), source.layout);
+        RrfConfig config = (RrfConfig) fuse.fuseConfig();
+
+        return source.with(
+            new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config.rankConstant(), config.weights()),
+            source.layout
+        );
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {

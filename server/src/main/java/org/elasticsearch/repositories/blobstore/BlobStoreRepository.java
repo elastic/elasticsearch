@@ -1757,7 +1757,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 // The resultCount is only incremented after a successful complete write
                 resultCount += 1;
-            } catch(BoundedOutputStreamFailedWriteException ex) {
+            } catch (BoundedOutputStreamFailedWriteException ex) {
                 logger.warn(
                     "Failure to clean up the following dangling blobs, {}, for index {} and shard {}",
                     blobsToDelete,

@@ -1,28 +1,32 @@
 {
-  "security.oidc_prepare_authentication":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-oidc-prepare-authentication.html",
-      "description":"Prepare OpenID connect authentication"
+  "security.oidc_prepare_authentication": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-oidc-prepare-authentication.html",
+      "description": "Prepare OpenID connect authentication"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/oidc/prepare",
-          "methods":[
+          "path": "/_security/oidc/prepare",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "body":{
-      "description":"The OpenID Connect authentication realm configuration",
-      "required":true
+    "body": {
+      "description": "The OpenID Connect authentication realm configuration",
+      "required": true
     }
   }
 }

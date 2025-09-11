@@ -13,6 +13,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.artifacts.dsl.ComponentMetadataHandler;
 import org.gradle.api.initialization.Settings;
 
+import java.util.List;
+
 /**
  * A settings plugin that configures component metadata rules for dependency management.
  * This plugin centralizes the configuration of transitive dependency exclusion rules.
@@ -25,6 +27,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
     @Override
     public void apply(Settings settings) {
         ComponentMetadataHandler components = settings.getDependencyResolutionManagement().getComponents();
+
         // Azure dependencies
         components.withModule("com.azure:azure-core", ExcludeOtherGroupsTransitiveRule.class);
         // brings in azure-core-http-netty. not used
@@ -315,6 +318,11 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.apache.kerby:token-provider", ExcludeAllTransitivesRule.class);
 
         // Apache Log4j dependencies
+        // We want to remove log4j-api compile only dependency on biz.aQute.bnd and org.osgi group but
+        // keep other compile only dependencies like spotbugs, errorprone and jspecify
+        components.withModule("org.apache.logging.log4j:log4j-api", ExcludeByGroup.class, config -> {
+            config.params(List.of("biz.aQute.bnd", "org.osgi"));
+        });
         components.withModule("org.apache.logging.log4j:log4j-1.2-api", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.logging.log4j:log4j-core", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.logging.log4j:log4j-jcl", ExcludeAllTransitivesRule.class);

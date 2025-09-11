@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -34,6 +35,9 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+        if (clusterHasFeature(FeatureFlag.RERANK_RESCORE_CHUNKS.name()) == false) {
+            assumeTrue("Skipping Rerank chunks", Build.current().isSnapshot());
+        }
     }
 
     // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster

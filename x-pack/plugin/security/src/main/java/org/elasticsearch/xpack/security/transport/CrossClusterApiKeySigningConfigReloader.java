@@ -83,23 +83,25 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
     private void reloadConsumer(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
         try {
             var apiKeySigner = crossClusterApiKeySignerFuture.get();
-            Settings effectiveSettings = settingsByClusterAlias.compute(
-                clusterAlias,
-                (key, val) -> buildEffectiveSettings(val, settings, updateSecureSettings)
-            );
-            var signingConfig = apiKeySigner.loadSigningConfig(clusterAlias, effectiveSettings);
-            if (signingConfig.dependentFiles() != null) {
-                watchDependentFilesForClusterAliases(
-                    resourceWatcherService,
-                    signingConfig.dependentFiles().stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
-                );
-            }
+            settingsByClusterAlias.compute(clusterAlias, (key, val) -> {
+                var effectiveSettings = buildEffectiveSettings(val, settings, updateSecureSettings);
+                try {
+                    var signingConfig = apiKeySigner.loadSigningConfig(clusterAlias, effectiveSettings);
+                    if (signingConfig != null) {
+                        watchDependentFilesForClusterAliases(
+                            resourceWatcherService,
+                            signingConfig.dependentFiles().stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
+                        );
+                    }
+                } catch (IllegalStateException e) {
+                    logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
+                }
+                return effectiveSettings;
+            });
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
             throw new ElasticsearchException("Failed to obtain crossClusterApiKeySigner", e);
-        } catch (IllegalStateException e) {
-            logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
         }
     }
 

@@ -21,7 +21,11 @@ import org.junit.After;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -36,12 +40,16 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
     private ResourceWatcherService resourceWatcherService;
     private ThreadPool threadPool;
     private Settings.Builder settingsBuilder;
+    private CrossClusterApiKeySigner.X509KeyPair testKeyPair;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         crossClusterApiKeySigner = mock(CrossClusterApiKeySigner.class);
-        when(crossClusterApiKeySigner.loadSigningConfig(any(), any())).thenReturn(new CrossClusterApiKeySigner.SigningConfig(null, null));
+        testKeyPair = createTestKeyPair();
+        when(crossClusterApiKeySigner.loadSigningConfig(any(), any())).thenReturn(
+            new CrossClusterApiKeySigner.SigningConfig(testKeyPair, List.of())
+        );
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         threadPool = new TestThreadPool(getTestName());
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
@@ -106,13 +114,13 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
                     clusterNames[i],
                     remoteClusterSettings[i].getByPrefix("cluster.remote." + clusterNames[i] + ".")
                 )
-            ).thenReturn(new CrossClusterApiKeySigner.SigningConfig(null, Set.of(filesToMonitor[i])));
+            ).thenReturn(new CrossClusterApiKeySigner.SigningConfig(testKeyPair, Set.of(filesToMonitor[i])));
             when(
                 crossClusterApiKeySigner.loadSigningConfig(
                     clusterNames[i],
                     dynamicSettingsUpdate.getByPrefix("cluster.remote." + clusterNames[i] + ".")
                 )
-            ).thenReturn(new CrossClusterApiKeySigner.SigningConfig(null, Set.of(filesToMonitor[i])));
+            ).thenReturn(new CrossClusterApiKeySigner.SigningConfig(testKeyPair, Set.of(filesToMonitor[i])));
         }
 
         crossClusterApiKeySigningConfigReloader.setApiKeySigner(crossClusterApiKeySigner);
@@ -204,6 +212,15 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
                 initialSettings.getByPrefix("cluster.remote.my_remote.")
             )
         );
+    }
+
+    private CrossClusterApiKeySigner.X509KeyPair createTestKeyPair() throws CertificateEncodingException {
+        var certMock = mock(X509Certificate.class);
+        when(certMock.getEncoded()).thenReturn(new byte[0]);
+        var privateKeyMock = mock(PrivateKey.class);
+        when(privateKeyMock.getAlgorithm()).thenReturn(randomFrom("RSA", "EC"));
+
+        return new CrossClusterApiKeySigner.X509KeyPair(certMock, privateKeyMock);
     }
 
     @After

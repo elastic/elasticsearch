@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslUtil;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -53,29 +52,29 @@ public class CrossClusterApiKeySigner {
     }
 
     SigningConfig loadSigningConfig(String clusterAlias, Settings settings) {
-        return signingConfigByClusterAlias.compute(clusterAlias, (key, currentSigningConfig) -> {
-            logger.trace("Loading signing config for [{}] with settings [{}]", clusterAlias, settings);
-            if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
-                try {
-                    SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settings, SETTINGS_PART_SIGNING + ".", environment, false);
-                    if (keyConfig.hasKeyMaterial()) {
-                        String alias = settings.get(SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX);
-                        var keyPair = Strings.isNullOrEmpty(alias) ? buildKeyPair(keyConfig) : buildKeyPair(keyConfig, alias);
-                        if (keyPair != null) {
-                            logger.trace("Key pair [{}] found for [{}]", keyPair, clusterAlias);
-                            return new SigningConfig(keyPair, keyConfig.getDependentFiles());
-                        }
-                    } else {
-                        logger.error(Strings.format("No signing credentials found in signing config for cluster [%s]", clusterAlias));
+        logger.trace("Loading signing config for [{}] with settings [{}]", clusterAlias, settings);
+        if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
+            try {
+                SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settings, SETTINGS_PART_SIGNING + ".", environment, false);
+                if (keyConfig.hasKeyMaterial()) {
+                    String alias = settings.get(SETTINGS_PART_SIGNING + "." + KEYSTORE_ALIAS_SUFFIX);
+                    var keyPair = Strings.isNullOrEmpty(alias) ? buildKeyPair(keyConfig) : buildKeyPair(keyConfig, alias);
+                    if (keyPair != null) {
+                        logger.trace("Key pair [{}] found for [{}]", keyPair, clusterAlias);
+                        var signingConfig = new SigningConfig(keyPair, keyConfig.getDependentFiles());
+                        signingConfigByClusterAlias.put(clusterAlias, signingConfig);
+                        return signingConfig;
                     }
-                } catch (Exception e) {
-                    throw new IllegalStateException(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
+                } else {
+                    logger.error(Strings.format("No signing credentials found in signing config for cluster [%s]", clusterAlias));
                 }
+            } catch (Exception e) {
+                throw new IllegalStateException(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
             }
-
-            logger.trace("No valid signing config settings found for [{}] with settings [{}]", clusterAlias, settings);
-            return SigningConfig.EMPTY;
-        });
+        }
+        logger.trace("No valid signing config settings found for [{}] with settings [{}]", clusterAlias, settings);
+        signingConfigByClusterAlias.remove(clusterAlias);
+        return null;
     }
 
     public X509CertificateSignature sign(String clusterAlias, String... headers) {
@@ -98,11 +97,6 @@ public class CrossClusterApiKeySigner {
                 e
             );
         }
-    }
-
-    // visible for testing
-    Map<String, SigningConfig> getSigningConfigByClusterAlias() {
-        return signingConfigByClusterAlias;
     }
 
     private void loadSigningConfigs() {
@@ -180,7 +174,8 @@ public class CrossClusterApiKeySigner {
         }
     }
 
-    private record X509KeyPair(X509Certificate certificate, PrivateKey privateKey, String signatureAlgorithm, String fingerprint) {
+    // visible for testing
+    record X509KeyPair(X509Certificate certificate, PrivateKey privateKey, String signatureAlgorithm, String fingerprint) {
         X509KeyPair(X509Certificate certificate, PrivateKey privateKey) {
             this(
                 Objects.requireNonNull(certificate),
@@ -200,8 +195,11 @@ public class CrossClusterApiKeySigner {
         }
     }
 
-    record SigningConfig(@Nullable X509KeyPair keyPair, @Nullable Collection<Path> dependentFiles) {
-        static SigningConfig EMPTY = new SigningConfig(null, null);
+    record SigningConfig(X509KeyPair keyPair, Collection<Path> dependentFiles) {
+        public SigningConfig {
+            Objects.requireNonNull(keyPair);
+            Objects.requireNonNull(dependentFiles);
+        }
     }
 
 }

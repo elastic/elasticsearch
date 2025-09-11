@@ -69,7 +69,6 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                     "secretpassword".toCharArray()
                 )
             );
-
             updateClusterSettings(
                 Settings.builder()
                     .put(
@@ -91,6 +90,9 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                     .putNull(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEYSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .setSecureSettings(new MockSecureSettings())
+            );
+            removeSecureSettingsFromKeyStoreAndReload(
+                Set.of(SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey())
             );
         });
     }
@@ -147,6 +149,9 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                     .putNull(SIGNING_CERT_PATH.getConcreteSettingForNamespace(testClusterAlias).getKey())
                     .putNull(SIGNING_KEY_PATH.getConcreteSettingForNamespace(testClusterAlias).getKey())
                     .setSecureSettings(new MockSecureSettings())
+            );
+            removeSecureSettingsFromKeyStoreAndReload(
+                Set.of(SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(testClusterAlias).getKey())
             );
         }
     }
@@ -239,6 +244,23 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         internalCluster().getInstances(Environment.class).forEach(environment -> {
             final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
             entries.forEach(keyStoreWrapper::setString);
+            try {
+                keyStoreWrapper.save(environment.configDir(), keyStorePassword, false);
+                logger.info(keyStoreWrapper.toString());
+            } catch (Exception e) {
+                fail(e.getMessage());
+            }
+        });
+        PlainActionFuture<NodesReloadSecureSettingsResponse> future = new PlainActionFuture<>();
+        reloadSecureSettings(keyStorePassword, future);
+        future.actionGet();
+    }
+
+    private void removeSecureSettingsFromKeyStoreAndReload(Set<String> settingsToRemove) {
+        char[] keyStorePassword = randomAlphaOfLengthBetween(15, randomIntBetween(15, 20)).toCharArray();
+        internalCluster().getInstances(Environment.class).forEach(environment -> {
+            final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+            settingsToRemove.forEach(keyStoreWrapper::remove);
             try {
                 keyStoreWrapper.save(environment.configDir(), keyStorePassword, false);
                 logger.info(keyStoreWrapper.toString());

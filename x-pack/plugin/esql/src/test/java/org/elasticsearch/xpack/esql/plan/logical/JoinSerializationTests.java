@@ -31,10 +31,9 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
 
     private static JoinConfig randomJoinConfig() {
         JoinType type = randomFrom(JoinTypes.LEFT, JoinTypes.RIGHT, JoinTypes.INNER, JoinTypes.FULL, JoinTypes.CROSS);
-        List<Attribute> matchFields = randomFieldAttributes(1, 10, false);
         List<Attribute> leftFields = randomFieldAttributes(1, 10, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 10, false);
-        return new JoinConfig(type, matchFields, leftFields, rightFields, randomJoinOnExpression());
+        return new JoinConfig(type, leftFields, rightFields, randomJoinOnExpression());
     }
 
     @Override

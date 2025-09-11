@@ -8,12 +8,12 @@ with the following key differences:
 
  - Targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
  - Propagates the metadata fields [`_tsid`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#tsid)
-   and `@timestamp` to the next operators,
+   and `@timestamp` to subsequent operators in the pipeline,
    even if they are not mentioned explicitly
  - Enables the use of time-series aggregation functions inside the
    [STATS](/reference/query-languages/esql/commands/stats-by.md) command
 
-The `TS` command is expected to be used in conjunction with the `STATS` command
+The `TS` command is intended to be used in conjunction with the `STATS` command
 to perform time-series analysis. `STATS` behaves polymorphically in this context,
 enabling the use of time-series aggregation functions such as `last_over_time()`,
 or `rate`. These functions are implicitly evaluated per `_tsid`
@@ -33,9 +33,9 @@ host and hourly bucket, as each host value may map to many `_tsid` values
 (`_tsid` is calculated on all dimension values).
 
 ::::{note}
-Metric fields are part of the time-series definition, so there is no point to
-include null metric values in these queries. Therefore, null metric values get
-filtered out implicitly under the `TS` command.
+Metric fields are part of the time-series definition, so you don't need to
+include null metric values in these queries. Null metric values are
+filtered out implicitly when using the `TS` command.
 ::::
 
 This paradigm with a pair of aggregation functions is standard for time-series

@@ -166,10 +166,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     protected void setLicenseService(LicenseService licenseService) {
-        if (this.licenseService == null) {
-            super.setLicenseService(licenseService);
-        }
         this.licenseService = licenseService;
+    }
+
+    protected void setSharedLicenseService(LicenseService licenseService) {
+        super.setLicenseService(licenseService);
     }
 
     @Override
@@ -179,10 +180,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     protected void setLicenseState(XPackLicenseState licenseState) {
-        if (this.licenseState == null) {
-            super.setLicenseState(licenseState);
-        }
         this.licenseState = licenseState;
+    }
+
+    protected void setSharedLicenseState(XPackLicenseState licenseState) {
+        super.setLicenseState(licenseState);
     }
 
     @Override

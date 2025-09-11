@@ -37,7 +37,7 @@ The command requires two parameters:
 * The field(s) to join on. Can be either:
   * A single field name
   * A comma-separated list of field names {applies_to}`stack: ga 9.2`
-  
+
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field
 LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Join on multiple fields
@@ -48,6 +48,8 @@ LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Joi
 :::
 
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
+
+{applies_to}`stack: ga 9.2.0` Remote lookup joins are supported when using [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md). In this case, the lookup index must exist on every queried remote cluster. Each cluster will use its own lookup index data (same as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote)).
 
 ## Example
 
@@ -201,7 +203,7 @@ any `LOOKUP JOIN`s.
 The following are the current limitations with `LOOKUP JOIN`:
 
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
-* Cross cluster search is unsupported initially. Both source and lookup indices must be local.
+* Cross cluster search is unsupported in versions prior to `9.2.0`. Both source and lookup indices must be local for these versions.
 * Currently, only matching on equality is supported.
 * In Stack versions `9.0-9.1`,`LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.

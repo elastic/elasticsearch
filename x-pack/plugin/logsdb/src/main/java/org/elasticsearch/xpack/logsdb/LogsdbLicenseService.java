@@ -110,7 +110,7 @@ final class LogsdbLicenseService {
     }
 
     /**
-     * @return whether patterned_text fields should work as normal or instead fall back to behaving as match_only_text fields.
+     * @return whether patterned_text fields should allow enterprise-level storage savings
      */
     public boolean allowPatternedText(boolean isTemplateValidation) {
         return checkFeature(PATTERNED_TEXT_FEATURE, licenseState.copyCurrentLicenseState(), isTemplateValidation);

@@ -147,10 +147,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         /**
-         * A parameter that indicates the patterned_text mapper should fall back to behaving as a match_only_text mapper, usually
+         * A parameter that indicates the patterned_text mapper should disable enterprise-level storage savings, usually
          * because there is no valid license.
          * <p>
-         * The parameter can only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
+         * The parameter should only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
          * associated index setting, which is set from the current license status.
          */
         private static Parameter<Boolean> disableEnterpriseFeaturesParameter(IndexSettings indexSettings) {

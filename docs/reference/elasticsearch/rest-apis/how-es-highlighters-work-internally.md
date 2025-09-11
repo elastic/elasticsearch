@@ -23,7 +23,7 @@ Plain highlighter begins with analyzing the text using the given analyzer, and c
 Unified or FVH highlighters do a better job of breaking up a text into fragments by utilizing Java’s `BreakIterator`. This ensures that a fragment is a valid sentence as long as `fragment_size` allows for this.
 
 
-## How to find the best fragments? [_how_to_find_the_best_fragments]
+## How to find the best fragments [_how_to_find_the_best_fragments]
 
 Relevant settings: `number_of_fragments`.
 

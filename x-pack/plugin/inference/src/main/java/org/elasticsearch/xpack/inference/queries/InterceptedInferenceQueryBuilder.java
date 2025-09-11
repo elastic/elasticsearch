@@ -230,13 +230,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             return rewrittenBwC;
         }
 
-        // Validate early to prevent partial failures
-        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        coordinatorNodeValidate(resolvedIndices);
-
         // NOTE: This logic misses when ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field.
         // In this case, the remote data node will receive the original query, which will in turn result in an error about querying an
         // unsupported field type.
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         Set<String> inferenceIds = getInferenceIdsForFields(
             resolvedIndices.getConcreteLocalIndicesMetadata().values(),
             getFields(),
@@ -248,6 +245,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             // Not querying a semantic text field
             return originalQuery;
         }
+
+        // Validate early to prevent partial failures
+        coordinatorNodeValidate(resolvedIndices);
 
         // TODO: Check for supported CCS mode here (once we support CCS)
         if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {

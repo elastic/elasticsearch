@@ -40,7 +40,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;
@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
-    private final Codec codec = new Elasticsearch92Lucene103Codec() {
+    private final Codec codec = new Elasticsearch93Lucene104Codec() {
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),

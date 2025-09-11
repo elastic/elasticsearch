@@ -13,7 +13,7 @@ import com.sun.management.ThreadMXBean;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -130,7 +130,7 @@ public class KnnIndexTester {
                 format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
             }
         }
-        return new Lucene103Codec() {
+        return new Lucene104Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return format;

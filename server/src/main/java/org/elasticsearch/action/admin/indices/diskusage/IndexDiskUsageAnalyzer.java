@@ -23,7 +23,7 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -315,7 +315,7 @@ final class IndexDiskUsageAnalyzer {
     private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
-            if (termState instanceof final Lucene103PostingsFormat.IntBlockTermState blockTermState) {
+            if (termState instanceof final Lucene104PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
             if (termState instanceof final Lucene101PostingsFormat.IntBlockTermState blockTermState) {

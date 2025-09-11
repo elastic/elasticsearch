@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -95,6 +96,9 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
@@ -446,6 +450,27 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
         entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceMatchQueryBuilder.NAME,
+                InterceptedInferenceMatchQueryBuilder::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceKnnVectorQueryBuilder.NAME,
+                InterceptedInferenceKnnVectorQueryBuilder::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceSparseVectorQueryBuilder.NAME,
+                InterceptedInferenceSparseVectorQueryBuilder::new
+            )
+        );
         return entries;
     }
 

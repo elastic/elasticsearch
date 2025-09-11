@@ -30,11 +30,11 @@ import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector) implements Writeable, ToXContentFragment {
 
-    private VectorData(float[] floatVector) {
+    public VectorData(float[] floatVector) {
         this(floatVector, null);
     }
 
-    private VectorData(byte[] byteVector) {
+    public VectorData(byte[] byteVector) {
         this(null, byteVector);
     }
 

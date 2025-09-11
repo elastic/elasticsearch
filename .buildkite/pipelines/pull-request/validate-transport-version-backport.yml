@@ -2,4 +2,4 @@ config:
   skip-target-branches: "main"
 steps:
   - label: validate-transport-version-backport
-    command: .ci/scripts/validate-transport-version-backport.sh
+    command: .buildkite/scripts/validate-transport-version-backport.sh

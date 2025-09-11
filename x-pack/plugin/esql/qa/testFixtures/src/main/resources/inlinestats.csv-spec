@@ -11,6 +11,19 @@ FROM hosts METADATA _index
 eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|hosts          |1              |null
 ;
 
+allFieldsReturnedNoIndex
+required_capability: inlinestats_v11
+
+FROM hosts
+| INLINESTATS c = COUNT(*) BY host_group
+| SORT c
+| LIMIT 1
+;
+
+  card:keyword | description:text  | host:keyword  |                                     ip0:ip                                      |        ip1:ip           |     c:long    |  host_group:text
+eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|1              |null
+;
+
 maxOfInt
 required_capability: inlinestats_v11
 // tag::max-languages[]
@@ -1195,6 +1208,20 @@ FROM hosts METADATA _index
 
 description:text|  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long |  host_group:text | card:keyword
 beta k8s server |beta           |127.0.0.1      |hosts           |127.0.0.2|2         |Kubernetes cluster|eth1
+;
+
+inlineStatsOverrideEVALed_FieldWithSameNameNoIndex
+required_capability: inlinestats_v11
+
+FROM hosts
+| EVAL x = ip1
+| INLINESTATS ip1 = COUNT(*) BY host_group, card
+| SORT ip1 DESC, x
+| LIMIT 1
+;
+
+description:text|  host:keyword |   ip0:ip      |   x:ip  | ip1:long |  host_group:text | card:keyword
+beta k8s server |beta           |127.0.0.1      |127.0.0.2|2         |Kubernetes cluster|eth1
 ;
 
 doubleShadowing

@@ -25,7 +25,7 @@ public class ClonedSecureSettings {
      * The returned instance does not require the original {@link SecureSettings} to remain open and will always report as loaded.
      * <p>
      * Only secure settings of type {@code String} are supported (file-based secure settings are not). The returned instance cannot be
-     * closed or serialized.
+     * serialized. Also, attempting to {@code close} it will not have any effect.
      * <p>
      * The cloned secure settings will remain in memory for the lifetime of the returned object. This bypasses the normal lifecycle of
      * {@link SecureSettings}. Great care must be taken when using this method to avoid unintentionally retaining sensitive data in memory.

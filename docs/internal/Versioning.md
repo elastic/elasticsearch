@@ -47,6 +47,9 @@ To create a transport version, declare a reference anywhere in java code. For ex
 
 `fromName` takes an arbitrary String name. The String must be a String literal;
 it cannot be a reference to a String. It must match the regex `[_0-9a-zA-Z]+`.
+You can reference the same transport version name from multiple classes, but
+you must not use an existing transport version name after it as already been
+committed to `main`.
 
 Once you have declared your `TransportVersion` you can use it in serialization code.
 For example, in a constructor that takes `StreamInput in`:
@@ -113,7 +116,7 @@ state files in git. You can then proceed with your merge as usual.
 
 ### Reverting changes
 
-Transport version cannot be removed, they can only be added. If the logic
+Transport versions cannot be removed, they can only be added. If the logic
 using a transport version needs to be reverted, it must be done with a
 new transport version.
 

@@ -110,10 +110,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null) {
-                    maxOperationSizeInBytes = Math.max(
-                        maxOperationSizeInBytes,
-                        ((UpdateRequest) request).doc().indexSource().byteLength()
-                    );
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
                 }
             }
         }

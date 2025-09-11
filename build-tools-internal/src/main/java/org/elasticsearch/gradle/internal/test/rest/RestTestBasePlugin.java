@@ -100,13 +100,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
         ElasticsearchDistribution defaultDistro = createDistribution(
             project,
             DEFAULT_REST_INTEG_TEST_DISTRO,
-            VersionProperties.getElasticsearch()
+            VersionProperties.getElasticsearch(),
+            false
         );
         ElasticsearchDistribution integTestDistro = createDistribution(
             project,
             INTEG_TEST_REST_INTEG_TEST_DISTRO,
             VersionProperties.getElasticsearch(),
-            ElasticsearchDistributionTypes.INTEG_TEST_ZIP
+            ElasticsearchDistributionTypes.INTEG_TEST_ZIP,
+            false
         );
 
         // Create configures for module and plugin dependencies
@@ -232,9 +234,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
                     String versionString = version.toString();
-                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
+                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString, false);
 
                     task.dependsOn(bwcDistro);
                     registerDistributionInputs(task, bwcDistro);
@@ -244,10 +246,35 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
+                    if (version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
                         this.call(bwcVersions.getMinimumWireCompatibleVersion());
                     }
+                    return null;
+                }
+            });
+
+            task.getExtensions().getExtraProperties().set("usesBwcDistributionFromRef", new Closure<Void>(task) {
+                @Override
+                public Void call(Object... args) {
+                    if (args.length != 2 || args[0] instanceof String == false || args[1] instanceof Version == false) {
+                        throw new IllegalArgumentException("Expected arguments (String refSpec, org.elasticsearch.gradle.Version version)");
+                    }
+
+                    String refSpec = (String) args[0];
+                    Version version = (Version) args[1];
+                    boolean isDetachedVersion = true;
+                    String versionString = version.toString();
+
+                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + refSpec, versionString, isDetachedVersion);
+
+                    task.dependsOn(bwcDistro);
+                    registerDistributionInputs(task, bwcDistro);
+
+                    nonInputSystemProperties.systemProperty(
+                        BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX + versionString,
+                        providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
+                    );
                     return null;
                 }
             });
@@ -262,16 +289,23 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .forEach(dependencies::add);
     }
 
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version) {
-        return createDistribution(project, name, version, null);
+    private ElasticsearchDistribution createDistribution(Project project, String name, String version, boolean detachedVersion) {
+        return createDistribution(project, name, version, null, detachedVersion);
     }
 
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version, ElasticsearchDistributionType type) {
+    private ElasticsearchDistribution createDistribution(
+        Project project,
+        String name,
+        String version,
+        ElasticsearchDistributionType type,
+        boolean detachedVersion
+    ) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         ElasticsearchDistribution maybeDistro = distributions.findByName(name);
         if (maybeDistro == null) {
             return distributions.create(name, distro -> {
                 distro.setVersion(version);
+                distro.setDetachedVersion(detachedVersion);
                 distro.setArchitecture(Architecture.current());
                 if (type != null) {
                     distro.setType(type);

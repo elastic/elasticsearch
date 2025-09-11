@@ -26,7 +26,7 @@ public class SnapshotDistributionResolver implements DistributionResolver {
     }
 
     @Override
-    public DistributionDescriptor resolve(Version version, DistributionType type) {
+    public DistributionDescriptor resolve(Version version, boolean detachedVersion, DistributionType type) {
         String distributionPath = System.getProperty(BWC_DISTRIBUTION_SYSPROP_PREFIX + version.toString());
 
         if (distributionPath != null) {
@@ -38,11 +38,10 @@ public class SnapshotDistributionResolver implements DistributionResolver {
             }
 
             // Snapshot distributions are never release builds and always use the default distribution
-            Version realVersion = Version.fromString(System.getProperty("tests.bwc.main.version", version.toString()));
             boolean isSnapshot = System.getProperty("tests.bwc.snapshot", "true").equals("false") == false;
-            return new DefaultDistributionDescriptor(realVersion, isSnapshot, distributionDir, DistributionType.DEFAULT);
+            return new DefaultDistributionDescriptor(version, isSnapshot, distributionDir, DistributionType.DEFAULT);
         }
 
-        return delegate.resolve(version, type);
+        return delegate.resolve(version, detachedVersion, type);
     }
 }

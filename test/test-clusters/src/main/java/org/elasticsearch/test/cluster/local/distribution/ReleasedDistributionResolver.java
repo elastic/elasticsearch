@@ -21,7 +21,7 @@ public class ReleasedDistributionResolver implements DistributionResolver {
     private static final String BWC_DISTRIBUTION_SYSPROP_PREFIX = "tests.release.distribution.";
 
     @Override
-    public DistributionDescriptor resolve(Version version, DistributionType type) {
+    public DistributionDescriptor resolve(Version version, boolean detachedVersion, DistributionType type) {
         String distributionPath = System.getProperty(BWC_DISTRIBUTION_SYSPROP_PREFIX + version.toString());
 
         if (distributionPath == null) {

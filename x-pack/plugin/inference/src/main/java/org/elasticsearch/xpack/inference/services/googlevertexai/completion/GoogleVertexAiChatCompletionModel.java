@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -15,7 +16,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
@@ -66,17 +66,36 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            GoogleModelGardenProvider provider = serviceSettings.provider();
-            URI uri = serviceSettings.uri();
-            if (provider != null && uri != null) {
-                this.nonStreamingUri = uri;
-                this.streamingURI = Objects.requireNonNullElse(serviceSettings.streamingUri(), uri);
-            } else {
-                String location = serviceSettings.location();
-                String projectId = serviceSettings.projectId();
-                String model = serviceSettings.modelId();
+            var provider = serviceSettings.provider();
+            var uri = serviceSettings.uri();
+            var streamingUri = serviceSettings.streamingUri();
+            // If provider is set, uri or streamingUri must be set. If provider is not set, location, projectId and modelId must be set
+            if (provider != null && (uri != null || streamingUri != null)) {
+                // If both URIs are provided, use them as is. If only one is provided, use it for both streaming and non-streaming
+                this.nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
+                this.streamingURI = Objects.requireNonNullElse(streamingUri, uri);
+            } else if (serviceSettings.location() != null && serviceSettings.modelId() != null && serviceSettings.projectId() != null) {
+                var location = serviceSettings.location();
+                var projectId = serviceSettings.projectId();
+                var model = serviceSettings.modelId();
                 this.streamingURI = buildUriStreaming(location, projectId, model);
                 this.nonStreamingUri = buildUriNonStreaming(location, projectId, model);
+            } else {
+                // Neither provider and uri nor location, projectId and model are fully provided
+                throw new ValidationException().addValidationError(
+                    String.format(
+                        """
+                            For Google Model Garden, you must provide either provider with url and/or streaming_url. \
+                            For Google Vertex AI models, you must provide location, project_id, and model. \
+                            Provided values: location=%s, project_id=%s, model=%s, provider=%s, url=%s, streaming_url=%s.""",
+                        serviceSettings.location(),
+                        serviceSettings.projectId(),
+                        serviceSettings.modelId(),
+                        serviceSettings.provider(),
+                        serviceSettings.uri(),
+                        serviceSettings.streamingUri()
+                    )
+                );
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

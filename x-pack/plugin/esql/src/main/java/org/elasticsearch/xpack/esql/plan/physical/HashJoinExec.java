@@ -65,7 +65,7 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         // TODO: clean up, we used to read the match fields here.
-        out.writeNamedWriteableCollection(null);
+        out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);

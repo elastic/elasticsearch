@@ -44,9 +44,9 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -55,11 +55,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.getRawFieldVectorDelegate;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.getRawVectorDelegate;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99FlatVectorsWriter_writeField;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99FlatVectorsWriter_writeSortingField;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_writeField;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_writeSortingField;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
@@ -173,7 +181,16 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         SegmentInfo segmentInfo = segmentWriteState.segmentInfo;
         var mappedFields = new HashMap<Integer, FieldEntry>();
 
-        flatVectorWriter.flush(maxDoc, sortMap);
+        // Reproduce flatVectorWriter.flush()
+        if (flatVectorWriter instanceof Lucene99FlatVectorsWriter lucene99FlatVectorsWriter) {
+            flushLucene99FlatVectorsWriter(lucene99FlatVectorsWriter, maxDoc, sortMap, mappedFields);
+        } else {
+            assert flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter;
+            var quantizedVectorsWriter = (ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) flatVectorWriter;
+            Lucene99FlatVectorsWriter rawVectorDelegate = getRawVectorDelegate(quantizedVectorsWriter);
+            flushLucene99FlatVectorsWriter(rawVectorDelegate, maxDoc, sortMap, mappedFields);
+            flushLucene99ScalarQuantizedVectorsWriter(quantizedVectorsWriter, maxDoc, sortMap);
+        }
 
         var directory = FilterDirectory.unwrap(segmentWriteState.segmentInfo.dir);
         logger.info(
@@ -181,9 +198,10 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             segmentWriteState.segmentInfo.dir.getClass().getName(),
             directory.getClass().getName()
         );
+
         flushFieldsWithoutMemoryMappedFile(sortMap);
 
-        // if (TODO || mappedFields.isEmpty()) {
+        // if (FsDirectoryFactory.isHybridFs(segmentWriteState.segmentInfo.dir) || mappedFields.isEmpty()) {
         // // No tmp file written
         // flushFieldsWithoutMemoryMappedFile(sortMap);
         // } else {
@@ -197,6 +215,55 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         // }
         // }
         // }
+    }
+
+    private void flushLucene99ScalarQuantizedVectorsWriter(
+        ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter quantizedVectorsWriter,
+        int maxDoc,
+        Sorter.DocMap sortMap
+    ) throws IOException {
+        for (var field : fields) {
+            ScalarQuantizer quantizer = lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer(field.flatFieldVectorsWriter);
+            if (sortMap == null) {
+                lucene99ScalarQuantizedVectorsWriter_writeField(
+                    quantizedVectorsWriter.delegate,
+                    field.flatFieldVectorsWriter,
+                    maxDoc,
+                    quantizer
+                );
+            } else {
+                lucene99ScalarQuantizedVectorsWriter_writeSortingField(
+                    quantizedVectorsWriter.delegate,
+                    field.flatFieldVectorsWriter,
+                    maxDoc,
+                    sortMap,
+                    quantizer
+                );
+            }
+            field.flatFieldVectorsWriter.finish();
+        }
+    }
+
+    private void flushLucene99FlatVectorsWriter(
+        Lucene99FlatVectorsWriter lucene99FlatVectorsWriter,
+        int maxDoc,
+        Sorter.DocMap sortMap,
+        Map<Integer, FieldEntry> mappedFields
+    ) throws IOException {
+        for (var field : fields) {
+            FlatFieldVectorsWriter<float[]> flatFieldVectorsWriter = getRawFieldVectorDelegate(field.flatFieldVectorsWriter);
+
+            long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+            long vectorDataLength = (long) field.fieldInfo.getVectorDimension() * Float.BYTES * flatFieldVectorsWriter.getVectors().size();
+            mappedFields.put(field.fieldInfo.number, new FieldEntry(vectorDataOffset, vectorDataLength));
+
+            if (sortMap == null) {
+                lucene99FlatVectorsWriter_writeField(lucene99FlatVectorsWriter, flatFieldVectorsWriter, maxDoc);
+            } else {
+                lucene99FlatVectorsWriter_writeSortingField(lucene99FlatVectorsWriter, flatFieldVectorsWriter, maxDoc, sortMap);
+            }
+            flatFieldVectorsWriter.finish();
+        }
     }
 
     // private void flushFieldsWithMemoryMappedFile(

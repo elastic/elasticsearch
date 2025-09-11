@@ -458,7 +458,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private void assertPoint(Map<?, ?> pointMap, double lat, double lon) {
         assertEquals("Point", pointMap.get("type"));
-        assertEquals(List.of(lon, lat), pointMap.get("coordinates"));
+        assertArrayEquals(new double[] { lon, lat }, (double[]) pointMap.get("coordinates"), 0.0);
     }
 
     public void testDenseVectorInObject() throws IOException {

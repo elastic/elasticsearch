@@ -66,6 +66,8 @@ redirects:
         anchors: {'esql-fork'}
       - to: 'reference/query-languages/esql/commands/grok.md'
         anchors: {'esql-grok'}
+      - to: 'reference/query-languages/esql/commands/inlinestats-by.md'
+        anchors: {'esql-inlinestats-by'}
       - to: 'reference/query-languages/esql/commands/keep.md'
         anchors: {'esql-keep'}
       - to: 'reference/query-languages/esql/commands/limit.md'

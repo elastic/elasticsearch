@@ -841,7 +841,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read an optional {@link Map} using the given key and value readers. The return Map is immutable.
+     * Read an optional {@link Map} using the given key and value readers. The returned Map is immutable.
      *
      * @param keyReader Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.
@@ -853,7 +853,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     * Read a {@link Map} using the given key and value readers. The returned Map is immutable.
      *
      * @param keyReader Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.

@@ -65,6 +65,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BoundedOutputStream;
+import org.elasticsearch.common.io.stream.BoundedOutputStreamFailedWriteException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -76,7 +78,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -1697,11 +1698,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
 
-        private final String SHARD_DELETE_RESULTS_MAX_SIZE_SETTING_NAME = "repositories.blobstore.max_shard_delete_results_size";
-        private final Setting<RelativeByteSizeValue> MAX_SHARD_DELETE_RESULTS_SIZE_SETTING = new Setting<>(
-            SHARD_DELETE_RESULTS_MAX_SIZE_SETTING_NAME,
+        public final Setting<ByteSizeValue> MAX_SHARD_DELETE_RESULTS_SIZE_SETTING = Setting.memorySizeSetting(
+            "repositories.blobstore.max_shard_delete_results_size",
             "25%",
-            s -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, SHARD_DELETE_RESULTS_MAX_SIZE_SETTING_NAME),
             Setting.Property.NodeScope
         );
 
@@ -1710,9 +1709,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (this.shardDeleteResultsMaxSize > 0) {
                 this.shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
                 this.compressed = new OutputStreamStreamOutput(
-                    new BufferedOutputStream(
-                        new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
-                        DeflateCompressor.BUFFER_SIZE
+                    new BoundedOutputStream(
+                        new BufferedOutputStream(
+                            new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
+                            DeflateCompressor.BUFFER_SIZE
+                        ),
+                        this.shardDeleteResultsMaxSize
                     )
                 );
                 resources.add(compressed);
@@ -1721,29 +1723,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 this.shardDeleteResults = null;
                 this.compressed = null;
             }
-
         }
 
         /**
          * Calculates the maximum size of the shardDeleteResults BytesStreamOutput.
-         * The size should at most be 2GB, but no more than 25% of the total remaining heap space
+         * The size should at most be 2GB, but no more than 25% of the total remaining heap space.
+         * A buffer of 1MB is maintained, so that even if the stream is of max size, there is room to flush
          * @return The maximum number of bytes the shardDeleteResults BytesStreamOutput can consume in the heap
          */
         int calculateMaximumShardDeleteResultsSize(Settings settings) {
-            RelativeByteSizeValue configuredValue = MAX_SHARD_DELETE_RESULTS_SIZE_SETTING.get(settings);
-
-            long maxAllowedSizeInBytes;
-            if (configuredValue.isAbsolute()) {
-                maxAllowedSizeInBytes = configuredValue.getAbsolute().getBytes();
-            } else {
-                maxAllowedSizeInBytes = configuredValue.calculateValue(ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory()), null)
-                    .getBytes();
+            long maxSizeInBytes = MAX_SHARD_DELETE_RESULTS_SIZE_SETTING.get(settings).getBytes();
+            int oneMBBuffer = 1024 * 1024;
+            if (maxSizeInBytes > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE - oneMBBuffer;
             }
-
-            if (maxAllowedSizeInBytes > Integer.MAX_VALUE) {
-                return Integer.MAX_VALUE;
-            }
-            return (int) maxAllowedSizeInBytes;
+            return (int) maxSizeInBytes;
         }
 
         synchronized void addShardDeleteResult(
@@ -1759,26 +1753,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             try {
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
+                new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
 
-                // Calculate how many bytes we want to write
-                int bytesToWriteIndexId = StreamOutput.bytesInString(indexId.getId());
-                int bytesToWriteShardId = StreamOutput.bytesInVInt(shardId);
-                int bytesToWriteBlobsToDelete = StreamOutput.bytesInStringCollection(blobsToDelete);
-                int totalBytesRequired = bytesToWriteIndexId + bytesToWriteShardId + bytesToWriteBlobsToDelete;
-
-                // Only perform the write if there is capacity left
-                if (shardDeleteResults.size() + totalBytesRequired <= shardDeleteResultsMaxSize) {
-                    new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
-                    resultCount += 1;
-                } else {
-                    logger.warn(
-                        "Failure to clean up the following dangling blobs, {}, for index {} and shard {}",
-                        blobsToDelete,
-                        indexId,
-                        shardId
-                    );
-                    compressed.close();
-                }
+                // The resultCount is only incremented after a successful complete write
+                resultCount += 1;
+            } catch(BoundedOutputStreamFailedWriteException ex) {
+                logger.warn(
+                    "Failure to clean up the following dangling blobs, {}, for index {} and shard {}",
+                    blobsToDelete,
+                    indexId,
+                    shardId
+                );
             } catch (IOException e) {
                 assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
@@ -1809,6 +1794,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new UncheckedIOException(e);
             }
 
+            // Iterates through complete ShardSnapshotMetaDeleteResults written to compressed
+            // Partially written ShardSnapshotMetaDeleteResults are dropped
             return Iterators.flatMap(Iterators.forRange(0, resultCount, i -> {
                 try {
                     return new ShardSnapshotMetaDeleteResult(input);

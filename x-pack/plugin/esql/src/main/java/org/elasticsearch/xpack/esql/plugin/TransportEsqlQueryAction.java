@@ -87,11 +87,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final TransportActionServices services;
     private volatile boolean defaultAllowPartialResults;
 
-    private final int resultTruncationMaxSize;
-    private final int resultTruncationDefaultSize;
-    private final int timeseriesResultTruncationMaxSize;
-    private final int timeseriesResultTruncationDefaultSize;
-
     @Inject
     @SuppressWarnings("this-escape")
     public TransportEsqlQueryAction(
@@ -186,14 +181,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
-
-        this.resultTruncationMaxSize = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
-        this.resultTruncationDefaultSize = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(clusterService.getSettings());
-        this.timeseriesResultTruncationMaxSize = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
-        this.timeseriesResultTruncationDefaultSize = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(
-            clusterService.getSettings()
-        );
-
     }
 
     @Override
@@ -241,15 +228,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            resultTruncationMaxSize,
-            resultTruncationDefaultSize,
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
             request.query(),
             request.profile(),
             request.tables(),
             System.nanoTime(),
             request.allowPartialResults(),
-            timeseriesResultTruncationMaxSize,
-            timeseriesResultTruncationDefaultSize
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE)
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task

@@ -26,9 +26,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -89,7 +91,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
             RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
+            c.trackRetrieverUsage(innerRetriever.getName(), innerRetriever.getMetadataFields());
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
@@ -225,6 +227,17 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             )
         );
         return sourceBuilder;
+    }
+
+    @Override
+    public Set<String> getMetadataFields() {
+        Set<String> metadataFields = new HashSet<>();
+
+        if (snippets != null) {
+            metadataFields.add(SNIPPETS_FIELD.getPreferredName());
+        }
+
+        return metadataFields;
     }
 
     @Override

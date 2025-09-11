@@ -2421,9 +2421,9 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var knn = as(filter.condition(), Knn.class);
-        var queryVector = as(knn.query(), Literal.class);
-        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        assertThat(queryVector.value(), equalTo(List.of(0f, 1f, 2f)));
+        var queryVector = as(knn.query(), ToDenseVector.class);
+        var literal = as(queryVector.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {

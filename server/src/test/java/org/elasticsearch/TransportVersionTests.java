@@ -400,4 +400,18 @@ public class TransportVersionTests extends ESTestCase {
         );
         assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
     }
+
+    public void testMoreLikeThis() {
+        IllegalStateException ise = expectThrows(
+            IllegalStateException.class,
+            () -> TransportVersion.fromName("brand_new_version_unrelated_to_others")
+        );
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [brand_new_version_unrelated_to_others]. "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+    }
 }

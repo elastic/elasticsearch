@@ -18,6 +18,7 @@
     },
     {
       "enabled": true,
+      "target_branch": "main",
       "pipeline_slug": "elasticsearch-pull-request-transport-versions",
       "allow_org_users": true,
       "allowed_repo_permissions": [

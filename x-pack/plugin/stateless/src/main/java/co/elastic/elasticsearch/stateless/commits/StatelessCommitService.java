@@ -763,7 +763,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException || e instanceof ShardNotFoundException) {
+                if (e instanceof IndexNotFoundException || e instanceof ShardNotFoundException || e instanceof AlreadyClosedException) {
                     // The shard was closed, we can ignore this exception.
                     logger.trace(() -> "shard closed while copying target", e);
                 } else {

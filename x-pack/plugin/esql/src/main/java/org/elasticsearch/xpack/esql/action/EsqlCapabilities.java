@@ -1470,6 +1470,16 @@ public class EsqlCapabilities {
         FN_PRESENT,
 
         /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support present_over_time aggregation that gets evaluated per time-series
+         */
+        PRESENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES();

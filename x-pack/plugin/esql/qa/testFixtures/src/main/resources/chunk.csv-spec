@@ -13,6 +13,7 @@ FROM books
 | SORT book_no
 | LIMIT 5
 ;
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // tag::chunk-with-field-result[]
 book_no:keyword | title:text                                            | chunks:keyword
@@ -33,6 +34,7 @@ FROM books
 | EVAL chunks = CHUNK(description, 1, 20)
 | KEEP book_no, title, chunks;
 ignoreOrder:true
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 book_no:keyword | title:text                                                        | chunks:keyword
 2714            | Return of the King Being the Third Part of The Lord of the Rings  | null

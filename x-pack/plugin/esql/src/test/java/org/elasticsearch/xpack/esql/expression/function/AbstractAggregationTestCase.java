@@ -193,15 +193,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
             var filter = ((AggregateFunction) expression).filter();
 
-            if (filter != null) {
-                var surrogate = ((SurrogateExpression) expression).surrogate();
+            var surrogate = ((SurrogateExpression) expression).surrogate();
 
-                if (surrogate != null) {
-                    surrogate.forEachDown(AggregateFunction.class, child -> {
-                        var surrogateFilter = child.filter();
-                        assertEquals(filter, surrogateFilter);
-                    });
-                }
+            if (surrogate != null) {
+                surrogate.forEachDown(AggregateFunction.class, child -> {
+                    var surrogateFilter = child.filter();
+                    assertEquals(filter, surrogateFilter);
+                });
             }
         }
     }

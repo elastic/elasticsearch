@@ -3300,16 +3300,16 @@ median1:double | median2:double | median3:double | median4:double
 medianAbsoluteDeviationWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
 
-ROW x = [1, 2, 3, 4, 5]
+ROW x = [1, 3, 4, 7, 11, 18]
 | MV_EXPAND x
 | STATS median_dev1 = MEDIAN_ABSOLUTE_DEVIATION(x) WHERE x <= 3,
         median_dev2 = MEDIAN_ABSOLUTE_DEVIATION(x),
-        median_dev3 = MEDIAN_ABSOLUTE_DEVIATION([5,6,7,8,9]) WHERE x <= 3,
-        median_dev4 = MEDIAN_ABSOLUTE_DEVIATION([5,6,7,8,9])
+        median_dev3 = MEDIAN_ABSOLUTE_DEVIATION([3, 11, 14, 25]) WHERE x <= 3,
+        median_dev4 = MEDIAN_ABSOLUTE_DEVIATION([3, 11, 14, 25])
 ;
 
 median_dev1:double | median_dev2:double | median_dev3:double | median_dev4:double
-1.0                | 1.0                | 1.0                | 1.0
+1.0                | 3.5                | 5.5                | 5.5
 ;
 
 topWithConditions

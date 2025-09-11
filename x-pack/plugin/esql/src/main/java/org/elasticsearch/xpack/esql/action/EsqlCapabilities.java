@@ -1473,7 +1473,7 @@ public class EsqlCapabilities {
          * Bugfix for STATS {{expression}} WHERE {{condition}} when the
          * expression is replaced by something else on planning
          * e.g. STATS SUM(1) WHERE x==3 is replaced by
-         *      MV_SUM(const)*COUNT(* WHERE x == 3).
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
          */
         STATS_WITH_FILTERED_SURROGATE_FIXED,
 

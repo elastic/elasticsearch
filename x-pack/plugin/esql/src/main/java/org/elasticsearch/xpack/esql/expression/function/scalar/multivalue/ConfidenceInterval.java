@@ -16,7 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,8 +52,8 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "double", }, description = "...")
     public ConfidenceInterval(
         Source source,
-        @Param(name = "bestEstimate", type = { "double", }) Expression bestEstimate,
-        @Param(name = "estimates", type = { "double", }) Expression estimates
+        @Param(name = "bestEstimate", type = { "double", "int", "long" }) Expression bestEstimate,
+        @Param(name = "estimates", type = { "double", "int", "long" }) Expression estimates
     ) {
         super(source, Arrays.asList(bestEstimate, estimates));
         this.bestEstimate = bestEstimate;
@@ -85,7 +89,15 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new ConfidenceIntervalEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
+        return switch (PlannerUtils.toElementType(bestEstimate.dataType())) {
+            case DOUBLE ->
+                new ConfidenceIntervalDoubleEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
+            case INT ->
+                new ConfidenceIntervalIntEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
+            case LONG ->
+                new ConfidenceIntervalLongEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
+            default -> throw EsqlIllegalArgumentException.illegalDataType(bestEstimate.dataType());
+        };
     }
 
     @Override
@@ -100,7 +112,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return bestEstimate.dataType();
     }
 
     @Override
@@ -117,31 +129,83 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         return Objects.equals(other.bestEstimate, bestEstimate) && Objects.equals(other.estimates, estimates);
     }
 
-    @Evaluator
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock bestEstimateBlock, DoubleBlock estimates) {
+    @Evaluator(extraName = "Double")
+    static void process(DoubleBlock.Builder builder, int position, DoubleBlock bestEstimateBlock, DoubleBlock estimatesBlock) {
         assert bestEstimateBlock.getValueCount(position) == 1 : "expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         double bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
 
+        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
+            estimates[i] = estimatesBlock.getDouble(estimatesBlock.getFirstValueIndex(position) + i);
+        }
+
+        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates);
+        builder.beginPositionEntry();
+        for (double v : confidenceInterval) {
+            builder.appendDouble(v);
+        }
+        builder.endPositionEntry();
+
+        System.out.println("@@@ bestEstimate = " + bestEstimate + ", estimates = " + Arrays.toString(estimates) + " --> confidenceInterval = " + Arrays.toString(confidenceInterval));
+    }
+
+    @Evaluator(extraName = "Int")
+    static void process(IntBlock.Builder builder, int position, IntBlock bestEstimateBlock, IntBlock estimatesBlock) {
+        assert bestEstimateBlock.getValueCount(position) == 1 : "expected 1 element, got " + bestEstimateBlock.getValueCount(position);
+        double bestEstimate = bestEstimateBlock.getInt(bestEstimateBlock.getFirstValueIndex(position));
+
+        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
+            estimates[i] = estimatesBlock.getInt(estimatesBlock.getFirstValueIndex(position) + i);
+        }
+
+        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates);
+        builder.beginPositionEntry();
+        for (double v : confidenceInterval) {
+            builder.appendInt((int) v);
+        }
+        builder.endPositionEntry();
+    }
+
+    @Evaluator(extraName = "Long")
+    static void process(LongBlock.Builder builder, int position, LongBlock bestEstimateBlock, LongBlock estimatesBlock) {
+        assert bestEstimateBlock.getValueCount(position) == 1 : "expected 1 element, got " + bestEstimateBlock.getValueCount(position);
+        double bestEstimate = bestEstimateBlock.getLong(bestEstimateBlock.getFirstValueIndex(position));
+
+        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
+            estimates[i] = estimatesBlock.getLong(estimatesBlock.getFirstValueIndex(position) + i);
+        }
+
+        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates);
+        builder.beginPositionEntry();
+        for (double v : confidenceInterval) {
+            builder.appendLong((long) v);
+        }
+        builder.endPositionEntry();
+    }
+
+    private static double[] computeConfidenceInterval(double bestEstimate, double[] estimates) {
         Mean estimatesMean = new Mean();
         StandardDeviation estimatesStdDev = new StandardDeviation(false);
         Skewness estimatesSkew = new Skewness();
-        int first = estimates.getFirstValueIndex(position);
-        for (int i = 0; i < 25; i++) {
-            double estimate = i < estimates.getValueCount(position) ? estimates.getDouble(first + i) : 0.0;
+        for (double estimate : estimates) {
             estimatesMean.increment(estimate);
             estimatesStdDev.increment(estimate);
             estimatesSkew.increment(estimate);
         }
+        // TODO: better handling of missing values
+        for (int i = 0; i < 25 - estimates.length; i++) {
+            estimatesMean.increment(0.0);
+            estimatesStdDev.increment(0.0);
+            estimatesSkew.increment(0.0);
+        }
+
         double mm = estimatesMean.getResult();
         double sm = estimatesStdDev.getResult();
 
         if (sm == 0.0) {
-            builder.beginPositionEntry();
-            builder.appendDouble(bestEstimate);
-            builder.appendDouble(bestEstimate);
-            builder.appendDouble(bestEstimate);
-            builder.endPositionEntry();
-            return;
+            return new double[] { bestEstimate, bestEstimate, bestEstimate };
         }
 
         double a = estimatesSkew.getResult() / 6;
@@ -153,13 +217,13 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double zl = z0 - dz;
         double zu = z0 + dz;
 
-        sm /= Math.sqrt(estimates.getValueCount(position));
+        sm /= Math.sqrt(estimates.length);
 
-        builder.beginPositionEntry();
-        builder.appendDouble(mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))));
-        builder.appendDouble(bestEstimate);
-        builder.appendDouble(mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))));
-        builder.endPositionEntry();
+        return new double[] {
+            mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))),
+            bestEstimate,
+            mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))),
+        };
     }
 
     @Override

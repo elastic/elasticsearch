@@ -1,6 +1,16 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/commands.html
+applies_to:
+  stack: ga
+  deployment:
+    eck: ga
+    self: ga
+    ess: unavailable
+    ece: unavailable
+  serverless: unavailable
+products:
+  - id: elasticsearch 
 ---
 
 # Command line tools [commands]

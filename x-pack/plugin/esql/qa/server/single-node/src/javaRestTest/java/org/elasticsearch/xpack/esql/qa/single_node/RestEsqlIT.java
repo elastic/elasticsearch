@@ -58,7 +58,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
@@ -663,6 +662,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
+        shouldBeSupported.remove(DataType.GEOHASH);
+        shouldBeSupported.remove(DataType.GEOTILE);
+        shouldBeSupported.remove(DataType.GEOHEX);
         shouldBeSupported.remove(DataType.NULL);
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
@@ -671,7 +673,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
         for (DataType type : shouldBeSupported) {
-            assertTrue(typesAndValues.containsKey(type));
+            assertTrue(type.typeName(), typesAndValues.containsKey(type));
         }
         assertThat(typesAndValues.size(), equalTo(shouldBeSupported.size()));
 
@@ -712,9 +714,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 Map<String, Object> results = entityAsMap(resp);
                 List<?> columns = (List<?>) results.get("columns");
                 DataType suggestedCast = DataType.suggestedCast(Set.of(listOfTypes.get(i), listOfTypes.get(j)));
-                if (IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled()
-                    && isMillisOrNanos(listOfTypes.get(i))
-                    && isMillisOrNanos(listOfTypes.get(j))) {
+                if (isMillisOrNanos(listOfTypes.get(i)) && isMillisOrNanos(listOfTypes.get(j))) {
                     // datetime and date_nanos are casted to date_nanos implicitly
                     assertThat(columns, equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", "date_nanos")))));
                 } else {

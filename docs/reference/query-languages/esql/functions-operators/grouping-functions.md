@@ -14,8 +14,8 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 
 The [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) command supports these grouping functions:
 
-* [`BUCKET`](../../functions-operators/grouping-functions.md#esql-bucket)
-* [`TBUCKET`](../../functions-operators/grouping-functions.md#esql-tbucket)
+* [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket)
+* [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-tbucket)
 
 
 :::{include} ../_snippets/functions/layout/bucket.md

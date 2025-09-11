@@ -1,0 +1,5 @@
+pr: 134527
+summary: Reduce memory footprint of Geojson object representation
+area: Geo
+type: enhancement
+issues: []

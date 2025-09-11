@@ -13,6 +13,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.usage.SearchUsage;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class RetrieverParserContext {
@@ -37,8 +38,12 @@ public class RetrieverParserContext {
         searchUsage.trackRescorerUsage(name);
     }
 
+    public void trackRetrieverUsage(String name, Set<String> metadata) {
+        searchUsage.trackRetrieverUsage(name, metadata);
+    }
+
     public void trackRetrieverUsage(String name) {
-        searchUsage.trackRetrieverUsage(name);
+        searchUsage.trackRetrieverUsage(name, Set.of());
     }
 
     public boolean clusterSupportsFeature(NodeFeature nodeFeature) {

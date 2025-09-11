@@ -36,7 +36,7 @@ FVH doesn’t need to analyze the text and build an in-memory index, as it uses 
 Unified highlighter can use pre-indexed term vectors or pre-indexed terms offsets, if they are available. Otherwise, similar to Plain Highlighter, it has to create an in-memory index from the text. Unified highlighter uses the BM25 scoring model to score fragments.
 
 
-## How to highlight the query terms in a fragment? [_how_to_highlight_the_query_terms_in_a_fragment]
+## How to highlight the query terms in a fragment [_how_to_highlight_the_query_terms_in_a_fragment]
 
 Relevant settings:  `pre-tags`, `post-tags`.
 

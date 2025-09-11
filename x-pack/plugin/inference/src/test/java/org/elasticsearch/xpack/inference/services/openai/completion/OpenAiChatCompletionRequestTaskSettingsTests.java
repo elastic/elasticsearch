@@ -47,9 +47,7 @@ public class OpenAiChatCompletionRequestTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersIsNull() {
-        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user"))
-        );
+        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
 
         assertThat(settings.user(), is("user"));
         assertNull(settings.headers());

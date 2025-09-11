@@ -14,7 +14,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 
-public class DataStreamLicenseChangeTestCase extends LogsIndexModeRestTestIT {
+public abstract class DataStreamLicenseChangeTestCase extends LogsIndexModeRestTestIT {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

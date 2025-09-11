@@ -37,7 +37,7 @@
     "params": {
       "format": {
         "type": "string",
-        "default": "local",
+        "default": "text",
         "description": "a short version of the Accept header, e.g. json, yaml"
       },
       "bytes": {

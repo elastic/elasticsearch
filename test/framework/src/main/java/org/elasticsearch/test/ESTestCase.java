@@ -1423,6 +1423,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Generate a random TimeValue that is greater than the provided timeValue.
+     * Chooses a random TimeUnit, adds between 1 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
+     */
+    public static TimeValue randomTimeValueGreaterThan(TimeValue lowerBound) {
+        final TimeUnit randomUnit = randomFrom(TimeUnit.values());
+        // This conversion might round down, but that's fine since we add at least 1 below, ensuring we still satisfy the "greater than".
+        final long lowerBoundDuration = randomUnit.convert(lowerBound.duration(), lowerBound.timeUnit());
+        final long duration = lowerBoundDuration + randomLongBetween(1, 1000);
+        return new TimeValue(duration, randomUnit);
+    }
+
+    /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
     public static long randomMillisUpToYear9999() {

@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigne
 public final class CrossClusterApiKeySigningConfigReloader implements ReloadableSecurityComponent {
 
     private static final Logger logger = LogManager.getLogger(CrossClusterApiKeySigningConfigReloader.class);
-    private final Map<Path, ChangeListener> monitoredPathToChangeListener = new HashMap<>();
+    private final Map<Path, ChangeListener> monitoredPathToChangeListener = new ConcurrentHashMap<>();
     private final ResourceWatcherService resourceWatcherService;
     private final Map<String, Settings> settingsByClusterAlias = new ConcurrentHashMap<>();
 
@@ -127,27 +127,29 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
         Map<Path, Set<String>> dependentFilesToClusterAliases
     ) {
         dependentFilesToClusterAliases.forEach((path, clusterAliases) -> {
-            var existingChangeListener = monitoredPathToChangeListener.get(path);
-            if (existingChangeListener != null) {
-                logger.trace("Found existing listener for file [{}], adding clusterAliases {}", path, clusterAliases);
-                existingChangeListener.addClusterAliases(clusterAliases);
-                return;
-            }
+            monitoredPathToChangeListener.compute(path, (monitoredPath, existingChangeListener) -> {
+                if (existingChangeListener != null) {
+                    logger.trace("Found existing listener for file [{}], adding clusterAliases {}", path, clusterAliases);
+                    existingChangeListener.addClusterAliases(clusterAliases);
+                    return existingChangeListener;
+                }
 
-            logger.trace("Adding listener for file [{}] for clusters {}", path, clusterAliases);
-            ChangeListener changeListener = new ChangeListener(
-                new HashSet<>(clusterAliases),
-                path,
-                (clusterAlias) -> this.reloadConsumer(clusterAlias, null, false)
-            );
-            FileWatcher fileWatcher = new FileWatcher(path);
-            fileWatcher.addListener(changeListener);
-            try {
-                resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-                monitoredPathToChangeListener.put(path, changeListener);
-            } catch (IOException | SecurityException e) {
-                logger.error(Strings.format("failed to start watching file [%s]", path), e);
-            }
+                logger.trace("Adding listener for file [{}] for clusters {}", path, clusterAliases);
+                ChangeListener changeListener = new ChangeListener(
+                    new HashSet<>(clusterAliases),
+                    path,
+                    (clusterAlias) -> this.reloadConsumer(clusterAlias, null, false)
+                );
+                FileWatcher fileWatcher = new FileWatcher(path);
+                fileWatcher.addListener(changeListener);
+                try {
+                    resourceWatcherService.add(fileWatcher, Frequency.HIGH);
+                    return changeListener;
+                } catch (IOException | SecurityException e) {
+                    logger.error(Strings.format("failed to start watching file [%s]", path), e);
+                }
+                return changeListener;
+            });
         });
     }
 

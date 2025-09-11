@@ -65,6 +65,6 @@ public class ChunkingSettingsBuilder {
         }
 
         var maxChunkSizeWordCount = (int) (maxChunkSizeTokenCount * WORDS_PER_TOKEN);
-        return new SentenceBoundaryChunkingSettings(maxChunkSizeWordCount, 0);
+        return new SentenceBoundaryChunkingSettings(maxChunkSizeWordCount, 1);
     }
 }

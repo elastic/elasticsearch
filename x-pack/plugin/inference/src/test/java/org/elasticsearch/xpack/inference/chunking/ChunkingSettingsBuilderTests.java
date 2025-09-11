@@ -62,7 +62,7 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
         int expectedMaxChunkSize = (int) ((ELASTIC_RERANKER_TOKEN_LIMIT - ELASTIC_RERANKER_EXTRA_TOKEN_COUNT - queryTokenCount)
             * WORDS_PER_TOKEN);
         assertEquals(expectedMaxChunkSize, sentenceBoundaryChunkingSettings.maxChunkSize);
-        assertEquals(0, sentenceBoundaryChunkingSettings.sentenceOverlap);
+        assertEquals(1, sentenceBoundaryChunkingSettings.sentenceOverlap);
     }
 
     public void testBuildChunkingSettingsForElasticReranker_QueryTokenCountMoreThanHalfOfTokenLimit() {
@@ -74,7 +74,7 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
         SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings = (SentenceBoundaryChunkingSettings) chunkingSettings;
         int expectedMaxChunkSize = (int) (Math.floor((float) ELASTIC_RERANKER_TOKEN_LIMIT / 2) * WORDS_PER_TOKEN);
         assertEquals(expectedMaxChunkSize, sentenceBoundaryChunkingSettings.maxChunkSize);
-        assertEquals(0, sentenceBoundaryChunkingSettings.sentenceOverlap);
+        assertEquals(1, sentenceBoundaryChunkingSettings.sentenceOverlap);
     }
 
     private Map<Map<String, Object>, ChunkingSettings> chunkingSettingsMapToChunkingSettings() {

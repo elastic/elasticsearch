@@ -36,6 +36,21 @@ In order to ensure consistency and robustness, all new `TransportVersion`s
 must first be created in the `main` branch and then backported to the relevant
 release branches.
 
+### Internal state files
+
+The Elasticsearch server jar contains resource files representing each
+transport version. These files are loaded at runtime to construct
+`TransportVersion` instances. Since each transport version has its own file
+they can be backported without conflict.
+
+Additional resource files represent the latest transport version known on
+each release branch. If two transport versions are added at the same time,
+there will be a conflict in these internal state files, forcing one to be
+regenerated to resolve the conflict before merging to `main`.
+
+All of these internal state files are managed by gradle tasks; they should
+not be edited directly.
+
 _Elastic developers_ - please see corresponding documentation for Serverless
 on creating transport versions for Serverless changes.
 
@@ -95,7 +110,7 @@ needed to backport to `8.19` you would run (in `main`):
     ./gradlew generateTransportVersion --name=my_tv --backport-branches=9.1,8.19
 
 In the above case CI will not know what transport version name to update, so you
-must update the transport version manually. After merging the updated transport
+must run the generate task again as described. After merging the updated transport
 version it will need to be backported to all the applicable branches.
 
 ### Resolving merge conflicts

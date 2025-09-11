@@ -92,6 +92,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs(10);
+        // | SORT a, b, i0, i1, ...i500 | KEEP a, b | LIMIT 10000
         Map<String, Object> response = sortByManyLongs(500);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));

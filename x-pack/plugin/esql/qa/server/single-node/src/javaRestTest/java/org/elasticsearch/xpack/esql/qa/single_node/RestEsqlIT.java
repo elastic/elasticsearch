@@ -588,6 +588,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 case "data" -> assertMap(
                     sig,
                     giant
+                        // NOCOMMIT this should include a TopN
                         ? matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator")
                             .item("ProjectOperator")

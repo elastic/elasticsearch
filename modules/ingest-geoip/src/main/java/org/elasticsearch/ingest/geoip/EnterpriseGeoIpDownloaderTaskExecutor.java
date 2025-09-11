@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClonedSecureSettings;
+import org.elasticsearch.common.settings.InMemoryClonedSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -174,7 +174,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = ClonedSecureSettings.cloneSecureSettings(
+            this.cachedSecureSettings = InMemoryClonedSecureSettings.cloneSecureSettings(
                 settings,
                 List.of(MAXMIND_LICENSE_KEY_SETTING, IPINFO_TOKEN_SETTING)
             );

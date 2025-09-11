@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class ClonedSecureSettings {
+public class InMemoryClonedSecureSettings {
 
     /**
      * Creates a cloned (detached) {@link SecureSettings} instance by copying selected secure settings from the provided {@link Settings}.

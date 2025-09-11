@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.notification;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.ClonedSecureSettings;
+import org.elasticsearch.common.settings.InMemoryClonedSecureSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -77,7 +77,7 @@ public abstract class NotificationService<Account> {
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = ClonedSecureSettings.cloneSecureSettings(settings, pluginSecureSettings);
+            this.cachedSecureSettings = InMemoryClonedSecureSettings.cloneSecureSettings(settings, pluginSecureSettings);
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading watcher notification service", e);
             return;

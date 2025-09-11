@@ -35,9 +35,8 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-        if (clusterHasFeature(FeatureFlag.RERANK_RESCORE_CHUNKS.name()) == false) {
-            assumeTrue("Skipping Rerank chunks", Build.current().isSnapshot());
-        }
+        // TODO Remove when feature flag is removed
+        assumeFalse("Rerank chunks behind feature flag", clusterHasFeature("text_similarity_reranker_rescore_chunks") );
     }
 
     // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
@@ -49,7 +48,6 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         .nodes(NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.RERANK_RESCORE_CHUNKS)
         .build();
 
     @Override

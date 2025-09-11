@@ -308,7 +308,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
-    public void testInvalidMultivaluedParams() throws IOException {
+    public void testInvalidMultivaluedNamedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
@@ -333,27 +333,79 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         assertThat(
             e1.getCause().getMessage(),
-            containsString(" [3:2] Parameter [_n1] contains a null value. Null values are not allowed for multivalues;")
+            containsString(
+                "[3:2] Parameter [_n1] contains a null entry: [null, 8.15.0]. Null values are not allowed in multivalued params;"
+            )
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[3:29] Parameter [_n2] contains a null value. Null values are not allowed for multivalues;")
+            containsString(
+                "[3:29] Parameter [_n2] contains a null entry: [null, null, x]. Null values are not allowed in multivalued params;"
+            )
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[3:57] Parameter [_n3] contains a null value. Null values are not allowed for multivalues;")
+            containsString(
+                "[3:57] Parameter [_n3] contains a null entry: [null, true, false]. Null values are not allowed in multivalued params;"
+            )
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[4:2] Parameter [_n4] contains a null value. Null values are not allowed for multivalues;")
+            containsString(
+                "[4:2] Parameter [_n4] contains a null entry: [null, 1.0, null]. Null values are not allowed in multivalued params;"
+            )
         );
         assertThat(
             e1.getCause().getMessage(),
-            containsString("[4:30] Parameter [_n5] contains a null value. Null values are not allowed for multivalues;")
+            containsString(
+                "[4:30] Parameter [_n5] contains a null entry: [null, -799810013, null, 799810013]. "
+                    + "Null values are not allowed in multivalued params;"
+            )
         );
         assertThat(e1.getCause().getMessage(), containsString("[5:2] n6=[{value={a5=v5}}] is not supported as a parameter"));
         assertThat(e1.getCause().getMessage(), containsString("[5:40] n7=[{identifier=[x, y]}] is not supported as a parameter"));
         assertThat(e1.getCause().getMessage(), containsString("[5:80] n8=[{pattern=[x*, y*]}] is not supported as a parameter"));
+    }
+
+    public void testInvalidMultivaluedUnnamedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        // invalid named parameter for multivalued constants
+        String paramsString = """
+            "params":[
+             [null, "8.15.0"], [null, null, "x"], [null, true, false], [null, 1.0, null], [null, -799810013, null, 799810013]
+             ]""";
+        String json1 = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString, query, columnar, locale.toLanguageTag(), filter);
+
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:2] Parameter contains a null entry: [null, 8.15.0]. Null values are not allowed in multivalued params;")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:20] Parameter contains a null entry: [null, null, x]. Null values are not allowed in multivalued params;")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[3:39] Parameter contains a null entry: [null, true, false]. Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:60] Parameter contains a null entry: [null, 1.0, null]. Null values are not allowed in multivalued params;")
+        );
     }
 
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {

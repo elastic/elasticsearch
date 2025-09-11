@@ -195,25 +195,23 @@ final class RequestXContent {
                     }
                 } else {
                     if (token == XContentParser.Token.START_ARRAY) {
-                        DataType arrayType = null;
+                        DataType arrayType = DataType.NULL;
                         List<Object> paramValues = new ArrayList<>();
+                        boolean nullValueFound = false, mixedTypesFound = false;
                         while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                             DataType currentType = valueAndDataType.type;
-                            if (currentType == DataType.NULL) {
-                                errors.add(new XContentParseException(loc, "Unnamed parameter contains a null in a multivalued value"));
-                                continue;
+                            nullValueFound = nullValueFound | (currentType == DataType.NULL);
+                            mixedTypesFound = mixedTypesFound | (arrayType != DataType.NULL && arrayType != currentType);
+                            if (currentType != DataType.NULL) {
+                                arrayType = currentType;
                             }
-                            if (arrayType != null && arrayType != currentType) {
-                                errors.add(
-                                    new XContentParseException(
-                                        loc,
-                                        "Unnamed parameter has values from different types, found " + arrayType + " and " + currentType
-                                    )
-                                );
-                            }
-                            arrayType = currentType;
                             paramValues.add(valueAndDataType.value);
+                        }
+                        if (nullValueFound) {
+                            addNullEntryError(errors, loc, null, paramValues);
+                        } else if (mixedTypesFound) {
+                            addMixedTypesError(errors, loc, null, paramValues);
                         }
                         unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
                     } else {
@@ -241,6 +239,42 @@ final class RequestXContent {
             );
         }
         return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
+    }
+
+    private static void addMixedTypesError(
+        List<XContentParseException> errors,
+        XContentLocation loc,
+        String paramName,
+        List<?> paramValues
+    ) {
+        errors.add(
+            new XContentParseException(
+                loc,
+                "Parameter "
+                    + (paramName == null ? "" : "[" + paramName + "] ")
+                    + "contains mixed data types: "
+                    + paramValues
+                    + ". Mixed data types are not allowed in multivalued params."
+            )
+        );
+    }
+
+    private static void addNullEntryError(
+        List<XContentParseException> errors,
+        XContentLocation loc,
+        String paramName,
+        List<?> paramValues
+    ) {
+        errors.add(
+            new XContentParseException(
+                loc,
+                "Parameter "
+                    + (paramName == null ? "" : "[" + paramName + "] ")
+                    + "contains a null entry: "
+                    + paramValues
+                    + ". Null values are not allowed in multivalued params"
+            )
+        );
     }
 
     private record ParamValueAndType(Object value, DataType type) {}
@@ -369,20 +403,10 @@ final class RequestXContent {
                 checkParamValueValidity(entry, classification, currentValue, loc, errors);
                 DataType currentType = DataType.fromJava(currentValue);
                 if (currentType == DataType.NULL) {
-                    errors.add(
-                        new XContentParseException(
-                            loc,
-                            "Parameter [" + entry.getKey() + "] contains a null value. Null values are not allowed for multivalues"
-                        )
-                    );
+                    addNullEntryError(errors, loc, entry.getKey(), valueList);
                     break;
                 } else if (arrayType != null && arrayType != currentType) {
-                    errors.add(
-                        new XContentParseException(
-                            loc,
-                            "Parameter [" + entry.getKey() + "] has values from different types, found " + arrayType + " and " + currentType
-                        )
-                    );
+                    addMixedTypesError(errors, loc, entry.getKey(), valueList);
                     break;
                 }
                 arrayType = currentType;

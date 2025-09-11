@@ -725,12 +725,43 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
 
         String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("[1:79] Parameter [a] contains a null value. Null values are not allowed for multivalues"));
-        assertThat(error, containsString("[1:101] Parameter [b] contains a null value. Null values are not allowed for multivalues"));
-        assertThat(error, containsString("[1:120] Parameter [c] contains a null value. Null values are not allowed for multivalues"));
-        assertThat(error, containsString("[1:142] Parameter [d] contains a null value. Null values are not allowed for multivalues"));
-        assertThat(error, containsString("[1:162] Parameter [e] contains a null value. Null values are not allowed for multivalues"));
-        assertThat(error, containsString("[1:192] Parameter [f] contains a null value. Null values are not allowed for multivalues"));
+        assertThat(
+            error,
+            containsString(
+                "[1:79] Parameter [a] contains a null entry: [null, a2]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:101] Parameter [b] contains a null entry: [null, 2]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:120] Parameter [c] contains a null entry: [null, false]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:142] Parameter [d] contains a null entry: [null, 2.2]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:162] Parameter [e] contains a null entry: [null, 1674835275193]. "
+                    + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:192] Parameter [f] contains a null entry: [null, null]. " + "Null values are not allowed in multivalued params"
+            )
+        );
     }
 
     public void testArrayValuesAllowedInUnnamedParams() throws IOException {

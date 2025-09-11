@@ -266,40 +266,40 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    // private void flushFieldsWithMemoryMappedFile(
-    // Sorter.DocMap sortMap,
-    // MemorySegmentAccessInput memorySegmentAccessInput,
-    // HashMap<Integer, FieldEntry> mappedFields
-    // ) throws IOException {
-    // for (FieldWriter field : fields) {
-    // var fieldInfo = field.fieldInfo;
-    //
-    // var numVectors = field.flatFieldVectorsWriter.getVectors().size();
-    // if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-    // // Will not be indexed on the GPU
-    // assert mappedFields.containsKey(fieldInfo.number) == false;
-    // flushField(fieldInfo, null, numVectors, sortMap);
-    // } else {
-    // var fieldEntry = mappedFields.get(fieldInfo.number);
-    // assert fieldEntry != null;
-    //
-    // flushField(
-    // fieldInfo,
-    // DatasetUtils.getInstance()
-    // .fromSlice(
-    // memorySegmentAccessInput,
-    // fieldEntry.vectorDataOffset,
-    // fieldEntry.vectorDataLength,
-    // numVectors,
-    // fieldInfo.getVectorDimension(),
-    // CuVSMatrix.DataType.FLOAT
-    // ),
-    // numVectors,
-    // sortMap
-    // );
-    // }
-    // }
-    // }
+    private void flushFieldsWithMemoryMappedFile(
+        Sorter.DocMap sortMap,
+        MemorySegmentAccessInput memorySegmentAccessInput,
+        HashMap<Integer, FieldEntry> mappedFields
+    ) throws IOException {
+        for (FieldWriter field : fields) {
+            var fieldInfo = field.fieldInfo;
+
+            var numVectors = field.flatFieldVectorsWriter.getVectors().size();
+            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                // Will not be indexed on the GPU
+                assert mappedFields.containsKey(fieldInfo.number) == false;
+                flushField(fieldInfo, null, numVectors, sortMap);
+            } else {
+                var fieldEntry = mappedFields.get(fieldInfo.number);
+                assert fieldEntry != null;
+
+                flushField(
+                    fieldInfo,
+                    DatasetUtils.getInstance()
+                        .fromSlice(
+                            memorySegmentAccessInput,
+                            fieldEntry.vectorDataOffset,
+                            fieldEntry.vectorDataLength,
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            CuVSMatrix.DataType.FLOAT
+                        ),
+                    numVectors,
+                    sortMap
+                );
+            }
+        }
+    }
 
     private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException {
         // No tmp file written, or the file cannot be mmapped

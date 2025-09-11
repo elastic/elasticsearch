@@ -52,37 +52,7 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
                 hotSpottedNodes.add(new NodeShardIterable(allocation, node, writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()));
             }
         }
-        return new NodeShardIterator(hotSpottedNodes.iterator());
-    }
-
-    private static class NodeShardIterator implements Iterator<ShardRouting> {
-
-        private final Iterator<NodeShardIterable> iterator;
-        private Iterator<ShardRouting> currentShardIterator;
-
-        private NodeShardIterator(Iterator<NodeShardIterable> iterator) {
-            this.iterator = iterator;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (currentShardIterator == null || currentShardIterator.hasNext() == false) {
-                if (iterator.hasNext()) {
-                    currentShardIterator = iterator.next().iterator();
-                } else {
-                    return false;
-                }
-            }
-            return currentShardIterator.hasNext();
-        }
-
-        @Override
-        public ShardRouting next() {
-            if (currentShardIterator == null) {
-                currentShardIterator = iterator.next().iterator();
-            }
-            return currentShardIterator.next();
-        }
+        return new LazilyExpandingShardIterator<>(hotSpottedNodes);
     }
 
     private static class NodeShardIterable implements Iterable<ShardRouting>, Comparable<NodeShardIterable> {
@@ -123,6 +93,36 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
             double meanWriteLoad = totalWriteLoad / sortedRoutings.size();
             sortedRoutings.sort(Comparator.comparing(sr -> Math.abs(shardWriteLoads.get(sr.shardId()) - meanWriteLoad)));
             return sortedRoutings.iterator();
+        }
+    }
+
+    static class LazilyExpandingShardIterator<T> implements Iterator<T> {
+
+        private final Iterator<? extends Iterable<T>> allIterables;
+        private Iterator<T> currentIterator;
+
+        LazilyExpandingShardIterator(Iterable<? extends Iterable<T>> allIterables) {
+            this.allIterables = allIterables.iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            while (currentIterator == null || currentIterator.hasNext() == false) {
+                if (allIterables.hasNext() == false) {
+                    return false;
+                } else {
+                    currentIterator = allIterables.next().iterator();
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public T next() {
+            while (currentIterator == null || currentIterator.hasNext() == false) {
+                currentIterator = allIterables.next().iterator();
+            }
+            return currentIterator.next();
         }
     }
 }

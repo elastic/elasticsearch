@@ -159,6 +159,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
 import static org.elasticsearch.common.Strings.format;
@@ -1463,6 +1464,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         logger.trace("freeing reader context [{}]", contextId);
         if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
+                logger.debug(
+                    "current active readers post removal: {}",
+                    activeReaders.values()
+                        .stream()
+                        .map(readerContext -> readerContext.indexShard().shardId().toString())
+                        .collect(Collectors.joining(", "))
+                );
                 return context != null;
             }
         }

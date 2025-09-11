@@ -75,6 +75,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
@@ -621,6 +622,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             && phaseResult.hasSearchContext()
             && request.searchRequest.scroll() == null
             && isPartOfPIT(request.searchRequest, phaseResult.getContextId(), namedWriteableRegistry) == false) {
+            logger.debug("freeing reader context for: {}", result.getSearchShardTarget().getShardId());
             searchService.freeReaderContext(phaseResult.getContextId());
         }
     }
@@ -871,6 +873,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             ChannelActionListener<TransportResponse> channelListener,
             NamedWriteableRegistry namedWriteableRegistry
         ) {
+            logger.debug(
+                "handling merge failure for search request: {}",
+                searchRequest.shards.stream().map(shardToQuery -> shardToQuery.shardId.toString()).collect(Collectors.joining(", "))
+            );
             queryPhaseResultConsumer.getSuccessfulResults()
                 .forEach(
                     searchPhaseResult -> releaseLocalContext(

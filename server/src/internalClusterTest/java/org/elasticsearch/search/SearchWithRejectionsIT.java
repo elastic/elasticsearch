@@ -9,11 +9,14 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +24,12 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging(
+    reason = "testing",
+    value = "org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction:DEBUG,org.elasticsearch.search.SearchService:DEBUG"
+)
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@Repeat(iterations = 1000)
 public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
@@ -23,10 +24,13 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -42,12 +46,14 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -73,6 +79,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
+    private final IndexOutput vectorData;
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
@@ -94,8 +101,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
+            vectorData = VectorsFormatReflectionUtils.getQuantizedVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
+            assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
+            vectorData = VectorsFormatReflectionUtils.getVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         this.segmentWriteState = state;
@@ -145,15 +155,112 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return newField;
     }
 
+    private record FieldEntry(long vectorDataOffset, long vectorDataLength) {}
+
+    /**
+     * Flushes vector data and associated data to disk.
+     * <p>
+     * This method and the private helpers it calls only need to support FLOAT32.
+     * For FlatFieldVectorWriter we only need to support float[] during flush: during indexing users provide floats[], and pass floats to
+     * FlatFieldVectorWriter, even when we have a BYTE dataType (i.e. an "int8_hnsw" type).
+     * During merging, we use quantized data, so we need to support byte[] too (see {@link ESGpuHnswVectorsWriter#mergeOneField}),
+     * but not here.
+     * That's how our other current formats work: use floats during indexing, and quantized data to build graph during merging.
+     * </p>
+     */
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
+        SegmentInfo segmentInfo = segmentWriteState.segmentInfo;
+        var mappedFields = new HashMap<Integer, FieldEntry>();
+
         flatVectorWriter.flush(maxDoc, sortMap);
+
+        var directory = FilterDirectory.unwrap(segmentWriteState.segmentInfo.dir);
+        logger.info(
+            "Directory is of type [{}], unwrapped [{}]",
+            segmentWriteState.segmentInfo.dir.getClass().getName(),
+            directory.getClass().getName()
+        );
+        flushFieldsWithoutMemoryMappedFile(sortMap);
+
+        // if (TODO || mappedFields.isEmpty()) {
+        // // No tmp file written
+        // flushFieldsWithoutMemoryMappedFile(sortMap);
+        // } else {
+        // // If we have written one or more fields to a tmp file, read back the file to try and mmap it
+        // try (IndexInput in = directory.openInput(vectorData.getName(), IOContext.DEFAULT)) {
+        // var input = FilterIndexInput.unwrapOnlyTest(in);
+        // if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+        // flushFieldsWithMemoryMappedFile(sortMap, memorySegmentAccessInput, mappedFields);
+        // } else {
+        // flushFieldsWithoutMemoryMappedFile(sortMap);
+        // }
+        // }
+        // }
+    }
+
+    // private void flushFieldsWithMemoryMappedFile(
+    // Sorter.DocMap sortMap,
+    // MemorySegmentAccessInput memorySegmentAccessInput,
+    // HashMap<Integer, FieldEntry> mappedFields
+    // ) throws IOException {
+    // for (FieldWriter field : fields) {
+    // var fieldInfo = field.fieldInfo;
+    //
+    // var numVectors = field.flatFieldVectorsWriter.getVectors().size();
+    // if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+    // // Will not be indexed on the GPU
+    // assert mappedFields.containsKey(fieldInfo.number) == false;
+    // flushField(fieldInfo, null, numVectors, sortMap);
+    // } else {
+    // var fieldEntry = mappedFields.get(fieldInfo.number);
+    // assert fieldEntry != null;
+    //
+    // flushField(
+    // fieldInfo,
+    // DatasetUtils.getInstance()
+    // .fromSlice(
+    // memorySegmentAccessInput,
+    // fieldEntry.vectorDataOffset,
+    // fieldEntry.vectorDataLength,
+    // numVectors,
+    // fieldInfo.getVectorDimension(),
+    // CuVSMatrix.DataType.FLOAT
+    // ),
+    // numVectors,
+    // sortMap
+    // );
+    // }
+    // }
+    // }
+
+    private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException {
+        // No tmp file written, or the file cannot be mmapped
         for (FieldWriter field : fields) {
-            if (sortMap == null) {
-                flushField(field);
+            var fieldInfo = field.fieldInfo;
+
+            var numVectors = field.flatFieldVectorsWriter.getVectors().size();
+            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                // Will not be indexed on the GPU
+                flushField(fieldInfo, null, numVectors, sortMap);
             } else {
-                flushSortingField(field, sortMap);
+                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
+                for (var vector : field.flatFieldVectorsWriter.getVectors()) {
+                    builder.addVector(vector);
+                }
+                try (var dataset = builder.build()) {
+                    flushField(fieldInfo, dataset, numVectors, sortMap);
+                }
             }
+        }
+    }
+
+    private void flushField(FieldInfo fieldInfo, CuVSMatrix dataset, int numVectors, Sorter.DocMap sortMap) throws IOException {
+        if (sortMap == null) {
+            writeFieldInternal(fieldInfo, dataset, numVectors);
+        } else {
+            // TODO: use sortMap
+            writeFieldInternal(fieldInfo, dataset, numVectors);
         }
     }
 
@@ -183,29 +290,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             total += field.ramBytesUsed();
         }
         return total;
-    }
-
-    /**
-     * For FlatFieldVectorWriter we only need to support float[] during flush: during indexing users provide floats[], and pass floats to
-     * FlatFieldVectorWriter, even when we have a BYTE dataType (i.e. an "int8_hnsw" type).
-     * During merging, we use quantized data, so we need to support byte[] too (see {@link ESGpuHnswVectorsWriter#mergeOneField}),
-     * but not here.
-     * That's how our other current formats work: use floats during indexing, and quantized data to build graph during merging.
-     */
-    private void flushField(FieldWriter fieldWriter) throws IOException {
-        float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        try (CuVSMatrix dataset = vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors)) {
-            writeFieldInternal(fieldWriter.fieldInfo, dataset, vectors.length);
-        }
-    }
-
-    private void flushSortingField(FieldWriter fieldWriter, Sorter.DocMap sortMap) throws IOException {
-        // The flatFieldVectorsWriter's flush method, called before this, has already sorted the vectors according to the sortMap.
-        // We can now treat them as a simple, sorted list of vectors.
-        float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        try (CuVSMatrix dataset = vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : CuVSMatrix.ofArray(vectors)) {
-            writeFieldInternal(fieldWriter.fieldInfo, dataset, vectors.length);
-        }
     }
 
     private void writeFieldInternal(FieldInfo fieldInfo, CuVSMatrix dataset, int datasetSize) throws IOException {
@@ -384,9 +468,13 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         };
     }
 
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
+    private static void deleteFilesIgnoringExceptions(Directory dir, String fileName) {
+        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, fileName);
+    }
+
     // TODO check with deleted documents
     @Override
-    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
         final int numVectors;
@@ -404,7 +492,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             success = true;
         } finally {
             if (success == false && tempRawVectorsFileName != null) {
-                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
+                deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
             }
         }
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
@@ -455,7 +543,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         } finally {
-            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
+            deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
     }
 

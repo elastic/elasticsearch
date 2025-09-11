@@ -42,11 +42,7 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
             new HashMap<>(Map.of())
         );
 
-        Map<String, Object> translationMap = extractOptionalMap(
-            inputTypeTranslation,
-            TRANSLATION,
-            validationException
-        );
+        Map<String, Object> translationMap = extractOptionalMap(inputTypeTranslation, TRANSLATION, validationException);
 
         var validatedTranslation = InputType.validateInputTypeTranslationValues(translationMap, validationException);
 

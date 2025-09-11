@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerato
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LookupJoinGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.TimeSeriesGenerator;

@@ -5,7 +5,9 @@ type: deprecation
 issues: []
 deprecation:
   title: Remove `PeerFinder` request timeout
-  area: Cluster Coordination
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: Cluster and node setting
+  details: >-
+    There is no need to time out requests sent by the `PeerFinder` during discovery and cluster formation, and this
+    timeout may sometimes cause spurious failures. With this change the `PeerFinder` requests will wait indefinitely for
+    responses. The `discovery.request_peers_timeout` setting no longer has any effect.
+  impact: Discontinue use of the `discovery.request_peers_timeout` setting.

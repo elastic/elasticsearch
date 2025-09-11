@@ -220,8 +220,8 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
                 .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(settings, getSecureSettings()))
                 .build();
             cachedSettings.getGroups("cluster.remote.", true).forEach((clusterAlias, settingsForCluster) -> {
-                // Only update signing config if settings were found, since empty config means config deletion
-                if (settingsForCluster.isEmpty() == false) {
+                // Only update signing config if settings were found, since empty signing config settings means config deletion
+                if (settingsForCluster.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
                     reloadConsumer(clusterAlias, settingsForCluster, true);
                     logger.info("Updated signing configuration for [{}] due to reload of secure settings", clusterAlias);
                 }

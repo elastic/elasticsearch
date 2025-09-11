@@ -201,6 +201,24 @@ max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:ke
 11.562737642585551                       | 2024-05-10T00:10:00.000Z | prod
 ;
 
+maxRateWithInlineFilter
+required_capability: metrics_command
+TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) WHERE cluster=="prod" BY cluster | SORT cluster;
+
+max_rate:double         | cluster:keyword
+8.716707021791768       | prod
+null                    | qa
+null                    | staging
+;
+
+maxRateWithPreFilter
+required_capability: metrics_command
+TS k8s | WHERE cluster=="prod" | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | SORT cluster;
+
+max_rate:double         | cluster:keyword
+8.716707021791768       | prod
+;
+
 notEnoughSamples
 required_capability: metrics_command
 TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | SORT pod, time_bucket DESC | LIMIT 10;

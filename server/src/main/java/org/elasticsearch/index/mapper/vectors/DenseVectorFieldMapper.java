@@ -1261,7 +1261,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          *
          * @return {@code true} if the vector search is flat (exhaustive), {@code false} if it uses ANN structures
          */
-        abstract boolean isFlat();
+        public abstract boolean isFlat();
     }
 
     abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
@@ -1639,7 +1639,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return true;
         }
 
@@ -1694,7 +1694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return true;
         }
     }
@@ -1748,7 +1748,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return false;
         }
 
@@ -1826,7 +1826,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return true;
         }
 
@@ -1900,7 +1900,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return false;
         }
 
@@ -1996,7 +1996,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return false;
         }
 
@@ -2040,7 +2040,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return false;
         }
 
@@ -2100,7 +2100,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return true;
         }
 
@@ -2163,7 +2163,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean isFlat() {
+        public boolean isFlat() {
             return false;
         }
 

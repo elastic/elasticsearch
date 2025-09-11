@@ -1744,10 +1744,42 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testSetPrivateSettings() throws Exception {
+    public void testSetPrivateSettingsFails() throws Exception {
         request.settings(Settings.builder().put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), "private_setting").build());
-        boolean settingsSystemProvided = randomBoolean();
-        request.settingsSystemProvided(settingsSystemProvided);
+
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                IndexSettingProviders.EMPTY
+            );
+
+            IndexCreationException exception = assertThrows(
+                IndexCreationException.class,
+                () -> service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}))
+            );
+            assertThat(
+                exception.getCause().getMessage(),
+                containsString(
+                    "private index setting [" + IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey() + "] can not be set explicitly"
+                )
+            );
+        }));
+    }
+
+    public void testSetPrivateSettingsSucceedsWhenSystemProvided() throws Exception {
+        request.settings(Settings.builder().put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), "private_setting").build());
+        request.settingsSystemProvided(true);
 
         IndicesService indicesService = mock(IndicesService.class);
         withTemporaryClusterService(((clusterService, threadPool) -> {
@@ -1768,22 +1800,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
             try {
                 service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
-                if (settingsSystemProvided == false) {
-                    fail("expected private setting to be rejected");
-                }
             } catch (Exception e) {
-                if (settingsSystemProvided) {
-                    fail(e, "did not expect private setting to be rejected when system provided");
-                }
+                fail(e, "did not expect private setting to be rejected when system provided");
             }
         }));
 
-        if (settingsSystemProvided) {
-            ArgumentCaptor<IndexMetadata> captor = ArgumentCaptor.forClass(IndexMetadata.class);
-            verify(indicesService).withTempIndexService(captor.capture(), any());
-            IndexMetadata indexMetadata = captor.getValue();
-            assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey()), equalTo("private_setting"));
-        }
+        ArgumentCaptor<IndexMetadata> captor = ArgumentCaptor.forClass(IndexMetadata.class);
+        verify(indicesService).withTempIndexService(captor.capture(), any());
+        IndexMetadata indexMetadata = captor.getValue();
+        assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey()), equalTo("private_setting"));
     }
 
     public void testIndexSettingProviderPrivateSetting() throws Exception {

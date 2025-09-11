@@ -57,7 +57,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
 
         ExecutableInferenceRequest executableRequest = captor.getValue();
         assertThat(executableRequest.request(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
-        assertThat(executableRequest.responseHandler().getRequestType(), is("Alibaba Cloud Search completion"));
+        assertThat(executableRequest.responseHandler().getRequestType(), is("alibaba cloud search completion"));
     }
 
     public void testExecute_throwsElasticsearchStatusException_whenNumberOfInputsIsEven() {

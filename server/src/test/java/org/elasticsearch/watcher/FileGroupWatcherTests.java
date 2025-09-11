@@ -56,8 +56,8 @@ public class FileGroupWatcherTests extends ESTestCase {
         fileGroupWatcher.init();
 
         // Modify multiple files - should batch into single notification
-        Files.setLastModifiedTime(file1, FileTime.fromMillis(System.currentTimeMillis() + 1000));
-        Files.setLastModifiedTime(file2, FileTime.fromMillis(System.currentTimeMillis() + 1000));
+        Files.setLastModifiedTime(file1, FileTime.fromMillis(System.currentTimeMillis()));
+        Files.setLastModifiedTime(file2, FileTime.fromMillis(System.currentTimeMillis()));
 
         fileGroupWatcher.checkAndNotify();
         assertThat(listener.notifications(), hasSize(1));
@@ -118,7 +118,7 @@ public class FileGroupWatcherTests extends ESTestCase {
         fileGroupWatcher.addListener(listener);
         fileGroupWatcher.init();
 
-        Files.setLastModifiedTime(existingFile, FileTime.fromMillis(System.currentTimeMillis() + 1000));
+        Files.setLastModifiedTime(existingFile, FileTime.fromMillis(System.currentTimeMillis()));
         touch(newFile);
         Files.delete(deleteFile);
 

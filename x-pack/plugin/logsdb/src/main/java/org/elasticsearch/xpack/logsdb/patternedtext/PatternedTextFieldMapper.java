@@ -266,4 +266,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
             )
         );
     }
+
+    NamedAnalyzer getAnalyzer() {
+        return analyzer;
+    }
 }

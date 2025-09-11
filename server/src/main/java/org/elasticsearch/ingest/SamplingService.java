@@ -39,7 +39,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.sample.TransportPutSampleConfigAction;
-import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -59,8 +58,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.ingest.ConditionalProcessor.FUNCTIONS;
 
 public class SamplingService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
@@ -290,10 +287,8 @@ public class SamplingService implements ClusterStateListener {
         IngestConditionalScript.Factory factory,
         SampleStats stats
     ) {
-        return factory.newInstance(
-            script.getParams(),
-            new ConditionalProcessor.UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS))
-        ).execute();
+        return factory.newInstance(script.getParams(), ConditionalProcessor.wrapUnmodifiableMap(ingestDocument.getSourceAndMetadata()))
+            .execute();
     }
 
     private static Script getScript(String conditional) throws IOException {

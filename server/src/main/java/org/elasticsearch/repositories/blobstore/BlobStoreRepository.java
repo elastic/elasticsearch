@@ -1100,11 +1100,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          */
         private final ShardBlobsToDelete shardBlobsToDelete = new ShardBlobsToDelete();
 
-        /**
-         * Maps the Index UUID to its shard count
-         */
-        private final ConcurrentMap<String, Integer> indexUUIDToShardCountMap = new ConcurrentHashMap<>();
-
         SnapshotsDeletion(
             Collection<SnapshotId> snapshotIds,
             long originalRepositoryDataGeneration,
@@ -1268,6 +1263,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private final IndexId indexId;
             private final Set<SnapshotId> snapshotsWithIndex;
             private final BlobContainer indexContainer;
+
+            /**
+             * Maps the Index UUID to its shard count
+             */
+            private final ConcurrentMap<String, Integer> indexUUIDToShardCountMap = new ConcurrentHashMap<>();
 
             IndexSnapshotsDeletion(IndexId indexId) {
                 this.indexId = indexId;

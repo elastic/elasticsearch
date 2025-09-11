@@ -202,7 +202,6 @@ FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
 | WHERE max_avg_worked_seconds == avg_worked_seconds
-// end::longest-tenured-by-first[]
 | SORT last_name ASC
 | LIMIT 5
 ;

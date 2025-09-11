@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.linear;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,8 +53,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -540,8 +545,11 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 

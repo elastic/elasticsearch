@@ -1198,7 +1198,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         assertThat(deployment2Assignments.get().get(node2), equalTo(1));
     }
 
-    public void testRebalance_GivenDeploymentWithMemoryRequirements_ConsidersNativeExecutableOverhead() {
+    public void testRebalance_GivenDeploymentWithMemoryRequirements_ExplainMissingAllocations() {
         // Create a node with just enough memory to fit the model plus native executable overhead
         long modelMemory = ByteSizeValue.ofMb(200).getBytes();
         long memoryOverhead = ByteSizeValue.ofMb(240).getBytes();

@@ -211,7 +211,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         """
     }
 
-    void execute(String command, File workingDir = testProjectDir.root) {
+    String execute(String command, File workingDir = testProjectDir.root) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
         if (proc.exitValue()) {
@@ -221,6 +221,7 @@ abstract class AbstractGradleFuncTest extends Specification {
             """
             throw new RuntimeException(msg)
         }
+        return proc.inputStream.text
     }
 
     File dir(String path) {

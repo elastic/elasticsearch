@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -1329,7 +1330,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
+            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
+                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1357,6 +1359,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan;
+        }
+
+        private InferenceFunction<?> resolveInferenceFunction(InferenceFunction<?> inferenceFunction, AnalyzerContext context) {
+            if (inferenceFunction.inferenceId().resolved()
+                && inferenceFunction.inferenceId().foldable()
+                && DataType.isString(inferenceFunction.inferenceId().dataType())) {
+
+                String inferenceId = BytesRefs.toString(inferenceFunction.inferenceId().fold(FoldContext.small()));
+                ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+                if (resolvedInference == null) {
+                    String error = context.inferenceResolution().getError(inferenceId);
+                    return inferenceFunction.withInferenceResolutionError(inferenceId, error);
+                }
+
+                if (resolvedInference.taskType() != inferenceFunction.taskType()) {
+                    String error = "cannot use inference endpoint ["
+                        + inferenceId
+                        + "] with task type ["
+                        + resolvedInference.taskType()
+                        + "] within a "
+                        + context.functionRegistry().snapshotRegistry().functionName(inferenceFunction.getClass())
+                        + " function. Only inference endpoints with the task type ["
+                        + inferenceFunction.taskType()
+                        + "] are supported.";
+                    return inferenceFunction.withInferenceResolutionError(inferenceId, error);
+                }
+            }
+
+            return inferenceFunction;
         }
     }
 

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -121,6 +122,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
@@ -128,6 +130,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnr
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceId;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -3627,6 +3630,115 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
+    }
+
+    public void testTextEmbeddingResolveInferenceId() {
+        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+
+        LogicalPlan plan = analyze(
+            """
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            "mapping-books.json"
+        );
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("embedding"));
+        TextEmbedding function = as(alias.child(), TextEmbedding.class);
+
+        assertThat(function.inputText(), equalTo(string("italian food recipe")));
+        assertThat(function.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testTextEmbeddingFunctionResolveType() {
+        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+
+        LogicalPlan plan = analyze(
+            """
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            "mapping-books.json"
+        );
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("embedding"));
+
+        TextEmbedding function = as(alias.child(), TextEmbedding.class);
+
+        assertThat(function.foldable(), equalTo(true));
+        assertThat(function.dataType(), equalTo(DENSE_VECTOR));
+    }
+
+    public void testTextEmbeddingFunctionMissingInferenceIdError() {
+        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> analyze(
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(
+                    "unknow-inference-id"
+                ),
+                "mapping-books.json"
+            )
+        );
+
+        assertThat(ve.getMessage(), containsString("unresolved inference [unknow-inference-id]"));
+    }
+
+    public void testTextEmbeddingFunctionInvalidInferenceIdError() {
+        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+
+        String inferenceId = randomInferenceId(TEXT_EMBEDDING_INFERENCE_ID);
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> analyze(
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(inferenceId),
+                "mapping-books.json"
+            )
+        );
+
+        assertThat(ve.getMessage(), containsString("cannot use inference endpoint [%s] with task type".formatted(inferenceId)));
+    }
+
+    public void testTextEmbeddingFunctionWithoutModel() {
+        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+
+        ParsingException ve = expectThrows(ParsingException.class, () -> analyze("""
+            FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""", "mapping-books.json"));
+
+        assertThat(
+            ve.getMessage(),
+            containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
+        );
+    }
+
+    public void testKnnFunctionWithTextEmbedding() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+
+        String fieldName = randomFrom("float_vector", "byte_vector");
+
+        LogicalPlan plan = analyze("""
+            from test | where KNN(%s, TEXT_EMBEDDING("italian food recipe", "%s"))
+            """.formatted(fieldName, TEXT_EMBEDDING_INFERENCE_ID), "mapping-dense_vector.json");
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Knn knn = as(filter.condition(), Knn.class);
+        assertThat(knn.field(), instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) knn.field()).name(), equalTo(fieldName));
+
+        TextEmbedding textEmbedding = as(knn.query(), TextEmbedding.class);
+        assertThat(textEmbedding.inputText(), equalTo(string("italian food recipe")));
+        assertThat(textEmbedding.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
     }
 
     public void testResolveRerankInferenceId() {

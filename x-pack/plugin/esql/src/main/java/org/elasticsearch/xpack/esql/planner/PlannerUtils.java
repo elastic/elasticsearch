@@ -179,16 +179,18 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(
+        PhysicalSettings physicalSettings,
         EsqlFlags flags,
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(physicalSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(
+        PhysicalSettings physicalSettings,
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
@@ -197,7 +199,7 @@ public class PlannerUtils {
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(physicalSettings, flags, configuration, foldCtx, searchStats)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);

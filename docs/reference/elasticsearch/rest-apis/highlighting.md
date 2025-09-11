@@ -60,13 +60,11 @@ The `plain` highlighter uses the standard Lucene highlighter. It attempts to ref
 The `plain` highlighter works best for highlighting simple query matches in a single field. To accurately reflect query logic, it creates a tiny in-memory index and re-runs the original query criteria through Lucene’s query execution planner to get access to low-level match information for the current document. This is repeated for every field and every document that needs to be highlighted. If you want to highlight a lot of fields in a lot of documents with complex queries, we recommend using the `unified` highlighter on `postings` or `term_vector` fields.
 ::::
 
-
-
 ### Fast vector highlighter [fast-vector-highlighter]
 
 The `fvh` highlighter uses the Lucene Fast Vector highlighter. This highlighter can be used on fields with `term_vector` set to `with_positions_offsets` in the mapping. The fast vector highlighter:
 
-* Can be customized with a [`boundary_scanner`](highlighting-settings.md#boundary-scanners).
+* Can be customized with a [`boundary_scanner`](highlighting-settings.md#boundary-scanner).
 * Requires setting `term_vector` to `with_positions_offsets` which increases the size of the index
 * Can combine matches from multiple fields into one result. See `matched_fields`
 * Can assign different weights to matches at different positions allowing for things like phrase matches being sorted above term matches when highlighting a Boosting Query that boosts phrase matches over term matches

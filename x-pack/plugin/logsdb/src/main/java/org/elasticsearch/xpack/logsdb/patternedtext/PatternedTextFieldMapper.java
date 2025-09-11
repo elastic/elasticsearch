@@ -53,7 +53,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         "index.mapping.patterned_text.disable_templating",
         false,
         Setting.Property.IndexScope,
-        Setting.Property.InternalIndex
+        Setting.Property.PrivateIndex
     );
 
     public static class Defaults {

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -96,6 +97,8 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DENSE_INFERENCE_ID_SETTINGS
     );
 
+    private NamedWriteableRegistry namedWriteableRegistry = null;
+
     private static class InferencePluginWithModelRegistry extends InferencePlugin {
         InferencePluginWithModelRegistry(Settings settings) {
             super(settings);
@@ -125,7 +128,11 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(getNamedWriteables());
+        if (namedWriteableRegistry == null) {
+            namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
+        }
+
+        return namedWriteableRegistry;
     }
 
     @Override
@@ -136,10 +143,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     @Override
     public void testFieldHasValueWithEmptyFieldInfos() {
         assumeTrue("random test inherited from MapperServiceTestCase", false);
-    }
-
-    public void testInterceptAndRewrite() {
-        // TODO: Implement
     }
 
     public void testSerialization() throws Exception {
@@ -305,7 +308,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     protected QueryRewriteContext createIndexMetadataContext(
         String indexName,
         Map<String, String> semanticTextFields,
-        Map<String, Map<String, String>> nonInferenceFields
+        Map<String, Map<String, Object>> nonInferenceFields
     ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
@@ -330,7 +333,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             }
             for (var entry : nonInferenceFields.entrySet()) {
                 String fieldName = entry.getKey();
-                Map<String, String> properties = entry.getValue();
+                Map<String, Object> properties = entry.getValue();
 
                 mappings.startObject(fieldName);
                 for (var propertyEntry : properties.entrySet()) {
@@ -356,7 +359,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 null,
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 index,
-                null,
+                pattern -> Regex.simpleMatch(pattern, index.getName()),
                 null,
                 null,
                 null,
@@ -398,5 +401,5 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         return modelRegistry;
     }
 
-    protected record TestIndex(String name, Map<String, String> semanticTextFields, Map<String, Map<String, String>> nonInferenceFields) {}
+    protected record TestIndex(String name, Map<String, String> semanticTextFields, Map<String, Map<String, Object>> nonInferenceFields) {}
 }

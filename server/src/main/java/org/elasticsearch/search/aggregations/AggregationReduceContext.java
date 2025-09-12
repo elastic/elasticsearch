@@ -47,6 +47,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     @Nullable
     private final AggregationBuilder builder;
     private final AggregatorFactories.Builder subBuilders;
+    private boolean finalReduceHasBatchedResult;
 
     private AggregationReduceContext(
         BigArrays bigArrays,
@@ -135,6 +136,14 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     }
 
     protected abstract AggregationReduceContext forSubAgg(AggregationBuilder sub);
+
+    public boolean doesFinalReduceHaveBatchedResult() {
+        return finalReduceHasBatchedResult;
+    }
+
+    public void setFinalReduceHasBatchedResult(boolean finalReduceHasBatchedResult) {
+        this.finalReduceHasBatchedResult = finalReduceHasBatchedResult;
+    }
 
     /**
      * A {@linkplain AggregationReduceContext} to perform a partial reduction.
@@ -234,7 +243,9 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
-            return new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
+            ForFinal subContext = new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
+            subContext.setFinalReduceHasBatchedResult(doesFinalReduceHaveBatchedResult());
+            return subContext;
         }
     }
 }

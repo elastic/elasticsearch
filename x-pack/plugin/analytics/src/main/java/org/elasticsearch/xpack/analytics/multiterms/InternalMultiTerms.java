@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,7 +33,28 @@ import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.D
 
 public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms, InternalMultiTerms.Bucket> {
 
-    public static final TermsComparator TERMS_COMPARATOR = new TermsComparator();
+    /**
+     * Compares buckets with compound keys
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public static final Comparator<List<Object>> TERMS_COMPARATOR = (thisTerms, otherTerms) -> {
+        if (thisTerms.size() != otherTerms.size()) {
+            // Not clear on how this can happen.
+            throw new AggregationExecutionException("Merging/Reducing the multi_term aggregations failed due to different term list sizes");
+        }
+        for (int i = 0; i < thisTerms.size(); i++) {
+            final int res;
+            try {
+                res = ((Comparable) thisTerms.get(i)).compareTo(otherTerms.get(i));
+            } catch (ClassCastException ex) {
+                throw AggregationErrors.reduceTypeMismatch("MultiTerms", Optional.empty());
+            }
+            if (res != 0) {
+                return res;
+            }
+        }
+        return 0;
+    };
 
     public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket<Bucket> {
         protected long docCount;
@@ -167,34 +187,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     /**
-     * Compares buckets with compound keys
-     */
-    static class TermsComparator implements Comparator<List<Object>> {
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        @Override
-        public int compare(List<Object> thisTerms, List<Object> otherTerms) {
-            if (thisTerms.size() != otherTerms.size()) {
-                // Not clear on how this can happen.
-                throw new AggregationExecutionException(
-                    "Merging/Reducing the multi_term aggregations failed due to different term list sizes"
-                );
-            }
-            for (int i = 0; i < thisTerms.size(); i++) {
-                final int res;
-                try {
-                    res = ((Comparable) thisTerms.get(i)).compareTo(otherTerms.get(i));
-                } catch (ClassCastException ex) {
-                    throw AggregationErrors.reduceTypeMismatch("MultiTerms", Optional.empty());
-                }
-                if (res != 0) {
-                    return res;
-                }
-            }
-            return 0;
-        }
-    }
-
-    /**
      * Specifies how the key from the internal representation should be converted to user representation
      */
     public enum KeyConverter {
@@ -257,10 +249,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         }
     }
 
-    protected final BucketOrder reduceOrder;
-    protected final BucketOrder order;
-    protected final int requiredSize;
-    protected final long minDocCount;
     protected final List<DocValueFormat> formats;
     protected final List<KeyConverter> keyConverters;
     protected final int shardSize;
@@ -284,11 +272,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         List<KeyConverter> keyConverters,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
-        this.reduceOrder = reduceOrder;
-        this.order = order;
-        this.requiredSize = requiredSize;
-        this.minDocCount = minDocCount;
+        super(name, metadata, reduceOrder, order, requiredSize, minDocCount);
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;
         this.otherDocCount = otherDocCount;
@@ -300,10 +284,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     public InternalMultiTerms(StreamInput in) throws IOException {
         super(in);
-        reduceOrder = InternalOrder.Streams.readOrder(in);
-        order = InternalOrder.Streams.readOrder(in);
-        requiredSize = readSize(in);
-        minDocCount = in.readVLong();
         docCountError = in.readZLong();
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
@@ -315,10 +295,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        reduceOrder.writeTo(out);
-        order.writeTo(out);
-        writeSize(requiredSize, out);
-        out.writeVLong(minDocCount);
+        super.doWriteTo(out);
         out.writeZLong(docCountError);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
@@ -363,16 +340,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    protected BucketOrder getReduceOrder() {
-        return reduceOrder;
-    }
-
-    @Override
-    protected BucketOrder getOrder() {
-        return order;
-    }
-
-    @Override
     protected long getSumOfOtherDocCounts() {
         return otherDocCount;
     }
@@ -385,16 +352,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     @Override
     protected void setDocCountError(long docCountError) {
         this.docCountError = docCountError;
-    }
-
-    @Override
-    protected long getMinDocCount() {
-        return minDocCount;
-    }
-
-    @Override
-    protected int getRequiredSize() {
-        return requiredSize;
     }
 
     @Override
@@ -499,13 +456,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             @Override
             public void accept(InternalAggregation aggregation) {
                 aggregations.add(aggregation);
-            }
-
-            private List<InternalAggregation> getProcessedAggs(List<InternalAggregation> aggregations, boolean[] needsPromotionToDouble) {
-                if (needsPromotionToDouble != null) {
-                    aggregations.replaceAll(agg -> promoteToDouble(agg, needsPromotionToDouble));
-                }
-                return aggregations;
             }
 
             /**

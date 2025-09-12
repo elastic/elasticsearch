@@ -1450,6 +1450,11 @@ public class EsqlCapabilities {
         URL_ENCODE(Build.current().isSnapshot()),
 
         /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+
+        /**
          * URL decoding function.
          */
         URL_DECODE(Build.current().isSnapshot()),

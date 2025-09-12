@@ -18,19 +18,20 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class UrlDecodeTests extends AbstractUrlEncodeDecodeTestCase {
+public class UrlEncodeComponentTests extends AbstractUrlEncodeDecodeTestCase {
 
-    public UrlDecodeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public UrlEncodeComponentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return createParameters(false, "UrlDecodeEvaluator[val=Attribute[channel=0]]");
+        return createParameters(true, "UrlEncodeComponentEvaluator[val=Attribute[channel=0]]");
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new UrlDecode(source, args.get(0));
+        return new UrlEncodeComponent(source, args.get(0));
     }
+
 }

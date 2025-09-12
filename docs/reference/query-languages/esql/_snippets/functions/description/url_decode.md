@@ -2,5 +2,5 @@
 
 **Description**
 
-URL decodes the input.
+URL-decodes the input, or returns `null` and adds a warning header to the response if the input cannot be decoded.
 

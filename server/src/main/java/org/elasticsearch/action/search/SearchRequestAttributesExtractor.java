@@ -72,7 +72,7 @@ public class SearchRequestAttributesExtractor {
         QueryMetadataBuilder queryMetadataBuilder = new QueryMetadataBuilder();
         if (searchSourceBuilder.query() != null) {
             try {
-                introspectQueryBuilder(searchSourceBuilder.query(), queryMetadataBuilder);
+                introspectQueryBuilder(searchSourceBuilder.query(), queryMetadataBuilder, 0);
             } catch (Exception e) {
                 logger.error("Failed to extract query attribute", e);
             }
@@ -227,29 +227,32 @@ public class SearchRequestAttributesExtractor {
         }
     }
 
-    static void introspectQueryBuilder(QueryBuilder queryBuilder, QueryMetadataBuilder queryMetadataBuilder) {
+    private static void introspectQueryBuilder(QueryBuilder queryBuilder, QueryMetadataBuilder queryMetadataBuilder, int level) {
+        if (level > 20) {
+            return;
+        }
         switch (queryBuilder) {
             case BoolQueryBuilder bool:
                 for (QueryBuilder must : bool.must()) {
-                    introspectQueryBuilder(must, queryMetadataBuilder);
+                    introspectQueryBuilder(must, queryMetadataBuilder, ++level);
                 }
                 for (QueryBuilder filter : bool.filter()) {
-                    introspectQueryBuilder(filter, queryMetadataBuilder);
+                    introspectQueryBuilder(filter, queryMetadataBuilder, ++level);
                 }
                 if (bool.must().isEmpty() && bool.filter().isEmpty() && bool.mustNot().isEmpty() && bool.should().size() == 1) {
-                    introspectQueryBuilder(bool.should().getFirst(), queryMetadataBuilder);
+                    introspectQueryBuilder(bool.should().getFirst(), queryMetadataBuilder, ++level);
                 }
                 // Note that should clauses are ignored unless there's only one that becomes mandatory
                 // must_not clauses are also ignored for now
                 break;
             case ConstantScoreQueryBuilder constantScore:
-                introspectQueryBuilder(constantScore.innerQuery(), queryMetadataBuilder);
+                introspectQueryBuilder(constantScore.innerQuery(), queryMetadataBuilder, ++level);
                 break;
             case BoostingQueryBuilder boosting:
-                introspectQueryBuilder(boosting.positiveQuery(), queryMetadataBuilder);
+                introspectQueryBuilder(boosting.positiveQuery(), queryMetadataBuilder, ++level);
                 break;
             case NestedQueryBuilder nested:
-                introspectQueryBuilder(nested.query(), queryMetadataBuilder);
+                introspectQueryBuilder(nested.query(), queryMetadataBuilder, ++level);
                 break;
             case RangeQueryBuilder range:
                 switch (range.fieldName()) {

@@ -277,4 +277,39 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
         }
     }
+
+    public void testDepthLimit() {
+        {
+            SearchRequest searchRequest = new SearchRequest("index");
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            searchRequest.source(new SearchSourceBuilder().query(boolQueryBuilder));
+            BoolQueryBuilder newBoolQueryBuilder = new BoolQueryBuilder();
+            boolQueryBuilder.must(newBoolQueryBuilder);
+            int depth = randomIntBetween(5, 18);
+            for (int i = 0; i < depth; i++) {
+                BoolQueryBuilder innerBoolQueryBuilder = new BoolQueryBuilder();
+                newBoolQueryBuilder.must(innerBoolQueryBuilder);
+                newBoolQueryBuilder = innerBoolQueryBuilder;
+            }
+            newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
+            Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, new String[]{"@timestamp"}, null);
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("index");
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            searchRequest.source(new SearchSourceBuilder().query(boolQueryBuilder));
+            BoolQueryBuilder newBoolQueryBuilder = new BoolQueryBuilder();
+            boolQueryBuilder.must(newBoolQueryBuilder);
+            int depth = randomIntBetween(19, 50);
+            for (int i = 0; i < depth; i++) {
+                BoolQueryBuilder innerBoolQueryBuilder = new BoolQueryBuilder();
+                newBoolQueryBuilder.must(innerBoolQueryBuilder);
+                newBoolQueryBuilder = innerBoolQueryBuilder;
+            }
+            newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
+            Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, null, null);
+        }
+    }
 }

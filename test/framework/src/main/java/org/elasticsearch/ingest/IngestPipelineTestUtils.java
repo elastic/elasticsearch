@@ -151,10 +151,7 @@ public class IngestPipelineTestUtils {
      * @param action A consumer which takes the updated ingest document during execution
      * @throws Exception Any exception thrown from the provided consumer
      */
-    public static void doWithRandomAccessPattern(
-        IngestDocument document,
-        Consumer<IngestDocument> action
-    ) throws Exception {
+    public static void doWithRandomAccessPattern(IngestDocument document, Consumer<IngestDocument> action) throws Exception {
         doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, action);
     }
 
@@ -182,10 +179,7 @@ public class IngestPipelineTestUtils {
      * @return the resulting ingest document instance
      * @throws Exception Any exception thrown from the provided consumer
      */
-    public static IngestDocument runWithRandomAccessPattern(
-        IngestDocument document,
-        Processor processor
-    ) throws Exception {
+    public static IngestDocument runWithRandomAccessPattern(IngestDocument document, Processor processor) throws Exception {
         return runWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, processor);
     }
 

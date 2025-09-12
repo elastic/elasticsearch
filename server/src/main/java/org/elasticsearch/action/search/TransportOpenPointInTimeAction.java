@@ -121,6 +121,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .source(new SearchSourceBuilder().query(request.indexFilter()));
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
+
         transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
             return new OpenPointInTimeResponse(

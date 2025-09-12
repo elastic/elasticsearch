@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -36,24 +35,26 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
+public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
 
     private final Expression timestamp;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The rate of a counter field.",
+        description = "The absolute increase of a counter field in a time window.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
-        examples = { @Example(file = "k8s-timeseries", tag = "rate") }
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds"
     )
-    public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
+    public Increase(
+        Source source,
+        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field
+    ) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
-    public Rate(
+    public Increase(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
         Expression timestamp
@@ -62,16 +63,16 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     }
 
     // compatibility constructor used when reading from the stream
-    private Rate(Source source, Expression field, Expression filter, List<Expression> children) {
+    private Increase(Source source, Expression field, Expression filter, List<Expression> children) {
         this(source, field, filter, children.getFirst());
     }
 
-    private Rate(Source source, Expression field, Expression filter, Expression timestamp) {
+    private Increase(Source source, Expression field, Expression filter, Expression timestamp) {
         super(source, field, filter, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
-    public Rate(StreamInput in) throws IOException {
+    public Increase(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
@@ -86,22 +87,22 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     }
 
     @Override
-    protected NodeInfo<Rate> info() {
-        return NodeInfo.create(this, Rate::new, field(), timestamp);
+    protected NodeInfo<Increase> info() {
+        return NodeInfo.create(this, Increase::new, field(), timestamp);
     }
 
     @Override
-    public Rate replaceChildren(List<Expression> newChildren) {
+    public Increase replaceChildren(List<Expression> newChildren) {
         if (newChildren.size() != 3) {
             assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
             throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
         }
-        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
-    public Rate withFilter(Expression filter) {
-        return new Rate(source(), field(), filter, timestamp);
+    public Increase withFilter(Expression filter) {
+        return new Increase(source(), field(), filter, timestamp);
     }
 
     @Override
@@ -118,29 +119,20 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 
     @Override
-    public Rate perTimeSeriesAggregation() {
+    public Increase perTimeSeriesAggregation() {
         return this;
     }
 
     @Override
     public String toString() {
-        return "rate(" + field() + ")";
-    }
-
-    Expression timestamp() {
-        return timestamp;
-    }
-
-    @Override
-    public boolean requiredTimeSeriesSource() {
-        return true;
+        return "increase(" + field() + ")";
     }
 }

@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 2000L;
-    private static final Long TIME_RANGE_SECONDS = 3600L;
+    private static final Long NUM_DOCS = 24L;
+    private static final Long TIME_RANGE_SECONDS = 180L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
@@ -74,6 +74,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
         Tuple.tuple("rate", DeltaAgg.RATE),
         Tuple.tuple("irate", DeltaAgg.IRATE),
+        Tuple.tuple("increase", DeltaAgg.INCREASE),
         Tuple.tuple("idelta", DeltaAgg.IDELTA)
     );
     private static final Map<DeltaAgg, String> DELTA_AGG_METRIC_MAP = Map.of(
@@ -82,7 +83,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         DeltaAgg.IRATE,
         "counterl_hdd.bytes.read",
         DeltaAgg.IDELTA,
-        "gaugel_hdd.bytes.used"
+        "gaugel_hdd.bytes.used",
+        DeltaAgg.INCREASE,
+        "counterl_hdd.bytes.read"
     );
 
     private List<XContentBuilder> documents;
@@ -273,6 +276,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         RATE,
         IRATE,
         IDELTA,
+        INCREASE
     }
 
     // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
@@ -308,7 +312,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
                 }
             }
-            assert deltaAgg == DeltaAgg.RATE;
+            assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;
             Double lastValue = null;
             Double counterGrowth = 0.0;
             for (Tuple<String, Tuple<Instant, Double>> point : timeseries) {
@@ -328,10 +332,18 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
                 lastValue = currentValue; // Update last value for next iteration
             }
-            return new RateRange(
+            var res = new RateRange(
                 counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
                 1000.0 * counterGrowth / (lastTs.toEpochMilli() - firstTs.toEpochMilli()) * 1.01 // Add 1% tolerance to the upper bound
             );
+            if (deltaAgg.equals(DeltaAgg.INCREASE)) {
+                return new RateRange(
+                    res.lower * secondsInWindow, // INCREASE is RATE multiplied by the window size
+                    res.upper * secondsInWindow
+                );
+            } else {
+                return res;
+            }
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
             return new RateStats(0L, null, null, null, null);

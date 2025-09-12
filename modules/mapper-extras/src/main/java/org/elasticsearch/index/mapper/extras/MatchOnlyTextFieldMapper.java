@@ -146,7 +146,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 meta.getValue(),
                 withinMultiField,
                 storedFieldInBinaryFormat,
-                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(getFieldType(), multiFields)
+                // match only text fields are not stored by definition
+                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(false, multiFields)
             );
         }
 
@@ -165,15 +166,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
 
-        /**
-         * This is a helper function that's useful in TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate()
-         */
-        private FieldType getFieldType() {
-            FieldType fieldType = new FieldType();
-            // by definition, match_only_text fields are not stored
-            fieldType.setStored(false);
-            return fieldType;
-        }
     }
 
     private static boolean isSyntheticSourceStoredFieldInBinaryFormat(IndexVersion indexCreatedVersion) {

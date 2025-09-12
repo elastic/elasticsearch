@@ -427,7 +427,7 @@ public final class TextFieldMapper extends FieldMapper {
                     store.getValue(),
                     tsi,
                     context.isSourceSynthetic(),
-                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
+                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
                     indexPhrases.getValue()
@@ -1638,8 +1638,9 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     public static class SyntheticSourceHelper {
-        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
-            if (fieldType.stored()) {
+        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(boolean isParentFieldStored, MultiFields multiFields) {
+            // if the parent field is stored, there is no need to delegate anything as we can get source directly from the stored field
+            if (isParentFieldStored) {
                 return null;
             }
             var kwd = getKeywordFieldMapperForSyntheticSource(multiFields);

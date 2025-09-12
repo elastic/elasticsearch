@@ -81,7 +81,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
         }""";
 
     // when sorted, this message will appear at the top and hence can be used to validate query results
-    private String smallestMessage;
+    private static String smallestMessage;
 
     public MatchOnlyTextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -112,7 +112,6 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
             ensureGreen(DATA_STREAM);
             search(DATA_STREAM);
             query(DATA_STREAM);
-            // auto-backport
 
         } else if (isMixedCluster()) {
             // when

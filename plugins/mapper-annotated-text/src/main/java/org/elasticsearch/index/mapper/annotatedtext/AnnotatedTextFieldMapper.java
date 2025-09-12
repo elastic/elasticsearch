@@ -135,7 +135,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
-                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
+                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                 meta.getValue()
             );
         }

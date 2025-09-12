@@ -112,21 +112,22 @@ public class CrossProjectResolverUtils {
             Set.copyOf(targetProjects.projects()),
             new String[] { resource }
         );
-        final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
-        final List<String> remote = map.entrySet()
+        final List<String> localResources = map.remove(LOCAL_CLUSTER_GROUP_KEY);
+        final List<String> linkedResources = map.entrySet()
             .stream()
             .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
             .toList();
-        assert local == null || local.isEmpty() : "local indices should not be present in the map, but were: " + local;
+        assert localResources == null || localResources.isEmpty()
+            : "localResources should not be present in the map, but were: " + localResources;
         if (WILDCARD.equals(splitExpression[0])) {
             // handing of special case where the original expression was: *:indexName that is a
             // qualified expression that includes the origin project and all linked projects.
-            List<String> remoteIncludingOrigin = new ArrayList<>(remote.size() + 1);
-            remoteIncludingOrigin.addAll(remote);
+            List<String> remoteIncludingOrigin = new ArrayList<>(linkedResources.size() + 1);
+            remoteIncludingOrigin.addAll(linkedResources);
             remoteIncludingOrigin.add(splitExpression[1]);
             return remoteIncludingOrigin;
         }
-        return remote;
+        return linkedResources;
     }
 
     public static boolean isQualifiedResource(String resource) {

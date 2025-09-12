@@ -124,24 +124,28 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         String primarySort,
         String queryType,
         boolean knn,
-        String[] rangeFields,
+        boolean rangeOnTimestamp,
+        boolean rangeOnEventIngested,
         String pitOrScroll
     ) {
-
         assertEquals(target, attributes.get(SearchRequestAttributesExtractor.TARGET_ATTRIBUTE));
         assertEquals(primarySort, attributes.get(SearchRequestAttributesExtractor.SORT_ATTRIBUTE));
-        if (pitOrScroll == null) {
-            assertEquals(queryType, attributes.get(SearchRequestAttributesExtractor.QUERY_TYPE_ATTRIBUTE));
+        assertEquals(queryType, attributes.get(SearchRequestAttributesExtractor.QUERY_TYPE_ATTRIBUTE));
+        assertEquals(pitOrScroll, attributes.get(SearchRequestAttributesExtractor.PIT_SCROLL_ATTRIBUTE));
+        if (knn) {
+            assertEquals(knn, attributes.get(SearchRequestAttributesExtractor.KNN_ATTRIBUTE));
         } else {
-            String[] queryTypes = (String[]) attributes.get(SearchRequestAttributesExtractor.QUERY_TYPE_ATTRIBUTE);
-            assertEquals(queryType, queryTypes[0]);
-            assertEquals(pitOrScroll, queryTypes[1]);
+            assertNull(attributes.get(SearchRequestAttributesExtractor.KNN_ATTRIBUTE));
         }
-        assertEquals(knn, attributes.get(SearchRequestAttributesExtractor.KNN_ATTRIBUTE));
-        if (rangeFields == null) {
-            assertFalse(attributes.containsKey(SearchRequestAttributesExtractor.RANGES_ATTRIBUTE));
+        if (rangeOnTimestamp) {
+            assertEquals(rangeOnTimestamp, attributes.get(SearchRequestAttributesExtractor.RANGE_TIMESTAMP_ATTRIBUTE));
         } else {
-            assertArrayEquals(rangeFields, (String[]) attributes.get(SearchRequestAttributesExtractor.RANGES_ATTRIBUTE));
+            assertNull(attributes.get(SearchRequestAttributesExtractor.RANGE_TIMESTAMP_ATTRIBUTE));
+        }
+        if (rangeOnEventIngested) {
+            assertEquals(rangeOnEventIngested, attributes.get(SearchRequestAttributesExtractor.RANGE_EVENT_INGESTED_ATTRIBUTE));
+        } else {
+            assertNull(attributes.get(SearchRequestAttributesExtractor.RANGE_EVENT_INGESTED_ATTRIBUTE));
         }
     }
 
@@ -149,7 +153,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, null, null);
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, false, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest();
@@ -157,13 +161,13 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, null, "pit");
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, false, false, "pit");
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.scroll(new TimeValue(randomIntBetween(1, 10)));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, null, "scroll");
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, false, false, "scroll");
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -172,7 +176,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchSourceBuilder.sort("@timestamp");
             searchSourceBuilder.query(new RangeQueryBuilder("@timestamp"));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -192,7 +196,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
                 boolQueryBuilder.should(new RangeQueryBuilder("event.ingested"));
             }
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -213,7 +217,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp"));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -226,15 +230,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             boolQueryBuilder.must(new RangeQueryBuilder(randomAlphaOfLengthBetween(3, 10)));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(
-                stringObjectMap,
-                "user",
-                "@timestamp",
-                "hits_only",
-                false,
-                new String[] { "@timestamp", "event.ingested", "field" },
-                null
-            );
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, true, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -245,7 +241,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             boolQueryBuilder.should(new RangeQueryBuilder("@timestamp"));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -256,7 +252,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             boolQueryBuilder.should(new RangeQueryBuilder(randomAlphaOfLengthBetween(3, 10)));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "field" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, false, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -265,7 +261,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchSourceBuilder.sort("@timestamp");
             searchSourceBuilder.query(new ConstantScoreQueryBuilder(new RangeQueryBuilder("@timestamp")));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
@@ -274,7 +270,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchSourceBuilder.sort("@timestamp");
             searchSourceBuilder.query(new BoostingQueryBuilder(new RangeQueryBuilder("@timestamp"), new MatchAllQueryBuilder()));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, new String[] { "@timestamp" }, null);
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
     }
 
@@ -293,7 +289,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             }
             newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, new String[]{"@timestamp"}, null);
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, true, false, null);
         }
         {
             SearchRequest searchRequest = new SearchRequest("index");
@@ -309,7 +305,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             }
             newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
-            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, null, null);
+            assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, false, false, null);
         }
     }
 }

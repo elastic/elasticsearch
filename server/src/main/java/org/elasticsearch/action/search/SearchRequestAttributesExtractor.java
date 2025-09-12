@@ -24,9 +24,7 @@ import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,7 +51,7 @@ public class SearchRequestAttributesExtractor {
 
         SearchSourceBuilder searchSourceBuilder = searchRequest.source();
         if (searchSourceBuilder == null) {
-            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, null, pitOrScroll);
+            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, false, false, pitOrScroll);
         }
 
         if (searchSourceBuilder.pointInTimeBuilder() != null) {
@@ -79,7 +77,15 @@ public class SearchRequestAttributesExtractor {
         }
 
         final boolean hasKnn = searchSourceBuilder.knnSearch().isEmpty() == false || queryMetadataBuilder.knnQuery;
-        return buildAttributesMap(target, primarySort, queryType, hasKnn, queryMetadataBuilder.getRangeFields(), pitOrScroll);
+        return buildAttributesMap(
+            target,
+            primarySort,
+            queryType,
+            hasKnn,
+            queryMetadataBuilder.rangeOnTimestamp,
+            queryMetadataBuilder.rangeOnEventIngested,
+            pitOrScroll
+        );
     }
 
     private static Map<String, Object> buildAttributesMap(
@@ -87,42 +93,42 @@ public class SearchRequestAttributesExtractor {
         String primarySort,
         String queryType,
         boolean knn,
-        String[] rangeFields,
+        boolean rangeOnTimestamp,
+        boolean rangeOnEventIngested,
         String pitOrScroll
     ) {
         Map<String, Object> attributes = new HashMap<>(5, 1.0f);
         attributes.put(TARGET_ATTRIBUTE, target);
         attributes.put(SORT_ATTRIBUTE, primarySort);
-        if (pitOrScroll == null) {
-            attributes.put(QUERY_TYPE_ATTRIBUTE, queryType);
-        } else {
-            attributes.put(QUERY_TYPE_ATTRIBUTE, new String[] { queryType, pitOrScroll });
+        attributes.put(QUERY_TYPE_ATTRIBUTE, queryType);
+        if (pitOrScroll != null) {
+            attributes.put(PIT_SCROLL_ATTRIBUTE, pitOrScroll);
         }
-
-        attributes.put(KNN_ATTRIBUTE, knn);
-        if (rangeFields != null) {
-            attributes.put(RANGES_ATTRIBUTE, rangeFields);
+        if (knn) {
+            attributes.put(KNN_ATTRIBUTE, knn);
+        }
+        if (rangeOnTimestamp) {
+            attributes.put(RANGE_TIMESTAMP_ATTRIBUTE, rangeOnTimestamp);
+        }
+        if (rangeOnEventIngested) {
+            attributes.put(RANGE_EVENT_INGESTED_ATTRIBUTE, rangeOnEventIngested);
         }
         return attributes;
     }
 
     private static final class QueryMetadataBuilder {
         private boolean knnQuery = false;
-        private final List<String> rangeFields = new ArrayList<>();
-
-        String[] getRangeFields() {
-            if (rangeFields.isEmpty()) {
-                return null;
-            }
-            return rangeFields.toArray(new String[0]);
-        }
+        private boolean rangeOnTimestamp = false;
+        private boolean rangeOnEventIngested = false;
     }
 
     static final String TARGET_ATTRIBUTE = "target";
     static final String SORT_ATTRIBUTE = "sort";
     static final String QUERY_TYPE_ATTRIBUTE = "query_type";
+    static final String PIT_SCROLL_ATTRIBUTE = "pit_scroll";
     static final String KNN_ATTRIBUTE = "knn";
-    static final String RANGES_ATTRIBUTE = "ranges";
+    static final String RANGE_TIMESTAMP_ATTRIBUTE = "range_timestamp";
+    static final String RANGE_EVENT_INGESTED_ATTRIBUTE = "range_event_ingested";
 
     private static final String TARGET_KIBANA = ".kibana";
     private static final String TARGET_ML = ".ml";
@@ -256,9 +262,8 @@ public class SearchRequestAttributesExtractor {
                 break;
             case RangeQueryBuilder range:
                 switch (range.fieldName()) {
-                    case TIMESTAMP -> queryMetadataBuilder.rangeFields.add(TIMESTAMP);
-                    case EVENT_INGESTED -> queryMetadataBuilder.rangeFields.add(EVENT_INGESTED);
-                    default -> queryMetadataBuilder.rangeFields.add(FIELD);
+                    case TIMESTAMP -> queryMetadataBuilder.rangeOnTimestamp = true;
+                    case EVENT_INGESTED -> queryMetadataBuilder.rangeOnEventIngested = true;
                 }
                 break;
             case KnnVectorQueryBuilder knn:

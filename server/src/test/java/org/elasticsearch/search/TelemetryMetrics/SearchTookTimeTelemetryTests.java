@@ -119,15 +119,13 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         Measurement measurement = measurements.getFirst();
         assertEquals(searchResponse.getTook().millis(), measurement.getLong());
         assertSimpleQueryAttributes(measurement.attributes());
-
     }
 
     private static void assertSimpleQueryAttributes(Map<String, Object> attributes) {
-        assertEquals(4, attributes.size());
+        assertEquals(3, attributes.size());
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(false, attributes.get("knn"));
     }
 
     public void testMultiSearch() {
@@ -178,9 +176,9 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
                     Map<String, Object> attributes = measurement.attributes();
                     assertEquals(4, attributes.size());
                     assertEquals("user", attributes.get("target"));
-                    assertArrayEquals(new String[] { "hits_only", "scroll" }, (String[]) attributes.get("query_type"));
+                    assertEquals("hits_only", attributes.get("query_type"));
+                    assertEquals("scroll", attributes.get("pit_scroll"));
                     assertEquals("_score", attributes.get("sort"));
-                    assertEquals(false, attributes.get("knn"));
                 } else {
                     List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
                         TOOK_DURATION_TOTAL_HISTOGRAM_NAME
@@ -260,12 +258,11 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     private static void assertTimeRangeAttributes(Map<String, Object> attributes) {
-        assertEquals(5, attributes.size());
+        assertEquals(4, attributes.size());
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(false, attributes.get("knn"));
-        assertArrayEquals(new String[] { "@timestamp" }, (String[]) attributes.get("ranges"));
+        assertEquals(true, attributes.get("range_timestamp"));
     }
 
     private void resetMeter() {

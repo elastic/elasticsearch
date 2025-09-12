@@ -78,7 +78,8 @@ public class Task implements Traceable {
         TRACE_PARENT_HTTP_HEADER,
         TRACE_ID,
         X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
-        X_ELASTIC_PROJECT_ID_HTTP_HEADER
+        X_ELASTIC_PROJECT_ID_HTTP_HEADER,
+        "X-Elastic-Source-Project-Id"
     );
 
     private final long id;

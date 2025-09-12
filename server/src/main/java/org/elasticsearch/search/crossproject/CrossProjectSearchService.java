@@ -46,14 +46,14 @@ public interface CrossProjectSearchService {
      */
     boolean crossProjectContextActive();
 
-    // Index expression rewrite logic (could be a separate class/interface)
+    // Index expression rewrite logic (could be a separate class/interface) -- only needed in security layer
 
     @Nullable
     // TODO ReplacedIndexExpressions is not the right return type here; it should either be a map, a new type, or this method should own
     // full request rewriting as well.
     ReplacedIndexExpressions maybeRewriteRequest(IndicesRequest.CrossProjectSearchCapable request);
 
-    // Remote fanout logic (could be a separate class/interface)
+    // Remote fanout logic (could be a separate class/interface) -- needed in server, for server actions
 
     IndicesOptions fanoutIndicesOptions(IndicesOptions indicesOptions);
 

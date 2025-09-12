@@ -18,14 +18,14 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def runGenerateAndValidateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
         args.add(":myserver:validateTransportVersionResources")
-        args.add(":myserver:generateTransportVersionDefinition")
+        args.add(":myserver:generateTransportVersion")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
 
     def runGenerateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
-        args.add(":myserver:generateTransportVersionDefinition")
+        args.add(":myserver:generateTransportVersion")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
@@ -35,11 +35,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     void assertGenerateSuccess(BuildResult result) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.SUCCESS
     }
 
     void assertGenerateFailure(BuildResult result, String expectedOutput) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.FAILED
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
@@ -449,7 +449,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("new_tv")
         file("myserver/alt_upper_bound.csv").text = "some_tv,8126000"
         file("myserver/build.gradle") << """
-            tasks.named('generateTransportVersionDefinition') {
+            tasks.named('generateTransportVersion') {
                 alternateUpperBoundFile = project.file("alt_upper_bound.csv")
             }
             tasks.named('validateTransportVersionResources') {
@@ -470,7 +470,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referencedTransportVersion("new_tv")
         file("myserver/alt_upper_bound.csv").text = "some_tv,8122100"
         file("myserver/build.gradle") << """
-            tasks.named('generateTransportVersionDefinition') {
+            tasks.named('generateTransportVersion') {
                 alternateUpperBoundFile = project.file("alt_upper_bound.csv")
             }
             tasks.named('validateTransportVersionResources') {

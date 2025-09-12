@@ -134,7 +134,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     public static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
-        final Lucene99ScalarQuantizedVectorsWriter delegate;
+        public final Lucene99ScalarQuantizedVectorsWriter delegate;
 
         ES814ScalarQuantizedVectorsWriter(Lucene99ScalarQuantizedVectorsWriter delegate) {
             super(delegate.getFlatVectorScorer());

@@ -18,18 +18,17 @@ import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -43,6 +42,8 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -53,11 +54,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.getRawFieldVectorDelegate;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.getRawVectorDelegate;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99FlatVectorsWriter_writeField;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99FlatVectorsWriter_writeSortingField;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_writeField;
+import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_writeSortingField;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
@@ -77,6 +87,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
+    private final Supplier<IndexOutput> vectorDataSupplier;
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
@@ -98,9 +109,11 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
+            vectorDataSupplier = () -> VectorsFormatReflectionUtils.getQuantizedVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
             assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
+            vectorDataSupplier = () -> VectorsFormatReflectionUtils.getVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         this.segmentWriteState = state;
@@ -165,29 +178,91 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
      */
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
-        flatVectorWriter.flush(maxDoc, sortMap);
-
-        // save vector values to a temp file
-        SegmentInfo segmentInfo = segmentWriteState.segmentInfo;
         var mappedFields = new HashMap<Integer, FieldEntry>();
+        var vectorData = vectorDataSupplier.get();
 
-        String tempRawVectorsFileName = writeTmpRawVectorFile(segmentInfo, mappedFields);
+        // Reproduce flatVectorWriter.flush()
+        if (flatVectorWriter instanceof Lucene99FlatVectorsWriter lucene99FlatVectorsWriter) {
+            flushLucene99FlatVectorsWriter(lucene99FlatVectorsWriter, maxDoc, sortMap, mappedFields, vectorData);
+        } else {
+            assert flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter;
+            var quantizedVectorsWriter = (ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) flatVectorWriter;
+            Lucene99FlatVectorsWriter rawVectorDelegate = getRawVectorDelegate(quantizedVectorsWriter);
+            flushLucene99FlatVectorsWriter(rawVectorDelegate, maxDoc, sortMap, mappedFields, vectorData);
+            flushLucene99ScalarQuantizedVectorsWriter(quantizedVectorsWriter, maxDoc, sortMap);
+        }
 
-        if (tempRawVectorsFileName == null || mappedFields.isEmpty()) {
-            // No tmp file written
+        var directory = FilterDirectory.unwrap(segmentWriteState.segmentInfo.dir);
+
+        if (FsDirectoryFactory.isHybridFs(segmentWriteState.segmentInfo.dir) == false || mappedFields.isEmpty()) {
+            // Not mappable, or no mapped fields flushed
+            logger.info("Flush: directory does not support mmap (class [{}])", directory);
             flushFieldsWithoutMemoryMappedFile(sortMap);
         } else {
-            // If we have written one or more fields to a tmp file, read back the file to try and mmap it
-            try (IndexInput in = segmentWriteState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
+            // If we have written one or more fields to the raw vectorData file, read it back and try to mmap it
+            // TODO: this does not work; we open it and the file is (still) empty, possibly we are not flushing
+            // "hard enough". We _could_ get a NRT directory reader using DirectoryReader.open(IndexWriter, false, false);
+            // and then directoryReader.directory().openInput(), but a NRT directory reader looks way overkill here
+            try (IndexInput in = directory.openInput(vectorData.getName(), IOContext.DEFAULT)) {
                 var input = FilterIndexInput.unwrapOnlyTest(in);
                 if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+                    logger.info("Flush: Using mmaped raw vectorData");
                     flushFieldsWithMemoryMappedFile(sortMap, memorySegmentAccessInput, mappedFields);
                 } else {
+                    logger.info("Flush: input is not mmappable (class [{}])", input.getClass());
                     flushFieldsWithoutMemoryMappedFile(sortMap);
                 }
-            } finally {
-                deleteFilesIgnoringExceptions(segmentInfo.dir, tempRawVectorsFileName);
             }
+        }
+    }
+
+    private void flushLucene99ScalarQuantizedVectorsWriter(
+        ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter quantizedVectorsWriter,
+        int maxDoc,
+        Sorter.DocMap sortMap
+    ) throws IOException {
+        for (var field : fields) {
+            ScalarQuantizer quantizer = lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer(field.flatFieldVectorsWriter);
+            if (sortMap == null) {
+                lucene99ScalarQuantizedVectorsWriter_writeField(
+                    quantizedVectorsWriter.delegate,
+                    field.flatFieldVectorsWriter,
+                    maxDoc,
+                    quantizer
+                );
+            } else {
+                lucene99ScalarQuantizedVectorsWriter_writeSortingField(
+                    quantizedVectorsWriter.delegate,
+                    field.flatFieldVectorsWriter,
+                    maxDoc,
+                    sortMap,
+                    quantizer
+                );
+            }
+            field.flatFieldVectorsWriter.finish();
+        }
+    }
+
+    private void flushLucene99FlatVectorsWriter(
+        Lucene99FlatVectorsWriter lucene99FlatVectorsWriter,
+        int maxDoc,
+        Sorter.DocMap sortMap,
+        Map<Integer, FieldEntry> mappedFields,
+        IndexOutput vectorData
+    ) throws IOException {
+        for (var field : fields) {
+            FlatFieldVectorsWriter<float[]> flatFieldVectorsWriter = getRawFieldVectorDelegate(field.flatFieldVectorsWriter);
+
+            long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+            long vectorDataLength = (long) field.fieldInfo.getVectorDimension() * Float.BYTES * flatFieldVectorsWriter.getVectors().size();
+            mappedFields.put(field.fieldInfo.number, new FieldEntry(vectorDataOffset, vectorDataLength));
+
+            if (sortMap == null) {
+                lucene99FlatVectorsWriter_writeField(lucene99FlatVectorsWriter, flatFieldVectorsWriter, maxDoc);
+            } else {
+                lucene99FlatVectorsWriter_writeSortingField(lucene99FlatVectorsWriter, flatFieldVectorsWriter, maxDoc, sortMap);
+            }
+            flatFieldVectorsWriter.finish();
         }
     }
 
@@ -245,41 +320,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         }
-    }
-
-    private String writeTmpRawVectorFile(SegmentInfo segmentInfo, HashMap<Integer, FieldEntry> mappedFields) throws IOException {
-        var success = false;
-        String tempRawVectorsFileName = null;
-
-        try (IndexOutput out = segmentInfo.dir.createTempOutput(segmentInfo.name, "vec_", IOContext.DEFAULT)) {
-            tempRawVectorsFileName = out.getName();
-
-            for (FieldWriter field : fields) {
-                var numVectors = field.flatFieldVectorsWriter.getVectors().size();
-                if (numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                    var fieldInfo = field.fieldInfo;
-
-                    long vectorDataOffset = out.alignFilePointer(Float.BYTES);
-                    final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES)
-                        .order(ByteOrder.LITTLE_ENDIAN);
-                    for (var vector : field.flatFieldVectorsWriter.getVectors()) {
-                        buffer.asFloatBuffer().put(vector);
-                        out.writeBytes(buffer.array(), buffer.array().length);
-                    }
-                    long vectorDataLength = out.getFilePointer() - vectorDataOffset;
-
-                    mappedFields.put(field.fieldInfo.number, new FieldEntry(vectorDataOffset, vectorDataLength));
-                }
-            }
-
-            CodecUtil.writeFooter(out);
-            success = true;
-        } finally {
-            if (success == false && tempRawVectorsFileName != null) {
-                deleteFilesIgnoringExceptions(segmentInfo.dir, tempRawVectorsFileName);
-            }
-        }
-        return tempRawVectorsFileName;
     }
 
     private void flushField(FieldInfo fieldInfo, CuVSMatrix dataset, int numVectors, Sorter.DocMap sortMap) throws IOException {
@@ -579,12 +619,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         final byte bits = 7;
         final Float confidenceInterval = null;
         ScalarQuantizer quantizer = mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, bits);
-        MergedQuantizedVectorValues byteVectorValues = MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(
-            fieldInfo,
-            mergeState,
-            quantizer
-        );
-        return byteVectorValues;
+        return MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(fieldInfo, mergeState, quantizer);
     }
 
     private static int writeByteVectorValues(IndexOutput out, ByteVectorValues vectorValues) throws IOException {
@@ -715,10 +750,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             }
             flatFieldVectorsWriter.addValue(docID, vectorValue);
             lastDocID = docID;
-        }
-
-        public DocsWithFieldSet getDocsWithFieldSet() {
-            return flatFieldVectorsWriter.getDocsWithFieldSet();
         }
 
         @Override

@@ -83,7 +83,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             InterceptedInferenceKnnVectorQueryBuilder intercepted = (InterceptedInferenceKnnVectorQueryBuilder) rewritten;
             assertThat(intercepted.originalQuery, equalTo(original));
             assertThat(intercepted.inferenceResultsMap, notNullValue());
-            assertFalse(intercepted.inferenceResultsMap.isEmpty());
+            assertThat(intercepted.inferenceResultsMap.size(), equalTo(1));
         } else {
             // Rewrite using the query rewrite context to populate the inference results
             QueryBuilder expectedLegacyIntercepted = new BwCSemanticKnnVectorQueryRewriteInterceptor().interceptAndRewrite(

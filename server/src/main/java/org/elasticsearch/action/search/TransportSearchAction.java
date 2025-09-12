@@ -167,7 +167,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchResponseMetrics searchResponseMetrics;
     private final Client client;
     private final UsageService usageService;
-    private final boolean collectTelemetry;
+    private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
 
     @Inject
@@ -213,7 +213,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         var settings = clusterService.getSettings();
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(settings);
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(settings);
-        this.collectTelemetry = SearchService.CCS_COLLECT_TELEMETRY.get(settings);
+        this.collectCCSTelemetry = SearchService.CCS_COLLECT_TELEMETRY.get(settings);
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
@@ -333,14 +333,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new);
+        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new, true);
     }
 
-    void executeRequest(
+    void executeOpenPit(
         SearchTask task,
         SearchRequest original,
-        ActionListener<SearchResponse> listener,
+        ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider
+    ) {
+        executeRequest(task, original, originalListener, searchPhaseProvider, false);
+    }
+
+    private void executeRequest(
+        SearchTask task,
+        SearchRequest original,
+        ActionListener<SearchResponse> originalListener,
+        Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
+        boolean collectSearchTelemetry
     ) {
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
@@ -372,11 +382,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             frozenIndexCheck(resolvedIndices);
         }
 
-        listener = new SearchResponseActionListener(listener);
-        ActionListener<SearchRequest> rewriteListener = listener.delegateFailureAndWrap((delegate, rewritten) -> {
+        ActionListener<SearchRequest> rewriteListener = originalListener.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
+
+            final CCSUsage.Builder ccsUsageBuilder = new CCSUsage.Builder();
+            final ActionListener<SearchResponse> searchResponseActionListener = collectSearchTelemetry
+                ? new SearchTelemetryListener(delegate, ccsUsageBuilder, searchResponseMetrics, usageService, collectCCSTelemetry)
+                : delegate;
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 executeLocalSearch(
@@ -386,35 +400,33 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     resolvedIndices,
                     projectState,
                     SearchResponse.Clusters.EMPTY,
-                    searchPhaseProvider.apply(delegate)
+                    searchPhaseProvider.apply(searchResponseActionListener)
                 );
             } else {
-                if (delegate instanceof TelemetryListener tl) {
-                    tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
-                    if (task.isAsync()) {
-                        tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
-                    }
-                    if (original.pointInTimeBuilder() != null) {
-                        tl.setFeature(CCSUsageTelemetry.PIT_FEATURE);
-                    }
-                    tl.setClient(task);
-                    // Check if any of the index patterns are wildcard patterns
-                    var localIndices = resolvedIndices.getLocalIndices();
-                    if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
-                        tl.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
-                    }
-                    if (resolvedIndices.getRemoteClusterIndices()
-                        .values()
-                        .stream()
-                        .anyMatch(indices -> Arrays.stream(indices.indices()).anyMatch(Regex::isSimpleMatchPattern))) {
-                        tl.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
-                    }
+                ccsUsageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
+                if (task.isAsync()) {
+                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
                 }
+                if (original.pointInTimeBuilder() != null) {
+                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.PIT_FEATURE);
+                }
+                ccsUsageBuilder.setClientFromTask(task);
+                // Check if any of the index patterns are wildcard patterns
+                var localIndices = resolvedIndices.getLocalIndices();
+                if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
+                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                }
+                if (resolvedIndices.getRemoteClusterIndices()
+                    .values()
+                    .stream()
+                    .anyMatch(indices -> Arrays.stream(indices.indices()).anyMatch(Regex::isSimpleMatchPattern))) {
+                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                }
+
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    if (delegate instanceof TelemetryListener tl) {
-                        tl.setFeature(CCSUsageTelemetry.MRT_FEATURE);
-                    }
+                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
+
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
@@ -440,7 +452,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         aggregationReduceContextBuilder,
                         remoteClusterService,
                         threadPool,
-                        delegate,
+                        searchResponseActionListener,
                         (r, l) -> executeLocalSearch(
                             task,
                             timeProvider,
@@ -474,7 +486,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         timeProvider,
                         transportService,
-                        delegate.delegateFailureAndWrap((finalDelegate, searchShardsResponses) -> {
+                        searchResponseActionListener.delegateFailureAndWrap((finalDelegate, searchShardsResponses) -> {
                             final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
                                 searchShardsResponses
                             );
@@ -523,29 +535,34 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (shouldOpenPIT(source)) {
             // disabling shard reordering for request
             original.setPreFilterShardSize(Integer.MAX_VALUE);
-            openPIT(client, original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
-                // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
-                // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
-                source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
-                var pitListener = new ActionListener<SearchResponse>() {
-                    @Override
-                    public void onResponse(SearchResponse response) {
-                        // we need to close the PIT first so we delay the release of the response to after the closing
-                        response.incRef();
-                        closePIT(
-                            client,
-                            original.source().pointInTimeBuilder(),
-                            () -> ActionListener.respondAndRelease(delegate, response)
-                        );
-                    }
+            openPIT(
+                client,
+                original,
+                searchService.getDefaultKeepAliveInMillis(),
+                originalListener.delegateFailureAndWrap((delegate, resp) -> {
+                    // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
+                    // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
+                    source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
+                    var pitListener = new ActionListener<SearchResponse>() {
+                        @Override
+                        public void onResponse(SearchResponse response) {
+                            // we need to close the PIT first so we delay the release of the response to after the closing
+                            response.incRef();
+                            closePIT(
+                                client,
+                                original.source().pointInTimeBuilder(),
+                                () -> ActionListener.respondAndRelease(delegate, response)
+                            );
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
-                    }
-                };
-                executeRequest(task, original, pitListener, searchPhaseProvider);
-            }));
+                        @Override
+                        public void onFailure(Exception e) {
+                            closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
+                        }
+                    };
+                    executeRequest(task, original, pitListener, searchPhaseProvider, true);
+                })
+            );
         } else {
             Rewriteable.rewriteAndFetch(
                 original,
@@ -2002,49 +2019,34 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .toArray(String[]::new);
         }
         return concreteIndices;
+
     }
 
-    private interface TelemetryListener {
-        void setRemotes(int count);
-
-        void setFeature(String feature);
-
-        void setClient(Task task);
-    }
-
-    private class SearchResponseActionListener extends DelegatingActionListener<SearchResponse, SearchResponse>
-        implements
-            TelemetryListener {
+    private static class SearchTelemetryListener extends DelegatingActionListener<SearchResponse, SearchResponse> {
         private final CCSUsage.Builder usageBuilder;
+        private final SearchResponseMetrics searchResponseMetrics;
+        private final UsageService usageService;
+        private final boolean collectCCSTelemetry;
 
-        SearchResponseActionListener(ActionListener<SearchResponse> listener) {
+        SearchTelemetryListener(
+            ActionListener<SearchResponse> listener,
+            CCSUsage.Builder usageBuilder,
+            SearchResponseMetrics searchResponseMetrics,
+            UsageService usageService,
+            boolean collectCCSTelemetry
+        ) {
             super(listener);
-            if (listener instanceof SearchResponseActionListener srListener) {
-                usageBuilder = srListener.usageBuilder;
-            } else {
-                usageBuilder = new CCSUsage.Builder();
-            }
+            this.usageBuilder = usageBuilder;
+            this.searchResponseMetrics = searchResponseMetrics;
+            this.usageService = usageService;
+            this.collectCCSTelemetry = collectCCSTelemetry;
         }
 
         /**
          * Should we collect telemetry for this search?
          */
-        private boolean collectTelemetry() {
-            return collectTelemetry && usageBuilder.getRemotesCount() > 0;
-        }
-
-        public void setRemotes(int count) {
-            usageBuilder.setRemotesCount(count);
-        }
-
-        @Override
-        public void setFeature(String feature) {
-            usageBuilder.setFeature(feature);
-        }
-
-        @Override
-        public void setClient(Task task) {
-            usageBuilder.setClientFromTask(task);
+        private boolean collectCCSTelemetry() {
+            return collectCCSTelemetry && usageBuilder.getRemotesCount() > 0;
         }
 
         @Override
@@ -2070,7 +2072,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
 
-                if (collectTelemetry()) {
+                if (collectCCSTelemetry()) {
                     extractCCSTelemetry(searchResponse);
                     recordTelemetry();
                 }
@@ -2085,7 +2087,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onFailure(Exception e) {
             searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
-            if (collectTelemetry()) {
+            if (collectCCSTelemetry()) {
                 usageBuilder.setFailure(e);
                 recordTelemetry();
             }
@@ -2110,8 +2112,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     usageBuilder.perClusterUsage(clusterAlias, cluster.getTook());
                 }
             }
-
         }
-
     }
 }

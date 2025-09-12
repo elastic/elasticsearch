@@ -13,3 +13,5 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   clusterPlugins project(':x-pack:plugin:security:qa:ssl-extension')
 }
+
+tasks.named("javadoc").configure { enabled = false }

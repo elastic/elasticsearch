@@ -1484,6 +1484,8 @@ public class EsqlCapabilities {
          */
         QUERY_PARAMS_MULTI_VALUES(),
 
+        FIX_PERCENTILE_PRECISION(),
+
         /**
          * Support for the Absent function
          */

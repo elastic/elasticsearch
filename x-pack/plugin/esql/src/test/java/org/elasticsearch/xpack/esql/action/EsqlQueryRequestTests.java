@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -54,12 +53,12 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -130,7 +129,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new QueryParam("_n9", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n10", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n11", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
-            new QueryParam("_n12", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE)
+            new QueryParam("_n12", List.of(-799810013, 0, 799810013), INTEGER, ParserUtils.ParamClassification.VALUE)
             // TODO add mixed null values, or check all elements, and separate into a new method
         );
         String json = String.format(Locale.ROOT, """
@@ -172,7 +171,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new QueryParam("_n2", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n3", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
             new QueryParam("_n4", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
-            new QueryParam("_n5", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE)
+            new QueryParam("_n5", List.of(-799810013, 0, 799810013), INTEGER, ParserUtils.ParamClassification.VALUE)
         );
         String json = String.format(Locale.ROOT, """
             {

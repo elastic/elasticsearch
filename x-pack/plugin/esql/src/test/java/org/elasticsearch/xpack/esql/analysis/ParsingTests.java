@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -44,6 +45,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,14 +105,16 @@ public class ParsingTests extends ESTestCase {
         try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
             report.humanReadable(true).prettyPrint();
             report.startObject();
-            List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
+            List<String> namesAndAliases = new ArrayList<>(AtomType.namesAndAliases());
             if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
             }
+            // NOCOMMIT object
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
-                DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
+                // NOCOMMIT object
+                DataType expectedType = DataType.atom(AtomType.fromNameOrAlias(nameOrAlias));
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
@@ -163,15 +171,15 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testInvalidLimit() {
-        assertLimitWithAndWithoutParams("foo", "\"foo\"", DataType.KEYWORD);
-        assertLimitWithAndWithoutParams(1.2, "1.2", DataType.DOUBLE);
-        assertLimitWithAndWithoutParams(-1, "-1", DataType.INTEGER);
-        assertLimitWithAndWithoutParams(true, "true", DataType.BOOLEAN);
-        assertLimitWithAndWithoutParams(false, "false", DataType.BOOLEAN);
-        assertLimitWithAndWithoutParams(null, "null", DataType.NULL);
+        assertLimitWithAndWithoutParams("foo", "\"foo\"", KEYWORD);
+        assertLimitWithAndWithoutParams(1.2, "1.2", DOUBLE);
+        assertLimitWithAndWithoutParams(-1, "-1", INTEGER);
+        assertLimitWithAndWithoutParams(true, "true", BOOLEAN);
+        assertLimitWithAndWithoutParams(false, "false", BOOLEAN);
+        assertLimitWithAndWithoutParams(null, "null", NULL);
     }
 
-    private void assertLimitWithAndWithoutParams(Object value, String valueText, DataType type) {
+    private void assertLimitWithAndWithoutParams(Object value, String valueText, AtomType type) {
         assertEquals(
             "1:13: value of [limit "
                 + valueText
@@ -283,8 +291,8 @@ public class ParsingTests extends ESTestCase {
             "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
             new QueryParams(
                 List.of(
-                    new QueryParam("a", 2, DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
-                    new QueryParam("x", 3.5, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE)
+                    new QueryParam("a", 2, INTEGER, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("x", 3.5, DOUBLE, ParserUtils.ParamClassification.VALUE)
                 )
             )
         );
@@ -303,9 +311,9 @@ public class ParsingTests extends ESTestCase {
             "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
             new QueryParams(
                 List.of(
-                    new QueryParam("a", 2, DataType.INTEGER, ParserUtils.ParamClassification.VALUE),
-                    new QueryParam("x", 3.5, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE),
-                    new QueryParam("y", 8, DataType.DOUBLE, ParserUtils.ParamClassification.VALUE)
+                    new QueryParam("a", 2, INTEGER, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("x", 3.5, DOUBLE, ParserUtils.ParamClassification.VALUE),
+                    new QueryParam("y", 8, DOUBLE, ParserUtils.ParamClassification.VALUE)
                 )
             )
         );

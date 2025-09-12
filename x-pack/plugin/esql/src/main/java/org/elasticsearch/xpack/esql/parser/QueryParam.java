@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 
 /**
  * Represent a strongly typed parameter value
  */
-public record QueryParam(String name, Object value, DataType type, ParserUtils.ParamClassification classification) {
+public record QueryParam(String name, Object value, AtomType type, ParserUtils.ParamClassification classification) {
 
     public String nameValue() {
         return "{" + (this.name == null ? "" : this.name + ":") + this.value + "}";

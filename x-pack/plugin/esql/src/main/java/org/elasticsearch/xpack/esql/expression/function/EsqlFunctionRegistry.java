@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -216,33 +217,33 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isString;
 
 public class EsqlFunctionRegistry {
 
     private static final Map<DataType, Integer> DATA_TYPE_CASTING_PRIORITY;
 
     static {
-        List<DataType> typePriorityList = Arrays.asList(
+        List<AtomType> typePriorityList = Arrays.asList(
             DATETIME,
             DATE_PERIOD,
             TIME_DURATION,
@@ -265,7 +266,7 @@ public class EsqlFunctionRegistry {
         );
         DATA_TYPE_CASTING_PRIORITY = new HashMap<>();
         for (int i = 0; i < typePriorityList.size(); i++) {
-            DATA_TYPE_CASTING_PRIORITY.put(typePriorityList.get(i), i);
+            DATA_TYPE_CASTING_PRIORITY.put(DataType.atom(typePriorityList.get(i)), i);
         }
     }
 
@@ -583,7 +584,7 @@ public class EsqlFunctionRegistry {
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic) {
-            this(name, type, description, optional, variadic, UNSUPPORTED);
+            this(name, type, description, optional, variadic, DataType.atom(UNSUPPORTED));
         }
 
         public String name() {
@@ -709,21 +710,22 @@ public class EsqlFunctionRegistry {
     private static DataType getTargetType(String[] names) {
         List<DataType> types = new ArrayList<>();
         for (String name : names) {
-            DataType type = DataType.fromTypeName(name);
+            // NOCOMMIT does this have to support composite types?
+            AtomType type = AtomType.fromTypeName(name);
             if (type != null && type != UNSUPPORTED) { // A type should not be null or UNSUPPORTED, just a sanity check here
                 // If the function takes strings as input, there is no need to cast a string literal to it.
                 // Return UNSUPPORTED means that ImplicitCasting doesn't support this argument, and it will be skipped by ImplicitCasting.
                 if (isString(type)) {
-                    return UNSUPPORTED;
+                    return DataType.atom(UNSUPPORTED);
                 }
-                types.add(type);
+                types.add(DataType.atom(type));
             }
         }
 
         return types.stream()
             .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
             .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
-            .orElse(UNSUPPORTED);
+            .orElse(DataType.atom(UNSUPPORTED));
     }
 
     public static FunctionDescription description(FunctionDefinition def) {
@@ -776,14 +778,14 @@ public class EsqlFunctionRegistry {
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {
-        return new EsqlFunctionRegistry.ArgSignature(name, new String[] { "?" }, "", false, false, UNSUPPORTED);
+        return new EsqlFunctionRegistry.ArgSignature(name, new String[] { "?" }, "", false, false, DataType.atom(UNSUPPORTED));
     }
 
     /**
      * Remove types that are being actively built.
      */
     private static String[] removeUnderConstruction(String[] types) {
-        for (Map.Entry<DataType, FeatureFlag> underConstruction : DataType.UNDER_CONSTRUCTION.entrySet()) {
+        for (Map.Entry<AtomType, FeatureFlag> underConstruction : AtomType.UNDER_CONSTRUCTION.entrySet()) {
             if (underConstruction.getValue().isEnabled() == false) {
                 types = Arrays.stream(types).filter(t -> underConstruction.getKey().typeName().equals(t) == false).toArray(String[]::new);
             }

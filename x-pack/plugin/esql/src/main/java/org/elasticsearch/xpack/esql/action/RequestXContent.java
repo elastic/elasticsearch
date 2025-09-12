@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -33,6 +34,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
@@ -149,7 +156,7 @@ final class RequestXContent {
 
         if (token == XContentParser.Token.START_ARRAY) {
             Object paramValue = null;
-            DataType type = null;
+            AtomType type = null;
             QueryParam currentParam = null;
             TempObjects param;
 
@@ -184,26 +191,26 @@ final class RequestXContent {
                             classification = VALUE;
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
-                        type = DataType.fromJava(paramValue);
+                        type = AtomType.fromJava(paramValue);
                         currentParam = new QueryParam(
                             paramName,
                             paramValue,
-                            (classification == VALUE) ? type : DataType.NULL,
+                            (classification == VALUE) ? type : NULL,
                             classification
                         );
                         namedParams.add(currentParam);
                     }
                 } else {
                     if (token == XContentParser.Token.START_ARRAY) {
-                        DataType arrayType = DataType.NULL;
+                        AtomType arrayType = NULL;
                         List<Object> paramValues = new ArrayList<>();
                         boolean nullValueFound = false, mixedTypesFound = false;
                         while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
-                            DataType currentType = valueAndDataType.type;
-                            nullValueFound = nullValueFound | (currentType == DataType.NULL);
-                            mixedTypesFound = mixedTypesFound | (arrayType != DataType.NULL && arrayType != currentType);
-                            if (currentType != DataType.NULL) {
+                            AtomType currentType = valueAndDataType.type;
+                            nullValueFound = nullValueFound | (currentType == NULL);
+                            mixedTypesFound = mixedTypesFound | (arrayType != NULL && arrayType != currentType);
+                            if (currentType != NULL) {
                                 arrayType = currentType;
                             }
                             paramValues.add(valueAndDataType.value);
@@ -277,32 +284,32 @@ final class RequestXContent {
         );
     }
 
-    private record ParamValueAndType(Object value, DataType type) {}
+    private record ParamValueAndType(Object value, AtomType type) {}
 
     private static ParamValueAndType parseSingleParamValue(XContentParser p, List<XContentParseException> errors) throws IOException {
         Object paramValue = null;
-        DataType type = DataType.NULL;
+        AtomType type = NULL;
         XContentParser.Token token = p.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             paramValue = p.text();
-            type = DataType.KEYWORD;
+            type = KEYWORD;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = p.numberType();
             if (numberType == XContentParser.NumberType.INT) {
                 paramValue = p.intValue();
-                type = DataType.INTEGER;
+                type = INTEGER;
             } else if (numberType == XContentParser.NumberType.LONG) {
                 paramValue = p.longValue();
-                type = DataType.LONG;
+                type = LONG;
             } else if (numberType == XContentParser.NumberType.DOUBLE) {
                 paramValue = p.doubleValue();
-                type = DataType.DOUBLE;
+                type = DOUBLE;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             paramValue = p.booleanValue();
-            type = DataType.BOOLEAN;
+            type = BOOLEAN;
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            type = DataType.NULL;
+            type = NULL;
         } else {
             XContentLocation loc = p.getTokenLocation();
             errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
@@ -398,11 +405,11 @@ final class RequestXContent {
                 return;
             }
             // Multivalued field
-            DataType arrayType = null;
+            AtomType arrayType = null;
             for (Object currentValue : valueList) {
                 checkParamValueValidity(entry, classification, currentValue, loc, errors);
-                DataType currentType = DataType.fromJava(currentValue);
-                if (currentType == DataType.NULL) {
+                AtomType currentType = AtomType.fromJava(currentValue);
+                if (currentType == NULL) {
                     addNullEntryError(errors, loc, entry.getKey(), valueList);
                     break;
                 } else if (arrayType != null && arrayType != currentType) {
@@ -414,7 +421,7 @@ final class RequestXContent {
             return;
         }
 
-        DataType type = DataType.fromJava(value);
+        AtomType type = AtomType.fromJava(value);
         if (type == null) {
             errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
         }
@@ -422,7 +429,7 @@ final class RequestXContent {
         // If a param is an "identifier" or a "pattern", validate it is a string.
         // If a param is a "pattern", validate it contains *.
         if (classification == IDENTIFIER || classification == PATTERN) {
-            if (DataType.fromJava(value) != KEYWORD
+            if (AtomType.fromJava(value) != KEYWORD
                 || (classification == PATTERN && value != null && value.toString().contains(WILDCARD) == false)) {
                 errors.add(
                     new XContentParseException(

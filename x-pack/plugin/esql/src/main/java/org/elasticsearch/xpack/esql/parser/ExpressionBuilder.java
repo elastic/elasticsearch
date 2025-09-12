@@ -81,11 +81,11 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;

@@ -138,6 +138,16 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         return new NamedWriteableRegistry(entries);
     }
 
+    @Override
+    public void testFieldHasValue() {
+        assumeTrue("random test inherited from MapperServiceTestCase", false);
+    }
+
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assumeTrue("random test inherited from MapperServiceTestCase", false);
+    }
+
     public void testInterceptAndRewrite() {
         // TODO: Implement
     }

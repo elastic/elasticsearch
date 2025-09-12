@@ -21,6 +21,9 @@ import java.io.UnsupportedEncodingException;
 
 public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceDiagnosticsAction.NodeResponse> {
+
+    private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
+
     public static GetInferenceDiagnosticsAction.NodeResponse createRandom() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         var randomExternalPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
@@ -109,7 +112,7 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
             return instance;
         }
 
-        var eisMltsConnectionPoolStats = version.onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)
+        var eisMltsConnectionPoolStats = version.supports(INFERENCE_API_EIS_DIAGNOSTICS)
             ? new PoolStats(
                 instance.getEisMtlsConnectionPoolStats().getLeasedConnections(),
                 instance.getEisMtlsConnectionPoolStats().getPendingConnections(),

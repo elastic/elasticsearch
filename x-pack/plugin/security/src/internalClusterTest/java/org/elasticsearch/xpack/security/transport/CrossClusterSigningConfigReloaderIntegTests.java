@@ -28,22 +28,36 @@ import java.util.function.Consumer;
 
 import javax.net.ssl.KeyManagerFactory;
 
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_CERT_PATH;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_ALGORITHM;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_ALIAS;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_PATH;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_SECURE_PASSWORD;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_TYPE;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_PATH;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_SECURE_PASSPHRASE;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERTIFICATE_AUTHORITIES;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERT_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_ALGORITHM;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_ALIAS;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_SECURE_PASSWORD;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_TYPE;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEY_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEY_SECURE_PASSPHRASE;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_TRUSTSTORE_ALGORITHM;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_TRUSTSTORE_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_TRUSTSTORE_SECURE_PASSWORD;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_TRUSTSTORE_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTestCase {
 
     public void testAddAndRemoveClusterConfigsRuntime() throws Exception {
-        addAndRemoveClusterConfigsRuntime(randomClusterAliases(), clusterAlias -> {
-            updateClusterSettings(
+        addAndRemoveClusterConfigsRuntime(
+            randomClusterAliases(),
+            clusterAlias -> updateClusterSettings(
                 Settings.builder()
+                    .put(
+                        SIGNING_CERTIFICATE_AUTHORITIES.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        getDataPath("/org/elasticsearch/xpack/security/signature/root.crt")
+                    )
+                    .put(
+                        SIGNING_CERT_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")
+                    )
                     .put(
                         SIGNING_CERT_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")
@@ -52,14 +66,14 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                         SIGNING_KEY_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.key")
                     )
-            );
-        }, clusterAlias -> {
-            updateClusterSettings(
+            ),
+            clusterAlias -> updateClusterSettings(
                 Settings.builder()
+                    .putNull(SIGNING_CERTIFICATE_AUTHORITIES.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_CERT_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEY_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
-            );
-        });
+            )
+        );
     }
 
     public void testAddSecureSettingsConfigRuntime() throws Exception {
@@ -67,11 +81,22 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             writeSecureSettingsToKeyStoreAndReload(
                 Map.of(
                     SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                    "secretpassword".toCharArray()
+                    "secretpassword".toCharArray(),
+                    SIGNING_TRUSTSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                    (inFipsJvm() ? "secretpassword".toCharArray() : "changeit".toCharArray())
                 )
             );
             updateClusterSettings(
                 Settings.builder()
+                    .put(
+                        SIGNING_TRUSTSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        getDataPath("/org/elasticsearch/xpack/security/signature/truststore." + (inFipsJvm() ? "bcfks" : "jks"))
+                    )
+                    .put(SIGNING_TRUSTSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey(), inFipsJvm() ? "BCFKS" : "PKCS12")
+                    .put(
+                        SIGNING_TRUSTSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        KeyManagerFactory.getDefaultAlgorithm()
+                    )
                     .put(
                         SIGNING_KEYSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         KeyManagerFactory.getDefaultAlgorithm()
@@ -87,33 +112,39 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             updateClusterSettings(
                 Settings.builder()
                     .putNull(SIGNING_KEYSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
+                    .putNull(SIGNING_TRUSTSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
+                    .putNull(SIGNING_TRUSTSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEYSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEYSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey())
+                    .putNull(SIGNING_TRUSTSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .setSecureSettings(new MockSecureSettings())
             );
             removeSecureSettingsFromKeyStoreAndReload(
-                Set.of(SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey())
+                Set.of(
+                    SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                    SIGNING_TRUSTSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey()
+                )
             );
         });
     }
 
     public void testDependentKeyConfigFilesUpdated() throws Exception {
         assumeFalse("Test credentials uses key encryption not supported in Fips JVM", inFipsJvm());
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
             internalCluster().getRandomNodeName()
         );
 
         String testClusterAlias = "test_cluster";
-
+        var signer = manager.signerForClusterAlias(testClusterAlias);
         try {
             // Write passphrase for ec key to keystore
             writeSecureSettingsToKeyStoreAndReload(
                 Map.of(SIGNING_KEY_SECURE_PASSPHRASE.getConcreteSettingForNamespace(testClusterAlias).getKey(), "marshall".toCharArray())
             );
 
-            assertNull(signer.sign(testClusterAlias, "a_header"));
+            assertNull(signer.sign("a_header"));
             Path tempDir = createTempDir();
             Path signingCert = tempDir.resolve("signing.crt");
             Files.copy(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt"), signingCert);
@@ -133,14 +164,14 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             );
 
             // Make sure a signature can be created
-            var signatureBefore = signer.sign(testClusterAlias, "test", "test");
+            var signatureBefore = signer.sign("test", "test");
             assertNotNull(signatureBefore);
 
             Files.move(updatedSigningCert, signingCert, StandardCopyOption.REPLACE_EXISTING);
             Files.move(updatedSigningKey, signingKey, StandardCopyOption.REPLACE_EXISTING);
 
             assertBusy(() -> {
-                var signatureAfter = signer.sign(testClusterAlias, "test", "test");
+                var signatureAfter = signer.sign("test", "test");
                 assertNotNull(signatureAfter);
                 assertNotEquals(signatureAfter, signatureBefore);
             });
@@ -157,14 +188,71 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         }
     }
 
+    public void testInitialBadDependentFileAvailableAfterUpdate() throws Exception {
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
+            internalCluster().getRandomNodeName()
+        );
+
+        String testClusterAlias = "test_cluster";
+        var signer = manager.signerForClusterAlias(testClusterAlias);
+        try {
+            assertNull(signer.sign("a_header"));
+            Path tempDir = createTempDir();
+            Path emptyFile = createTempFile();
+            Path signingCert = tempDir.resolve("signing.crt");
+            Files.copy(emptyFile, signingCert);
+            Path signingKey = tempDir.resolve("signing.key");
+            Files.copy(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.key"), signingKey);
+
+            // Add the cluster with an empty file as the signing cert
+            updateClusterSettings(
+                Settings.builder()
+                    .put(SIGNING_CERT_PATH.getConcreteSettingForNamespace(testClusterAlias).getKey(), signingCert)
+                    .put(SIGNING_KEY_PATH.getConcreteSettingForNamespace(testClusterAlias).getKey(), signingKey)
+            );
+
+            {
+                // Make sure no signature can be created
+                var signature = signer.sign("test", "test");
+                assertNull(signature);
+            }
+            // Overwrite the empty file with the actual signing cert
+            Files.copy(
+                getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt"),
+                signingCert,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+            // Make sure config recovers and can generate a signature
+            {
+                assertBusy(() -> {
+                    var signature = signer.sign("test", "test");
+                    assertNotNull(signature);
+                });
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(SIGNING_CERT_PATH.getConcreteSettingForNamespace(testClusterAlias).getKey())
+                    .putNull(SIGNING_KEY_PATH.getConcreteSettingForNamespace(testClusterAlias).getKey())
+                    .setSecureSettings(new MockSecureSettings())
+            );
+            removeSecureSettingsFromKeyStoreAndReload(
+                Set.of(SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(testClusterAlias).getKey())
+            );
+        }
+    }
+
     public void testRemoveFileWithConfig() throws Exception {
         try {
-            final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-                CrossClusterApiKeySigner.class,
+            final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+                CrossClusterApiKeySignatureManager.class,
                 internalCluster().getRandomNodeName()
             );
 
-            assertNull(signer.sign("test_cluster", "a_header"));
+            var signer = manager.signerForClusterAlias("test_cluster");
+
+            assertNull(signer.sign("a_header"));
             Path tempDir = createTempDir();
             Path signingCert = tempDir.resolve("signing.crt");
             Files.copy(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt"), signingCert);
@@ -179,14 +267,14 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             );
 
             // Make sure a signature can be created
-            var signatureBefore = signer.sign("test_cluster", "test", "test");
+            var signatureBefore = signer.sign("test", "test");
             assertNotNull(signatureBefore);
 
             // This should just fail the update, not remove any actual configs
             Files.delete(signingCert);
             Files.delete(signingKey);
 
-            var signatureAfter = signer.sign("test_cluster", "test", "test");
+            var signatureAfter = signer.sign("test", "test");
             assertNotNull(signatureAfter);
             assertEquals(signatureAfter, signatureBefore);
         } finally {
@@ -217,29 +305,35 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         Consumer<String> clusterCreator,
         Consumer<String> clusterRemover
     ) throws Exception {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
             internalCluster().getRandomNodeName()
         );
+
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         try {
             for (var clusterAlias : clusterAliases) {
+                var signer = manager.signerForClusterAlias(clusterAlias);
+                var verfier = manager.verifierForClusterAlias(clusterAlias);
                 // Try to create a signature for a remote cluster that doesn't exist
-                assertNull(signer.sign(clusterAlias, testHeaders));
+                assertNull(signer.sign(testHeaders));
                 clusterCreator.accept(clusterAlias);
                 // Make sure a signature can be created
-                assertNotNull(signer.sign(clusterAlias, testHeaders));
+                var signature = signer.sign(testHeaders);
+                assertNotNull(signature);
+                assertTrue(verfier.verify(signature, testHeaders));
             }
             for (var clusterAlias : clusterAliases) {
                 clusterRemover.accept(clusterAlias);
+                var signer = manager.signerForClusterAlias(clusterAlias);
                 // Make sure no signature was created
-                assertBusy(() -> assertNull(signer.sign(clusterAlias, testHeaders)));
+                assertBusy(() -> assertNull(signer.sign(testHeaders)));
             }
         } finally {
             var builder = Settings.builder();
             for (var clusterAlias : clusterAliases) {
-                CrossClusterApiKeySignerSettings.getDynamicSettings().forEach(setting -> {
+                CrossClusterApiKeySigningSettings.getDynamicSettings().forEach(setting -> {
                     builder.putNull(setting.getConcreteSettingForNamespace(clusterAlias).getKey());
                 });
             }

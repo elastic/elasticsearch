@@ -12,29 +12,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_CERT_PATH;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_ALIAS;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_PATH;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_SECURE_PASSWORD;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_TYPE;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERTIFICATE_AUTHORITIES;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERT_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_ALIAS;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_PATH;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_SECURE_PASSWORD;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_TYPE;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEY_PATH;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 
-public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
+public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegTestCase {
 
     private static final String DYNAMIC_TEST_CLUSTER_ALIAS = "dynamic_test_cluster";
     private static final String STATIC_TEST_CLUSTER_ALIAS = "static_test_cluster";
 
-    public void testSignWithPemKeyConfig() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
+    public void testSignAndVerifyWithPemKeyConfig() {
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
             internalCluster().getRandomNodeName()
         );
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
-        X509CertificateSignature signature = signer.sign(STATIC_TEST_CLUSTER_ALIAS, testHeaders);
-        signature.certificate().getPublicKey();
-
+        X509CertificateSignature signature = manager.signerForClusterAlias(STATIC_TEST_CLUSTER_ALIAS).sign(testHeaders);
         var keyConfig = new PemKeyConfig(
             "signing_rsa.crt",
             "signing_rsa.key",
@@ -42,26 +41,34 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
             getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt").getParent()
         );
 
+        var verifier = manager.verifierForClusterAlias(STATIC_TEST_CLUSTER_ALIAS);
+
         assertThat(signature.algorithm(), equalToIgnoringCase(keyConfig.getKeys().getFirst().v2().getSigAlgName()));
-        assertEquals(signature.certificate(), keyConfig.getKeys().getFirst().v2());
+        assertEquals(signature.certificates()[0], keyConfig.getKeys().getFirst().v2());
+        assertTrue(verifier.verify(signature, testHeaders));
     }
 
-    public void testSignUnknownClusterAlias() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
+    public void testSignAndVerifyUnknownClusterAlias() {
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
             internalCluster().getRandomNodeName()
         );
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
-
-        X509CertificateSignature signature = signer.sign("unknowncluster", testHeaders);
+        X509CertificateSignature signature = manager.signerForClusterAlias("unknowncluster").sign(testHeaders);
         assertNull(signature);
+        var exception = assertThrows(
+            IllegalStateException.class,
+            () -> manager.verifierForClusterAlias("unknowncluster").verify(signature, testHeaders)
+        );
+        assertThat(exception.getMessage(), equalToIgnoringCase("No trust manager found for [unknowncluster]"));
     }
 
     public void testSeveralKeyStoreAliases() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
             internalCluster().getRandomNodeName()
         );
+        var signer = manager.signerForClusterAlias(DYNAMIC_TEST_CLUSTER_ALIAS);
 
         try {
             // Create a new config without an alias. Since there are several aliases in the keystore, no signature should be generated
@@ -78,7 +85,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
             );
 
             {
-                X509CertificateSignature signature = signer.sign(DYNAMIC_TEST_CLUSTER_ALIAS, "test", "test");
+                X509CertificateSignature signature = signer.sign("test", "test");
                 assertNull(signature);
             }
 
@@ -88,7 +95,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
                     .put(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(), "wholelottakey")
             );
             {
-                X509CertificateSignature signature = signer.sign(DYNAMIC_TEST_CLUSTER_ALIAS, "test", "test");
+                X509CertificateSignature signature = signer.sign("test", "test");
                 assertNotNull(signature);
             }
 
@@ -98,7 +105,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
                     .put(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(), "idonotexist")
             );
             {
-                X509CertificateSignature signature = signer.sign(DYNAMIC_TEST_CLUSTER_ALIAS, "test", "test");
+                X509CertificateSignature signature = signer.sign("test", "test");
                 assertNotNull(signature);
             }
         } finally {
@@ -116,6 +123,10 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         var builder = Settings.builder();
         MockSecureSettings secureSettings = (MockSecureSettings) builder.put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(
+                SIGNING_CERTIFICATE_AUTHORITIES.getConcreteSettingForNamespace(STATIC_TEST_CLUSTER_ALIAS).getKey(),
+                getDataPath("/org" + "/elasticsearch/xpack/security/signature/root.crt")
+            )
             .put(
                 SIGNING_CERT_PATH.getConcreteSettingForNamespace(STATIC_TEST_CLUSTER_ALIAS).getKey(),
                 getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")

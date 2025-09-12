@@ -26,9 +26,10 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         final List<String> ids,
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
-        @Nullable final TimeValue expiration
+        @Nullable final TimeValue expiration,
+        @Nullable final String certificateIdentity
     ) {
-        super(roleDescriptors, metadata, expiration);
+        super(roleDescriptors, metadata, expiration, certificateIdentity);
         this.ids = Objects.requireNonNull(ids, "API key IDs must not be null");
     }
 

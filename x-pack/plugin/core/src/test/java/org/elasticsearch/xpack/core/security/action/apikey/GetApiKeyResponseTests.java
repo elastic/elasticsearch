@@ -346,6 +346,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -384,10 +385,51 @@ public class GetApiKeyResponseTests extends ESTestCase {
             realmType,
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
     }
 
+    public void testToXContentWithCertificateIdentity() throws IOException {
+
+        final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
+            new RoleDescriptor(
+                ROLE_DESCRIPTOR_NAME,
+                CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES,
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges(CCS_INDICES_PRIVILEGE_NAMES).build(),
+                    RoleDescriptor.IndicesPrivileges.builder().indices("archive").privileges(CCR_INDICES_PRIVILEGE_NAMES).build(),
+                },
+                null
+            )
+        );
+
+        ApiKey apiKeyWithCert = new ApiKey(
+            "cert-key",
+            "id-cert",
+            ApiKey.Type.CROSS_CLUSTER,
+            Instant.ofEpochMilli(100000L),
+            null,
+            false,
+            null,
+            "cert-user",
+            "cert-realm",
+            "cert-realm-type",
+            Map.of(),
+            crossClusterAccessRoleDescriptors,
+            null,
+            "CN=test,O=TestOrg"
+        );
+
+        GetApiKeyResponse.Item item = new GetApiKeyResponse.Item(apiKeyWithCert);
+        GetApiKeyResponse response = new GetApiKeyResponse(List.of(item));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String json = Strings.toString(builder);
+        assertThat(json, containsString("\"certificate_identity\":\"CN=test,O=TestOrg\""));
+    }
     private String getType(String type) {
         return "\"type\": \"" + type + "\",";
     }

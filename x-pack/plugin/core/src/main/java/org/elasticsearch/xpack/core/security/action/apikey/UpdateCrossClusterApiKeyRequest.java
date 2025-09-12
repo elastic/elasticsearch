@@ -22,9 +22,10 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
         final String id,
         @Nullable CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable final Map<String, Object> metadata,
-        @Nullable TimeValue expiration
+        @Nullable TimeValue expiration,
+        @Nullable String certificateIdentity
     ) {
-        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id);
+        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id, certificateIdentity);
     }
 
     @Override

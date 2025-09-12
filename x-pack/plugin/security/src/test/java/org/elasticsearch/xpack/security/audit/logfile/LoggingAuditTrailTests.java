@@ -881,7 +881,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             apiKeyName,
             roleDescriptorBuilder,
             expiration,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            null
         );
 
         final String requestId = randomRequestId();

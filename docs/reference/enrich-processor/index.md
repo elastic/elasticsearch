@@ -165,6 +165,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`trim` processor](/reference/enrich-processor/trim-processor.md)
 :   Trims whitespace from field.
 
+[`xml` processor](/reference/enrich-processor/xml-processor.md) {applies_to}`stack: ga 9.2`
+:   Parses XML documents and converts them to JSON objects.
+
 
 ## Data filtering processors [ingest-process-category-data-filtering]
 

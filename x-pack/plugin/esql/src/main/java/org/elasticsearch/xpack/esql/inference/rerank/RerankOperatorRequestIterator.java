@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
     }
 
     @Override
-    public InferenceAction.Request next() {
+    public BulkInferenceRequestItem<InferenceAction.Request> next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -59,7 +60,7 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
 
         if (inputBlock.isNull(startIndex)) {
             remainingPositions -= 1;
-            return null;
+            return BulkInferenceRequestItem.from((InferenceAction.Request) null);
         }
 
         for (int i = 0; i < maxInputSize; i++) {
@@ -73,7 +74,7 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
         }
 
         remainingPositions -= inputs.size();
-        return inferenceRequest(inputs);
+        return BulkInferenceRequestItem.from(inferenceRequest(inputs));
     }
 
     @Override

@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
+import org.elasticsearch.xpack.esql.inference.completion.ChatCompletionOperator;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -323,7 +324,12 @@ public class LocalExecutionPlanner {
             source.layout
         );
 
-        return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
+        OperatorFactory operatorFactory = switch (completion.taskType()) {
+            case CHAT_COMPLETION -> new ChatCompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory);
+            default -> new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory);
+        };
+
+        return source.with(operatorFactory, outputLayout);
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {

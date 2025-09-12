@@ -152,7 +152,20 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     public Completion withResolvedInference(ResolvedInference resolvedInference) {
-        return super.withResolvedInference(resolvedInference);
+        Completion completion = super.withResolvedInference(resolvedInference);
+
+        if (completion.inferenceId().resolved()) {
+            return new Completion(
+                source(),
+                child(),
+                completion.inferenceId(),
+                resolvedInference.taskType(),
+                completion.prompt(),
+                completion.targetField()
+            );
+        }
+
+        return completion;
     }
 
     @Override

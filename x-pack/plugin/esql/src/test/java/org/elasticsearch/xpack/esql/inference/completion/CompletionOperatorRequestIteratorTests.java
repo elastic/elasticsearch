@@ -32,7 +32,7 @@ public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {
-                InferenceAction.Request request = requestIterator.next();
+                InferenceAction.Request request = requestIterator.next().inferenceRequest();
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(currentPos), scratch);
                 assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));

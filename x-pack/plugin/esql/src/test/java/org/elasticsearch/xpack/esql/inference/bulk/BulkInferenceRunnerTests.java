@@ -193,7 +193,10 @@ public class BulkInferenceRunnerTests extends ESTestCase {
     }
 
     private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {
-        final Iterator<InferenceAction.Request> delegate = requests.iterator();
+        final Iterator<BulkInferenceRequestItem<InferenceAction.Request>> delegate = requests.stream()
+            .map(BulkInferenceRequestItem::from)
+            .toList()
+            .iterator();
         BulkInferenceRequestIterator iterator = mock(BulkInferenceRequestIterator.class);
         doAnswer(i -> delegate.hasNext()).when(iterator).hasNext();
         doAnswer(i -> delegate.next()).when(iterator).next();

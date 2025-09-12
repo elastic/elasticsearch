@@ -20,14 +20,14 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 /**
- * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using completion inference endpoints.
+ * {@link ChatCompletionOperator} is an {@link InferenceOperator} that performs inference using chat_completion inference endpoints.
  * It evaluates a prompt expression for each input row, constructs inference requests, and emits the model responses as output.
  */
-public class CompletionOperator extends InferenceOperator {
+public class ChatCompletionOperator extends InferenceOperator {
 
     private final ExpressionEvaluator promptEvaluator;
 
-    public CompletionOperator(
+    public ChatCompletionOperator(
         DriverContext driverContext,
         BulkInferenceRunner bulkInferenceRunner,
         String inferenceId,
@@ -45,21 +45,21 @@ public class CompletionOperator extends InferenceOperator {
 
     @Override
     public String toString() {
-        return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
+        return "ChatCompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
 
     /**
-     * Constructs the completion inference requests iterator for the given input page by evaluating the prompt expression.
+     * Constructs the chat completion inference requests iterator for the given input page by evaluating the prompt expression.
      *
      * @param inputPage The input data page.
      */
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
+        return new ChatCompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
     /**
-     * Creates a new {@link CompletionOperatorOutputBuilder} to collect and emit the completion results.
+     * Creates a new {@link CompletionOperatorOutputBuilder} to collect and emit the chat completion results.
      *
      * @param input The input page for which results will be constructed.
      */
@@ -70,19 +70,19 @@ public class CompletionOperator extends InferenceOperator {
     }
 
     /**
-     * Factory for creating {@link CompletionOperator} instances.
+     * Factory for creating {@link ChatCompletionOperator} instances.
      */
     public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
         implements
             OperatorFactory {
         @Override
         public String describe() {
-            return "CompletionOperator[inference_id=[" + inferenceId + "]]";
+            return "ChatCompletionOperator[inference_id=[" + inferenceId + "]]";
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new CompletionOperator(
+            return new ChatCompletionOperator(
                 driverContext,
                 inferenceService.bulkInferenceRunner(),
                 inferenceId,

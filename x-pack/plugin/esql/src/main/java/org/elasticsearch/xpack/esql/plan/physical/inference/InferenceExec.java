@@ -23,8 +23,8 @@ public abstract class InferenceExec extends UnaryExec {
 
     protected InferenceExec(Source source, PhysicalPlan child, Expression inferenceId, TaskType taskType) {
         super(source, child);
-        this.inferenceId = inferenceId;
-        this.taskType = taskType;
+        this.inferenceId = Objects.requireNonNull(inferenceId);
+        this.taskType = Objects.requireNonNull(taskType);
     }
 
     public Expression inferenceId() {

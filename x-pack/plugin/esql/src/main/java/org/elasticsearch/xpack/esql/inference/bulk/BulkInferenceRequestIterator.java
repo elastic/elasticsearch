@@ -8,17 +8,15 @@
 package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.Iterator;
 
-public interface BulkInferenceRequestIterator extends Iterator<InferenceAction.Request>, Releasable {
+public interface BulkInferenceRequestIterator extends Iterator<BulkInferenceRequestItem<?>>, Releasable {
 
     /**
      * Returns an estimate of the number of requests that will be produced.
      *
-     * <p>This is typically used to pre-allocate buffers or output to th appropriate size.</p>
+     * <p>This is typically used to pre-allocate buffers or output to the appropriate size.</p>
      */
     int estimatedSize();
-
 }

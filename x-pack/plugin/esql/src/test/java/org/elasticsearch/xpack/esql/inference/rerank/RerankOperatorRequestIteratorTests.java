@@ -37,7 +37,7 @@ public class RerankOperatorRequestIteratorTests extends ComputeTestCase {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext();) {
-                InferenceAction.Request request = requestIterator.next();
+                InferenceAction.Request request = requestIterator.next().inferenceRequest();
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getQuery(), equalTo(queryText));

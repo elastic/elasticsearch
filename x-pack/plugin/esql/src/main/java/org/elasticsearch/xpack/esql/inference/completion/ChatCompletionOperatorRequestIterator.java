@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.inference.completion;
 
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
@@ -18,10 +21,10 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
- *  of type {@link TaskType#COMPLETION}.
+ * This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
+ * of type {@link TaskType#CHAT_COMPLETION}.
  */
-public class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
+public class ChatCompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
 
     private final PromptReader promptReader;
     private final String inferenceId;
@@ -34,7 +37,7 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
      * @param promptBlock The input block containing prompts.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    public CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
+    public ChatCompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
         this.promptReader = new PromptReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;
@@ -46,23 +49,31 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
     }
 
     @Override
-    public BulkInferenceRequestItem<InferenceAction.Request> next() {
+    public BulkInferenceRequestItem.ChatCompletionRequestItem next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        return BulkInferenceRequestItem.from(inferenceRequest(promptReader.readPrompt(currentPos++)));
+        UnifiedCompletionAction.Request inferenceRequest = inferenceRequest(promptReader.readPrompt(currentPos++));
+        return BulkInferenceRequestItem.from(inferenceRequest);
     }
 
     /**
-     * Wraps a single prompt string into an {@link InferenceAction.Request}.
+     * Wraps a single prompt string into an {@link UnifiedCompletionRequest}.
      */
-    private InferenceAction.Request inferenceRequest(String prompt) {
+    private UnifiedCompletionAction.Request inferenceRequest(String prompt) {
         if (prompt == null) {
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
+        return new UnifiedCompletionAction.Request(
+            inferenceId,
+            TaskType.CHAT_COMPLETION,
+            UnifiedCompletionRequest.of(
+                List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(prompt), "user", null, null))
+            ),
+            TimeValue.THIRTY_SECONDS
+        );
     }
 
     @Override

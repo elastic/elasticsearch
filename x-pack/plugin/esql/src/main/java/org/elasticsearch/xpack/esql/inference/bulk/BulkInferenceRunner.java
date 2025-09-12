@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -175,12 +177,12 @@ public class BulkInferenceRunner {
          * to the request iterator.
          * </p>
          *
-         * @return A BulkRequestItem if a request and permit are available, null otherwise
+         * @return A BulkInferenceRequestItem if a request and permit are available, null otherwise
          */
-        private BulkRequestItem pollPendingRequest() {
+        private BulkInferenceRequestItem<?> pollPendingRequest() {
             synchronized (requests) {
                 if (requests.hasNext()) {
-                    return new BulkRequestItem(executionState.generateSeqNo(), requests.next());
+                    return requests.next().withSeqNo(executionState.generateSeqNo());
                 }
             }
 
@@ -226,7 +228,7 @@ public class BulkInferenceRunner {
                         }
                         return;
                     } else {
-                        BulkRequestItem bulkRequestItem = pollPendingRequest();
+                        BulkInferenceRequestItem<?> bulkRequestItem = pollPendingRequest();
 
                         if (bulkRequestItem == null) {
                             // No more requests available
@@ -234,14 +236,14 @@ public class BulkInferenceRunner {
                             permits.release();
 
                             // Check if another bulk request is pending for execution.
-                            BulkInferenceRequest nexBulkRequest = pendingBulkRequests.poll();
+                            BulkInferenceRequest nextBulkRequest = pendingBulkRequests.poll();
 
-                            while (nexBulkRequest == this) {
-                                nexBulkRequest = pendingBulkRequests.poll();
+                            while (nextBulkRequest == this) {
+                                nextBulkRequest = pendingBulkRequests.poll();
                             }
 
-                            if (nexBulkRequest != null) {
-                                executor.execute(nexBulkRequest::executePendingRequests);
+                            if (nextBulkRequest != null) {
+                                executor.execute(nextBulkRequest::executePendingRequests);
                             }
 
                             return;
@@ -275,9 +277,9 @@ public class BulkInferenceRunner {
                                         // Response has already been sent
                                         // No need to continue processing this bulk.
                                         // Check if another bulk request is pending for execution.
-                                        BulkInferenceRequest nexBulkRequest = pendingBulkRequests.poll();
-                                        if (nexBulkRequest != null) {
-                                            executor.execute(nexBulkRequest::executePendingRequests);
+                                        BulkInferenceRequest nextBulkRequest = pendingBulkRequests.poll();
+                                        if (nextBulkRequest != null) {
+                                            executor.execute(nextBulkRequest::executePendingRequests);
                                         }
                                         return;
                                     }
@@ -298,24 +300,55 @@ public class BulkInferenceRunner {
                         );
 
                         // Handle null requests (edge case in some iterators)
-                        if (bulkRequestItem.request() == null) {
+                        if (bulkRequestItem.inferenceRequest() == null) {
                             inferenceResponseListener.onResponse(null);
                             return;
                         }
 
                         // Execute the inference request with proper origin context
-                        executeAsyncWithOrigin(
-                            client,
-                            INFERENCE_ORIGIN,
-                            InferenceAction.INSTANCE,
-                            bulkRequestItem.request(),
-                            inferenceResponseListener
-                        );
+                        if (bulkRequestItem.taskType() == TaskType.CHAT_COMPLETION) {
+                            handleStreamingRequest(
+                                (UnifiedCompletionAction.Request) bulkRequestItem.inferenceRequest(),
+                                inferenceResponseListener
+                            );
+                        } else {
+                            executeAsyncWithOrigin(
+                                client,
+                                INFERENCE_ORIGIN,
+                                InferenceAction.INSTANCE,
+                                bulkRequestItem.inferenceRequest(),
+                                inferenceResponseListener
+                            );
+                        }
                     }
                 }
             } catch (Exception e) {
                 executionState.addFailure(e);
             }
+        }
+
+        /**
+         * Handles streaming inference requests for chat completion tasks.
+         * <p>
+         * This method executes UnifiedCompletionAction requests and sets up proper streaming
+         * response handling through the BulkInferenceStreamingHandler. The streaming handler
+         * manages the asynchronous stream processing and ensures responses are properly
+         * delivered to the completion listener.
+         * </p>
+         *
+         * @param request  The UnifiedCompletionAction request to execute
+         * @param listener The listener to receive the final aggregated response
+         */
+        private void handleStreamingRequest(UnifiedCompletionAction.Request request, ActionListener<InferenceAction.Response> listener) {
+            executeAsyncWithOrigin(
+                client,
+                INFERENCE_ORIGIN,
+                UnifiedCompletionAction.INSTANCE,
+                request,
+                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                    inferenceResponse.publisher().subscribe(new BulkInferenceStreamingHandler(l));
+                })
+            );
         }
 
         /**
@@ -358,20 +391,6 @@ public class BulkInferenceRunner {
 
             completionListener.onFailure(executionState.getFailure());
         }
-    }
-
-    /**
-     * Encapsulates an inference request with its associated sequence number.
-     * <p>
-     * The sequence number is used for ordering responses and tracking completion
-     * in the bulk execution state.
-     * </p>
-     *
-     * @param seqNo   Unique sequence number for this request in the bulk operation
-     * @param request The actual inference request to execute
-     */
-    private record BulkRequestItem(long seqNo, InferenceAction.Request request) {
-
     }
 
     public static Factory factory(Client client) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -30,7 +31,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
      * This tests that we get the same end result plan with an explicit isNotNull and the implicit one added by the rule
      */
     public void testSamePhysicalPlans() {
-        // assumeTrue("disable for now", false);
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         String testQuery = """
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
@@ -50,6 +51,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
     }
 
     public void testPushdownOfSimpleQuery() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         String query = """
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)

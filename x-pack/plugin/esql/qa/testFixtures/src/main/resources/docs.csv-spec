@@ -322,19 +322,6 @@ Saniya         |Kalloufi       |2.1          |6.9
 // end::round-result[]
 ;
 
-dateParse
-// tag::dateParse[]
-ROW date_string = "2022-05-06"
-| EVAL date = DATE_PARSE("yyyy-MM-dd", date_string)
-// end::dateParse[]
-;
-
-//tag::dateParse-result[]
-date_string:keyword | date:date
-2022-05-06          | 2022-05-06T00:00:00.000Z
-// end::dateParse-result[]
-;
-
 docsReplace
 //tag::replaceString[]
 ROW str = "Hello World"

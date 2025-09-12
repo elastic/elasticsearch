@@ -60,7 +60,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "long",
             "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
-        examples = { @Example(file = "null", tag = "coalesce") }
+        examples = { @Example(file = "null", tag = "coalesce"), @Example(description = """
+            COALESCE keeps multivalued fields.
+            """, file = "null", tag = "coalesce-mv") }
     )
     public Coalesce(
         Source source,

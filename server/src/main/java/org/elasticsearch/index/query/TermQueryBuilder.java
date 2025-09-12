@@ -18,7 +18,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -201,6 +203,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             } else {
                 assert false : "Constant fields must produce match-all or match-none queries, got " + query;
             }
+        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType || fieldType instanceof DateFieldMapper.DateFieldType) {
+            return QueryBuilders.rangeQuery(this.fieldName).gte(value).lte(value);
         }
         return this;
     }

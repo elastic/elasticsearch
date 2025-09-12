@@ -540,6 +540,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testDenseVectorImplicitCastingKnnQueryParams
   issue: https://github.com/elastic/elasticsearch/issues/134639
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120148
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/134646
+- class: org.elasticsearch.oldrepos.OldMappingsIT
+  method: testStandardTokenFilter
+  issue: https://github.com/elastic/elasticsearch/issues/134647
 
 # Examples:
 #

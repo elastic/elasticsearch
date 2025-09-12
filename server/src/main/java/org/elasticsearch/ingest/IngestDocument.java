@@ -1381,7 +1381,7 @@ public final class IngestDocument {
          */
         private static String[] parseFlexibleFields(String fullPath, String[] pathParts) {
             for (String pathPart : pathParts) {
-                if (pathPart.isEmpty() || pathPart.indexOf('[') >= 0 || pathPart.indexOf(']') >= 0) {
+                if (pathPart.isEmpty() || pathPart.contains("[") || pathPart.contains("]")) {
                     throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
                 }
             }

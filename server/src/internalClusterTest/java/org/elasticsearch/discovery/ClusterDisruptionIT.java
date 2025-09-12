@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
@@ -112,6 +113,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
         reason = "Past failures have required a lot of additional logging to debug"
     )
+    @SuppressForbidden(reason = "repeat is a feature here")
     @Repeat(iterations = 100)
     public void testAckedIndexing() throws Exception {
 

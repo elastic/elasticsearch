@@ -319,7 +319,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             false,
             Map.of(),
             System.nanoTime(),
-            randomBoolean()
+            randomBoolean(),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null)
         );
     }
 

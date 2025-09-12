@@ -40,7 +40,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected final String inferenceId;
     protected final String inferenceText;
     protected final Float minScore;
-    protected final SnippetConfig snippetConfig;
+    protected final ChunkScorerConfig chunkScorerConfig;
 
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
@@ -51,14 +51,14 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceText,
         Float minScore,
         boolean failuresAllowed,
-        @Nullable SnippetConfig snippetConfig
+        @Nullable ChunkScorerConfig chunkScorerConfig
     ) {
         super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.minScore = minScore;
-        this.snippetConfig = snippetConfig;
+        this.chunkScorerConfig = chunkScorerConfig;
     }
 
     @Override
@@ -80,8 +80,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 l.onResponse(originalScores);
             } else {
                 final float[] scores;
-                if (this.snippetConfig != null) {
-                    scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
+                if (this.chunkScorerConfig != null) {
+                    scores = extractScoresFromRankedChunks(rankedDocs, featureDocs);
                 } else {
                     scores = extractScoresFromRankedDocs(rankedDocs);
                 }
@@ -200,7 +200,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return scores;
     }
 
-    float[] extractScoresFromRankedSnippets(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
+    float[] extractScoresFromRankedChunks(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
         float[] scores = new float[featureDocs.length];
         boolean[] hasScore = new boolean[featureDocs.length];
 

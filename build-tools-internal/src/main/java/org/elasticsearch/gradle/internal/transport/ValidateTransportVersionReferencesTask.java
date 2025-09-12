@@ -58,8 +58,8 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
                         + tvReference.name()
                         + "\") was used at "
                         + tvReference.location()
-                        + ", but lacks a"
-                        + " transport version definition. This can be generated with the <TODO> task" // todo
+                        + ", but lacks a transport version definition. "
+                        + "If this is a new transport version, run './gradle generateTransportVersion'."
                 );
             }
         }

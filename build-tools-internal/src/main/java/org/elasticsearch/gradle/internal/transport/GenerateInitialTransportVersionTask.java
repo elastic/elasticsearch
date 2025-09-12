@@ -55,13 +55,13 @@ public abstract class GenerateInitialTransportVersionTask extends DefaultTask {
         var definition = new TransportVersionDefinition(initialDefinitionName, List.of(id));
         resources.writeUnreferableDefinition(definition);
         var newUpperBound = new TransportVersionUpperBound(upperBoundName, initialDefinitionName, id);
-        resources.writeUpperBound(newUpperBound);
+        resources.writeUpperBound(newUpperBound, false);
 
         if (releaseVersion.getRevision() == 0) {
             Version currentVersion = getCurrentVersion().get();
             String currentUpperBoundName = getUpperBoundName(currentVersion);
             var currentUpperBound = new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id);
-            resources.writeUpperBound(currentUpperBound);
+            resources.writeUpperBound(currentUpperBound, false);
         }
     }
 

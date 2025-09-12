@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,9 +27,13 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -50,6 +55,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,17 +64,33 @@ import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 
-public class SamplingService implements ClusterStateListener {
+public class SamplingService implements ClusterStateListener, SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
     private final LongSupplier relativeNanoTimeSupplier;
     private final MasterServiceTaskQueue<UpdateSampleConfigTask> updateSamplingConfigTaskQueue;
     private final MasterServiceTaskQueue<DeleteSampleConfigTask> deleteSamplingConfigTaskQueue;
     private final Map<ProjectIndex, SoftReference<SampleInfo>> samples = new HashMap<>();
+    private volatile boolean isMaster = false;
+    private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
+    private SchedulerEngine.Job scheduledJob;
+    private final Clock clock;
+    private final Settings settings;
+    private volatile TimeValue pollInterval = TimeValue.timeValueMinutes(30);
 
-    public SamplingService(ScriptService scriptService, ClusterService clusterService, LongSupplier relativeNanoTimeSupplier) {
+    public SamplingService(
+        ScriptService scriptService,
+        ClusterService clusterService,
+        LongSupplier relativeNanoTimeSupplier,
+        Clock clock,
+        Settings settings
+    ) {
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         this.relativeNanoTimeSupplier = relativeNanoTimeSupplier;
+        this.clock = clock;
+        this.settings = settings;
         ClusterStateTaskExecutor<UpdateSampleConfigTask> updateSampleConfigExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -118,6 +140,7 @@ public class SamplingService implements ClusterStateListener {
                     ClusterState updatedClusterState = ClusterState.builder(clusterState)
                         .putProjectMetadata(projectMetadataBuilder)
                         .build();
+                    logger.info("Removing sampling config " + samplingConfig.indexName + " from cluster state");
                     return new Tuple<>(updatedClusterState, deleteSamplingConfigTask);
                 } else {
                     return null; // someone beat us to it. This seems like a bad plan TODO
@@ -151,6 +174,8 @@ public class SamplingService implements ClusterStateListener {
     }
 
     public void deleteSampleConfiguration(ProjectId projectId, String index) {
+        logger.info("Calling deleteSampleConfiguration");
+        // to be called by the master node
         deleteSamplingConfigTaskQueue.submitTask(
             "deleting sampling config",
             new DeleteSampleConfigTask(projectId, index, TimeValue.THIRTY_SECONDS, ActionListener.noop()),
@@ -255,7 +280,7 @@ public class SamplingService implements ClusterStateListener {
                 }
             }
         }
-        checkTTLs(); // TODO make this happen less often?
+        // checkTTLs(); // TODO make this happen less often?
     }
 
     public List<IndexRequest> getSamples(ProjectId projectId, String index) {
@@ -304,8 +329,49 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    private synchronized void maybeScheduleJob() {
+        if (this.isMaster) {
+            if (scheduler.get() == null) {
+                // don't create scheduler if the node is shutting down
+                if (isClusterServiceStoppedOrClosed() == false) {
+                    scheduler.set(new SchedulerEngine(settings, clock));
+                    scheduler.get().register(this);
+                }
+            }
+
+            // scheduler could be null if the node might be shutting down
+            if (scheduler.get() != null) {
+                scheduledJob = new SchedulerEngine.Job("sampling_ttl", new TimeValueSchedule(pollInterval));
+                scheduler.get().add(scheduledJob);
+            }
+        }
+    }
+
+    private void cancelJob() {
+        if (scheduler.get() != null) {
+            scheduler.get().remove("sampling_ttl");
+            scheduledJob = null;
+        }
+    }
+
+    private boolean isClusterServiceStoppedOrClosed() {
+        final Lifecycle.State state = clusterService.lifecycleState();
+        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                // we weren't the master, and now we are
+                maybeScheduleJob();
+            } else {
+                // we were the master, and now we aren't
+                cancelJob();
+            }
+        }
         if (event.metadataChanged()) {
             for (ProjectMetadata projectMetadata : event.state().metadata().projects().values()) {
                 ProjectId projectId = projectMetadata.id();
@@ -319,6 +385,7 @@ public class SamplingService implements ClusterStateListener {
                         .metadata()
                         .custom(TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME);
                     if (newSamplingConfig == null && oldSamplingConfig != null) {
+                        logger.info("Removing sampling config info from buffer because it has been deleted from cluster state");
                         samples.remove(new ProjectIndex(projectId, oldSamplingConfig.indexName));
                     } else if (newSamplingConfig != null && newSamplingConfig.equals(oldSamplingConfig) == false) {
                         samples.put(
@@ -339,8 +406,15 @@ public class SamplingService implements ClusterStateListener {
             SampleInfo sampleInfo = sampleInfoReference.get();
             if (sampleInfo != null && sampleInfo.expiration < now) {
                 deleteSampleConfiguration(projectIndex.projectId, projectIndex.indexName);
+                // samples.remove(new ProjectIndex(projectIndex.projectId, projectIndex.indexName));
             }
         }
+    }
+
+    @Override
+    public void triggered(SchedulerEngine.Event event) {
+        logger.info("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
+        checkTTLs();
     }
 
     private static final class SampleInfo {

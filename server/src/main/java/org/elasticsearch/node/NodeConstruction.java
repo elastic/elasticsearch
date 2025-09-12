@@ -235,6 +235,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -716,7 +717,7 @@ class NodeConstruction {
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
-        SamplingService samplingService = new SamplingService(scriptService, clusterService, System::nanoTime);
+        SamplingService samplingService = new SamplingService(scriptService, clusterService, System::nanoTime, Clock.systemUTC(), settings);
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 

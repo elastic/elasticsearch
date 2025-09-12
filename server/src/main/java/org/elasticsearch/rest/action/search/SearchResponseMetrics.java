@@ -10,7 +10,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestIntrospector;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -69,13 +69,13 @@ public class SearchResponseMetrics {
     }
 
     public long recordTookTimeForSearchScroll(long tookTime) {
-        tookDurationTotalMillisHistogram.record(tookTime, SearchRequestIntrospector.SEARCH_SCROLL_ATTRIBUTES);
+        tookDurationTotalMillisHistogram.record(tookTime, SearchRequestAttributesExtractor.SEARCH_SCROLL_ATTRIBUTES);
         return tookTime;
     }
 
     public long recordTookTime(long tookTime, SearchRequest searchRequest) {
-        SearchRequestIntrospector.QueryMetadata queryMetadata = SearchRequestIntrospector.introspectSearchRequest(searchRequest);
-        tookDurationTotalMillisHistogram.record(tookTime, queryMetadata.toAttributesMap());
+        Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
+        tookDurationTotalMillisHistogram.record(tookTime, attributes);
         return tookTime;
     }
 

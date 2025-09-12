@@ -9,15 +9,18 @@
 
 package org.elasticsearch.search.TelemetryMetrics;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -29,6 +32,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -47,18 +52,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
 
     @Before
     public void setUpIndex() {
-        var num_primaries = randomIntBetween(1, 4);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        );
-        ensureGreen(indexName);
-
-        prepareIndex(indexName).setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(indexName).setId("2").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("2").setSource("body", "foo", "@timestamp", "2024-12-01").setRefreshPolicy(IMMEDIATE).get();
     }
 
     @After
@@ -82,7 +77,57 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
 
         List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
         assertEquals(1, measurements.size());
-        assertEquals(searchResponse.getTook().millis(), measurements.getFirst().getLong());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertSimpleQueryAttributes(measurement.attributes());
+    }
+
+    public void testSimpleQueryAgainstWildcardExpression() {
+        SearchResponse searchResponse = client().prepareSearch("*").setQuery(simpleQueryStringQuery("foo")).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertSimpleQueryAttributes(measurement.attributes());
+    }
+
+    public void testSimpleQueryAgainstAlias() {
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(
+            RestUtils.REST_MASTER_TIMEOUT_DEFAULT,
+            new TimeValue(30, TimeUnit.SECONDS)
+        );
+        indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().indices(indexName).alias("alias"));
+        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().aliases(indicesAliasesRequest).actionGet();
+        assertFalse(indicesAliasesResponse.hasErrors());
+        SearchResponse searchResponse = client().prepareSearch("alias").setQuery(simpleQueryStringQuery("foo")).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertSimpleQueryAttributes(measurement.attributes());
+
+    }
+
+    private static void assertSimpleQueryAttributes(Map<String, Object> attributes) {
+        assertEquals(4, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(false, attributes.get("knn"));
     }
 
     public void testMultiSearch() {
@@ -113,6 +158,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         int i = 0;
         for (Measurement measurement : measurements) {
             assertEquals(tookTimes.get(i++).longValue(), measurement.getLong());
+            assertSimpleQueryAttributes(measurement.attributes());
         }
     }
 
@@ -123,15 +169,103 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSize(1).setQuery(simpleQueryStringQuery("foo")),
             2,
             (respNum, response) -> {
-                if (respNum <= 2) {
+                if (respNum == 1) {
                     List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
                         TOOK_DURATION_TOTAL_HISTOGRAM_NAME
                     );
                     assertEquals(1, measurements.size());
+                    Measurement measurement = measurements.getFirst();
+                    Map<String, Object> attributes = measurement.attributes();
+                    assertEquals(4, attributes.size());
+                    assertEquals("user", attributes.get("target"));
+                    assertArrayEquals(new String[] { "hits_only", "scroll" }, (String[]) attributes.get("query_type"));
+                    assertEquals("_score", attributes.get("sort"));
+                    assertEquals(false, attributes.get("knn"));
+                } else {
+                    List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                        TOOK_DURATION_TOTAL_HISTOGRAM_NAME
+                    );
+                    assertEquals(1, measurements.size());
+                    Measurement measurement = measurements.getFirst();
+                    Map<String, Object> attributes = measurement.attributes();
+                    assertEquals(1, attributes.size());
+                    assertEquals("scroll", attributes.get("query_type"));
                 }
                 resetMeter();
             }
         );
+    }
+
+    /**
+     * Make sure that despite can match and query rewrite, we see the time range filter and record its corresponding attribute
+     */
+    public void testTimeRangeFilterNoResults() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2025-01-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertTimeRangeAttributes(measurement.attributes());
+    }
+
+    /**
+     * Make sure that despite can match and query rewrite, we see the time range filter and record its corresponding attribute
+     */
+    public void testTimeRangeFilterAllResults() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertTimeRangeAttributes(measurement.attributes());
+    }
+
+    public void testTimeRangeFilterOneResults() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-12-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertTimeRangeAttributes(measurement.attributes());
+    }
+
+    private static void assertTimeRangeAttributes(Map<String, Object> attributes) {
+        assertEquals(5, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(false, attributes.get("knn"));
+        assertArrayEquals(new String[] { "@timestamp" }, (String[]) attributes.get("ranges"));
     }
 
     private void resetMeter() {

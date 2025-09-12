@@ -9,7 +9,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.Strings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -24,23 +25,26 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Used to introspect a search request and extract metadata from it around the features it uses.
+ * Given that the purpose of this class is to extract metrics attributes, it should do its best
+ * to extract the minimum set of needed information without hurting performance, and without
+ * ever breaking: if something goes wrong around extracting attributes, it should skip extracting
+ * them as opposed to failing the search.
  */
-public class SearchRequestIntrospector {
+public class SearchRequestAttributesExtractor {
+    private static final Logger logger = LogManager.getLogger(SearchRequestAttributesExtractor.class);
 
     /**
      * Introspects the provided search request and extracts metadata from it about some of its characteristics.
      *
      */
-    public static QueryMetadata introspectSearchRequest(SearchRequest searchRequest) {
-
-        String target = introspectIndices(searchRequest.indices());
+    public static Map<String, Object> extractAttributes(SearchRequest searchRequest) {
+        String target = extractIndices(searchRequest.indices());
 
         String pitOrScroll = null;
         if (searchRequest.scroll() != null) {
@@ -49,7 +53,7 @@ public class SearchRequestIntrospector {
 
         SearchSourceBuilder searchSourceBuilder = searchRequest.source();
         if (searchSourceBuilder == null) {
-            return new QueryMetadata(target, ScoreSortBuilder.NAME, HITS_ONLY, false, Strings.EMPTY_ARRAY, pitOrScroll);
+            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, null, pitOrScroll);
         }
 
         if (searchSourceBuilder.pointInTimeBuilder() != null) {
@@ -60,34 +64,25 @@ public class SearchRequestIntrospector {
         if (searchSourceBuilder.sorts() == null || searchSourceBuilder.sorts().isEmpty()) {
             primarySort = ScoreSortBuilder.NAME;
         } else {
-            primarySort = introspectPrimarySort(searchSourceBuilder.sorts().getFirst());
+            primarySort = extractPrimarySort(searchSourceBuilder.sorts().getFirst());
         }
 
-        final String queryType = introspectQueryType(searchSourceBuilder);
+        final String queryType = extractQueryType(searchSourceBuilder);
 
         QueryMetadataBuilder queryMetadataBuilder = new QueryMetadataBuilder();
         if (searchSourceBuilder.query() != null) {
-            introspectQueryBuilder(searchSourceBuilder.query(), queryMetadataBuilder);
+            try {
+                introspectQueryBuilder(searchSourceBuilder.query(), queryMetadataBuilder);
+            } catch (Exception e) {
+                logger.error("Failed to extract query attribute", e);
+            }
         }
 
         final boolean hasKnn = searchSourceBuilder.knnSearch().isEmpty() == false || queryMetadataBuilder.knnQuery;
-
-        return new QueryMetadata(
-            target,
-            primarySort,
-            queryType,
-            hasKnn,
-            queryMetadataBuilder.rangeFields.toArray(new String[0]),
-            pitOrScroll
-        );
+        return buildAttributesMap(target, primarySort, queryType, hasKnn, queryMetadataBuilder.getRangeFields(), pitOrScroll);
     }
 
-    private static final class QueryMetadataBuilder {
-        private boolean knnQuery = false;
-        private final List<String> rangeFields = new ArrayList<>();
-    }
-
-    public record QueryMetadata(
+    private static Map<String, Object> buildAttributesMap(
         String target,
         String primarySort,
         String queryType,
@@ -95,28 +90,39 @@ public class SearchRequestIntrospector {
         String[] rangeFields,
         String pitOrScroll
     ) {
+        Map<String, Object> attributes = new HashMap<>(5, 1.0f);
+        attributes.put(TARGET_ATTRIBUTE, target);
+        attributes.put(SORT_ATTRIBUTE, primarySort);
+        if (pitOrScroll == null) {
+            attributes.put(QUERY_TYPE_ATTRIBUTE, queryType);
+        } else {
+            attributes.put(QUERY_TYPE_ATTRIBUTE, new String[] { queryType, pitOrScroll });
+        }
 
-        public Map<String, Object> toAttributesMap() {
-            Map<String, Object> attributes = new HashMap<>();
-            attributes.put(TARGET_ATTRIBUTE, target);
-            attributes.put(SORT_ATTRIBUTE, primarySort);
-            if (pitOrScroll == null) {
-                attributes.put(QUERY_TYPE_ATTRIBUTE, queryType);
-            } else {
-                attributes.put(QUERY_TYPE_ATTRIBUTE, Arrays.asList(queryType, pitOrScroll));
-            }
-
-            attributes.put(KNN_ATTRIBUTE, knn);
+        attributes.put(KNN_ATTRIBUTE, knn);
+        if (rangeFields != null) {
             attributes.put(RANGES_ATTRIBUTE, rangeFields);
-            return attributes;
+        }
+        return attributes;
+    }
+
+    private static final class QueryMetadataBuilder {
+        private boolean knnQuery = false;
+        private final List<String> rangeFields = new ArrayList<>();
+
+        String[] getRangeFields() {
+            if (rangeFields.isEmpty()) {
+                return null;
+            }
+            return rangeFields.toArray(new String[0]);
         }
     }
 
-    private static final String TARGET_ATTRIBUTE = "target";
-    private static final String SORT_ATTRIBUTE = "sort";
-    private static final String QUERY_TYPE_ATTRIBUTE = "query_type";
-    private static final String KNN_ATTRIBUTE = "knn";
-    private static final String RANGES_ATTRIBUTE = "ranges";
+    static final String TARGET_ATTRIBUTE = "target";
+    static final String SORT_ATTRIBUTE = "sort";
+    static final String QUERY_TYPE_ATTRIBUTE = "query_type";
+    static final String KNN_ATTRIBUTE = "knn";
+    static final String RANGES_ATTRIBUTE = "ranges";
 
     private static final String TARGET_KIBANA = ".kibana";
     private static final String TARGET_ML = ".ml";
@@ -127,39 +133,45 @@ public class SearchRequestIntrospector {
     private static final String TARGET_DS = ".ds-";
     private static final String TARGET_OTHERS = ".others";
     private static final String TARGET_USER = "user";
+    private static final String ERROR = "error";
 
-    static String introspectIndices(String[] indices) {
-        // Note that indices are expected to be resolved, meaning wildcards are not handled on purpose
-        // If indices resolve to data streams, the name of the data stream is returned as opposed to its backing indices
-        if (indices.length == 1) {
-            String index = indices[0];
-            if (index.startsWith(".")) {
-                if (index.startsWith(TARGET_KIBANA)) {
-                    return TARGET_KIBANA;
+    static String extractIndices(String[] indices) {
+        try {
+            // Note that indices are expected to be resolved, meaning wildcards are not handled on purpose
+            // If indices resolve to data streams, the name of the data stream is returned as opposed to its backing indices
+            if (indices.length == 1) {
+                String index = indices[0];
+                if (index.startsWith(".")) {
+                    if (index.startsWith(TARGET_KIBANA)) {
+                        return TARGET_KIBANA;
+                    }
+                    if (index.startsWith(TARGET_ML)) {
+                        return TARGET_ML;
+                    }
+                    if (index.startsWith(TARGET_FLEET)) {
+                        return TARGET_FLEET;
+                    }
+                    if (index.startsWith(TARGET_SLO)) {
+                        return TARGET_SLO;
+                    }
+                    if (index.startsWith(TARGET_ALERTS)) {
+                        return TARGET_ALERTS;
+                    }
+                    if (index.startsWith(TARGET_ELASTIC)) {
+                        return TARGET_ELASTIC;
+                    }
+                    // this happens only when data streams backing indices are searched explicitly
+                    if (index.startsWith(TARGET_DS)) {
+                        return TARGET_DS;
+                    }
+                    return TARGET_OTHERS;
                 }
-                if (index.startsWith(TARGET_ML)) {
-                    return TARGET_ML;
-                }
-                if (index.startsWith(TARGET_FLEET)) {
-                    return TARGET_FLEET;
-                }
-                if (index.startsWith(TARGET_SLO)) {
-                    return TARGET_SLO;
-                }
-                if (index.startsWith(TARGET_ALERTS)) {
-                    return TARGET_ALERTS;
-                }
-                if (index.startsWith(TARGET_ELASTIC)) {
-                    return TARGET_ELASTIC;
-                }
-                // this happens only when data streams backing indices are searched explicitly
-                if (index.startsWith(TARGET_DS)) {
-                    return TARGET_DS;
-                }
-                return TARGET_OTHERS;
             }
+            return TARGET_USER;
+        } catch (Exception e) {
+            logger.error("Failed to extract indices attribute", e);
+            return ERROR;
         }
-        return TARGET_USER;
     }
 
     private static final String TIMESTAMP = "@timestamp";
@@ -167,16 +179,21 @@ public class SearchRequestIntrospector {
     private static final String _DOC = "_doc";
     private static final String FIELD = "field";
 
-    static String introspectPrimarySort(SortBuilder<?> primarySortBuilder) {
-        if (primarySortBuilder instanceof FieldSortBuilder fieldSort) {
-            return switch (fieldSort.getFieldName()) {
-                case TIMESTAMP -> TIMESTAMP;
-                case EVENT_INGESTED -> EVENT_INGESTED;
-                case _DOC -> _DOC;
-                default -> FIELD;
-            };
+    static String extractPrimarySort(SortBuilder<?> primarySortBuilder) {
+        try {
+            if (primarySortBuilder instanceof FieldSortBuilder fieldSort) {
+                return switch (fieldSort.getFieldName()) {
+                    case TIMESTAMP -> TIMESTAMP;
+                    case EVENT_INGESTED -> EVENT_INGESTED;
+                    case _DOC -> _DOC;
+                    default -> FIELD;
+                };
+            }
+            return primarySortBuilder.getWriteableName();
+        } catch (Exception e) {
+            logger.error("Failed to extract primary sort attribute", e);
+            return ERROR;
         }
-        return primarySortBuilder.getWriteableName();
     }
 
     private static final String HITS_AND_AGGS = "hits_and_aggs";
@@ -188,21 +205,26 @@ public class SearchRequestIntrospector {
 
     public static final Map<String, Object> SEARCH_SCROLL_ATTRIBUTES = Map.of(QUERY_TYPE_ATTRIBUTE, SCROLL);
 
-    static String introspectQueryType(SearchSourceBuilder searchSourceBuilder) {
-        int size = searchSourceBuilder.size();
-        if (size == -1) {
-            size = SearchService.DEFAULT_SIZE;
+    static String extractQueryType(SearchSourceBuilder searchSourceBuilder) {
+        try {
+            int size = searchSourceBuilder.size();
+            if (size == -1) {
+                size = SearchService.DEFAULT_SIZE;
+            }
+            if (searchSourceBuilder.aggregations() != null && size > 0) {
+                return HITS_AND_AGGS;
+            }
+            if (searchSourceBuilder.aggregations() != null) {
+                return AGGS_ONLY;
+            }
+            if (size > 0) {
+                return HITS_ONLY;
+            }
+            return COUNT_ONLY;
+        } catch (Exception e) {
+            logger.error("Failed to extract query type attribute", e);
+            return ERROR;
         }
-        if (searchSourceBuilder.aggregations() != null && size > 0) {
-            return HITS_AND_AGGS;
-        }
-        if (searchSourceBuilder.aggregations() != null) {
-            return AGGS_ONLY;
-        }
-        if (size > 0) {
-            return HITS_ONLY;
-        }
-        return COUNT_ONLY;
     }
 
     static void introspectQueryBuilder(QueryBuilder queryBuilder, QueryMetadataBuilder queryMetadataBuilder) {

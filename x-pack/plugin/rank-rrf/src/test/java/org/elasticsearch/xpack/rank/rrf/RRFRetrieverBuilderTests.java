@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -511,7 +512,12 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
 
         assertNotNull("Inner RRFRetrieverBuilder should exist", innerRrf);
         float[] actualWeights = innerRrf.weights();
+        assertEquals("Should have exactly 2 weights", 2, actualWeights.length);
+        
+        // Sort both arrays to ensure deterministic comparison regardless of HashMap iteration order
         float[] expectedWeights = new float[] { 3.0f, 0.5f };
+        Arrays.sort(actualWeights);
+        Arrays.sort(expectedWeights);
         assertArrayEquals(expectedWeights, actualWeights, 0.001f);
     }
 

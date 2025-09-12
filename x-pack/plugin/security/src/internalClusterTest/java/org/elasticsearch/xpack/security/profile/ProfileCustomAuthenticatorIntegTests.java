@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.CustomTokenAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.Before;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -74,9 +76,22 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
         authenticator.reset();
     }
 
+    @Override
+    protected String configUsers() {
+        final Hasher passwdHasher = getFastStoredHashAlgoForTests();
+        final String usersPasswdHashed = new String(passwdHasher.hash(TEST_PASSWORD_SECURE_STRING));
+        return super.configUsers() + "file_user:" + usersPasswdHashed + "\n";
+    }
+
+    @Override
+    protected String configUsersRoles() {
+        return super.configUsersRoles() + """
+            editor:file_user""";
+    }
+
     public void testProfileActivationSuccess() {
         final SecureString accessToken = new SecureString("strawberries".toCharArray());
-        final Profile profile = doActivateProfile(accessToken);
+        final Profile profile = doActivateProfileWithAccessToken(accessToken);
 
         assertThat(authenticator.extractedGrantTokens(), contains(new TestCustomAccessToken(accessToken)));
         assertThat(authenticator.authenticatedTokens(), contains(new TestCustomAccessToken(accessToken)));
@@ -93,7 +108,7 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
         authenticator.setAuthFailure(new Exception("simulate authentication failure"));
 
         final SecureString accessToken = new SecureString("blueberries".toCharArray());
-        var e = expectThrows(ElasticsearchSecurityException.class, () -> doActivateProfile(accessToken));
+        var e = expectThrows(ElasticsearchSecurityException.class, () -> doActivateProfileWithAccessToken(accessToken));
 
         assertThat(e.getMessage(), equalTo("error attempting to authenticate request"));
         assertThat(e.getCause(), notNullValue());
@@ -108,7 +123,7 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
         authenticator.setShouldExtractAccessToken(false);
 
         final SecureString accessToken = new SecureString("blackberries".toCharArray());
-        var e = expectThrows(ElasticsearchSecurityException.class, () -> doActivateProfile(accessToken));
+        var e = expectThrows(ElasticsearchSecurityException.class, () -> doActivateProfileWithAccessToken(accessToken));
         assertThat(
             e.getMessage(),
             containsString("unable to authenticate user [_bearer_token] for action [cluster:admin/xpack/security/profile/activate]")
@@ -119,10 +134,34 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
         assertThat(authenticator.authenticatedTokens(), is(emptyIterable()));
     }
 
-    private Profile doActivateProfile(SecureString token) {
+    public void testProfileActivationWithPassword() {
+        Profile profile = doActivateProfileWithPassword("file_user", TEST_PASSWORD_SECURE_STRING);
+        assertThat(profile.user().realmName(), equalTo("file"));
+
+        // the authenticator should not be called for password grant type
+        assertThat(authenticator.isCalledOnce(), is(false));
+        assertThat(authenticator.extractedGrantTokens(), is(emptyIterable()));
+        assertThat(authenticator.authenticatedTokens(), is(emptyIterable()));
+    }
+
+    private Profile doActivateProfileWithAccessToken(SecureString token) {
         final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
         activateProfileRequest.getGrant().setType("access_token");
         activateProfileRequest.getGrant().setAccessToken(token);
+
+        final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
+            .actionGet();
+        final Profile profile = activateProfileResponse.getProfile();
+        assertThat(profile, notNullValue());
+        assertThat(profile.applicationData(), anEmptyMap());
+        return profile;
+    }
+
+    private Profile doActivateProfileWithPassword(String username, SecureString password) {
+        final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
+        activateProfileRequest.getGrant().setType("password");
+        activateProfileRequest.getGrant().setPassword(password);
+        activateProfileRequest.getGrant().setUsername(username);
 
         final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
             .actionGet();
@@ -138,6 +177,7 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
         private boolean shouldExtractAccessToken = true;
         private final List<TestCustomAccessToken> extractedGrantTokens = new ArrayList<>();
         private final List<TestCustomAccessToken> authenticatedTokens = new ArrayList<>();
+        private boolean calledOnce = false;
 
         public List<TestCustomAccessToken> extractedGrantTokens() {
             return extractedGrantTokens;
@@ -147,11 +187,16 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
             return authenticatedTokens;
         }
 
+        public boolean isCalledOnce() {
+            return calledOnce;
+        }
+
         public void reset() {
             extractedGrantTokens.clear();
             authenticatedTokens.clear();
             shouldExtractAccessToken = true;
             failure = null;
+            calledOnce = false;
         }
 
         public void setAuthFailure(Exception failure) {
@@ -174,6 +219,7 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
 
         @Override
         public AuthenticationToken extractGrantAccessToken(Grant grant) {
+            calledOnce = true;
             if (Grant.ACCESS_TOKEN_GRANT_TYPE.equals(grant.getType())) {
                 if (shouldExtractAccessToken) {
                     var accessToken = new TestCustomAccessToken(grant.getAccessToken());
@@ -190,6 +236,7 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
                 listener.onResponse(AuthenticationResult.notHandled());
                 return;
             }
+            calledOnce = true;
             var customAccessToken = (TestCustomAccessToken) token;
             authenticatedTokens.add(customAccessToken);
             if (failure != null) {

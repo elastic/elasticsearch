@@ -28,20 +28,16 @@
         "description": "The unit in which to display byte values",
         "options": [
           "b",
-          "k",
           "kb",
-          "m",
           "mb",
-          "g",
           "gb",
-          "t",
           "tb",
-          "p",
           "pb"
         ]
       },
       "format": {
         "type": "string",
+        "default": "text",
         "description": "a short version of the Accept header, e.g. json, yaml"
       },
       "full_id": {

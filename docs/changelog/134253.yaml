@@ -1,0 +1,5 @@
+pr: 134253
+summary: Fixed a bug where text fields in LogsDB indices did not use their keyword multi fields for block loading
+area: Mapping
+type: bug
+issues: []

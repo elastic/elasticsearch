@@ -1285,7 +1285,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for cross-cluster lookup joins.
          */
-        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
 
         /**
          * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
@@ -1472,7 +1472,17 @@ public class EsqlCapabilities {
         /**
          * TO_DENSE_VECTOR function.
          */
-        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support present_over_time aggregation that gets evaluated per time-series
+         */
+        PRESENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Multivalued query parameters
+         */
+        QUERY_PARAMS_MULTI_VALUES();
 
         private final boolean enabled;
 

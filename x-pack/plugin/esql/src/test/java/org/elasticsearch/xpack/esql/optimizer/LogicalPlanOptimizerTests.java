@@ -7751,6 +7751,70 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
     }
 
+    public void testTranslateWithInlineFilter() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        var query = """
+            TS k8s | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+
+        var sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertFalse(sum.hasFilter());
+
+        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
+        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        assertTrue(lastOverTime.hasFilter());
+        assertThat(lastOverTime.filter(), instanceOf(Equals.class));
+    }
+
+    public void testTranslateWithInlineFilterWithImplicitLastOverTime() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        var query = """
+            TS k8s | STATS avg(network.bytes_in) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        assertNotNull(aggsByTsid.timeBucket());
+        assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+
+        var sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertFalse(sum.hasFilter());
+        var count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
+        assertFalse(count.hasFilter());
+
+        LastOverTime lastOverTime = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), LastOverTime.class);
+        assertThat(Expressions.attribute(lastOverTime.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        assertTrue(lastOverTime.hasFilter());
+        assertThat(lastOverTime.filter(), instanceOf(Equals.class));
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

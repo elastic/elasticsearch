@@ -103,6 +103,7 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectSearchService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -620,6 +621,7 @@ public class Security extends Plugin
     private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<CrossProjectSearchService.Factory> crossProjectSearchServiceFactory = new SetOnce<>();
 
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
@@ -1129,7 +1131,15 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        AuthorizedProjectsSupplier authorizedProjectsSupplier = createCrossProjectTargetResolver(extensionComponents);
+        if (crossProjectSearchServiceFactory.get() == null) {
+            crossProjectSearchServiceFactory.set(CrossProjectSearchService.Factory.DEFAULT);
+        }
+        logger.info("using [{}] for cross project search", crossProjectSearchServiceFactory.get().getClass().getCanonicalName());
+
+        // TODO This is no good...
+        var crossProjectSearchService = crossProjectSearchServiceFactory.get()
+            .create(threadContext.get(), settings, clusterService.getClusterSettings());
+
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1147,7 +1157,7 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             projectResolver,
-            authorizedProjectsSupplier
+            crossProjectSearchService
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1291,7 +1301,7 @@ public class Security extends Plugin
         }
     }
 
-    private AuthorizedProjectsSupplier createCrossProjectTargetResolver(SecurityExtension.SecurityComponents extensionComponents) {
+    private AuthorizedProjectsSupplier createCrossProjectSearchService(SecurityExtension.SecurityComponents extensionComponents) {
         final Map<String, AuthorizedProjectsSupplier> customByExtension = new HashMap<>();
         for (final SecurityExtension extension : securityExtensions) {
             final AuthorizedProjectsSupplier custom = extension.getCrossProjectTargetResolver(extensionComponents);
@@ -2533,6 +2543,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, crossProjectSearchServiceFactory, CrossProjectSearchService.Factory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

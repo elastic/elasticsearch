@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -60,6 +59,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.search.crossproject.CrossProjectSearchService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.EmptyRequest;
@@ -418,7 +418,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService, indexNameExpressionResolver);
+        defaultIndicesResolver = new IndicesAndAliasesResolver(
+            settings,
+            clusterService,
+            indexNameExpressionResolver,
+            new CrossProjectSearchService.Default()
+        );
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {
@@ -2667,13 +2672,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(
-            action,
-            request,
-            this.projectMetadata,
-            authorizedIndices,
-            AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT
-        );
+        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices);
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

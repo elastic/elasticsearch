@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.AliasesRequest;
-import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ReplacedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.crossproject.CrossProjectSearchService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterSettings;
@@ -64,11 +64,18 @@ public class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
+    private final CrossProjectSearchService crossProjectSearchService;
 
-    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
+    IndicesAndAliasesResolver(
+        Settings settings,
+        ClusterService clusterService,
+        IndexNameExpressionResolver resolver,
+        CrossProjectSearchService crossProjectSearchService
+    ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        this.crossProjectSearchService = crossProjectSearchService;
     }
 
     /**
@@ -113,8 +120,7 @@ public class IndicesAndAliasesResolver {
         String action,
         TransportRequest request,
         ProjectMetadata projectMetadata,
-        AuthorizationEngine.AuthorizedIndices authorizedIndices,
-        AuthorizedProjectsSupplier.AuthorizedProjects targetProjects
+        AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
         if (request instanceof IndicesAliasesRequest indicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
@@ -131,7 +137,7 @@ public class IndicesAndAliasesResolver {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
-        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices, targetProjects);
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
     }
 
     /**
@@ -242,7 +248,7 @@ public class IndicesAndAliasesResolver {
     /**
      * Returns the resolved indices from the {@link SearchContextId} within the provided {@link SearchRequest}.
      */
-    ResolvedIndices resolvePITIndices(SearchRequest request, AuthorizedProjectsSupplier.AuthorizedProjects targetProjects) {
+    ResolvedIndices resolvePITIndices(SearchRequest request) {
         assert request.pointInTimeBuilder() != null;
         var indices = SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId());
         final ResolvedIndices split;
@@ -289,22 +295,6 @@ public class IndicesAndAliasesResolver {
         ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
-        return resolveIndicesAndAliases(
-            action,
-            indicesRequest,
-            projectMetadata,
-            authorizedIndices,
-            AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT
-        );
-    }
-
-    ResolvedIndices resolveIndicesAndAliases(
-        String action,
-        IndicesRequest indicesRequest,
-        ProjectMetadata projectMetadata,
-        AuthorizationEngine.AuthorizedIndices authorizedIndices,
-        AuthorizedProjectsSupplier.AuthorizedProjects targetProjects
-    ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
@@ -341,7 +331,6 @@ public class IndicesAndAliasesResolver {
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
             }
             if (isAllIndices) {
-                // TODO handle CPS
                 // First, if a selector is present, check to make sure that selectors are even allowed here
                 if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
                     String originalIndexExpression = indicesRequest.indices()[0];
@@ -349,6 +338,7 @@ public class IndicesAndAliasesResolver {
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
+                    // TODO handle CPS
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
@@ -368,20 +358,14 @@ public class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable crossProjectSearchCapableRequest
-                    && targetProjects != AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
-                    assert crossProjectSearchCapableRequest.allowsRemoteIndices();
-                    ReplacedIndexExpressions replacedForCps = CrossProjectResolverUtils.maybeRewriteCrossProjectResolvableRequest(
-                        remoteClusterResolver,
-                        targetProjects,
-                        crossProjectSearchCapableRequest.indices()
+                if (indicesRequest instanceof IndicesRequest.CrossProjectSearchCapable crossProjectSearchCapableRequest) {
+                    ReplacedIndexExpressions replacedForCps = crossProjectSearchService.maybeRewriteRequest(
+                        crossProjectSearchCapableRequest
                     );
                     if (replacedForCps != null) {
                         logger.info("Handling as CPS request for [{}]", Arrays.toString(crossProjectSearchCapableRequest.indices()));
-                        // logs* -> logs
                         ReplacedIndexExpressions replacedExpressions = indexAbstractionResolver
                             .resolveIndexAbstractionsForCrossProjectSearch(
-                                // logs*
                                 replacedForCps.getLocalIndices(),
                                 indicesOptions,
                                 projectMetadata,

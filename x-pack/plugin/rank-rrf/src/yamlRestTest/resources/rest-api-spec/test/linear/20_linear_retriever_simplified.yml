@@ -18,7 +18,20 @@ setup:
             "task_settings": {
             }
           }
-
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-another-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
   - do:
       inference.put:
         task_type: text_embedding
@@ -31,6 +44,22 @@ setup:
               "dimensions": 128,
               "similarity": "cosine",
               "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-another-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 128,
+              "similarity": "cosine",
+              "api_key": "xyz"
             },
             "task_settings": {
             }
@@ -98,6 +127,144 @@ setup:
             }
           }
           {"index": {"_id": "3"}}
+          {
+            "keyword": "keyword match 3",
+            "dense_inference": "which is built on top of Lucene internally",
+            "sparse_inference": "and enjoys all the features it provides",
+            "text_1": "baz match 5",
+            "text_2": "z match 6",
+            "timestamp": "2024-08-08",
+            "dense_vector": [3],
+            "sparse_vector": {
+              "baz": 1.0
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-another-index
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              dense_inference:
+                type: semantic_text
+                inference_id: dense-inference-id
+              sparse_inference:
+                type: semantic_text
+                inference_id: sparse-inference-another-id
+              text_1:
+                type: semantic_text
+                inference_id: dense-inference-another-id
+              text_2:
+                type: text
+              sparse_vector:
+                type: sparse_vector
+
+  - do:
+      bulk:
+        index: test-another-index
+        refresh: true
+        body: |
+          {"index": {"_id": "4"}}
+          {
+            "keyword": "keyword match 1",
+            "dense_inference": "You know",
+            "sparse_inference": "For Search",
+            "text_1": "Be excellent to each other",
+            "text_2": "xyz match match 2",
+            "sparse_vector": {
+              "foo": 1.0
+            }
+          }
+          {"index": {"_id": "5"}}
+          {
+            "keyword": "keyword match 2",
+            "dense_inference": "Elasticsearch is simply the best",
+            "sparse_inference": "Better than all the rest",
+            "text_1": "Better than another vector database",
+            "text_2": "yy match match 4",
+            "sparse_vector": {
+              "bar": 1.0
+            }
+          }
+          {"index": {"_id": "6"}}
+          {
+            "keyword": "keyword match 3",
+            "dense_inference": "Elasticsearch is the best vector database",
+            "sparse_inference": "Live long and prosper",
+            "text_1": "Most excellent",
+            "text_2": "z match match 6",
+            "sparse_vector": {
+              "baz": 1.0
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index-with-default-field
+        body:
+          settings:
+            index.query.default_field: ["dense_inference^500", "text_1^100"]
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              dense_inference:
+                type: semantic_text
+                inference_id: dense-inference-id
+              sparse_inference:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              text_1:
+                type: text
+              text_2:
+                type: text
+              timestamp:
+                type: date
+              dense_vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+              sparse_vector:
+                type: sparse_vector
+
+  - do:
+      bulk:
+        index: test-index-with-default-field
+        refresh: true
+        body: |
+          {"index": {"_id": "7"}}
+          {
+            "keyword": "keyword match 1",
+            "dense_inference": "you know",
+            "sparse_inference": "for testing",
+            "text_1": "foo match 1",
+            "text_2": "x match 2",
+            "timestamp": "2000-03-30",
+            "dense_vector": [1],
+            "sparse_vector": {
+              "foo": 1.0
+            }
+          }
+          {"index": {"_id": "8"}}
+          {
+            "keyword": "keyword match 2",
+            "dense_inference": "ElasticSearch is an open source",
+            "sparse_inference": "distributed, RESTful, search engine",
+            "text_1": "bar match 3",
+            "text_2": "y match 4",
+            "timestamp": "2010-02-08",
+            "dense_vector": [2],
+            "sparse_vector": {
+              "bar": 1.0
+            }
+          }
+          {"index": {"_id": "9"}}
           {
             "keyword": "keyword match 3",
             "dense_inference": "which is built on top of Lucene internally",
@@ -337,45 +504,6 @@ setup:
   - length: { hits.hits: 0 }
 
 ---
-"Multi-index searches are not allowed":
-  - do:
-      indices.create:
-        index: test-index-2
-
-  - do:
-      catch: bad_request
-      search:
-        index: [ test-index, test-index-2 ]
-        body:
-          retriever:
-            linear:
-              query: "match"
-              normalizer: "minmax"
-
-  - match: { error.root_cause.0.reason: "[linear] cannot specify [query] when querying multiple indices" }
-
-  - do:
-      indices.put_alias:
-        index: test-index
-        name: test-alias
-  - do:
-      indices.put_alias:
-        index: test-index-2
-        name: test-alias
-
-  - do:
-      catch: bad_request
-      search:
-        index: test-alias
-        body:
-          retriever:
-            linear:
-              query: "match"
-              normalizer: "minmax"
-
-  - match: { error.root_cause.0.reason: "[linear] cannot specify [query] when querying multiple indices" }
-
----
 "Wildcard field patterns that do not resolve to any field are handled gracefully":
   - do:
       search:
@@ -467,3 +595,171 @@ setup:
             linear: {}
 
   - contains: { error.root_cause.0.reason: "[linear] must provide [retrievers] or [query]" }
+
+---
+"Queries multiple indices using default_field":
+  - requires:
+      cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified linear retriever"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index,test-another-index
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0._id: "2" }
+  - lte: { hits.hits.0._score: 2.0 }
+  - match: { hits.hits.1._id: "3" }
+  - lte: { hits.hits.1._score: 2.0 }
+  - match: { hits.hits.2._id: "1" }
+  - lte: { hits.hits.2._score: 2.0 }
+  - match: { hits.hits.3._id: "6" }
+  - lte: { hits.hits.3._score: 2.0 }
+  - match: { hits.hits.4._id: "4" }
+  - lte: { hits.hits.4._score: 2.0 }
+  - match: { hits.hits.5._id: "5" }
+  - lte: { hits.hits.5._score: 2.0 }
+
+---
+"Queries multiple indices with a list of fields":
+  - requires:
+      cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified linear retriever"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index,test-another-index
+        body:
+          retriever:
+            linear:
+              fields: ["dense_inference", "text_1", "sparse_vector"]
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0._id: "3" }
+  - lte: { hits.hits.0._score: 2.0 }
+  - match: { hits.hits.1._id: "2" }
+  - lte: { hits.hits.1._score: 2.0 }
+  - match: { hits.hits.2._id: "1" }
+  - lte: { hits.hits.2._score: 2.0 }
+  - match: { hits.hits.3._id: "6" }
+  - lte: { hits.hits.3._score: 2.0 }
+  - match: { hits.hits.4._id: "4" }
+  - lte: { hits.hits.4._score: 2.0 }
+  - match: { hits.hits.5._id: "5" }
+  - lte: { hits.hits.5._score: 2.0 }
+
+---
+"Queries multiple indices with a list of fields with weights":
+  - requires:
+      cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified linear retriever"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index,test-another-index
+        body:
+          retriever:
+            linear:
+              fields: ["dense_inference^10", "text_1^2", "sparse_vector"]
+              query: "match"
+              normalizer: "none"
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0._id: "6" }
+  - gte: { hits.hits.0._score: 11.0 }
+  - match: { hits.hits.1._id: "4" }
+  - gte: { hits.hits.1._score: 11.0 }
+  - match: { hits.hits.2._id: "5" }
+  - gte: { hits.hits.2._score: 11.0 }
+  - match: { hits.hits.3._id: "3" }
+  - lte: { hits.hits.3._score: 11.0 }
+  - match: { hits.hits.4._id: "2" }
+  - lte: { hits.hits.4._score: 11.0 }
+  - match: { hits.hits.5._id: "1" }
+  - lte: { hits.hits.5._score: 11.0 }
+
+---
+"Conflicting boosts for inference fields in default_field":
+  - requires:
+      cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified linear retriever"
+  - do:
+      catch: bad_request
+      search:
+          index: test-index,test-index-with-default-field
+          body:
+            retriever:
+              linear:
+                query: "match"
+                normalizer: "none"
+  - contains: { error.root_cause.0.reason: "field [dense_inference] has different weights in indices" }
+
+---
+"Uses default_field setting when no fields are provided":
+  - requires:
+      cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified linear retriever"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index-with-default-field
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "none"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "9" }
+  - gte: { hits.hits.0._score: 512.0 }
+  - match: { hits.hits.1._id: "8" }
+  - gte: { hits.hits.1._score: 512.0 }
+  - match: { hits.hits.2._id: "7" }
+  - gte: { hits.hits.2._score: 512.0 }
+
+---
+"Ignores default_field if a list of fields is provided":
+  - requires:
+      cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified linear retriever"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index-with-default-field,test-another-index
+        body:
+          retriever:
+            linear:
+              fields: ["dense_inference^10", "text_1^2", "sparse_vector"]
+              query: "match"
+              normalizer: "none"
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0._id: "6" }
+  - gte: { hits.hits.0._score: 11.0 }
+  - match: { hits.hits.1._id: "4" }
+  - gte: { hits.hits.1._score: 11.0 }
+  - match: { hits.hits.2._id: "5" }
+  - gte: { hits.hits.2._score: 11.0 }
+  - match: { hits.hits.3._id: "9" }
+  - lte: { hits.hits.3._score: 11.0 }
+  - match: { hits.hits.4._id: "8" }
+  - lte: { hits.hits.4._score: 11.0 }
+  - match: { hits.hits.5._id: "7" }
+  - lte: { hits.hits.5._score: 11.0 }

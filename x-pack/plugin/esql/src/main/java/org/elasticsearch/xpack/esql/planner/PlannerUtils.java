@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -38,8 +39,11 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.PostOptimizationPhasePlanVerifier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -55,7 +59,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -151,43 +154,61 @@ public class PlannerUtils {
         };
     }
 
-    /** Returns {@code Optional.empty()} if the plan is not a TopN source, or if it references multiple indices. */
-    public static Optional<PhysicalPlan> fixTopNSource(
+    /**
+     *  Returns {@code Optional.empty()} if the data driver plan is not a match for a reduce-side TopN reduction, as dictated by
+     * {@link AvoidFieldExtractionAfterTopN#dataDriverOutput(PhysicalPlan)}.
+     *
+     * Important note: do read {@link AvoidFieldExtractionAfterTopN} documentation for context on what this method does. For the
+     * reduce-driver plan, we "continue" the data-driver, i.e., we extract the field extraction using {@link InsertFieldExtraction}.
+     */
+    public static Optional<PhysicalPlan> planReduceDriverTopN(
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
         ExchangeSinkExec plan
     ) {
-        FragmentExec fragment = plan.child() instanceof FragmentExec fe ? fe : null;
-        if (fragment == null) {
-            return Optional.empty();
-        }
-        var fakeSearchStats = new SearchStatsTopNReplacement();
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
-            new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
+        var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, SEARCH_STATS_TOP_N_REPLACEMENT)
         );
-        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN = LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP;
-        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats, projectAfterTopN)
-        ) {
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+            flags,
+            configuration,
+            foldCtx,
+            SEARCH_STATS_TOP_N_REPLACEMENT,
+            LocalPhysicalOptimizerContext.ProjectAfterTopN.REMOVE
+        );
+        // A verifier that does nothing. We don't actually want to perform verification in {@link PlannerUtils#planReduceDriverTopN}, since
+        // the plan isn't actually valid by the time the local plan is built!
+        var nullVerifier = new PostOptimizationPhasePlanVerifier<PhysicalPlan>() {
+            @Override
+            protected boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
+                return true;
+            }
+
+            @Override
+            protected void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {}
+        };
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(context, nullVerifier) {
             @Override
             protected List<Batch<PhysicalPlan>> batches() {
-                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, projectAfterTopN);
+                return List.of(new Batch<>("TopN source fixup", Limiter.ONCE, new ReplaceSourceAttributes()));
             }
         };
-        var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
-        if (RemoveProjectAfterTopN.isTopNCompatible(localPlan)) {
-            PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
-                var child = topN.child();
-                return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
-            });
-            return Optional.of(((UnaryExec) result).child());
-        }
-        return Optional.empty();
+
+        var localPlan = (ExchangeSinkExec) PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
+
+        return AvoidFieldExtractionAfterTopN.dataDriverOutput(localPlan.child())
+            .map(
+                dataDriverOutput -> new InsertFieldExtraction().apply(localPlan, context)
+                    .transformUp(
+                        TopNExec.class,
+                        topN -> topN.replaceChild(new ExchangeSourceExec(topN.source(), dataDriverOutput, false /* isIntermediateAgg */))
+                    )
+            );
     }
 
     // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
-    private static class SearchStatsTopNReplacement extends SearchStats.UnsupportedSearchStates {
+    private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStates() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {
             return true;
@@ -207,7 +228,7 @@ public class PlannerUtils {
         public Object max(FieldAttribute.FieldName field) {
             return null;
         }
-    }
+    };
 
     private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -20,9 +21,10 @@ public record LocalPhysicalOptimizerContext(
     ProjectAfterTopN removeProjectAfterTopN
 ) {
     /**
-     * Controls whether to run the {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN}. Runs on
+     * Controls whether to run the {@link AvoidFieldExtractionAfterTopN}. Runs on
      * {@code REMOVE}, skipped on {@code KEEP}.
      */
+    // FIXME(gal, NOCOMMIT) rename
     public enum ProjectAfterTopN {
         REMOVE,
         KEEP

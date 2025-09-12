@@ -733,7 +733,7 @@ public class ComputeService {
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
-                PlannerUtils.fixTopNSource(flags, configuration, foldCtx, plan)
+                PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, plan)
                     .filter(unused -> features == ReductionPlanFeatures.ALL)
                     .orElseGet(() -> plan.replaceChildren(List.of(source)));
             case PlannerUtils.ReducedPlan rp -> rp.plan().replaceChildren(List.of(source));

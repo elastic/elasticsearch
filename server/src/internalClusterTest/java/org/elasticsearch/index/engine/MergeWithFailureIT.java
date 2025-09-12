@@ -17,10 +17,17 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -46,6 +53,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -102,7 +111,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                                         return new FilterDocValuesProducer(super.getDocValuesReader()) {
                                             @Override
                                             public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-                                                safeAwait(runMerges);
+                                                safeAwait(runMerges, TimeValue.ONE_MINUTE);
                                                 if (failOnce.compareAndSet(false, true)) {
                                                     throw new IOException(FAILING_MERGE_ON_PURPOSE);
                                                 }
@@ -140,6 +149,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                     }
 
                     private MergeSource wrapMergeSource(MergeSource delegate) {
+                        // Wraps the merge source to know which merges were pulled from Lucene by the IndexWriter
                         return new MergeSource() {
                             @Override
                             public MergePolicy.OneMerge getNextMerge() {
@@ -164,7 +174,6 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 
                             @Override
                             public void merge(MergePolicy.OneMerge merge) throws IOException {
-                                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MERGE, ThreadPool.Names.WRITE);
                                 runningMergesCount.incrementAndGet();
                                 if (pendingMerges.remove(merge) == false) {
                                     throw new AssertionError("Pending merge not found " + merge);
@@ -172,6 +181,11 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                                 delegate.merge(merge);
                             }
                         };
+                    }
+
+                    @Override
+                    protected void handleMergeException(final Throwable exc) {
+                        mergeException(exc);
                     }
                 };
             }
@@ -188,9 +202,10 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestPlugin.class);
     }
 
-    public void testFailedMergeDeadlockInLucene() {
+    public void testFailedMergeDeadlock() throws Exception {
         internalCluster().startMasterOnlyNode();
-        final int maxMergeThreads = 1;
+        final int maxMergeThreads = randomIntBetween(1, 3);
+        final int indexMaxThreadCount = randomBoolean() ? randomIntBetween(1, 10) : Integer.MAX_VALUE;
 
         final var dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
@@ -207,7 +222,9 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             indexName,
             indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".name", dataNode)
                 .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
-                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), Integer.MAX_VALUE)
+                // when indexMaxThreadCount is small so merge tasks might be backlogged
+                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), indexMaxThreadCount)
+                // no merge throttling
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), Integer.MAX_VALUE)
                 .build()
         );
@@ -217,8 +234,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         assertThat(plugin.runningMergesCount.get(), equalTo(maxMergeThreads));
 
         // Now pull more merges so they are queued in the merge thread pool, but Lucene thinks they are running
-        var pendingMerges = plugin.pendingMerges.size() + randomIntBetween(1, 5);
-        indexDocsInManySegmentsUntil(indexName, () -> plugin.pendingMerges.size() >= pendingMerges);
+        final int pendingMerges = plugin.pendingMerges.size() + randomIntBetween(1, 5);
+        indexDocsInManySegmentsUntil(indexName, () -> plugin.pendingMerges.size() > pendingMerges);
 
         var mergeThreadPool = asInstanceOf(
             ThreadPoolExecutor.class,
@@ -226,6 +243,12 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         );
         assertThat(mergeThreadPool.getQueue().size(), greaterThanOrEqualTo(pendingMerges));
         assertThat(mergeThreadPool.getActiveCount(), equalTo(maxMergeThreads));
+
+        // More merges in the hope to have backlogged merges
+        if (indexMaxThreadCount != Integer.MAX_VALUE) {
+            final int backloggedMerges = plugin.pendingMerges.size() + randomIntBetween(1, 5);
+            indexDocsInManySegmentsUntil(indexName, () -> plugin.pendingMerges.size() > backloggedMerges);
+        }
 
         // unblock merges, one merge will fail the IndexWriter
         plugin.runMerges.countDown();
@@ -251,6 +274,21 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         at org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.runMergeTask(ThreadPoolMergeExecutorService.java:364)
 
          */
+
+        ensureRed(indexName);
+
+        // check the state of the shard
+        var routingTable = internalCluster().clusterService(dataNode).state().routingTable(ProjectId.DEFAULT);
+        var indexRoutingTable = routingTable.index(resolveIndex(indexName));
+        var primary = asInstanceOf(IndexShardRoutingTable.class, indexRoutingTable.shard(0)).primaryShard();
+        assertThat(primary.state(), equalTo(ShardRoutingState.UNASSIGNED));
+        assertThat(primary.unassignedInfo(), notNullValue());
+        assertThat(primary.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+        var failure = ExceptionsHelper.unwrap(primary.unassignedInfo().failure(), IOException.class);
+        assertThat(failure, notNullValue());
+        assertThat(failure.getMessage(), containsString(FAILING_MERGE_ON_PURPOSE));
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
     private void indexDocsInManySegmentsUntil(String indexName, Supplier<Boolean> stopCondition) {
@@ -268,7 +306,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             for (int request = 0; request < 10; request++) {
                 var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 for (int doc = 0; doc < 10; doc++) {
-                    bulkRequest.add(client.prepareIndex(indexName).setCreate(true).setSource("value", randomIntBetween(0, 1024)));
+                    bulkRequest.add(client.prepareIndex(indexName).setCreate(true)
+                        .setSource("value", randomIntBetween(0, 1024)));
                 }
                 bulkRequest.get();
             }
@@ -280,5 +319,15 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 
     private static TestPlugin getTestPlugin(String dataNode) {
         return internalCluster().getInstance(PluginsService.class, dataNode).filterPlugins(TestPlugin.class).findFirst().get();
+    }
+
+    private static void ensureRed(String indexName) throws Exception {
+        assertBusy(() -> {
+            var healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
+                .setWaitForStatus(ClusterHealthStatus.RED)
+                .setWaitForEvents(Priority.LANGUID)
+                .get();
+            assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
+        });
     }
 }

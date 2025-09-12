@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -76,9 +77,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong submittedMergeTaskCount = new AtomicLong();
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
+    private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
+    // Merge pulled from Lucene that is not yet submitted to the merge thread pool tasks queue
+    record PendingMerge(MergeSource source, MergePolicy.OneMerge merge, MergeTrigger trigger) {}
+    // List of pending merges
+    private final LinkedList<PendingMerge> pendingMerges = new LinkedList<>();
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
-    private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
+    // Tragic event that causes the IndexWriter and ThreadPoolMergeScheduler to be closed
+    private Throwable tragedy = null;
 
     /**
      * Creates a thread-pool-based merge scheduler that runs merges in a thread pool.
@@ -139,17 +146,29 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // avoid pulling from the merge source when closing
             return;
         }
-        MergePolicy.OneMerge merge = null;
+        PendingMerge pendingMerge = null;
         try {
-            merge = mergeSource.getNextMerge();
+            // Need to be synchronized to avoid more merges to be pulled during a tragic event
+            synchronized (this) {
+                if (tragedy != null) {
+                    return; // IndexWriter is closing due to a tragic event, don't pull a new merge
+                }
+                // From this point on Lucene considers the OneMerge as "running",
+                // but it's not yet in the thread pool executor tasks queue!
+                var merge = mergeSource.getNextMerge();
+                if (merge != null) {
+                    pendingMerge = new PendingMerge(mergeSource, merge, trigger);
+                    pendingMerges.add(pendingMerge);
+                }
+            }
         } catch (IllegalStateException e) {
             if (verbose()) {
                 message("merge task poll failed, likely that index writer is failed");
             }
             // ignore exception, we expect the IW failure to be logged elsewhere
         }
-        if (merge != null) {
-            submitNewMergeTask(mergeSource, merge, trigger);
+        if (pendingMerge != null) {
+            submitNewMergeTask(pendingMerge);
         }
     }
 
@@ -226,13 +245,31 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         throw new MergePolicy.MergeException(t);
     }
 
-    // package-private for tests
-    boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+    private void submitNewMergeTask(PendingMerge pendingMerge) {
         try {
-            MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
-            mergeMetrics.incrementQueuedMergeBytes(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes());
-            mergeQueued(mergeTask.onGoingMerge);
-            return threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+            // Do not execute within the synchronized block as it opens a searcher
+            MergeTask mergeTask = newMergeTask(pendingMerge.source(), pendingMerge.merge(), pendingMerge.trigger());
+
+            boolean queued = false;
+            // Need to be synchronized to avoid enqueuing merges during a tragic event
+            synchronized (this) {
+                try {
+                    if (tragedy == null) {
+                        queued = threadPoolMergeExecutorService.submitMergeTask(mergeTask); // may abort the merge immediately
+                        // TODO Enable the following assertions once unit tests are fixed to not use Mockito
+                        // assert queued || pendingMerge.merge().isAborted();
+                    }
+                } finally {
+                    // O(n) complexity but the list of pending merges should remain small
+                    var removed = pendingMerges.remove(pendingMerge);
+                    assert removed || pendingMerges.isEmpty();
+                    assert removed || tragedy != null;
+                }
+            }
+            if (queued) {
+                mergeMetrics.incrementQueuedMergeBytes(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes());
+                mergeQueued(mergeTask.onGoingMerge);
+            }
         } finally {
             checkMergeTaskThrottling();
         }
@@ -244,12 +281,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
         // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
         long estimateMergeMemoryBytes = mergeMemoryEstimateProvider.estimateMergeMemoryBytes(merge);
+        // used for reference equality in case the task must be aborted after a tragic event
+        var owner = this;
         return new MergeTask(
             mergeSource,
             merge,
             isAutoThrottle && isAutoThrottle(),
             "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId,
-            estimateMergeMemoryBytes
+            estimateMergeMemoryBytes,
+            owner
         );
     }
 
@@ -284,7 +324,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // synchronized so that {@code #closed}, {@code #runningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     synchronized Schedule schedule(MergeTask mergeTask) {
         assert mergeTask.hasStartedRunning() == false;
-        if (closed) {
+        if (closed || tragedy != null) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
             return Schedule.ABORT;
         } else if (shouldSkipMerge()) {
@@ -297,7 +337,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return Schedule.RUN;
         } else {
-            assert mergeTask.hasStartedRunning() == false;
             backloggedMergeTasks.add(mergeTask);
             return Schedule.BACKLOG;
         }
@@ -320,10 +359,115 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         checkMergeTaskThrottling();
     }
 
-    private synchronized void maybeSignalAllMergesDoneAfterClose() {
-        if (closed && runningMergeTasks.isEmpty()) {
+    private void maybeSignalAllMergesDoneAfterClose() {
+        assert Thread.holdsLock(this);
+        if ((closed || tragedy != null) && runningMergeTasks.isEmpty()) {
             closedWithNoRunningMerges.countDown();
         }
+    }
+
+    public void onTragicEvent(Throwable tragedy) {
+        assert tragedy != null;
+        assert tragedy instanceof MergePolicy.MergeAbortedException == false;
+        try {
+            // Merges that have been pulled from Lucene using MergePolicy#getNextMerge before the tragic exception was set require special
+            // handling, because Lucene considers them as "running" and will wait for those to complete in IndexWriter#abortMerges when
+            // failing the IndexWriter with IndexWriter#maybeCloseOnTragicEvent. If at some point those merges are executed by a different
+            // thread (than the current thread we're in here) then it is OK, the merges will be aborted or failed almost immediately and
+            // there will be no running merges to wait for.
+            //
+            // But the thread pool executor offer no guarantee the those merges will be executed by another thread because:
+            // - the thread pool may have only 1 core thread,
+            // - or all other threads may be busy failing merges for different shards too, and can also be blocked waiting for their own
+            // queued merges to complete,
+            // - or there is not enough budget to execute the merge(s).
+            //
+            // In order to avoid waiting indefinitely in IndexWriter#abortMerges for merges that won't be executed, the current thread is
+            // used to abort all remaining non-executed merges:
+            // - the merges in pendingMerges that are waiting to be enqueued,
+            // - the merge tasks in backloggedMergeTasks that are waiting to be re-enqueued,
+            // - the merge tasks in the thread pool executor task queue that are waiting to be executed.
+            //
+            // Note that only merges pulled from the current merge scheduler instance are aborted. These abortions are all executed in a
+            // synchronized block to ensure that no other concurrent merge thread can also fail due to a tragic event and set the
+            // IndexWriter#tragedy before we abort merges here. This is important because if the IndexWriter#tragedy is set, any upcoming
+            // merge execution/abortion would re-enter this method in order to fail the IndexWriter again (and ultimately also deadlock in
+            // IndexWriter#maybeCloseOnTragicEvent).
+            int abortedBackloggedTasks = 0;
+            synchronized (this) {
+                if (this.tragedy != null) {
+                    return; // nothing to do, the merge scheduler is already failed
+                }
+                this.tragedy = tragedy;
+                // Abort pending merges that have not been submitted to the thread pool executor
+                abortPendingMerges();
+                // Abort backlogged merges
+                abortedBackloggedTasks = abortBackloggedMergeTasks();
+                // Abort all queued tasks that have been created by this merge scheduler
+                threadPoolMergeExecutorService.abortQueuedMergeTasks(mergeTask -> mergeTask.owner == this);
+            }
+            if (abortedBackloggedTasks > 0) {
+
+            }
+        } catch (Exception e) {
+            logger.warn("exception when aborting non-running merge tasks", e);
+            tragedy.addSuppressed(e);
+        }
+    }
+
+    private void abortPendingMerges() throws Exception {
+        assert tragedy != null;
+        assert Thread.holdsLock(this);
+
+        int maxExceptions = 10;
+        Exception firstException = null;
+        var it = this.pendingMerges.iterator();
+        while (it.hasNext()) {
+            try {
+                var pending = it.next();
+                pending.merge().setAborted();
+                pending.source().merge(pending.merge());
+            } catch (Exception e) {
+                assert false : e;
+                if (firstException != null && maxExceptions-- >= 0) {
+                    firstException.addSuppressed(e);
+                } else {
+                    firstException = e;
+                }
+            } finally {
+                it.remove();
+            }
+        }
+        if (firstException != null) {
+            throw firstException;
+        }
+    }
+
+    private int abortBackloggedMergeTasks() throws Exception {
+        assert tragedy != null;
+        assert Thread.holdsLock(this);
+
+        int count = 0;
+        int maxExceptions = 10;
+        Exception firstException = null;
+        MergeTask backlogged;
+        while ((backlogged = backloggedMergeTasks.poll()) != null) {
+            try {
+                backlogged.abort();
+                count +=1;
+            } catch (Exception e) {
+                assert false : e;
+                if (firstException != null && maxExceptions-- >= 0) {
+                    firstException.addSuppressed(e);
+                } else {
+                    firstException = e;
+                }
+            }
+        }
+        if (firstException != null) {
+            throw firstException;
+        }
+        return count;
     }
 
     private synchronized void enqueueBackloggedTasks() {
@@ -348,6 +492,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         } catch (Throwable t) {
             // OK to ignore MergeAbortedException. This is what Lucene's ConcurrentMergeScheduler does.
             if (t instanceof MergePolicy.MergeAbortedException == false) {
+                // A merge thread that thrown a tragic exception that closed the IndexWriter causes other merge threads to be aborted, but
+                // it is not itself aborted: instead the current merge is just completed and the thrown exception is set in the package
+                // private OneMerge#error field. Here we set such merge as aborted too so that it is not considered as successful later.
+                oneMerge.setAborted();
                 handleMergeException(t);
             }
         }
@@ -390,13 +538,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private final MergeRateLimiter rateLimiter;
         private final boolean supportsIOThrottling;
         private final long mergeMemoryEstimateBytes;
+        private final Object owner;
 
         MergeTask(
             MergeSource mergeSource,
             MergePolicy.OneMerge merge,
             boolean supportsIOThrottling,
             String name,
-            long mergeMemoryEstimateBytes
+            long mergeMemoryEstimateBytes,
+            Object owner
         ) {
             this.name = name;
             this.mergeStartTimeNS = new AtomicLong();
@@ -405,6 +555,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
             this.supportsIOThrottling = supportsIOThrottling;
             this.mergeMemoryEstimateBytes = mergeMemoryEstimateBytes;
+            this.owner = owner;
         }
 
         Schedule schedule() {
@@ -610,15 +761,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void close() throws IOException {
+        boolean waitForRunningMerges = true;
         synchronized (this) {
             closed = true;
             // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
             enqueueBackloggedTasks();
             // signal if there aren't any currently running merges
             maybeSignalAllMergesDoneAfterClose();
+            // Do not wait for running merges if we are closing due to a tragic event
+            waitForRunningMerges = tragedy == null;
         }
         try {
-            closedWithNoRunningMerges.await();
+            if (waitForRunningMerges) {
+                closedWithNoRunningMerges.await();
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {

@@ -1,0 +1,6 @@
+pr: 127439
+summary: Save heap when dynamically mapping arrays
+area: Mapping
+type: bug
+issues:
+ - 117593

@@ -49,16 +49,16 @@ querying. Supported inner (time-series) functions per
 [metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric)
 include:
 
-- `[LAST_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-last-over-time)`: gauges and counters
-- `[FIRST_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-first-over-time)`: gauges and counters
-- `[RATE()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-rate)`: counters only
-- `[MIN_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-min-over-time)`: gauges only
-- `[MAX_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-max-over-time)`: gauges only
-- `[SUM_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-sum-over-time)`: gauges only
-- `[COUNT_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-count-over-time)`: gauges only
-- `[AVG_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-avg-over-time)`: gauges only
-- `[PRESENT_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-present-over-time)`: gauges only
-- `[ABSENT_OVER_TIME()](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-absent-over-time)`: gauges only
+- [`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-last-over-time): gauges and counters
+- [`FIRST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-first-over-time): gauges and counters
+- [`RATE()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-rate): counters only
+- [`MIN_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-min-over-time): gauges only
+- [`MAX_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-max-over-time): gauges only
+- [`SUM_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-sum-over-time): gauges only
+- [`COUNT_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-count-over-time): gauges only
+- [`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-avg-over-time): gauges only
+- [`PRESENT_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-present-over-time): gauges only
+- [`ABSENT_OVER_TIME()`](/reference/query-languages/esql/functions-operators/aggregation-functions#esql-absent-over-time): gauges only
 
 These functions are supported for downsampled data too, with the same semantics
 as for raw data. For instance, `RATE()` applies to downsampled counters only,

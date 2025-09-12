@@ -58,29 +58,28 @@ public class CrossProjectResolverUtils {
         }
         boolean atLeastOneResourceWasFound = true;
         Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
-        for (String indexExpression : indices) {
+        for (String resource : indices) {
             // TODO We will need to handle exclusions here. For now we are throwing instead if we see an exclusion.
-            if (EXCLUSION.equals(indexExpression)) {
+            if (EXCLUSION.equals(resource)) {
                 throw new IllegalArgumentException(
-                    "Exclusions are not currently supported but was found in the expression [" + indexExpression + "]"
+                    "Exclusions are not currently supported but was found in the expression [" + resource + "]"
                 );
             }
-            boolean isQualified = isQualifiedIndexExpression(indexExpression);
+            boolean isQualified = isQualifiedResource(resource);
             if (isQualified) {
-                // TODO handle empty case here -- empty means "search all" in ES which is _not_ what we want
-                List<String> canonicalExpressions = rewriteQualified(indexExpression, targetProjects, remoteClusterAware);
+                List<String> canonicalExpressions = rewriteQualified(resource, targetProjects, remoteClusterAware);
                 // could fail early here in ignore_unavailable and allow_no_indices strict mode if things are empty
-                canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
+                canonicalExpressionsMap.put(resource, canonicalExpressions);
                 if (canonicalExpressions.isEmpty() == false) {
                     atLeastOneResourceWasFound = false;
                 }
-                logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
+                logger.debug("Rewrote qualified expression [{}] to [{}]", resource, canonicalExpressions);
             } else {
                 atLeastOneResourceWasFound = false;
                 // un-qualified expression, i.e. flat-world
-                List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.projects());
-                canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
-                logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
+                List<String> canonicalExpressions = rewriteUnqualified(resource, targetProjects.projects());
+                canonicalExpressionsMap.put(resource, canonicalExpressions);
+                logger.debug("Rewrote unqualified expression [{}] to [{}]", resource, canonicalExpressions);
             }
         }
         if (atLeastOneResourceWasFound) {
@@ -100,18 +99,18 @@ public class CrossProjectResolverUtils {
     }
 
     private static List<String> rewriteQualified(
-        String indicesExpressions,
+        String resource,
         AuthorizedProjectsSupplier.AuthorizedProjects targetProjects,
         RemoteClusterAware remoteClusterAware
     ) {
-        String[] splitExpression = RemoteClusterAware.splitIndexName(indicesExpressions);
+        String[] splitExpression = RemoteClusterAware.splitIndexName(resource);
         if (targetProjects.origin() != null && targetProjects.origin().equals(splitExpression[0])) {
             // handling special case where we have a qualified expression like: _origin:indexName
             return List.of(splitExpression[1]);
         }
         final Map<String, List<String>> map = remoteClusterAware.groupClusterIndices(
             Set.copyOf(targetProjects.projects()),
-            new String[] { indicesExpressions }
+            new String[] { resource }
         );
         final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
         final List<String> remote = map.entrySet()
@@ -121,7 +120,7 @@ public class CrossProjectResolverUtils {
         assert local == null || local.isEmpty() : "local indices should not be present in the map, but were: " + local;
         if (WILDCARD.equals(splitExpression[0])) {
             // handing of special case where the original expression was: *:indexName that is a
-            // qualified expression that includes the origin cluster and all linked projects.
+            // qualified expression that includes the origin project and all linked projects.
             List<String> remoteIncludingOrigin = new ArrayList<>(remote.size() + 1);
             remoteIncludingOrigin.addAll(remote);
             remoteIncludingOrigin.add(splitExpression[1]);
@@ -130,7 +129,7 @@ public class CrossProjectResolverUtils {
         return remote;
     }
 
-    public static boolean isQualifiedIndexExpression(String indexExpression) {
-        return RemoteClusterAware.isRemoteIndexName(indexExpression);
+    public static boolean isQualifiedResource(String resource) {
+        return RemoteClusterAware.isRemoteIndexName(resource);
     }
 }

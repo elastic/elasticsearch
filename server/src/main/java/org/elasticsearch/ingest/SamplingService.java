@@ -37,7 +37,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.sample.TransportPutSampleConfigAction;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
@@ -162,7 +161,7 @@ public class SamplingService implements ClusterStateListener {
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) throws IOException {
         Map<String, Object> sourceAsMap;
         try {
-            sourceAsMap = indexRequest.sourceAsMap(XContentParserDecorator.NOOP);
+            sourceAsMap = indexRequest.sourceAsMap();
         } catch (XContentParseException e) {
             sourceAsMap = Map.of();
             logger.trace("Invalid index request source, attempting to sample anyway");

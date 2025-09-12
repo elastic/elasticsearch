@@ -3360,7 +3360,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void testValidJoinPatternWithRemote(String onClause) {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
         var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause);

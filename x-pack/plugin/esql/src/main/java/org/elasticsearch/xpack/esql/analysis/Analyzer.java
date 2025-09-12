@@ -1371,14 +1371,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
-            // We find all indices that are used in the query, and check their indexmode.
+            // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
+            // the default limit for TS queries or for non-TS queries.
             boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate)
                 .stream()
                 .toList()
                 .isEmpty() == false;
             int limit;
             if (limits.isEmpty()) {
-                // Find out the indexmode or whether there is a "TS" source
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
                 // default
                 if (isTsAggregate == false) {

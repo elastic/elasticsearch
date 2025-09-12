@@ -117,7 +117,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         "esql.query.timeseries_result_truncation_default_size",
         1_000_000,
         1,
-        1_000_000_000,
+        10_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

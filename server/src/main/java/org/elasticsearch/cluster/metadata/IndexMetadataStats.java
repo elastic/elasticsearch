@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -131,11 +132,11 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
         public static final ParseField TOTAL_SIZE_IN_BYTES_FIELD = new ParseField("total_size_in_bytes");
         public static final ParseField SHARD_COUNT_FIELD = new ParseField("shard_count");
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<AverageShardSize, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<AverageShardSize, Void> PARSER = ConstructingObjectParser.forRecord(
             "average_shard_size",
             false,
-            (args, unused) -> new AverageShardSize((long) args[0], (int) args[1])
+            AverageShardSize.class,
+            MethodHandles.lookup()
         );
 
         static {

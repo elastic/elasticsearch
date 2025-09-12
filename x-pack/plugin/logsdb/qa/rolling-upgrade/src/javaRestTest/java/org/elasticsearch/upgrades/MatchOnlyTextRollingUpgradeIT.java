@@ -8,7 +8,6 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -35,8 +34,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
-
-    // TODO: dont forget to mute this test preemptively before backport is completed -> or backport first?
 
     private static final String DATA_STREAM = "logs-bwc-test";
 

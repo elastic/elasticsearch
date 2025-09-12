@@ -503,32 +503,45 @@ public class SearchEngine extends Engine {
                 try {
                     var readerCommit = reader.getIndexCommit();
                     assert readerCommit.getGeneration() == latestCommit.generation()
-                        : "Directory reader commit generation ["
+                        : latestCommit.shardId()
+                            + ": Directory reader commit generation ["
                             + readerCommit.getGeneration()
                             + "] does not match expected generation ["
                             + latestCommit.generation()
                             + ']';
 
-                    assert currentSegmentInfos.getGeneration() < nextSegmentInfos.getGeneration()
-                        : "SegmentInfos generation ["
-                            + nextSegmentInfos.getGeneration()
-                            + "] must be higher than previous generation ["
-                            + currentSegmentInfos.getGeneration()
-                            + ']';
+                    PrimaryTermAndGeneration currentSegmentInfosPTG = new PrimaryTermAndGeneration(
+                        primaryTerm(currentSegmentInfos),
+                        currentSegmentInfos.getGeneration()
+                    );
+                    PrimaryTermAndGeneration nextSegmentInfosPTG = new PrimaryTermAndGeneration(
+                        primaryTerm(nextSegmentInfos),
+                        nextSegmentInfos.getGeneration()
+                    );
+                    assert currentSegmentInfosPTG.compareTo(nextSegmentInfosPTG) < 0
+                        : latestCommit.shardId()
+                            + ": SegmentInfos primary term and generation "
+                            + nextSegmentInfosPTG
+                            + " must be higher than previous primary term and generation "
+                            + currentSegmentInfosPTG;
 
                     assert primaryTerm(readerCommit) == latestCommit.primaryTerm()
                         : Strings.format(
-                            "Directory reader primary term=%d doesn't match latest commit primary term=%d",
+                            "%s: Directory reader primary term=%d doesn't match latest commit primary term=%d",
+                            latestCommit.shardId(),
                             primaryTerm(readerCommit),
                             latestCommit.primaryTerm()
                         );
-                    assert primaryTerm(readerCommit) != Engine.UNKNOWN_PRIMARY_TERM : "Directory reader primary term is not known";
-                    assert primaryTerm(nextSegmentInfos) != Engine.UNKNOWN_PRIMARY_TERM : "SegmentInfos primary term is not known";
+                    assert primaryTerm(readerCommit) != Engine.UNKNOWN_PRIMARY_TERM
+                        : latestCommit.shardId() + ": Directory reader primary term is not known";
+                    assert nextSegmentInfosPTG.primaryTerm() != Engine.UNKNOWN_PRIMARY_TERM
+                        : latestCommit.shardId() + ": SegmentInfos primary term is not known";
                     assert primaryTerm(readerCommit) == primaryTerm(nextSegmentInfos)
                         : Strings.format(
-                            "Directory reader primary term=%d doesn't match latest SegmentInfos primary term=%d",
+                            "%s: Directory reader primary term=%d doesn't match latest SegmentInfos primary term=%d",
+                            latestCommit.shardId(),
                             primaryTerm(readerCommit),
-                            primaryTerm(nextSegmentInfos)
+                            nextSegmentInfosPTG.primaryTerm()
                         );
                 } catch (IOException ioe) {
                     assert false : ioe;

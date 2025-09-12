@@ -9,6 +9,8 @@
 
 package org.elasticsearch.discovery;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -110,6 +112,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
         reason = "Past failures have required a lot of additional logging to debug"
     )
+    @Repeat(iterations = 100)
     public void testAckedIndexing() throws Exception {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;

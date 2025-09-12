@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -50,6 +51,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     private static final Logger logger = LogManager.getLogger(APM.class);
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
+    private static final TransportVersion transportVersion = TransportVersion.fromName("my-backport");
 
     public APM(Settings settings) {
         this.settings = settings;

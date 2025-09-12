@@ -27,6 +27,15 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
 
+    public boolean hasNativeAccess() {
+        var jdkVersion = Runtime.version().feature();
+        var arch = System.getProperty("os.arch");
+        var osName = System.getProperty("os.name");
+        return (jdkVersion >= 22
+            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
+                || arch.equals("amd64") && osName.equals("Linux")));
+    }
+
     public void testInt7DotProduct() throws Exception {
         // only even dimensions are supported
         final int dimensions = random().nextInt(1, 1000) * 2;
@@ -52,7 +61,9 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 final IndexInput slice = in.slice("test", 0, (long) dimensions * numVectors);
                 final IndexInput slice2 = in.slice("test2", 0, (long) dimensions * numVectors);
                 final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(slice, dimensions);
+                assertFalse(defaultScorer.hasNativeAccess());
                 final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice2, dimensions);
+                assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 for (int i = 0; i < numVectors; i++) {
                     in.readBytes(vector, 0, dimensions);
                     long val = VectorUtil.dotProduct(vector, query);
@@ -72,6 +83,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final int numVectors = random().nextInt(1, 100);
 
         float[][] vectors = new float[numVectors][dimensions];
+        final float[] residualScratch = new float[dimensions];
         final int[] scratch = new int[dimensions];
         final byte[] qVector = new byte[dimensions];
         final float[] centroid = new float[dimensions];
@@ -83,7 +95,8 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 for (float[] vector : vectors) {
                     randomVector(vector, similarityFunction);
                     OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
-                        vector.clone(),
+                        vector,
+                        residualScratch,
                         scratch,
                         (byte) 7,
                         centroid
@@ -101,7 +114,8 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query.clone(),
+                query,
+                residualScratch,
                 scratch,
                 (byte) 7,
                 centroid
@@ -119,7 +133,9 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
                 final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions);
+                assertFalse(defaultScorer.hasNativeAccess());
                 final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions);
+                assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 for (int i = 0; i < numVectors; i++) {
                     float scoreDefault = defaultScorer.score(
                         qQuery,
@@ -157,6 +173,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final float[][] vectors = new float[numVectors][dimensions];
         final int[] quantizedScratch = new int[dimensions];
         final byte[] quantizeVector = new byte[dimensions];
+        final float[] residualScratch = new float[dimensions];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
         randomVector(centroid, similarityFunction);
@@ -169,7 +186,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
                     for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
                         randomVector(vectors[i + j], similarityFunction);
-                        results[j] = quantizer.scalarQuantize(vectors[i + j].clone(), quantizedScratch, (byte) 7, centroid);
+                        results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, quantizedScratch, (byte) 7, centroid);
                         for (int k = 0; k < dimensions; k++) {
                             quantizeVector[k] = (byte) quantizedScratch[k];
                         }
@@ -182,7 +199,8 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             final byte[] quantizeQuery = new byte[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query.clone(),
+                query,
+                residualScratch,
                 quantizedScratch,
                 (byte) 7,
                 centroid
@@ -198,7 +216,9 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
                 final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions);
+                assertFalse(defaultScorer.hasNativeAccess());
                 final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions);
+                assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 float[] scoresDefault = new float[ES91Int4VectorsScorer.BULK_SIZE];
                 float[] scoresPanama = new float[ES91Int4VectorsScorer.BULK_SIZE];
                 for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {

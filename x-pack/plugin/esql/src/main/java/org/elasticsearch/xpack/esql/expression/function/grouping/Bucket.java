@@ -19,13 +19,12 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +48,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.maybeSubstituteWithRoundTo;
 import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
@@ -63,8 +60,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         PostOptimizationVerificationAware,
-        TwoOptionalArguments,
-        LocalSurrogateExpression {
+        TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -136,7 +132,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                     ::::{note}
                     `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
                     For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
-                    Combine `BUCKET` with <<esql-where>> to filter rows.
+                    Combine `BUCKET` with [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter rows.
                     ::::"""
             ),
             @Example(description = """
@@ -170,7 +166,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             @Example(
                 description = """
                     `BUCKET` may be used in both the aggregating and grouping part of the
-                    <<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
+                    [STATS ... BY ...](/reference/query-languages/esql/commands/stats-by.md) command provided that in the aggregating
                     part the function is referenced by an alias defined in the
                     grouping part, or that it is invoked with the exact same expression:""",
                 file = "bucket",
@@ -305,7 +301,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return getDateRounding(foldContext, null, null);
     }
 
-    private Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
+    public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
         if (buckets.dataType().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();
@@ -495,18 +491,5 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public String toString() {
         return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
-    }
-
-    @Override
-    public Expression surrogate(SearchStats searchStats) {
-        // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
-        assert searchStats != null : "SearchStats cannot be null";
-        return maybeSubstituteWithRoundTo(
-            source(),
-            field(),
-            buckets(),
-            searchStats,
-            (interval, minValue, maxValue) -> getDateRounding(FoldContext.small(), minValue, maxValue)
-        );
     }
 }

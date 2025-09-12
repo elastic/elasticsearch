@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -215,7 +216,10 @@ public class RemoteClusterClientTests extends ESTestCase {
     }
 
     public void testRemoteClusterServiceNotEnabled() {
-        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        final Settings settings = Settings.builder()
+            .put(removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))
+            .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+            .build();
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -236,7 +240,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                     randomFrom(RemoteClusterService.DisconnectedStrategy.values())
                 )
             );
-            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
+            assertThat(e.getMessage(), equalTo("node [node-1] does not have the [remote_cluster_client] role"));
         }
     }
 

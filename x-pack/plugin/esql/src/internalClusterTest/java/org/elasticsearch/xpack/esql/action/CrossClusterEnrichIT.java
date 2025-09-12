@@ -110,6 +110,52 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
         }
     }
 
+    public void testFromRemotesWithCoordPolicy() {
+
+        String query = "FROM *:events | eval ip= TO_STR(host) | "
+            + enrichHostsLocal(Enrich.Mode.COORDINATOR)
+            + " | stats c = COUNT(*) by os | SORT os";
+        try (EsqlQueryResponse resp = runQuery(query, null)) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(
+                rows,
+                equalTo(
+                    List.of(
+                        List.of(1L, "Android"),
+                        List.of(2L, "Linux"),
+                        List.of(4L, "MacOS"),
+                        List.of(3L, "Windows"),
+                        List.of(1L, "iOS"),
+                        Arrays.asList(2L, (String) null)
+                    )
+                )
+            );
+            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+        }
+
+        query = "FROM *:events | eval ip= TO_STR(host) | stats by ip | "
+            + enrichHostsLocal(Enrich.Mode.COORDINATOR)
+            + " | stats c = COUNT(*) by os | SORT os";
+        try (EsqlQueryResponse resp = runQuery(query, null)) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(
+                rows,
+                equalTo(
+                    List.of(
+                        List.of(1L, "Android"),
+                        List.of(2L, "Linux"),
+                        List.of(2L, "MacOS"),
+                        List.of(2L, "Windows"),
+                        List.of(1L, "iOS"),
+                        Arrays.asList(2L, (String) null)
+                    )
+                )
+            );
+            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+        }
+
+    }
+
     public void testEnrichHostsAggThenEnrichVendorCoordinator() {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
@@ -405,7 +451,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | sort vendor
             """, enrichHosts(Enrich.Mode.ANY), enrichVendors(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after STATS"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [stats c = COUNT(*) by os]@4:3"));
     }
 
     public void testEnrichCoordinatorThenEnrichRemote() {
@@ -417,10 +463,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | sort vendor
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(
-            error.getMessage(),
-            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
-        );
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [ENRICH  _COORDINATOR"));
     }
 
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {

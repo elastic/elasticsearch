@@ -60,7 +60,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     protected final DataGenerationHelper dataGenerationHelper;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        this(new DataGenerationHelper());
+        this(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30)));
     }
 
     protected StandardVersusLogsIndexModeChallengeRestIT(DataGenerationHelper dataGenerationHelper) {
@@ -143,6 +143,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRandomQueries() throws IOException {
         int numberOfDocuments = ESTestCase.randomIntBetween(10, 50);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);

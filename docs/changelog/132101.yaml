@@ -1,6 +1,0 @@
-pr: 132101
-summary: Simulate ingest API uses existing index mapping when `mapping_addition` is
-  given
-area: Ingest Node
-type: bug
-issues: []

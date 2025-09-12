@@ -1,10 +1,10 @@
 {
   "search_application.get": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-search-application.html",
-      "description": "Returns the details about a search application."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-get",
+      "description": "Get search application details"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

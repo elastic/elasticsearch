@@ -140,7 +140,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
 
         UpdateSettingsStep updateCodecStep = (UpdateSettingsStep) steps.get(5);
         assertThat(
-            updateCodecStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()),
+            updateCodecStep.getSettingsSupplier().apply(null).get(EngineConfig.INDEX_CODEC_SETTING.getKey()),
             equalTo(CodecService.BEST_COMPRESSION_CODEC)
         );
     }

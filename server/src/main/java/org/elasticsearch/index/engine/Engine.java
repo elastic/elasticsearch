@@ -32,14 +32,19 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -157,6 +162,8 @@ public abstract class Engine implements Closeable {
     private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
 
+    private final boolean isStateless;
+
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
@@ -185,6 +192,8 @@ public abstract class Engine implements Closeable {
         this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
+
+        this.isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
     }
 
     /**
@@ -262,7 +271,7 @@ public abstract class Engine implements Closeable {
      */
     public ShardFieldStats shardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-            return shardFieldStats(searcher.getLeafContexts());
+            return shardFieldStats(searcher.getLeafContexts(), isStateless);
         }
     }
 
@@ -275,11 +284,12 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves, boolean isStateless) {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;
         long totalPostingBytes = 0;
+        long totalLiveDocsBytes = 0;
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -291,19 +301,49 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+            boolean trackPostingsMemoryEnabled = isStateless;
+            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
+            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                    );
-                    if (postingBytes != null) {
-                        totalPostingBytes += Long.parseLong(postingBytes);
+                    if (trackPostingsMemoryEnabled) {
+                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                        );
+                        if (postingBytes != null) {
+                            totalPostingBytes += Long.parseLong(postingBytes);
+                        }
+                    }
+                    if (trackLiveDocsMemoryEnabled) {
+                        var liveDocs = segmentReader.getLiveDocs();
+                        if (liveDocs != null) {
+                            assert validateLiveDocsClass(liveDocs);
+                            long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                            totalLiveDocsBytes += liveDocsBytes;
+                        }
                     }
                 }
             }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes);
+    }
+
+    // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
+    // This simulates FixedBitSet#ramBytesUsed() does:
+    private static long getLiveDocsBytes(Bits liveDocs) {
+        int words = FixedBitSet.bits2words(liveDocs.length());
+        return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.sizeOf(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words)
+        );
+    }
+
+    private static boolean validateLiveDocsClass(Bits liveDocs) {
+        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
+        String fullClassName = liveDocs.getClass().getName();
+        assert fullClassName.equals("org.apache.lucene.util.FixedBits")
+            || fullClassName.equals("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$AssertingBits")
+            : "unexpected class [" + fullClassName + "]";
+        return true;
     }
 
     /**
@@ -2511,10 +2551,21 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public record FlushResult(boolean flushPerformed, long generation) {
+    /**
+     * The result of a {@link FlushRequest}.
+     *
+     * @param skippedDueToCollision signifies whether the flush request was skipped due to a collision detected. Specifically it is
+     *                              <code>true</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, which means
+     *                              the flush request was skipped, else it is <code>false</code>, which means there was no collision and
+     *                              the flush request was processed (even if in the end it did not actually flush anything).
+     * @param generation            the generation of the index commit of the flush. may be {@link FlushResult#UNKNOWN_GENERATION} if
+     *                              unknown, e.g., if the flush was skipped or not performed ultimately.
+     */
+    public record FlushResult(boolean skippedDueToCollision, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
-        public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
+        public static final FlushResult FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION = new FlushResult(true, UNKNOWN_GENERATION);
+        public static final FlushResult FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED = new FlushResult(false, UNKNOWN_GENERATION);
     }
 
     /**

@@ -35,9 +35,8 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedS
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
- * Unsupported attribute meaning an attribute that has been found yet cannot be used (hence why UnresolvedAttribute
- * cannot be used) expect in special conditions (currently only in projections to allow it to flow through
- * the engine).
+ * Unsupported attribute that has been found yet cannot be used except in special conditions (currently only in projections to allow it to
+ * flow through the engine).
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
 public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
@@ -73,25 +72,40 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage, @Nullable NameId id) {
-        super(source, null, name, field, Nullability.TRUE, id, false);
+        this(source, null, name, field, customMessage, id);
+    }
+
+    public UnsupportedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        UnsupportedEsField field,
+        @Nullable String customMessage,
+        @Nullable NameId id
+    ) {
+        super(source, null, qualifier, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }
 
-    private UnsupportedAttribute(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            readCachedStringWithVersionCheck(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2) ? EsField.readFrom(in) : new UnsupportedEsField(in),
-            in.readOptionalString(),
-            NameId.readFrom((PlanStreamInput) in)
-        );
+    private static UnsupportedAttribute innerReadFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        String name = readCachedStringWithVersionCheck(in);
+        UnsupportedEsField field = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)
+            ? EsField.readFrom(in)
+            : new UnsupportedEsField(in);
+        String message = in.readOptionalString();
+        NameId id = NameId.readFrom((PlanStreamInput) in);
+
+        return new UnsupportedAttribute(source, qualifier, name, field, message, id);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             writeCachedStringWithVersionCheck(out, name());
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
                 field().writeTo(out);
@@ -104,7 +118,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     public static UnsupportedAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::innerReadFrom);
     }
 
     @Override
@@ -134,12 +148,20 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, UnsupportedAttribute::new, name(), field(), hasCustomMessage ? message : null, id());
+        return NodeInfo.create(this, UnsupportedAttribute::new, qualifier(), name(), field(), hasCustomMessage ? message : null, id());
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
-        return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        return new UnsupportedAttribute(source, qualifier, name, field(), hasCustomMessage ? message : null, id);
     }
 
     protected String label() {
@@ -148,7 +170,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public String toString() {
-        return "!" + name();
+        return "!" + qualifiedName();
     }
 
     @Override

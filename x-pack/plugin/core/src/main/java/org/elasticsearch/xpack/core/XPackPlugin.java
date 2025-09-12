@@ -80,6 +80,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMa
 import org.elasticsearch.xpack.core.action.DataStreamInfoTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamLifecycleUsageTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
+import org.elasticsearch.xpack.core.action.TimeSeriesUsageTransportAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -373,6 +375,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
         actions.add(new ActionHandler(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.TIME_SERIES_DATA_STREAMS, TimeSeriesUsageTransportAction.class));
         return actions;
     }
 
@@ -441,7 +444,8 @@ public class XPackPlugin extends XPackClientPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }

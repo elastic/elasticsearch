@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -74,7 +73,7 @@ public class CopyingLocalSupplier implements LocalSupplier {
     public Block[] get() {
         Block[] blockCopies = new Block[delegate.blocks.length];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(delegate.blocks[i], PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
+            blockCopies[i] = delegate.blocks[i].deepCopy(PlannerUtils.NON_BREAKING_BLOCK_FACTORY);
         }
         return blockCopies;
     }

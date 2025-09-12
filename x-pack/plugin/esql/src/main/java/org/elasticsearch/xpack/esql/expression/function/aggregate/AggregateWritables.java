@@ -18,12 +18,14 @@ public class AggregateWritables {
             Avg.ENTRY,
             Count.ENTRY,
             CountDistinct.ENTRY,
+            First.ENTRY,
             Max.ENTRY,
             Median.ENTRY,
             MedianAbsoluteDeviation.ENTRY,
             Min.ENTRY,
             Percentile.ENTRY,
             Rate.ENTRY,
+            Irate.ENTRY,
             Sample.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
@@ -34,15 +36,15 @@ public class AggregateWritables {
             MinOverTime.ENTRY,
             MaxOverTime.ENTRY,
             AvgOverTime.ENTRY,
+            Last.ENTRY,
             LastOverTime.ENTRY,
             FirstOverTime.ENTRY,
             SumOverTime.ENTRY,
             CountOverTime.ENTRY,
             CountDistinctOverTime.ENTRY,
-            // internal functions
-            ToPartial.ENTRY,
-            FromPartial.ENTRY,
-            WeightedAvg.ENTRY
+            WeightedAvg.ENTRY,
+            Present.ENTRY,
+            PresentOverTime.ENTRY
         );
     }
 }

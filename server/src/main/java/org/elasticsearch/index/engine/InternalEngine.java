@@ -46,6 +46,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
@@ -618,6 +619,10 @@ public class InternalEngine extends Engine {
     public void skipTranslogRecovery() {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
+    }
+
+    protected boolean pendingTranslogRecovery() {
+        return pendingTranslogRecovery.get();
     }
 
     private void recoverFromTranslogInternal(
@@ -2260,7 +2265,7 @@ public class InternalEngine extends Engine {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
                     logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
-                    listener.onResponse(FlushResult.NO_FLUSH);
+                    listener.onResponse(FlushResult.FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION);
                     return;
                 }
                 logger.trace("waiting for in-flight flush to finish");
@@ -2347,7 +2352,7 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
 
-        waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+        waitForCommitDurability(generation, listener.map(v -> new FlushResult(false, generation)));
     }
 
     protected final boolean isFlushLockIsHeldByCurrentThread() {
@@ -2803,7 +2808,7 @@ public class InternalEngine extends Engine {
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
 
         Codec codec = engineConfig.getCodec();
-        if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+        if (DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings())) {
             codec = new TrackingPostingsInMemoryBytesCodec(codec);
         }
         iwc.setCodec(codec);
@@ -3133,7 +3138,7 @@ public class InternalEngine extends Engine {
         return Collections.emptyMap();
     }
 
-    final void ensureCanFlush() {
+    protected void ensureCanFlush() {
         // translog recovery happens after the engine is fully constructed.
         // If we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds

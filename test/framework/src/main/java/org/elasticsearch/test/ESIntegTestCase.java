@@ -17,7 +17,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -34,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -75,6 +75,7 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -163,6 +164,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -204,11 +206,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -549,6 +554,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // close the previous one and create a new one
                 if (testCluster != null) {
                     IOUtils.closeWhileHandlingException(testCluster::close);
+                    TEST_ENTITLEMENTS.revokeAllEntitledNodePaths();
                 }
                 testCluster = buildTestCluster(currentClusterScope, seed);
             }
@@ -1214,20 +1220,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
+    public static void awaitClusterState(Predicate<ClusterState> statePredicate) {
+        awaitClusterState(internalCluster().getMasterName(), statePredicate);
     }
 
-    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
-        ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
-    }
-
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
-    }
-
-    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
-        ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
+    public static void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) {
+        ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
 
     public static String getNodeId(String nodeName) {
@@ -1381,6 +1379,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that all nodes in the cluster see the same master node and cluster UUID and use the same JSON serialization.
+     * <ul>
+     * <li> Fetches the cluster state from every node in the cluster </li>
+     * <li> Fetches the master node's view of the cluster state </li>
+     * <li> Compares each node's view with the master node's </li>
+     * </ul>
+     * @param namedWriteableRegistry
+     */
     protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
         // This check has very little value in external test clusters and there is no guaranteed method of obtaining the master cluster
         // state in those clusters.
@@ -1391,61 +1398,63 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
         final var masterName = internalCluster().getMasterName();
         for (Client client : cluster().getClients()) {
-            localStates.add(
-                SubscribableListener.newForked(l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l))
-            );
+            localStates.add(SubscribableListener.newForked(l -> prepareClusterStateRequest(client).execute(l)));
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
-            SubscribableListener.<ClusterStateResponse>newForked(
-                l -> client(masterName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
-            ).andThenAccept(masterStateResponse -> {
-                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
-                // remove local node reference
-                final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
-                    masterClusterStateBytes,
-                    null,
-                    namedWriteableRegistry
-                );
-                Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
-                String masterId = masterClusterState.nodes().getMasterNodeId();
-                for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
-                    localStateListener.andThenAccept(localClusterStateResponse -> {
-                        byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
-                        // remove local node reference
-                        final ClusterState localClusterState = ClusterState.Builder.fromBytes(
-                            localClusterStateBytes,
-                            null,
-                            namedWriteableRegistry
-                        );
-                        final Map<String, Object> localStateMap = convertToMap(localClusterState, xContentParams());
-                        // Check that the non-master node has the same version of the cluster state as the master and
-                        // that the master node matches the master (otherwise there is no requirement for the cluster state to
-                        // match)
-                        if (masterClusterState.version() == localClusterState.version()
-                            && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
-                            try {
-                                assertEquals(
-                                    "cluster state UUID does not match",
-                                    masterClusterState.stateUUID(),
-                                    localClusterState.stateUUID()
-                                );
-                                // Compare JSON serialization
-                                assertNull(
-                                    "cluster state JSON serialization does not match",
-                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
-                                );
-                            } catch (final AssertionError error) {
-                                logger.error(
-                                    "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                                    masterClusterState.toString(),
-                                    localClusterState.toString()
-                                );
-                                throw error;
+            SubscribableListener.<ClusterStateResponse>newForked(l -> prepareClusterStateRequest(client(masterName)).execute(l))
+                .andThenAccept(masterStateResponse -> {
+                    byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
+                    // remove local node reference
+                    final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
+                        masterClusterStateBytes,
+                        null,
+                        namedWriteableRegistry
+                    );
+                    Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
+                    String masterId = masterClusterState.nodes().getMasterNodeId();
+                    if (masterId == null) {
+                        logger.warn("Failed to find an elected master in the cluster state: " + masterClusterState);
+                        throw new AssertionError("Unable to find master in cluster state. Expecting a stable master node");
+                    }
+                    for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
+                        localStateListener.andThenAccept(localClusterStateResponse -> {
+                            byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
+                            // remove local node reference
+                            final ClusterState localClusterState = ClusterState.Builder.fromBytes(
+                                localClusterStateBytes,
+                                null,
+                                namedWriteableRegistry
+                            );
+                            final Map<String, Object> localStateMap = convertToMap(localClusterState, xContentParams());
+                            // Check that the non-master node has the same version of the cluster state as the master and
+                            // that the master node matches the master (otherwise there is no requirement for the cluster state to
+                            // match)
+                            if (masterClusterState.version() == localClusterState.version()
+                                && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                                try {
+                                    assertEquals(
+                                        "cluster state UUID does not match",
+                                        masterClusterState.stateUUID(),
+                                        localClusterState.stateUUID()
+                                    );
+                                    // Compare JSON serialization
+                                    assertNull(
+                                        "cluster state JSON serialization does not match",
+                                        differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                                    );
+                                } catch (final AssertionError error) {
+                                    logger.error(
+                                        "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                        masterClusterState.toString(),
+                                        localClusterState.toString()
+                                    );
+                                    throw error;
+                                }
                             }
-                        }
-                    }).addListener(refCountingListener.acquire());
-                }
-            }).addListener(refCountingListener.acquire());
+                        }).addListener(refCountingListener.acquire());
+                    }
+                })
+                .addListener(refCountingListener.acquire());
         }
         safeGet(future);
     }
@@ -1453,7 +1462,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState().metadata();
+            Metadata metadata = prepareClusterStateRequest(masterClient).get().getState().metadata();
             final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1556,6 +1565,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    private ClusterStateRequestBuilder prepareClusterStateRequest(Client client) {
+        return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().setMultiproject(multiProjectIntegrationTest());
+    }
+
     private static void ensureClusterInfoServiceRunning() {
         if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
@@ -1563,14 +1576,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    public static void refreshClusterInfo() {
+    /**
+     * Refreshes the cluster info on the master
+     *
+     * @return The new cluster info if the refresh was executed, null if the {@link ClusterInfoService} was of an unknown type
+     */
+    @Nullable
+    public static ClusterInfo refreshClusterInfo() {
         final ClusterInfoService clusterInfoService = internalCluster().getInstance(
             ClusterInfoService.class,
             internalCluster().getMasterName()
         );
         if (clusterInfoService instanceof InternalClusterInfoService) {
-            ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+            return ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         }
+        return null;
     }
 
     /**
@@ -2336,7 +2356,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getClientWrapper(),
             forbidPrivateIndexSettings(),
             forceSingleDataPath(),
-            autoManageVotingExclusions()
+            autoManageVotingExclusions(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
     }
 
@@ -2630,7 +2651,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      *  After the cluster is stopped, there are a few netty threads that can linger, so we make sure we don't leak any tasks on them.
      */
-    static void awaitGlobalNettyThreadsFinish() throws Exception {
+    public static void awaitGlobalNettyThreadsFinish() throws Exception {
         // Don't use GlobalEventExecutor#awaitInactivity. It will waste up to 1s for every call and we expect no tasks queued for it
         // except for the odd scheduled shutdown task.
         assertBusy(() -> assertEquals(0, GlobalEventExecutor.INSTANCE.pendingTasks()));
@@ -2899,5 +2920,40 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * Submits as many tasks to the given data node's write thread pool as there are write threads. These tasks will wait on the barrier
+     * that is returned, which waits for total-write-threads + 1 callers. The caller can release the tasks by calling
+     * {@code barrier.await()} or interrupt them with {@code barrier.reset()}.
+     */
+    public CyclicBarrier blockDataNodeIndexing(String dataNodeName) {
+        // Block the executor workers to simulate long-running write tasks
+        var threadpool = internalCluster().getInstance(ThreadPool.class, dataNodeName);
+        var executor = threadpool.executor(ThreadPool.Names.WRITE);
+        final var executorInfo = threadpool.info(ThreadPool.Names.WRITE);
+        final var executorThreads = executorInfo.getMax();
+        var barrier = new CyclicBarrier(executorThreads + 1);
+        for (int i = 0; i < executorThreads; i++) {
+            executor.execute(() -> longAwait(barrier));
+        }
+        logger.info(
+            "---> Submitted ["
+                + executorThreads
+                + "] tasks to the write thread pool that will wait on a barrier until released. Write thread pool info: "
+                + executorInfo
+        );
+        return barrier;
+    }
+
+    private static void longAwait(CyclicBarrier barrier) {
+        try {
+            barrier.await(30, TimeUnit.SECONDS);
+        } catch (BrokenBarrierException | TimeoutException e) {
+            throw new AssertionError(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
+        }
     }
 }

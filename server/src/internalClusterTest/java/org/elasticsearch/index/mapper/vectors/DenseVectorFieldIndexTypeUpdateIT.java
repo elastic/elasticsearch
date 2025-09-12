@@ -52,7 +52,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
     @ParametersFactory
     public static Collection<Object[]> params() {
         List<String> types = new ArrayList<>(
-            List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw", "bbq_disk")
+            List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw")
         );
         if (DenseVectorFieldMapper.IVF_FORMAT.isEnabled()) {
             types.add("bbq_disk");
@@ -142,7 +142,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
         for (int i = 0; i < queryVector.length; i++) {
             queryVector[i] = randomFloatBetween(-1, 1, true);
         }
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null);
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null, null);
         assertNoFailuresAndResponse(
             client().prepareSearch(INDEX_NAME).setQuery(queryBuilder).setTrackTotalHits(true).setSize(expectedDocs),
             response -> {

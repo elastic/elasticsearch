@@ -305,7 +305,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use KNN function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V5.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
@@ -427,7 +427,13 @@ public class CsvTests extends ESTestCase {
             if (mapping.containsKey(entry.getKey())) {
                 DataType dataType = DataType.fromTypeName(entry.getValue());
                 EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                EsField editedField = new EsField(
+                    field.getName(),
+                    dataType,
+                    field.getProperties(),
+                    field.isAggregatable(),
+                    field.getTimeSeriesFieldType()
+                );
                 mapping.put(entry.getKey(), editedField);
             }
         }
@@ -524,18 +530,12 @@ public class CsvTests extends ESTestCase {
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        var indices = preAnalysis.indices;
-        if (indices.isEmpty()) {
-            /*
-             * If the data set doesn't matter we'll just grab one we know works.
-             * Employees is fine.
-             */
+        if (preAnalysis.index() == null) {
+            // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"));
-        } else if (preAnalysis.indices.size() > 1) {
-            throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
 
-        String indexName = indices.getFirst().indexPattern();
+        String indexName = preAnalysis.index().indexPattern();
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);

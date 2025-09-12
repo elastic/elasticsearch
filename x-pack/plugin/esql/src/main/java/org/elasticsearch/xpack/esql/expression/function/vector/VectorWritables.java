@@ -27,7 +27,7 @@ public final class VectorWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWritables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             entries.add(Knn.ENTRY);
         }
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
@@ -41,6 +41,12 @@ public final class VectorWritables {
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(L2Norm.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+            entries.add(Magnitude.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(Hamming.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

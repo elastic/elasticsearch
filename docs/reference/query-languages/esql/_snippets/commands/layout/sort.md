@@ -1,4 +1,7 @@
-## `SORT` [esql-sort]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `SORT` processing command sorts a table on one or more columns.
 

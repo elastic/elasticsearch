@@ -17,6 +17,7 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -81,12 +82,12 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         final MeteredStorage meteredStorage = new MeteredStorage(storage, storageRpc, new GcsRepositoryStatsCollector());
 
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
-        when(storageService.client(any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class))).thenReturn(
-            meteredStorage
-        );
+        when(storageService.client(eq(ProjectId.DEFAULT), any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class)))
+            .thenReturn(meteredStorage);
 
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(
+                ProjectId.DEFAULT,
                 "bucket",
                 "test",
                 "repo",

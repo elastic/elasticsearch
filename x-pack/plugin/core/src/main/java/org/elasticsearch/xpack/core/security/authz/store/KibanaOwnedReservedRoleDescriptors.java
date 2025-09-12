@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*")
+                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -172,6 +172,14 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-secrets*")
                     .privileges("write", "delete", "create_index")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                // Integrations knowledge base: Fleet creates, manages, and uses this index to store knowledge base documents to be consumed
+                // by AI assistants to support integrations
+                // assistants.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".integration_knowledge*")
+                    .privileges("read", "write", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),
                 // Other Fleet indices. Kibana reads and writes to these indices to manage
@@ -319,6 +327,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
                         "logs-osquery_manager.action.responses-*",
+                        "logs-osquery_manager.result-*",
                         "profiling-*"
                     )
                     .privileges(
@@ -360,6 +369,11 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "create_index", "read", "index", "write", "delete")
+                    .build(),
+                // Osquery manager specific results. Kibana reads from these to display results to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-osquery_manager.result-*")
+                    .privileges("read", "view_index_metadata")
                     .build(),
 
                 // Third party agent (that use non-Elastic Defend integrations) info logs
@@ -518,6 +532,40 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-carbon_black_cloud.asset_vulnerability_summary-*"
                     )
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages
+                // that ships a transform and has ILM policy
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "logs-m365_defender.vulnerability-*",
+                        "logs-microsoft_defender_endpoint.vulnerability-*",
+                        "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-sentinel_one.application_risk-*"
+                    )
+                    .privileges(
+                        "read",
+                        "view_index_metadata",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name()
+                    )
+                    .build(),
+                // For ExtraHop, QualysGAV, and SentinelOne Application Dataset specific actions. Kibana reads, writes and manages this
+                // index
+                // for configured ILM policies.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*", "logs-sentinel_one.application-*")
+                    .privileges(
+                        "manage",
+                        "create_index",
+                        "read",
+                        "index",
+                        "write",
+                        "delete",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
+                        TransportIndicesAliasesAction.NAME,
+                        TransportAutoPutMappingAction.TYPE.name()
+                    )
                     .build(),
                 // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform

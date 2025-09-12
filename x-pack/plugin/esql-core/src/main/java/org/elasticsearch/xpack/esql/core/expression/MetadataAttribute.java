@@ -111,13 +111,34 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    protected MetadataAttribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected MetadataAttribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        // Ignores qualifier, as metadata attributes do not have qualifiers.
         return new MetadataAttribute(source, name, type, nullability, id, synthetic, searchable);
     }
 
     @Override
     protected String label() {
         return "m";
+    }
+
+    @Override
+    public boolean isDimension() {
+        // Metadata attributes cannot be dimensions. I think?
+        return false;
+    }
+
+    @Override
+    public boolean isMetric() {
+        // Metadata attributes definitely cannot be metrics.
+        return false;
     }
 
     @Override

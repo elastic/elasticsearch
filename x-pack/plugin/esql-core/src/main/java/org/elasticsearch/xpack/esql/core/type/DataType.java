@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -276,6 +277,9 @@ public enum DataType {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
+    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES)),
+    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES)),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -310,10 +314,21 @@ public enum DataType {
     DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
 
     /**
-     * Types that are actively being built. These types are not returned
-     * from Elasticsearch if their associated {@link FeatureFlag} is disabled.
-     * They aren't included in generated documentation. And the tests don't
-     * check that sending them to a function produces a sane error message.
+     * Types that are actively being built. These types are
+     * <ul>
+     *     <li>Not returned from Elasticsearch if their associated {@link FeatureFlag} is disabled.</li>
+     *     <li>Not included in generated documentation</li>
+     *     <li>
+     *         Not tested by {@code ErrorsForCasesWithoutExamplesTestCase} subclasses.
+     *         When a function supports a type it includes a test case in its subclass
+     *         of {@code AbstractFunctionTestCase}. If a function does not support.
+     *         them like {@code TO_STRING} then the tests won't notice. See class javadoc
+     *         for instructions on adding new types, but that usually involves adding support
+     *         for that type to a handful of functions. Once you've done that you should be
+     *         able to remove your new type from UNDER_CONSTRUCTION and update a few error
+     *         messages.
+     *     </li>
+     * </ul>
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -392,6 +407,9 @@ public enum DataType {
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
+        // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
+        // so we need to map it here as well
+        map.put("semantic_text", DataType.TEXT);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));
@@ -439,41 +457,51 @@ public enum DataType {
     }
 
     public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof BigInteger) {
-            return UNSIGNED_LONG;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof Byte) {
-            return BYTE;
-        }
-        if (value instanceof Short) {
-            return SHORT;
-        }
-        if (value instanceof ZonedDateTime) {
-            return DATETIME;
-        }
-        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
-            return KEYWORD;
+        switch (value) {
+            case null -> {
+                return NULL;
+            }
+            case Integer i -> {
+                return INTEGER;
+            }
+            case Long l -> {
+                return LONG;
+            }
+            case BigInteger bigInteger -> {
+                return UNSIGNED_LONG;
+            }
+            case Boolean b -> {
+                return BOOLEAN;
+            }
+            case Double v -> {
+                return DOUBLE;
+            }
+            case Float v -> {
+                return FLOAT;
+            }
+            case Byte b -> {
+                return BYTE;
+            }
+            case Short i -> {
+                return SHORT;
+            }
+            case ZonedDateTime zonedDateTime -> {
+                return DATETIME;
+            }
+            case List<?> list -> {
+                if (list.isEmpty()) {
+                    return null;
+                }
+                return fromJava(list.getFirst());
+            }
+            default -> {
+                if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
+                    return KEYWORD;
+                }
+                return null;
+            }
         }
 
-        return null;
     }
 
     public static boolean isUnsupported(DataType from) {
@@ -502,6 +530,14 @@ public enum DataType {
 
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
+    }
+
+    public static boolean isTimeDuration(DataType t) {
+        return t == TIME_DURATION;
+    }
+
+    public static boolean isDateNanos(DataType t) {
+        return t == DATE_NANOS;
     }
 
     public static boolean isNullOrTimeDuration(DataType t) {
@@ -563,23 +599,39 @@ public enum DataType {
     }
 
     public static boolean isSpatialPoint(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT;
+        return isGeoPoint(t) || isCartesianPoint(t);
+    }
+
+    public static boolean isGeoPoint(DataType t) {
+        return t == GEO_POINT;
+    }
+
+    public static boolean isCartesianPoint(DataType t) {
+        return t == CARTESIAN_POINT;
     }
 
     public static boolean isSpatialShape(DataType t) {
-        return t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatialGeo(DataType t) {
-        return t == GEO_POINT || t == GEO_SHAPE;
+        return t == GEO_POINT || t == GEO_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialOrGrid(DataType t) {
+        return isSpatial(t) || isGeoGrid(t);
+    }
+
+    public static boolean isGeoGrid(DataType t) {
+        return t == GEOHASH || t == GEOTILE || t == GEOHEX;
+    }
+
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
     public String nameUpper() {

@@ -44,11 +44,11 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -67,10 +67,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -86,6 +86,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -117,6 +118,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
+    protected EsqlStatement statement(ParseTree ctx) {
+        EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
+        return p;
+    }
+
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
@@ -134,6 +140,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
+    @Override
+    public EsqlStatement visitStatements(EsqlBaseParser.StatementsContext ctx) {
+        List<QuerySetting> settings = new ArrayList<>();
+        for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
+            settings.add(visitSetCommand(setCommandContext));
+        }
+
+        LogicalPlan query = visitSingleStatement(ctx.singleStatement());
+        return new EsqlStatement(query, settings);
+    }
+
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
         return ParserUtils.visitList(this, ctxs, LogicalPlan.class);
     }
@@ -143,6 +160,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var plan = plan(ctx.query());
         telemetryAccounting(plan);
         return plan;
+    }
+
+    @Override
+    public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
+        var field = visitSetField(ctx.setField());
+        return new QuerySetting(source(ctx), field);
+    }
+
+    @Override
+    public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
+        String name = visitIdentifier(ctx.identifier());
+        Expression value = expression(ctx.constant());
+        return new Alias(source(ctx), name, value);
     }
 
     @Override
@@ -256,7 +286,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name(), null));
 
     }
 
@@ -323,8 +353,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        // Only the first STATS command in a TS query is treated as the time-series aggregation
         return input -> {
-            if (input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
+            if (input.anyMatch(p -> p instanceof Aggregate) == false
+                && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
                 return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
@@ -464,7 +496,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
-        return p -> {
+        return child -> {
             var source = source(ctx);
             Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
             Mode mode = tuple.v1();
@@ -483,9 +515,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
+
+            // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            if (mode == Mode.REMOTE) {
+                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+            }
+
             return new Enrich(
                 source,
-                p,
+                child,
                 mode,
                 Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
@@ -501,14 +539,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
+        }
+
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
+        }
+
         Attribute targetType = new ReferenceAttribute(
             src,
-            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            null,
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
-            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            null,
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
@@ -550,7 +602,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
+        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
             throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
         return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
@@ -581,6 +633,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
+    @Override
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
         if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
@@ -623,12 +676,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        // ON only with qualified names
+        // ON only with un-qualified names for now
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
                 joinFields.add(ua);
             } else {
                 throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
@@ -637,7 +697,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var matchFieldsCount = joinFields.size();
         if (matchFieldsCount > 1) {
-            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+
+            }
         }
 
         return p -> {
@@ -683,7 +753,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            checkForRemoteClusters(input, source(ctx), "FORK");
+            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+                checkForRemoteClusters(input, source(ctx), "FORK");
+            }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };
@@ -739,15 +811,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         return input -> {
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-            Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
+            Attribute discriminatorAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
-            List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
-            );
-            List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
+            List<NamedExpression> groupings = List.of(idAttr, indexAttr);
+
+            MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
+            String fuseType = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType).toUpperCase(Locale.ROOT);
+
+            if (fuseType.equals(Fuse.FuseType.RRF.name()) == false) {
+                throw new ParsingException(source(ctx), "Fuse type " + fuseType + " is not supported");
+            }
+
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, Fuse.FuseType.RRF, options);
         };
     }
 
@@ -757,17 +834,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
-
-        if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
-            if (queryTextLiteral.value() == null) {
-                throw new ParsingException(source(ctx.queryText), "Query cannot be null or undefined in RERANK", ctx.queryText.getText());
-            }
-        } else {
-            throw new ParsingException(
-                source(ctx.queryText),
-                "Query must be a valid string in RERANK, found [{}]",
-                ctx.queryText.getText()
-            );
+        if (scoreAttribute.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
 
         return p -> {
@@ -806,6 +874,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");

@@ -62,3 +62,6 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE
 
 :::{include} ../_snippets/functions/layout/present.md
 :::
+
+:::{include} ../_snippets/functions/layout/absent.md
+:::

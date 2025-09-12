@@ -67,10 +67,10 @@ public final class BitsIterator extends DocIdSetIterator {
     private void refill(int target) {
         assert target >= to;
         from = target;
-        bitSet.set(0, bitSet.length());
+        bitSet.set(0, WINDOW_SIZE);
         if (bits.length() - from < WINDOW_SIZE) {
             to = bits.length();
-            bitSet.clear(to - from, bitSet.length());
+            bitSet.clear(to - from, WINDOW_SIZE);
         } else {
             to = from + WINDOW_SIZE;
         }

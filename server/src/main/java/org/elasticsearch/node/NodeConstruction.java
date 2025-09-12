@@ -17,7 +17,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.AuthorizedProjectsSupplier;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
@@ -206,6 +205,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.CrossProjectSearchService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
@@ -1037,14 +1037,13 @@ class NodeConstruction {
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
-        // TODO make this work (it's just that SPI isn't set up correctly)
-        AuthorizedProjectsSupplier authorizedProjectsSupplier = pluginsService.loadSingletonServiceProvider(
-            AuthorizedProjectsSupplier.class,
-            () -> AuthorizedProjectsSupplier.DEFAULT
-        );
-        modules.bindToInstance(AuthorizedProjectsSupplier.class, authorizedProjectsSupplier);
+        CrossProjectSearchService crossProjectSearchService = pluginsService.loadSingletonServiceProvider(
+            CrossProjectSearchService.Factory.class,
+            () -> CrossProjectSearchService.Factory.DEFAULT
+        ).create(threadPool.getThreadContext(), environment.settings(), clusterService.getClusterSettings());
 
-        logger.info("AuthorizedProjectsSupplier: {}", authorizedProjectsSupplier.getClass().getName());
+        logger.info("CrossProjectSearchService: [{}]", crossProjectSearchService.getClass().getName());
+        modules.bindToInstance(CrossProjectSearchService.class, crossProjectSearchService);
 
         ActionModule actionModule = new ActionModule(
             settings,

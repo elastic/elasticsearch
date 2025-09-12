@@ -17,8 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.AuthorizedProjectsSupplier;
-import org.elasticsearch.action.CrossProjectSearchService;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -51,6 +49,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectSearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -598,7 +597,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ActionFilters actionFilters,
             ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            AuthorizedProjectsSupplier authorizedProjectsSupplier
+            CrossProjectSearchService crossProjectSearchService
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
@@ -606,25 +605,26 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.projectResolver = projectResolver;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
-            // Could be used by an abstract transport action base class (CrossProjectSearchCapableAction?), perhaps
-            // The service class will be injected, instead of instantiated ad-hoc
-            this.crossProjectSearchService = new CrossProjectSearchService(authorizedProjectsSupplier, remoteClusterService);
+            this.crossProjectSearchService = crossProjectSearchService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
-            final boolean crossProjectMode = crossProjectSearchService.crossProjectMode();
+            final boolean crossProjectContextActive = crossProjectSearchService.crossProjectContextActive();
 
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
 
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
-            final Map<String, OriginalIndices> remoteClusterIndices = crossProjectSearchService.groupIndicesForFanoutAction(request);
+            final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+                crossProjectSearchService.fanoutIndicesOptions(request.indicesOptions()),
+                request.indices()
+            );
 
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
-            logger.info("Original local indices [{}] and [{}]", localIndices, crossProjectMode);
+            logger.info("Original local indices [{}] and [{}]", localIndices, crossProjectContextActive);
 
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
@@ -639,7 +639,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         try {
-                            crossProjectSearchService.errorHandling(request, remoteResponses);
+                            crossProjectSearchService.crossProjectFanoutErrorHandling(
+                                request.indicesOptions,
+                                request.replacedIndexExpressions,
+                                remoteResponses
+                            );
                         } catch (Exception ex) {
                             listener.onFailure(ex);
                             return;
@@ -658,7 +662,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                    Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions(), crossProjectMode);
+                    Request remoteRequest = new Request(
+                        originalIndices.indices(),
+                        originalIndices.indicesOptions(),
+                        request.includeResolvedInResponse || crossProjectContextActive
+                    );
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();

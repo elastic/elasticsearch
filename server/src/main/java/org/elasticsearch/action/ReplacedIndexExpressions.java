@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-// Back to the idea that this can be an interface, with a ResolvedLocalIndices and CrossProjectRewrittenIndices implementation?
 public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> replacedExpressionMap) {
     public String[] getAllIndicesArray() {
         return replacedExpressionMap.values()

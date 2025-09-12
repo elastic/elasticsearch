@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -62,7 +63,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
@@ -86,6 +87,13 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         256,
         SimilarityMeasure.COSINE,
         DenseVectorFieldMapper.ElementType.FLOAT
+    );
+
+    private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
+        SPARSE_INFERENCE_ID,
+        SPARSE_INFERENCE_ID_SETTINGS,
+        DENSE_INFERENCE_ID,
+        DENSE_INFERENCE_ID_SETTINGS
     );
 
     private static class InferencePluginWithModelRegistry extends InferencePlugin {
@@ -264,21 +272,12 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             indexMetadata
         );
 
-        Map<String, MinimalServiceSettings> inferenceEndpoints = Map.of(
-            SPARSE_INFERENCE_ID,
-            SPARSE_INFERENCE_ID_SETTINGS,
-            DENSE_INFERENCE_ID,
-            DENSE_INFERENCE_ID_SETTINGS
-        );
-
         QueryRewriteInterceptor interceptor = createQueryRewriteInterceptor();
         Map<String, QueryRewriteInterceptor> interceptorMap = Map.of(interceptor.getQueryName(), interceptor);
 
-        Client client = new MockInferenceClient(threadPool, inferenceEndpoints);
-
         return new QueryRewriteContext(
             null,
-            client,
+            new MockInferenceClient(threadPool, INFERENCE_ENDPOINT_MAP),
             null,
             minTransportVersion,
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
@@ -373,8 +372,14 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             }
         });
 
-        doAnswer(i -> SPARSE_INFERENCE_ID_SETTINGS).when(modelRegistry).getMinimalServiceSettings(eq(SPARSE_INFERENCE_ID));
-        doAnswer(i -> DENSE_INFERENCE_ID_SETTINGS).when(modelRegistry).getMinimalServiceSettings(eq(DENSE_INFERENCE_ID));
+        doAnswer(i -> {
+            String inferenceId = i.getArgument(0);
+            MinimalServiceSettings settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+            if (settings == null) {
+                throw new ResourceNotFoundException(inferenceId + " does not exist");
+            }
+            return settings;
+        }).when(modelRegistry).getMinimalServiceSettings(anyString());
 
         return modelRegistry;
     }

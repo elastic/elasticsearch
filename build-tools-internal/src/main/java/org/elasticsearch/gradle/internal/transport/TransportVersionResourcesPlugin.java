@@ -80,7 +80,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         });
 
         var generateDefinitionsTask = project.getTasks()
-            .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
+            .register("generateTransportVersion", GenerateTransportVersionDefinitionTask.class, t -> {
                 t.setGroup(taskGroup);
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);

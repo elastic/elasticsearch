@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -187,7 +186,7 @@ public class InboundHandlerTests extends ESTestCase {
             TransportStatus.setRequest((byte) 0),
             TransportVersion.current()
         );
-        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
+        InboundMessage requestMessage = new InboundMessage(requestHeader, requestContent.streamInput(), requestContent.length(), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
@@ -207,7 +206,12 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(TcpHeader.HEADER_SIZE, fullResponseBytes.length() - TcpHeader.HEADER_SIZE);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
-        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
+        InboundMessage responseMessage = new InboundMessage(
+            responseHeader,
+            responseContent.streamInput(),
+            responseContent.length(),
+            () -> {}
+        );
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
 
@@ -300,7 +304,8 @@ public class InboundHandlerTests extends ESTestCase {
             }
             final InboundMessage requestMessage = new InboundMessage(
                 requestHeader,
-                ReleasableBytesReference.wrap(byteData.bytes()),
+                byteData.bytes().streamInput(),
+                byteData.size(),
                 () -> safeSleep(TimeValue.timeValueSeconds(1))
             );
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
@@ -329,14 +334,14 @@ public class InboundHandlerTests extends ESTestCase {
                     safeSleep(TimeValue.timeValueSeconds(1));
                 }
             });
-            handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
+            handler.inboundMessage(channel, new InboundMessage(responseHeader, BytesArray.EMPTY.streamInput(), 0, () -> {}));
 
             mockLog.assertAllExpectationsMatched();
         }
     }
 
     private static InboundMessage unreadableInboundHandshake(TransportVersion remoteVersion, Header requestHeader) {
-        return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {}) {
+        return new InboundMessage(requestHeader, BytesArray.EMPTY.streamInput(), 0, () -> {}) {
             @Override
             public StreamInput openOrGetStreamInput() {
                 final StreamInput streamInput = new InputStreamStreamInput(new InputStream() {

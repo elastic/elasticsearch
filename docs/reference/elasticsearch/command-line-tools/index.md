@@ -10,11 +10,13 @@ products:
 
 # Command-line tools [commands]
 
-:::{tip}
-When running {{es}} in a self-managed environment, you can interact with or manage the cluster using command-line tools. These tools assume you have access to {{es}} nodes and therefore are not available in {{ece}}, {{ech}}, and {{eck}} deployments. The command-line tools are also not available in {{serverless-full}}.
+{{es}} includes a set of command-line tools in its `bin` subdirectory (for example, `/usr/share/elasticsearch/bin`). These tools support tasks such as generating TLS/SSL certificates, configuring security settings and user credentials, enrolling or reconfiguring nodes, managing corrupted shards, and other node-level administrative operations that are only possible, or simpler to perform, outside the REST API.
+
+:::{important}
+The tools are intended for use in self-managed environments and are included with all {{es}} software packages and Docker images, but are not accessible in fully managed {{ecloud}} deployments such as {{ech}} or {{serverless-full}}.
 :::
 
-{{es}} provides the following tools for configuring security and performing other tasks from the command line:
+The following tools are available for configuring security and performing other cluster administration tasks from the command line:
 
 * [*elasticsearch-certgen*](/reference/elasticsearch/command-line-tools/certgen.md)
 * [*elasticsearch-certutil*](/reference/elasticsearch/command-line-tools/certutil.md)

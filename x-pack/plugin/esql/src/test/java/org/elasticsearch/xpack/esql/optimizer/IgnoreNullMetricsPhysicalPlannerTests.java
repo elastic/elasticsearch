@@ -50,7 +50,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
         assertEquals(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
     }
 
-    public void testPushdownOfSimpleQuery() {
+    public void testPushdownOfSimpleCounterQuery() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         String query = """
             TS k8s
@@ -61,6 +61,20 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
         EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
 
         QueryBuilder expected = unscore(existsQuery("network.total_bytes_in"));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+    }
+
+    public void testPushdownOfSimpleGagueQuery() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        String query = """
+            TS k8s
+            | STATS max(max_over_time(network.eth0.tx)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+        QueryBuilder expected = unscore(existsQuery("network.eth0.tx"));
         assertThat(queryExec.query().toString(), is(expected.toString()));
     }
 }

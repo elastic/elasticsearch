@@ -33,7 +33,13 @@ import java.util.Set;
 
 public class AverageWriteLoadSampler {
 
-    static final Set<String> WRITE_EXECUTORS = Set.of(Names.WRITE, Names.SYSTEM_WRITE, Names.SYSTEM_CRITICAL_WRITE);
+    static final Set<String> WRITE_EXECUTORS = Set.of(
+        Names.WRITE,
+        Names.SYSTEM_WRITE,
+        Names.SYSTEM_CRITICAL_WRITE,
+        Names.WRITE_COORDINATION,
+        Names.SYSTEM_WRITE_COORDINATION
+    );
     static final double DEFAULT_EWMA_ALPHA = 0.2;
     public static final Setting<Double> WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.indexing.sampler.write_load_ewma_alpha",

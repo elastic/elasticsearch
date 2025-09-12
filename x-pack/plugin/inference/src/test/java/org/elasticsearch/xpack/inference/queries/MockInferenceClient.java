@@ -29,8 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.ESTestCase.randomByte;
-import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class MockInferenceClient extends NoOpClient {
@@ -62,9 +60,9 @@ public class MockInferenceClient extends NoOpClient {
                     )
                 );
             } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
-                inferenceServiceResults = generateRandomSparseEmbeddingResults(inferenceRequest);
+                inferenceServiceResults = generateSparseEmbeddingResults(inferenceRequest);
             } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-                inferenceServiceResults = generateRandomTextEmbeddingResults(inferenceEndpointSettings);
+                inferenceServiceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
             } else {
                 inferenceServiceResults = TextEmbeddingFloatResults.of(
                     List.of(
@@ -87,18 +85,22 @@ public class MockInferenceClient extends NoOpClient {
         }
     }
 
-    private static SparseEmbeddingResults generateRandomSparseEmbeddingResults(InferenceAction.Request request) {
+    /**
+     * Generate sparse embedding results. Use a static token weight so that the results are deterministic for the same query.
+     */
+    private static SparseEmbeddingResults generateSparseEmbeddingResults(InferenceAction.Request request) {
         String query = request.getInput().getFirst();
 
-        List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+"))
-            .map(token -> new WeightedToken(token, randomFloatBetween(0.0f, 1.0f, false)))
-            .toList();
+        List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+")).map(token -> new WeightedToken(token, 1.0f)).toList();
 
         TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
         return SparseEmbeddingResults.of(List.of(textExpansionResults));
     }
 
-    private static TextEmbeddingFloatResults generateRandomTextEmbeddingResults(MinimalServiceSettings settings) {
+    /**
+     * Generate text embedding results. Use static embedding values so that the results are deterministic for the same dimension count.
+     */
+    private static TextEmbeddingFloatResults generateTextEmbeddingResults(MinimalServiceSettings settings) {
         assert settings.dimensions() != null && settings.elementType() != null;
 
         int embeddingSize = settings.dimensions();
@@ -107,10 +109,7 @@ public class MockInferenceClient extends NoOpClient {
         }
 
         double[] embedding = new double[embeddingSize];
-        for (int i = 0; i < embedding.length; i++) {
-            // Always use a byte value so that the embedding is valid regardless of the element type
-            embedding[i] = randomByte();
-        }
+        Arrays.fill(embedding, Byte.MIN_VALUE);  // Always use a byte value so that the embedding is valid regardless of the element type
 
         MlTextEmbeddingResults mlTextEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, embedding, false);
         return TextEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));

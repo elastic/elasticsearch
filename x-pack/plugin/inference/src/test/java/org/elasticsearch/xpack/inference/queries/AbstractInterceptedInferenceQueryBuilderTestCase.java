@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,6 +59,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -133,6 +135,37 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     }
 
     public void testSerialization() throws Exception {
+        serializationTestCase(TransportVersion.current());
+    }
+
+    public void testBwCSerialization() throws Exception {
+        TransportVersion minTransportVersion = TransportVersion.max(getMinimalSupportedVersion(), TransportVersion.minimumCompatible());
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                minTransportVersion,
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+            );
+            serializationTestCase(transportVersion);
+        }
+    }
+
+    protected abstract T createQueryBuilder(String field);
+
+    protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
+
+    protected abstract TransportVersion getMinimalSupportedVersion();
+
+    protected abstract void assertCoordinatorNodeRewriteOnInferenceField(
+        QueryBuilder original,
+        QueryBuilder rewritten,
+        TransportVersion transportVersion,
+        QueryRewriteContext queryRewriteContext
+    );
+
+    protected abstract void assertCoordinatorNodeRewriteOnNonInferenceField(QueryBuilder original, QueryBuilder rewritten);
+
+    protected void serializationTestCase(TransportVersion transportVersion) throws Exception {
         final String semanticField = "semantic_field";
         final String mixedField = "mixed_field";
         final String textField = "text_field";
@@ -149,20 +182,36 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
             Map.of(),
-            TransportVersion.current()
+            transportVersion
         );
+
+        // Disable query interception when checking the results of coordinator node rewrite so that the query rewrite context can be used
+        // to populate inference results without triggering another query interception. In production this is achieved by wrapping with
+        // InterceptedQueryBuilderWrapper, but we do not have access to that in this test.
+        final BiConsumer<QueryRewriteContext, Runnable> disableQueryInterception = (c, r) -> {
+            QueryRewriteInterceptor interceptor = c.getQueryRewriteInterceptor();
+            c.setQueryRewriteInterceptor(null);
+            r.run();
+            c.setQueryRewriteInterceptor(interceptor);
+        };
 
         // Query a semantic text field in both indices
         QueryBuilder originalSemantic = createQueryBuilder(semanticField);
         QueryBuilder rewrittenSemantic = rewriteAndFetch(originalSemantic, queryRewriteContext);
         QueryBuilder serializedSemantic = copyNamedWriteable(rewrittenSemantic, writableRegistry(), QueryBuilder.class);
-        assertCoordinatorNodeRewriteOnInferenceField(originalSemantic, serializedSemantic, TransportVersion.current());
+        disableQueryInterception.accept(
+            queryRewriteContext,
+            () -> assertCoordinatorNodeRewriteOnInferenceField(originalSemantic, serializedSemantic, transportVersion, queryRewriteContext)
+        );
 
         // Query a field that is a semantic text field in one index
         QueryBuilder originalMixed = createQueryBuilder(mixedField);
         QueryBuilder rewrittenMixed = rewriteAndFetch(originalMixed, queryRewriteContext);
         QueryBuilder serializedMixed = copyNamedWriteable(rewrittenMixed, writableRegistry(), QueryBuilder.class);
-        assertCoordinatorNodeRewriteOnInferenceField(originalMixed, serializedMixed, TransportVersion.current());
+        disableQueryInterception.accept(
+            queryRewriteContext,
+            () -> assertCoordinatorNodeRewriteOnInferenceField(originalMixed, serializedMixed, transportVersion, queryRewriteContext)
+        );
 
         // Query a text field in both indices
         QueryBuilder originalText = createQueryBuilder(textField);
@@ -170,22 +219,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         QueryBuilder serializedText = copyNamedWriteable(rewrittenText, writableRegistry(), QueryBuilder.class);
         assertCoordinatorNodeRewriteOnNonInferenceField(originalText, serializedText);
     }
-
-    public void testBwCSerialization() {
-        // TODO: Implement
-    }
-
-    protected abstract T createQueryBuilder(String field);
-
-    protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
-
-    protected abstract void assertCoordinatorNodeRewriteOnInferenceField(
-        QueryBuilder original,
-        QueryBuilder rewritten,
-        TransportVersion transportVersion
-    );
-
-    protected abstract void assertCoordinatorNodeRewriteOnNonInferenceField(QueryBuilder original, QueryBuilder rewritten);
 
     protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,
@@ -238,6 +271,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             DENSE_INFERENCE_ID_SETTINGS
         );
 
+        QueryRewriteInterceptor interceptor = createQueryRewriteInterceptor();
+        Map<String, QueryRewriteInterceptor> interceptorMap = Map.of(interceptor.getQueryName(), interceptor);
+
         Client client = new MockInferenceClient(threadPool, inferenceEndpoints);
 
         return new QueryRewriteContext(
@@ -248,7 +284,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             null,
-            createQueryRewriteInterceptor(),
+            QueryRewriteInterceptor.multi(interceptorMap),
             null
         );
     }

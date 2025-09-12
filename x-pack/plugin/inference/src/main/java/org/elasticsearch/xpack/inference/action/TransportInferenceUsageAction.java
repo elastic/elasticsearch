@@ -65,10 +65,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             Map<String, ModelStats> stats = new TreeMap<>();
             for (ModelConfigurations model : response.getEndpoints()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
-                ModelStats stat = stats.computeIfAbsent(
-                    statKey,
-                    key -> new ModelStats(model.getService(), model.getTaskType())
-                );
+                ModelStats stat = stats.computeIfAbsent(statKey, key -> new ModelStats(model.getService(), model.getTaskType()));
                 stat.add();
             }
             InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());

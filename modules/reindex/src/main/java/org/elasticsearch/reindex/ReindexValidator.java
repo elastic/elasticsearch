@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
@@ -39,6 +40,8 @@ import java.util.List;
 
 public class ReindexValidator {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexValidator.class);
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING) // see #47567: feature deprecated since 7.6, its removal is long overdue
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. "
         + "Instead consider using query filtering to find the desired subset of data.";
 

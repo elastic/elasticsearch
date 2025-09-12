@@ -28,7 +28,7 @@ FROM employees
 | false | 5 |
 | false | null |
 
-To check for the absence and return 1 when it's true and 0 when it's false
+To check for the absence and return 1 when it's true and 0 when it's false you can use to_integer()
 
 ```esql
 FROM employees

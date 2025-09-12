@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
@@ -97,6 +98,10 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     protected boolean isTrustedSystemClass(Class<?> requestingClass) {
+        if (TestScopeResolver.getExcludedSystemPackageScope(requestingClass) != null) {
+            // We don't trust the excluded packages even though they are in system modules
+            return false;
+        }
         ClassLoader loader = requestingClass.getClassLoader();
         return loader == null || loader == ClassLoader.getPlatformClassLoader();
     }

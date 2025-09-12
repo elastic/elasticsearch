@@ -182,25 +182,25 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             int[] quantized = new int[fieldInfo.getVectorDimension()];
             byte[] binary = new byte[BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8];
-            float[] overspillScratch = new float[fieldInfo.getVectorDimension()];
+            float[] scratch = new float[fieldInfo.getVectorDimension()];
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
                 float[] centroid = centroidSupplier.centroid(c);
                 float[] vector = floatVectorValues.vectorValue(i);
                 boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != -1;
-                // if overspilling, this means we quantize twice, and quantization mutates the in-memory representation of the vector
-                // so, make a copy of the vector to avoid mutating it
-                if (overspill) {
-                    System.arraycopy(vector, 0, overspillScratch, 0, fieldInfo.getVectorDimension());
-                }
-
-                OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(vector, quantized, (byte) 1, centroid);
+                OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
+                    vector,
+                    scratch,
+                    quantized,
+                    (byte) 1,
+                    centroid
+                );
                 BQVectorUtils.packAsBinary(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(overspillScratch, quantized, (byte) 1, centroidSupplier.centroid(s));
+                    result = quantizer.scalarQuantize(vector, scratch, quantized, (byte) 1, centroidSupplier.centroid(s));
                     BQVectorUtils.packAsBinary(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
@@ -629,10 +629,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             }
             currOrd++;
             float[] vector = supplier.centroid(ordTransformer.apply(currOrd));
-            // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
-            // due to overspill, so we copy the vector to a scratch array
-            System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
-            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
+            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
             for (int i = 0; i < quantizedVectorScratch.length; i++) {
                 quantizedVector[i] = (byte) quantizedVectorScratch[i];
             }
@@ -686,10 +683,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
-            // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
-            // due to overspill, so we copy the vector to a scratch array
-            System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
-            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
+            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
             BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }

@@ -110,7 +110,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 );
                 int4BitBulk$mh = downcallHandle(
                     "int4BitBulk",
-                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_INT, JAVA_INT),
+                    FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_INT, JAVA_INT),
                     LinkerHelperUtil.critical()
                 );
                 INSTANCE = new JdkVectorSimilarityFunctions();
@@ -172,14 +172,14 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        static int int4BitDotProdBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment s, int count, int length) {
+        static void int4BitDotProdBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment s, int count, int length) {
             assert length >= 0;
-            return int4BitBulk(a, b, offset, s, count, length);
+            int4BitBulk(a, b, offset, s, count, length);
         }
 
-        private static int int4BitBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment s, int count, int length) {
+        private static void int4BitBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment s, int count, int length) {
             try {
-                return (int) JdkVectorLibrary.int4BitBulk$mh.invokeExact(a, b, offset, s, count, length);
+                JdkVectorLibrary.int4BitBulk$mh.invokeExact(a, b, offset, s, count, length);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -307,7 +307,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 mt = MethodType.methodType(long.class, MemorySegment.class, MemorySegment.class, long.class, int.class);
                 DOT_HANDLE_4BIT = lookup.findStatic(JdkVectorSimilarityFunctions.class, "int4BitDotProd", mt);
                 mt = MethodType.methodType(
-                    int.class,
+                    void.class,
                     MemorySegment.class,
                     MemorySegment.class,
                     long.class,

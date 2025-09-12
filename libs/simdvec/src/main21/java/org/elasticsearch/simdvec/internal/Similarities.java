@@ -68,9 +68,9 @@ public class Similarities {
         }
     }
 
-    public static int int4BitDotProductBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment scores, int count, int length) {
+    public static void int4BitDotProductBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment scores, int count, int length) {
         try {
-            return (int) INT4_BIT_DP_BULK.invokeExact(a, b, offset, scores, count, length);
+            INT4_BIT_DP_BULK.invokeExact(a, b, offset, scores, count, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

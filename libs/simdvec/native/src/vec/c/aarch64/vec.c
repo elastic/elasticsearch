@@ -337,7 +337,7 @@ EXPORT int64_t int4Bit(uint8_t* query, uint8_t* doc, int64_t offset, int length)
    return dot_q0 + (dot_q1 << 1) + (dot_q2 << 2) + (dot_q3 << 3);
 }
 
-EXPORT int32_t int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float32_t* scores, int count, int length) {
+EXPORT void int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float32_t* scores, int count, int length) {
     const size_t stride = (length / 8) * 8;
     const uint8_t* query_j0 = query;
     const uint8_t* query_j1 = query + length;
@@ -375,5 +375,4 @@ EXPORT int32_t int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float32
       }
       scores[idx] = (float32_t)(dot_q0 + (dot_q1 << 1) + (dot_q2 << 2) + (dot_q3 << 3));
     }
-    return count;
 }

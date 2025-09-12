@@ -351,6 +351,6 @@ EXPORT int64_t int4Bit(uint8_t* query, uint8_t* doc, int64_t offset, int length)
    return 0;
 }
 
-EXPORT int32_t int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float32_t* scores, size_t count, size_t dims) {
+EXPORT void int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float32_t* scores, size_t count, size_t dims) {
   return 0;
 }

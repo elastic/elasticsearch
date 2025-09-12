@@ -621,9 +621,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         });
     }
 
-    private
-        void
-        stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
+    private void stopDeploymentAfterCompletingPendingWorkAsync(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<Void> listener
+    ) {
         stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
     }
 

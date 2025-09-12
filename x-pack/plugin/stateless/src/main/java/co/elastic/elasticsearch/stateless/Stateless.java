@@ -31,6 +31,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessBalancingWeightsFa
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
 import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
+import co.elastic.elasticsearch.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import co.elastic.elasticsearch.stateless.api.DocValuesFormatFactory;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsProvider;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
@@ -1197,7 +1198,8 @@ public class Stateless extends Plugin
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
             SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
             SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-            SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
+            SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
+            StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING
         );
     }
 
@@ -1734,7 +1736,11 @@ public class Stateless extends Plugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return List.of(new StatelessAllocationDecider(), new EstimatedHeapUsageAllocationDecider(clusterSettings));
+        return List.of(
+            new StatelessAllocationDecider(),
+            new EstimatedHeapUsageAllocationDecider(clusterSettings),
+            new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
+        );
     }
 
     @Override

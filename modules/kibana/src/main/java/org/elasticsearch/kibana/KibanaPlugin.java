@@ -9,14 +9,26 @@
 
 package org.elasticsearch.kibana;
 
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.indices.ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
 
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
@@ -30,6 +42,61 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
         .setAllowsTemplates()
         .build();
+
+    public static final SystemDataStreamDescriptor KIBANA_REPORTING_DS_DESCRIPTOR;
+
+    private static String loadTemplateSource() throws IOException {
+        try (InputStream is = KibanaPlugin.class.getResourceAsStream("/kibana-reporting-template.json")) {
+            if (is == null) {
+                throw new IOException(
+                    "Kibana reporting template [/kibana-reporting-template.json] not found in kibana template resources."
+                );
+            }
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    static {
+        try {
+            final String source = loadTemplateSource();
+            KIBANA_REPORTING_DS_DESCRIPTOR = new SystemDataStreamDescriptor(
+                ".kibana-reporting",
+                "system data stream for reporting",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of(".kibana-reporting"))
+                    .priority(200L)
+                    .version(15L)
+                    .allowAutoCreate(true)
+                    .deprecated(false)
+                    .ignoreMissingComponentTemplates(List.of("kibana-reporting@custom"))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(true, false))
+                    .metadata(Map.of("managed", "true", "description", "default kibana reporting template installed by elasticsearch"))
+                    .componentTemplates(List.of("kibana-reporting@settings", "kibana-reporting@custom"))
+                    .template(
+                        Template.builder()
+                            .mappings(CompressedXContent.fromJSON(source))
+                            .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(true))
+                    )
+                    .build(),
+                Map.of(
+                    "kibana-reporting@settings",
+                    new ComponentTemplate(
+                        Template.builder()
+                            .settings(Settings.builder().put("index.number_of_shards", 1).put("index.auto_expand_replicas", "0-1"))
+                            .build(),
+                        null,
+                        null
+                    )
+                ),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_PRODUCT_ORIGIN.getFirst(),
+                DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("unable to read kibana reporting template JSON", e);
+        }
+    }
 
     public static final SystemIndexDescriptor REPORTING_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".reporting-*")
@@ -67,6 +134,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
         .setAllowsTemplates()
         .build();
+
+    @Override
+    public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return List.of(KIBANA_REPORTING_DS_DESCRIPTOR);
+    }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {

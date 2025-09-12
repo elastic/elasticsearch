@@ -34,38 +34,6 @@ public interface CrossProjectSearchService {
     }
 
     /**
-     * Default no-op implementation of the CrossProjectSearchService.
-     */
-    class Default implements CrossProjectSearchService {
-        @Override
-        public boolean enabled() {
-            return false;
-        }
-
-        @Override
-        public boolean crossProjectContextActive() {
-            return false;
-        }
-
-        @Override
-        public IndicesRequest.CrossProjectSearchCapable maybeRewriteRequest(IndicesRequest.CrossProjectSearchCapable request) {
-            return null;
-        }
-
-        @Override
-        public IndicesOptions fanoutIndicesOptions(IndicesOptions indicesOptions) {
-            return indicesOptions;
-        }
-
-        @Override
-        public void crossProjectFanoutErrorHandling(
-            IndicesOptions indicesOptions,
-            ReplacedIndexExpressions originReplacedIndexExpressions,
-            Map<String, ? extends ResponseWithReplacedIndexExpressions> remoteResults
-        ) {}
-    }
-
-    /**
      * Is cross-project search enabled on this cluster?
      */
     boolean enabled();
@@ -81,7 +49,9 @@ public interface CrossProjectSearchService {
     // Index expression rewrite logic (could be a separate class/interface)
 
     @Nullable
-    IndicesRequest.CrossProjectSearchCapable maybeRewriteRequest(IndicesRequest.CrossProjectSearchCapable request);
+    // TODO ReplacedIndexExpressions is not the right return type here; it should either be a map, a new type, or this method should own
+    // full request rewriting as well.
+    ReplacedIndexExpressions maybeRewriteRequest(IndicesRequest.CrossProjectSearchCapable request);
 
     // Remote fanout logic (could be a separate class/interface)
 
@@ -92,4 +62,37 @@ public interface CrossProjectSearchService {
         ReplacedIndexExpressions originReplacedIndexExpressions,
         Map<String, ? extends ResponseWithReplacedIndexExpressions> remoteResults
     );
+
+    /**
+     * Default no-op implementation of the CrossProjectSearchService.
+     */
+    class Default implements CrossProjectSearchService {
+        @Override
+        public boolean enabled() {
+            return false;
+        }
+
+        @Override
+        public boolean crossProjectContextActive() {
+            return false;
+        }
+
+        @Override
+        @Nullable
+        public ReplacedIndexExpressions maybeRewriteRequest(IndicesRequest.CrossProjectSearchCapable request) {
+            return null;
+        }
+
+        @Override
+        public IndicesOptions fanoutIndicesOptions(IndicesOptions indicesOptions) {
+            return indicesOptions;
+        }
+
+        @Override
+        public void crossProjectFanoutErrorHandling(
+            IndicesOptions indicesOptions,
+            ReplacedIndexExpressions originReplacedIndexExpressions,
+            Map<String, ? extends ResponseWithReplacedIndexExpressions> remoteResults
+        ) {}
+    }
 }

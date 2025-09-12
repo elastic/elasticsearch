@@ -1037,14 +1037,6 @@ class NodeConstruction {
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
-        CrossProjectSearchService crossProjectSearchService = pluginsService.loadSingletonServiceProvider(
-            CrossProjectSearchService.Factory.class,
-            () -> CrossProjectSearchService.Factory.DEFAULT
-        ).create(threadPool.getThreadContext(), environment.settings(), clusterService.getClusterSettings());
-
-        logger.info("CrossProjectSearchService: [{}]", crossProjectSearchService.getClass().getName());
-        modules.bindToInstance(CrossProjectSearchService.class, crossProjectSearchService);
-
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -1140,6 +1132,12 @@ class NodeConstruction {
             SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
+
+        final CrossProjectSearchService crossProjectSearchService = pluginsService.loadSingletonServiceProvider(
+            CrossProjectSearchService.Factory.class,
+            () -> CrossProjectSearchService.Factory.DEFAULT
+        ).create(threadPool.getThreadContext(), settings, clusterService.getClusterSettings());
+        modules.bindToInstance(CrossProjectSearchService.class, crossProjectSearchService);
 
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,

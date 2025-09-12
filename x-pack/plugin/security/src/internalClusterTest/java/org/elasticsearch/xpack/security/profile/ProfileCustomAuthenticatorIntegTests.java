@@ -135,7 +135,7 @@ public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase 
     }
 
     public void testProfileActivationWithPassword() {
-        Profile profile = doActivateProfileWithPassword("file_user", TEST_PASSWORD_SECURE_STRING);
+        Profile profile = doActivateProfileWithPassword("file_user", TEST_PASSWORD_SECURE_STRING.clone());
         assertThat(profile.user().realmName(), equalTo("file"));
 
         // the authenticator should not be called for password grant type

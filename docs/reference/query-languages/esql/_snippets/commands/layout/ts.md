@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-serverless: tech-preview
-stack: tech-preview 9.2.0
+serverless: preview
+stack: preview 9.2.0
 ```
 
 The `TS` command is similar to the `FROM` source command,
@@ -23,11 +23,11 @@ a secondary aggregation function. More concretely, consider the following query:
 ```esql
 TS metrics
   | WHERE @timestamp >= now() - 1 hour
-  | STATS total_rate=SUM(RATE(search_requests)) BY hourly=TBUCKET(1 hour), host
+  | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
 ```
 
 This query calculates the total rate of search requests (tracked through
-counter `search`) per host-hour. Here, the `rate()` function is first
+counter `search`) per host and hour. Here, the `rate()` function is first
 applied per `_tsid` and hourly time bucket, with the results then summed per
 host and hourly bucket, as each host value may map to many `_tsid` values
 (`_tsid` is calculated on all dimension values).

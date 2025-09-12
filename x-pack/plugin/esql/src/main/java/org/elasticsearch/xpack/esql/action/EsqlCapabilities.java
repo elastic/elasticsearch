@@ -1482,7 +1482,9 @@ public class EsqlCapabilities {
         /**
          * Multivalued query parameters
          */
-        QUERY_PARAMS_MULTI_VALUES();
+        QUERY_PARAMS_MULTI_VALUES(),
+
+        FIX_PERCENTILE_PRECISION();
 
         private final boolean enabled;
 

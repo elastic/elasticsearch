@@ -576,7 +576,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
             Map<String, Object> result = runEsql(builder);
             ListMatcher values = matchesList();
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < Math.min(1000, size); i++) {
                 values = values.item(List.of(i));
             }
             assertResultMap(

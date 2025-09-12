@@ -51,6 +51,11 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             }
         }
 
+        /**
+         * POST: the RestoreInProgress.ShardRestoreStatus is either failed or succeeded. This section turns a
+         * turn a shard failure into a NO decision to allocate. See {@link AllocationService.applyFailedShards}
+         * for details on how it updates UnassignedInfo.
+         */
         UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         if (unassignedInfo.failedAllocations() > 0) {
             return allocation.decision(
@@ -61,15 +66,15 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                     + "logs for more information about the failure. Details: [%s]",
                 source.snapshot(),
                 shardRouting.getIndexName(),
-                shardRouting.unassignedInfo().details()
-            );
-        } else {
-            return allocation.decision(
-                Decision.NO,
-                NAME,
-                "shard was prevented from being allocated on all nodes because of other allocation deciders"
+                unassignedInfo.details()
             );
         }
+
+        return allocation.decision(
+            Decision.YES,
+            NAME,
+            "shard was prevented from being allocated on all nodes because of other allocation deciders"
+        );
     }
 
     @Override

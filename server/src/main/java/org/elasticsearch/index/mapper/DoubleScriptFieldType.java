@@ -112,9 +112,9 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
         var indexSettings = blContext.indexSettings();
         if (isParsedFromSource && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC
-            // A runtime and normal field can share the same name.
-            // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
-            // We could optimize this, but at this stage feels like a rare scenario.
+        // A runtime and normal field can share the same name.
+        // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
+        // We could optimize this, but at this stage feels like a rare scenario.
             && blContext.lookup().onlyMappedAsRuntimeField(name())) {
             var reader = new NumberType.NumberFallbackSyntheticSourceReader(NumberType.DOUBLE, null, true) {
                 @Override

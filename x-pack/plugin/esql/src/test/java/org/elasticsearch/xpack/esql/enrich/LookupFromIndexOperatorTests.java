@@ -175,7 +175,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
         List<MatchConfig> matchFields = new ArrayList<>();
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match" + i);
+            String matchField = "match" + i;
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
 
@@ -189,7 +189,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             lookupIndex,
             loadFields,
             Source.EMPTY,
-            buildLessThanFilter(LESS_THAN_VALUE)
+            buildLessThanFilter(LESS_THAN_VALUE),
+            null
         );
     }
 
@@ -243,13 +244,14 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                     + "limit\\[\\],?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[(?:\\[\\]\\])\\]"
             );
         sb.append("|");
-        // New FragmentExec pattern
+        // New FragmentExec pattern - match the actual output format
         sb.append("FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
             .append("Filter\\[lint\\{f}#\\d+ < ")
             .append(LESS_THAN_VALUE)
             .append("\\[INTEGER]]\\n")
-            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]\\]");
+            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]");
         sb.append(")");
+        sb.append(" join_on_expression=null\\]");
         return matchesPattern(sb.toString());
     }
 

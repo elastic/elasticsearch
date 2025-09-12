@@ -40,7 +40,7 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
         if (join.config().type() == LEFT) { // other types will have different replacement logic
             AttributeMap<Expression> attributeMap = RuleUtils.foldableReferences(join, ctx);
 
-            for (var attr : AttributeSet.of(join.config().matchFields())) {
+            for (var attr : AttributeSet.of(join.config().leftFields())) {
                 var resolved = attributeMap.resolve(attr);
                 if (resolved != null && isGuaranteedNull(resolved)) {
                     plan = replaceJoin(join);

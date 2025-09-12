@@ -1448,18 +1448,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
 
   /**
    * {@inheritDoc}

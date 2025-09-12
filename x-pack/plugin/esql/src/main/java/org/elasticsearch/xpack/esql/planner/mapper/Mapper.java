@@ -226,7 +226,6 @@ public class Mapper {
                     join.source(),
                     left,
                     localData,
-                    config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
                     join.rightOutputFields()
@@ -241,7 +240,8 @@ public class Mapper {
                         right,
                         config.leftFields(),
                         config.rightFields(),
-                        join.rightOutputFields()
+                        join.rightOutputFields(),
+                        config.joinOnConditions()
                     );
                 }
             }

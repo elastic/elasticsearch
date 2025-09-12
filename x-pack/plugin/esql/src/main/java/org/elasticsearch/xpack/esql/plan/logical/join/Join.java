@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -116,12 +117,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         LogicalPlan left,
         LogicalPlan right,
         JoinType type,
-        List<Attribute> matchFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields
+        List<Attribute> rightFields,
+        Expression joinOnConditions
     ) {
         super(source, left, right);
-        this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
+        this.config = new JoinConfig(type, leftFields, rightFields, joinOnConditions);
     }
 
     public Join(StreamInput in) throws IOException {
@@ -169,9 +170,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             left(),
             right(),
             config.type(),
-            config.matchFields(),
             config.leftFields(),
-            config.rightFields()
+            config.rightFields(),
+            config.joinOnConditions()
         );
     }
 
@@ -222,10 +223,19 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         List<Attribute> output;
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
-            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            if (config.joinOnConditions() == null) {
+                // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+                AttributeSet rightKeys = AttributeSet.of(config.rightFields());
+                List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                    .filter(attr -> rightKeys.contains(attr) == false)
+                    .toList();
+                output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            } else {
+                // We don't allow any attributes in the joinOnConditions that don't have unique names
+                // so right always overwrites left in case of name clashes
+                output = mergeOutputAttributes(rightOutput, leftOutput);
+            }
+
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

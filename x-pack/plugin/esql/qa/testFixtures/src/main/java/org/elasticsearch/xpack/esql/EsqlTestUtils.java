@@ -460,7 +460,9 @@ public final class EsqlTestUtils {
             false,
             TABLES,
             System.nanoTime(),
-            false
+            false,
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 

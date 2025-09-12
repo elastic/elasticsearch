@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ProfileCustomAuthenticationTokenIntegTests extends SecurityIntegTestCase {
+public class ProfileCustomAuthenticatorIntegTests extends SecurityIntegTestCase {
 
     private static final Authentication.RealmRef TEST_REALM_REF = new Authentication.RealmRef("cloud-saml", "saml", "test-node");
     private static final String TEST_USERNAME = "spiderman";

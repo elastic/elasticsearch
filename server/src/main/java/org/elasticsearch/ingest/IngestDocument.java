@@ -1347,9 +1347,6 @@ public final class IngestDocument {
         }
 
         private static String[] processPathParts(String fullPath, String[] pathParts, IngestPipelineFieldAccessPattern accessPattern) {
-            if (pathParts.length == 1 && pathParts[0].isEmpty()) {
-                throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
-            }
             return switch (accessPattern) {
                 case CLASSIC -> validateClassicFields(fullPath, pathParts);
                 case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);

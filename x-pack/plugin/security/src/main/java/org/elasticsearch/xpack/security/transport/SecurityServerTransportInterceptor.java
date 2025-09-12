@@ -10,23 +10,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteConnectionManager;
-import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -41,62 +32,24 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CrossProjectRemoteServerTransportInterceptor;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
-import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.action.SecurityActionMapper;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
-import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
-    private static final Map<String, String> RCS_INTERNAL_ACTIONS_REPLACEMENTS = Map.of(
-        "internal:admin/ccr/restore/session/put",
-        "indices:internal/admin/ccr/restore/session/put",
-        "internal:admin/ccr/restore/session/clear",
-        "indices:internal/admin/ccr/restore/session/clear",
-        "internal:admin/ccr/restore/file_chunk/get",
-        "indices:internal/admin/ccr/restore/file_chunk/get",
-        "internal:data/read/esql/open_exchange",
-        "cluster:internal:data/read/esql/open_exchange",
-        "internal:data/read/esql/exchange",
-        "cluster:internal:data/read/esql/exchange",
-        TaskCancellationService.BAN_PARENT_ACTION_NAME,
-        TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
-        TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
-        TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
-    );
 
-    private final AuthenticationService authcService;
-    private final AuthorizationService authzService;
-    private final SSLService sslService;
+    private final RemoteClusterTransportInterceptor remoteClusterTransportInterceptor;
     private final Map<String, ServerTransportFilter> profileFilters;
     private final ThreadPool threadPool;
-    private final Settings settings;
     private final SecurityContext securityContext;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
@@ -106,8 +59,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     public SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
-        AuthenticationService authcService,
-        AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
@@ -155,18 +106,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         );
     }
 
-    SecurityServerTransportInterceptor(
-        Settings settings,
-        ThreadPool threadPool,
-        AuthenticationService authcService,
-        AuthorizationService authzService,
-        SSLService sslService,
-        SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        XPackLicenseState licenseState,
-        // Inject for simplified testing
-        Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
         this(
             settings,
@@ -212,7 +151,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        return interceptForAllRequests(interceptForCrossClusterAccessRequests(sender));
+        return interceptForAllRequests(remoteClusterTransportInterceptor.interceptSender(sender));
     }
 
     private AsyncSender interceptForAllRequests(AsyncSender sender) {
@@ -225,10 +164,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                assertNoCrossClusterAccessHeadersInContext();
-                final Optional<String> remoteClusterAlias = remoteClusterCredentialsResolver.apply(connection)
-                    .map(RemoteClusterAliasWithCredentials::clusterAlias);
-                if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
+                assert false == remoteClusterTransportInterceptor.hasRemoteClusterAccessHeadersInContext(securityContext)
+                    : "remote cluster access headers should not be in security context";
+                final boolean isRemoteClusterConnection = remoteClusterTransportInterceptor.isRemoteClusterConnection(connection);
+                if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(
+                    action,
+                    securityContext,
+                    isRemoteClusterConnection
+                )) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
                         sendRequestInner(
                             sender,
@@ -242,15 +185,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else {
                     sendRequestInner(sender, connection, action, request, options, handler);
                 }
-            }
-
-            private void assertNoCrossClusterAccessHeadersInContext() {
-                assert securityContext.getThreadContext()
-                    .getHeader(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY) == null
-                    : "cross cluster access headers should not be in security context";
-                assert securityContext.getThreadContext()
-                    .getHeader(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY) == null
-                    : "cross cluster access headers should not be in security context";
             }
         };
     }
@@ -519,7 +453,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        assert securityContext.getParentAuthorization() == null || remoteClusterCredentialsResolver.apply(connection).isEmpty()
+        assert securityContext.getParentAuthorization() == null
+            || false == remoteClusterTransportInterceptor.isRemoteClusterConnection(connection)
             : "parent authorization header should not be set for remote cluster requests";
 
         try {
@@ -759,11 +694,4 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
     }
 
-    record RemoteClusterCredentials(String clusterAlias, String credentials) {
-
-        @Override
-        public String toString() {
-            return "RemoteClusterCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
-        }
-    }
 }

@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -37,7 +35,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
@@ -65,10 +62,14 @@ public class IndicesAndAliasesResolver {
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
 
-    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
+    IndicesAndAliasesResolver(
+        Settings settings,
+        LinkedProjectConfigService linkedProjectConfigService,
+        IndexNameExpressionResolver resolver
+    ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
-        this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
     }
 
     /**
@@ -634,16 +635,18 @@ public class IndicesAndAliasesResolver {
         @SuppressWarnings("this-escape")
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
-            listenForUpdates(clusterSettings);
+            clusters = new CopyOnWriteArraySet<>(
+                linkedProjectConfigService.getInitialLinkedProjectConfigs().stream().map(LinkedProjectConfig::linkedProjectAlias).toList()
+            );
+            linkedProjectConfigService.register(this);
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-            if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, settings)) {
-                clusters.add(clusterAlias);
+        public void updateLinkedProject(LinkedProjectConfig config) {
+            if (config.isConnectionEnabled()) {
+                clusters.add(config.linkedProjectAlias());
             } else {
-                clusters.remove(clusterAlias);
+                clusters.remove(config.linkedProjectAlias());
             }
         }
 

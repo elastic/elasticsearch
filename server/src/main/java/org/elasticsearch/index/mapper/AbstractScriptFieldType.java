@@ -27,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.time.ZoneId;
@@ -48,18 +49,21 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
+    protected final boolean isParsedFromSource;
 
     protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
-        Map<String, String> meta
+        Map<String, String> meta,
+        boolean isParsedFromSource
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
+        this.isParsedFromSource = isParsedFromSource;
     }
 
     @Override
@@ -190,7 +194,13 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(searchLookup);
+        if (isParsedFromSource) {
+            String include = name();
+            var copy = searchLookup.optimizedSourceProvider(new SourceFilter(new String[] { include }, new String[0]));
+            return factory.apply(copy);
+        } else {
+            return factory.apply(searchLookup);
+        }
     }
 
     /**

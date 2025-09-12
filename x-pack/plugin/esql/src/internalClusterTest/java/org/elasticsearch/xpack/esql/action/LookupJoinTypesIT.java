@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -226,7 +227,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
             // Tests for all unsupported types
             DataType[] unsupported = Join.UNSUPPORTED_TYPES;
-            boolean isNonEqualityComparison = operation == BinaryComparisonOperation.GT
+            boolean isLessOrGreater = operation == BinaryComparisonOperation.GT
                 || operation == BinaryComparisonOperation.GTE
                 || operation == BinaryComparisonOperation.LT
                 || operation == BinaryComparisonOperation.LTE;
@@ -256,7 +257,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         continue;
                     }
                     if (operation != null && type == DENSE_VECTOR
-                        || isNonEqualityComparison
+                        || isLessOrGreater
                             && (type == GEO_POINT || type == GEO_SHAPE || type == CARTESIAN_POINT || type == CARTESIAN_SHAPE)) {
                         configs.addUnsupportedComparisonFails(type, type, operation);
                     } else {
@@ -290,7 +291,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     assertThat("Claiming supported for unsupported type: " + type, List.of(unsupported).contains(type), is(false));
                     if (existingIndex(existing, type, type, operation) == false) {
                         // Only add the configuration if it doesn't already exist
-                        if (type == BOOLEAN && isNonEqualityComparison) {
+                        if (type == BOOLEAN && isLessOrGreater) {
                             // Boolean does not support inequality operations
                             configs.addUnsupportedComparisonFails(type, type, operation);
                         } else {
@@ -327,8 +328,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 for (DataType mainType : supported) {
                     for (DataType lookupType : supported) {
                         if (existingIndex(existing, mainType, lookupType, operation) == false) {
-                            // Only add the configuration if it doesn't already exist
-                            configs.addFails(mainType, lookupType);
+                            if (operation == null) {
+                                // Only add the configuration if it doesn't already exist
+                                configs.addFails(mainType, lookupType);
+                            } else if (isLessOrGreater) {
+                                configs.addIncompatibleDifferentTypesLessGreater(mainType, lookupType, operation);
+                            } else {
+                                configs.addMismatchedComparisonFailsEqualNotEqual(mainType, lookupType, operation);
+                            }
                         }
                     }
                 }
@@ -660,6 +667,46 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     operation
                 )
             );
+        }
+
+        private void addMismatchedComparisonFailsEqualNotEqual(
+            DataType mainType,
+            DataType lookupType,
+            BinaryComparisonOperation operation
+        ) {
+            String fieldNameLeft = LOOKUP_INDEX_PREFIX + lookupType.esType() + suffixLeftFieldName(operation);
+            String fieldNameRight = LOOKUP_INDEX_PREFIX + lookupType.esType();
+            final Consumer<VerificationException> assertion = e -> {
+                String errorMessage1 = String.format(
+                    Locale.ROOT,
+                    "first argument of [%s %s %s] is [",
+                    fieldNameLeft,
+                    operation.symbol(),
+                    fieldNameRight
+                );
+                String errorMessage3 = String.format(Locale.ROOT, " but was [%s]", lookupType.widenSmallNumeric().typeName());
+                assertThat(e.getMessage(), containsString(errorMessage1));
+                assertThat(e.getMessage(), containsString("] so second argument must also be ["));
+                assertThat(e.getMessage(), containsString(errorMessage3));
+            };
+
+            add(new TestConfigFails<>(mainType, lookupType, VerificationException.class, assertion, operation));
+        }
+
+        private void addIncompatibleDifferentTypesLessGreater(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) {
+            String fieldNameLeft = LOOKUP_INDEX_PREFIX + lookupType.esType() + suffixLeftFieldName(operation);
+            String fieldNameRight = LOOKUP_INDEX_PREFIX + lookupType.esType();
+
+            String errorMessage1 = String.format(Locale.ROOT, "argument of [%s %s %s]", fieldNameLeft, operation.symbol(), fieldNameRight);
+
+            add(new TestConfigFails<>(mainType, lookupType, VerificationException.class, e -> {
+                assertThat(e.getMessage().toLowerCase(Locale.ROOT), containsString(errorMessage1));
+                assertThat(
+                    e.getMessage().toLowerCase(Locale.ROOT),
+                    anyOf(List.of(containsString(mainType.widenSmallNumeric().typeName()), containsString("numeric")))
+                );
+                assertThat(e.getMessage().toLowerCase(Locale.ROOT), containsString(lookupType.typeName()));
+            }, operation));
         }
 
         private void addUnsupportedComparisonFails(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) {

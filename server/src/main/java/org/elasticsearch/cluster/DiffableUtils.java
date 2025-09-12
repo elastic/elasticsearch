@@ -51,13 +51,6 @@ public final class DiffableUtils {
     }
 
     /**
-     * Returns a map key serializer for Integer keys. Encodes as Int.
-     */
-    public static KeySerializer<Integer> getIntKeySerializer() {
-        return IntKeySerializer.INSTANCE;
-    }
-
-    /**
      * Returns a map key serializer for Integer keys. Encodes as VInt.
      */
     public static KeySerializer<Integer> getVIntKeySerializer() {
@@ -694,39 +687,31 @@ public final class DiffableUtils {
     }
 
     /**
-     * Serializes Integer keys of a map as an Int
-     */
-    private static final class IntKeySerializer implements KeySerializer<Integer> {
-        public static final IntKeySerializer INSTANCE = new IntKeySerializer();
-
-        @Override
-        public void writeKey(Integer key, StreamOutput out) throws IOException {
-            out.writeInt(key);
-        }
-
-        @Override
-        public Integer readKey(StreamInput in) throws IOException {
-            return in.readInt();
-        }
-    }
-
-    /**
      * Serializes Integer keys of a map as a VInt. Requires keys to be positive.
      */
     private static final class VIntKeySerializer implements KeySerializer<Integer> {
-        public static final IntKeySerializer INSTANCE = new IntKeySerializer();
+        public static final VIntKeySerializer INSTANCE = new VIntKeySerializer();
 
         @Override
         public void writeKey(Integer key, StreamOutput out) throws IOException {
             if (key < 0) {
-                throw new IllegalArgumentException("Map key [" + key + "] must be positive");
+                assert false : "should not serialize map key " + key + " as a VInt";
+                throw new IllegalArgumentException("Map key [" + key + "] must not be negative");
             }
-            out.writeVInt(key);
+            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+                out.writeVInt(key);
+            } else {
+                out.writeInt(key);
+            }
         }
 
         @Override
         public Integer readKey(StreamInput in) throws IOException {
-            return in.readVInt();
+            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+                return in.readVInt();
+            } else {
+                return in.readInt();
+            }
         }
     }
 

@@ -56,12 +56,7 @@ public class Replace extends EsqlScalarFunction {
                 tag = "replaceString",
                 description = "This example replaces any occurrence of the word \"World\" with the word \"Universe\":"
             ),
-            @Example(
-                file = "string",
-                tag = "replaceRegex",
-                description = "This example removes all spaces:"
-            )
-        }
+            @Example(file = "string", tag = "replaceRegex", description = "This example removes all spaces:") }
     )
     public Replace(
         Source source,

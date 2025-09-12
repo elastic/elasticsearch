@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

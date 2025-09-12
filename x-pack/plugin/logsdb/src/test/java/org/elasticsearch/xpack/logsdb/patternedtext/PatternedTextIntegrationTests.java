@@ -103,7 +103,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         createIndex(INDEX, createRequest);
 
         int numDocs = randomIntBetween(1, 100);
-        List<String> messages = randomMessagesOfVariousSizes(numDocs) ;
+        List<String> messages = randomMessagesOfVariousSizes(numDocs);
         indexDocs(messages);
 
         assertMappings();
@@ -226,13 +226,13 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         List<String> messages = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String message = randomFrom(
-                    random(),
-                    // no value for message
-                    () -> null,
-                    // regular small message, stored in doc values
-                    PatternedTextIntegrationTests::randomMessage,
-                    // large value, needs to be put in stored field
-                    () -> randomMessage(8 * 1024)
+                random(),
+                // no value for message
+                () -> null,
+                // regular small message, stored in doc values
+                PatternedTextIntegrationTests::randomMessage,
+                // large value, needs to be put in stored field
+                () -> randomMessage(8 * 1024)
             );
             messages.add(message);
         }
@@ -380,10 +380,10 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void assertMappings() {
         Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX)
-                .get()
-                .mappings()
-                .get(INDEX)
-                .sourceAsMap();
+            .get()
+            .mappings()
+            .get(INDEX)
+            .sourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
         var patternedText = (Map<String, Object>) properties.get("field_patterned_text");
         assertEquals("patterned_text", patternedText.get("type"));
@@ -396,10 +396,9 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         var request = client().prepareSearch(INDEX).setSize(100).setFetchSource(true);
         assertNoFailuresAndResponse(request, response -> {
             assertEquals(logMessages.size(), response.getHits().getHits().length);
-            var values = new HashSet<>(Arrays.stream(response.getHits().getHits())
-                    .map(SearchHit::getSourceAsMap)
-                    .map(m -> m.get(PATTERNED_TEXT_FIELD))
-                    .toList());
+            var values = new HashSet<>(
+                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).map(m -> m.get(PATTERNED_TEXT_FIELD)).toList()
+            );
 
             assertEquals(new HashSet<>(logMessages), values);
         });

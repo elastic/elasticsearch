@@ -55,23 +55,23 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
         }
 
         String mapping = """
-            {
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "message": {
-                        "type": "patterned_text"
+                {
+                    "properties": {
+                        "@timestamp": {
+                            "type": "date"
+                        },
+                        "message": {
+                            "type": "patterned_text"
+                        }
                     }
                 }
-            }
-        """;
+            """;
 
         String indexName = "test-index";
         createIndex(indexName, settings.build(), mapping);
 
         int numDocs = randomIntBetween(1, 100);
-        List<String> messages = randomMessages(numDocs) ;
+        List<String> messages = randomMessages(numDocs);
         indexDocs(indexName, messages);
 
         var actualMapping = getIndexMappingAsMap(indexName);
@@ -105,8 +105,8 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
             sb.append("{ \"create\": {} }").append('\n');
             if (messages.get(i) == null) {
                 sb.append("""
-                    {"@timestamp": "$now"}
-                """.replace("$now", formatInstant(now)));
+                        {"@timestamp": "$now"}
+                    """.replace("$now", formatInstant(now)));
             } else {
                 sb.append("""
                     {"@timestamp": "$now", "message": "$msg"}

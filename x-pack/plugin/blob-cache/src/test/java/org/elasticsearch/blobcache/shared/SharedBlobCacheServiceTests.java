@@ -216,7 +216,35 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(bytesRead, is(1));
             List<Measurement> measurements = recordingMeterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.miss_that_triggered_read.total");
-            assertThat(measurements.getFirst().value(), is(1L));
+            Measurement first = measurements.getFirst();
+            assertThat(first.attributes().get("file_extension"), is("other"));
+            assertThat(first.value(), is(1L));
+
+            Path tempFile2 = Files.createTempFile("test", "cfs");
+            resourceDescription = tempFile2.toAbsolutePath().toString();
+            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L);
+
+            ByteBuffer writeBuffer2 = ByteBuffer.allocate(1);
+
+            final int bytesRead2 = cacheFile.populateAndRead(
+                rangeRead,
+                rangeWrite,
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    try (var in = new FileInputStream(tempFile2.toFile())) {
+                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer2.clear());
+                    }
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                resourceDescription
+            );
+            assertThat(bytesRead2, is(1));
+
+            measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.miss_that_triggered_read.total");
+            Measurement measurement = measurements.get(1);
+            assertThat(measurement.attributes().get("file_extension"), is("cfs"));
+            assertThat(measurement.value(), is(1L));
         }
         ioExecutor.shutdown();
     }

@@ -228,7 +228,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
         public boolean advanceExact(int target) {
             for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
                 if (docToOrds.get(currDoc) != null) {
-                    return true;
+                    return currDoc == target;
                 }
             }
             return false;

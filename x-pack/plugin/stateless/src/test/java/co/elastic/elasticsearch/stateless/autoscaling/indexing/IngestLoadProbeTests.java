@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.util.HashMap;
 import java.util.Map;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.calculateIngestionLoadForExecutor;
@@ -126,18 +127,29 @@ public class IngestLoadProbeTests extends ESTestCase {
 
     public void testGetIngestionLoad() {
         Map<String, ExecutorStats> statsPerExecutor = new HashMap<>();
-        var ingestLoadProbe = new IngestLoadProbe(
-            new ClusterSettings(
-                Settings.EMPTY,
-                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MAX_TIME_TO_CLEAR_QUEUE, MAX_QUEUE_CONTRIBUTION_FACTOR)
-            ),
-            statsPerExecutor::get
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                MAX_TIME_TO_CLEAR_QUEUE,
+                MAX_QUEUE_CONTRIBUTION_FACTOR,
+                INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED
+            )
         );
+        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get);
 
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, 0.0, between(1, 10)));
+        statsPerExecutor.put(Names.WRITE_COORDINATION, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, 0.0, between(1, 10)));
+        statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(11.0, 1e-3));
+        // Exclude coordination executors and the reported total should drop
+        clusterSettings.applySettings(Settings.builder().put(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), false).build());
         assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0, 1e-3));
+        // The individual executor stats are recorded regardless
+        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.WRITE_COORDINATION).total(), closeTo(3.0, 1e-3));
+        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.SYSTEM_WRITE_COORDINATION).total(), closeTo(2.0, 1e-3));
 
         statsPerExecutor.clear();
         // With 200ms per task each thread can do 5 tasks per second
@@ -146,7 +158,16 @@ public class IngestLoadProbeTests extends ESTestCase {
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), queueSize, queueSize, 1));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, 1));
         statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, 0.0, 1));
+        statsPerExecutor.put(Names.WRITE_COORDINATION, new ExecutorStats(3.0, timeValueMillis(200).nanos(), queueSize, queueSize, 1));
+        statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0, 1));
         var expectedExtraThreads = queueEmpty ? 0.0 : 1.0;
+        // No contribution to total ingestion load from coordination executors since they are excluded
         assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0 + expectedExtraThreads, 1e-3));
+        // The individual executor stats are recorded regardless
+        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.WRITE_COORDINATION).total(), closeTo(3.0 + expectedExtraThreads, 1e-3));
+        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.SYSTEM_WRITE_COORDINATION).total(), closeTo(2.0, 1e-3));
+        // Include coordination executors and the reported total should rise
+        clusterSettings.applySettings(Settings.builder().put(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), true).build());
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(11.0 + expectedExtraThreads * 2, 1e-3));
     }
 }

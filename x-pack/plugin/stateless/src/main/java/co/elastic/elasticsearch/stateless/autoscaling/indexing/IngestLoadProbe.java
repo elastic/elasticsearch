@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,22 +60,38 @@ public class IngestLoadProbe {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * Whether to include ingestion load from the write coordination executors to the reported total for autoscaling purpose.
+     */
+    public static final Setting<Boolean> INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED = Setting.boolSetting(
+        "serverless.autoscaling.indexing.sampler.include_write_coordination.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private final Function<String, ExecutorStats> executorStatsProvider;
     private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
+    private volatile boolean includeWriteCoordinationExecutors;
 
     @SuppressWarnings("this-escape")
     public IngestLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorStats> executorStatsProvider) {
         this.executorStatsProvider = executorStatsProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
         clusterSettings.initializeAndWatch(MAX_QUEUE_CONTRIBUTION_FACTOR, this::setMaxQueueContributionFactor);
+        clusterSettings.initializeAndWatch(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED, this::setIncludeWriteCoordinationExecutors);
         ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
         AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
     }
 
     private void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
         this.maxQueueContributionFactor = maxQueueContributionFactor;
+    }
+
+    private void setIncludeWriteCoordinationExecutors(boolean enabled) {
+        this.includeWriteCoordinationExecutors = enabled;
     }
 
     /**
@@ -97,7 +114,13 @@ public class IngestLoadProbe {
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
             ingestionLoadPerExecutor.put(executorName, ingestionLoadForExecutor);
-            totalIngestionLoad += ingestionLoadForExecutor.total();
+            // Do not include ingestion load from write coordination executors if disabled. But they are still recorded
+            // in the above ingestionLoadPerExecutor for metrics purpose.
+            if (includeWriteCoordinationExecutors
+                || (ThreadPool.Names.WRITE_COORDINATION.equals(executorName) == false
+                    && ThreadPool.Names.SYSTEM_WRITE_COORDINATION.equals(executorName) == false)) {
+                totalIngestionLoad += ingestionLoadForExecutor.total();
+            }
         }
         return totalIngestionLoad;
     }

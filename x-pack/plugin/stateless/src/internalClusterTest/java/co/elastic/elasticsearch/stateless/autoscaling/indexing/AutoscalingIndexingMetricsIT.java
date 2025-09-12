@@ -26,21 +26,27 @@ import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelo
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.IngestTestPlugin;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -57,6 +63,7 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,6 +74,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -94,7 +102,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(
-            List.of(TestTelemetryPlugin.class, ShutdownPlugin.class, ServerlessAutoscalingPlugin.class),
+            List.of(TestTelemetryPlugin.class, ShutdownPlugin.class, ServerlessAutoscalingPlugin.class, CustomIngestTestPlugin.class),
             super.nodePlugins()
         );
     }
@@ -1023,6 +1031,98 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             }
         } finally {
             unblockStartRecoveriesListener.onResponse(null);
+        }
+    }
+
+    public void testIngestionLoadFromWriteCoordinationExecutor() throws Exception {
+        final var masterNode = startMasterOnlyNode();
+        startIndexNode(
+            settingsForRoles(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.INGEST_ROLE).put(
+                IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(),
+                TimeValue.timeValueSeconds(1)
+            ).build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+        final var dropIndex = "drop-index";
+        createIndex(dropIndex, indexSettings(1, 1).build());
+        ensureGreen();
+
+        final var dropPipeline = "drop-pipeline";
+        putJsonPipeline(dropPipeline, """
+            {
+              "processors": [
+                {
+                  "drop": {}
+                }
+              ]
+            }""");
+
+        assertThat(
+            safeGet(
+                client().prepareIndex(dropIndex)
+                    .setPipeline(dropPipeline)
+                    .setSource("foo", "bar")
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .execute()
+            ).getResult(),
+            equalTo(DocWriteResponse.Result.NOOP)
+        );
+        assertThat(
+            safeGet(client().admin().indices().prepareStats(dropIndex).setDocs(true).execute()).getTotal().getDocs().getCount(),
+            equalTo(0L)
+        );
+
+        final AtomicReference<CountDownLatch> publicationLatchRef = new AtomicReference<>();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(request, channel, task);
+                final var latch = publicationLatchRef.get();
+                if (latch != null) {
+                    latch.countDown();
+                }
+            });
+
+        // Ingestion loads include stats from write coordination executor by default
+        {
+            final var publicationLatch = new CountDownLatch(1);
+            publicationLatchRef.set(publicationLatch);
+            safeAwait(publicationLatch);
+            final var ingestionLoad = getNodesIngestLoad();
+            assertThat(ingestionLoad.size(), equalTo(1));
+            assertThat(ingestionLoad.getFirst().load(), greaterThan(0.0));
+        }
+
+        // Exclude load from write coordination executor and the reported load should be zero since write executor did no work
+        {
+            updateClusterSettings(Settings.builder().put(IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), false));
+            final var publicationLatch = new CountDownLatch(1);
+            publicationLatchRef.set(publicationLatch);
+            safeAwait(publicationLatch);
+            final var ingestionLoad = getNodesIngestLoad();
+            assertThat(ingestionLoad.size(), equalTo(1));
+            assertThat(ingestionLoad.getFirst().load(), equalTo(0.0));
+        }
+    }
+
+    public static class CustomIngestTestPlugin extends IngestTestPlugin {
+        @Override
+        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+            Map<String, Processor.Factory> processors = new HashMap<>();
+            processors.put(
+                "drop",
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(tag, "drop", description, ingestDocument -> {
+                    final TimeValue expectedElapsed = TimeValue.timeValueMillis(50);
+                    final var start = System.nanoTime();
+                    do {
+                        // Sleep to ensure the task takes long enough register thread pool load
+                        // Also checks system nanos actually advanced since certain CI machine can have infrequent update
+                        safeSleep(expectedElapsed);
+                    } while (System.nanoTime() - start < expectedElapsed.nanos());
+                    return "drop-index".equals(ingestDocument.getCtxMap().get("_index")) ? null : ingestDocument;
+                })
+            );
+            return processors;
         }
     }
 
